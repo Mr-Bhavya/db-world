@@ -20,19 +20,6 @@ import {
   clampLines,
 } from './heroUtils';
 
-const safeText = (value, fallback = '') =>
-  typeof value === 'string' && value.trim() ? value.trim() : fallback;
-
-const getOverview = (record) =>
-  safeText(
-    record?.overview ||
-    record?.description ||
-    record?.summary ||
-    record?.plot ||
-    record?.tagline,
-    ''
-  );
-
 const getCardImage = (record, isXs) => {
   const backdropSrc = tmdbImg(
     record?.backdropPath ?? record?.backdropPathText,
@@ -131,7 +118,7 @@ const HeroBannerMobile = ({
       // Fixed card height so the hero doesn't resize when swiping between titles
       // (different images/logos no longer change the card size). Portrait-ish so
       // the poster never looks square.
-      cardHeight: isXs ? '76svh' : '68svh',
+      cardHeight: isXs ? '66svh' : '60svh',
       cardRadius: isXs ? 18 : 22,
       titleSize: isXs
         ? 'clamp(1.35rem, 6.2vw, 1.85rem)'
@@ -158,7 +145,6 @@ const HeroBannerMobile = ({
   if (!activeRecord || items.length === 0) return null;
 
   const displayYear = year(activeRecord?.releaseDate);
-  const overview = getOverview(activeRecord);
   const { imageSrc, posterSrc, backdropSrc } = getCardImage(activeRecord, isXs);
   const genreLine = (activeRecord?.genres ?? []).slice(0, 3).join('  •  ');
   const logo = tmdbImg(activeRecord?.logoPath, 'w500');
@@ -306,7 +292,7 @@ const HeroBannerMobile = ({
                 flexWrap: 'wrap',
                 gap: 0.9,
                 rowGap: 0.5,
-                mb: overview ? 1.1 : 1.4,
+                mb: 1.2,
               }}
             >
               <Box
@@ -316,7 +302,8 @@ const HeroBannerMobile = ({
                   fontWeight: 800,
                   letterSpacing: 0.5,
                   color: '#fff',
-                  bgcolor: activeRecord?.type === 'MOVIE' ? '#ff1f1f' : '#0b84ff',
+                  bgcolor: 'rgba(0,0,0,0.5)',
+                  border: '1px solid rgba(20,184,166,0.7)',
                   borderRadius: 0.6,
                   px: 0.7, py: 0.25,
                   textTransform: 'uppercase',
@@ -385,13 +372,11 @@ const HeroBannerMobile = ({
                 width: '100%',
               }}
             >
-              {!ix?.watched && (
-                <HeroAction
-                  icon={ix?.watchlisted ? <Check /> : <Add />}
-                  label="My List"
-                  onClick={() => onWatchlist?.(activeRecord)}
-                />
-              )}
+              <HeroAction
+                icon={ix?.watchlisted ? <Check /> : <Add />}
+                label="My List"
+                onClick={() => onWatchlist?.(activeRecord)}
+              />
 
               <Button
                 variant="contained"

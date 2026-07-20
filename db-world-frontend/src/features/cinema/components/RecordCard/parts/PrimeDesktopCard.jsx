@@ -161,7 +161,7 @@ const PrimeDesktopCard = ({
                 >
                   Play
                 </Button>
-                {!interaction?.watched && iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
+                {iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
                   (e) => { e.stopPropagation(); onWatchlist?.(record); },
                   interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 16 }} /> : <BookmarkAdd sx={{ fontSize: 16 }} />,
                   { color: interaction.watchlisted ? '#46d369' : '#fff' })}

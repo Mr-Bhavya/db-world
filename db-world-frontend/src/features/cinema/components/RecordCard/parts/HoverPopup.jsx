@@ -322,15 +322,13 @@ const HoverPopup = ({
           >
             Play
           </Button>
-          {!interaction?.watched && (
-            <ActionButton
-              icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
-              activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
-              active={interaction.watchlisted}
-              tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
-              onClick={() => onWatchlist?.(record)}
-            />
-          )}
+          <ActionButton
+            icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
+            activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
+            active={interaction.watchlisted}
+            tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
+            onClick={() => onWatchlist?.(record)}
+          />
           <CardReactionButton
             record={record}
             liked={interaction.liked}
