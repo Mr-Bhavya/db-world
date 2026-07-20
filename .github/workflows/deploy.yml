@@ -51,6 +51,7 @@ jobs:
           set -euxo pipefail
           WORK="$RUNNER_TEMP/dbworld-deploy"
           rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"
+          TAG="v${TAG#v}"   # normalize: accept "3.0.0" or "v3.0.0"
           BASE="https://github.com/$REPO/releases/download/$TAG"
           if [ "$PART" != "frontend" ]; then curl -fL -o db-world.war "$BASE/db-world.war"; fi
           if [ "$PART" != "backend"  ]; then curl -fL -o dist.zip     "$BASE/db-world-frontend-dist.zip"; fi
