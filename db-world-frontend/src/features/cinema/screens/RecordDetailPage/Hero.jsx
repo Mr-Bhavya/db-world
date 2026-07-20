@@ -97,7 +97,14 @@ export default function Hero({
   const isXl = useMediaQuery(theme.breakpoints.up('xl'));
   const isTv = useMediaQuery('(min-width:1920px)');
 
-  const backdropUrl = tmdbImg(tmdb.backdropPath, isXs ? 'w780' : isTv ? 'original' : 'w1280');
+  // Only ever show the FULL record's backdrop — never the rail/preview one. On
+  // desktop the record is hover-prefetched so it's already loaded on open; mobile has
+  // no hover, so without this the hero paints the preview backdrop and then visibly
+  // swaps to the API image once it loads. While the full record is loading we show a
+  // skeleton instead (the flash-free desktop behaviour, applied everywhere).
+  const backdropUrl = loading
+    ? null
+    : tmdbImg(tmdb.backdropPath, isXs ? 'w780' : isTv ? 'original' : 'w1280');
   const posterUrl = tmdbImg(tmdb.posterPath, 'w342');
   const logoUrl = tmdbImg(tmdb.logoPath, isTv ? 'w780' : 'w500');
   // Instant poster base from the clicked card, so the real one crossfades in.
@@ -183,6 +190,15 @@ export default function Hero({
           />
         )}
       </AnimatePresence>
+
+      {/* Skeleton while the real backdrop is still loading — shown instead of the
+          rail/preview image, so there's no visible image swap when the record loads. */}
+      {!shownBackdrop && (loading || backdropUrl) && (
+        <Skeleton
+          variant="rectangular"
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', bgcolor: alpha('#fff', 0.05) }}
+        />
+      )}
 
       {/* Scrims */}
       <Box sx={{
