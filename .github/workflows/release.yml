@@ -4,6 +4,7 @@ name: Release
 #   • db-world.war                  — backend      (deployment)
 #   • db-world-frontend-dist.zip    — frontend     (deployment)
 #   • db-world-<version>.apk        — Android app  (PUBLIC download / in-app updater)
+#   • version.json                  — updater metadata (versionCode/Name + apkUrl)
 #
 # Trigger: push a version tag  ->  git tag v1.2.3 && git push origin v1.2.3
 # or run it manually from the Actions tab (provide a version).
@@ -39,8 +40,8 @@ jobs:
     name: Backend WAR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -48,7 +49,7 @@ jobs:
       - name: Build WAR
         working-directory: db-world-backend
         run: mvn -B -ntp -P prod -DskipTests package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: backend-war
           path: db-world-backend/target/*.war
@@ -59,10 +60,10 @@ jobs:
     name: Frontend bundle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Build web bundle
         working-directory: db-world-frontend
         env:
@@ -79,7 +80,7 @@ jobs:
           fi
       - name: Zip dist
         run: (cd db-world-frontend && zip -r ../db-world-frontend-dist.zip dist)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: db-world-frontend-dist.zip
@@ -90,12 +91,12 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
       # Android Gradle Plugin needs JDK 17 (up to ~21) — NOT 25 (backend uses 25).
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -156,10 +157,23 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk \
              "$GITHUB_WORKSPACE/db-world-${{ steps.ver.outputs.name }}.apk"
 
-      - uses: actions/upload-artifact@v4
+      # Metadata the in-app updater (GET /api/app/version) consumes: versionCode
+      # (auto-incremented = run number), versionName (= tag), and the public APK URL.
+      - name: Write version.json (updater metadata)
+        run: |
+          printf '{"versionCode":%s,"versionName":"%s","mandatory":false,"minSupportedCode":0,"apkUrl":"%s","changelog":""}\n' \
+            "${{ steps.ver.outputs.code }}" \
+            "${{ steps.ver.outputs.name }}" \
+            "https://github.com/${{ github.repository }}/releases/download/v${{ steps.ver.outputs.name }}/db-world-${{ steps.ver.outputs.name }}.apk" \
+            > "$GITHUB_WORKSPACE/version.json"
+          cat "$GITHUB_WORKSPACE/version.json"
+
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apk
-          path: db-world-*.apk
+          path: |
+            db-world-*.apk
+            version.json
           if-no-files-found: error
 
   # ── Publish the GitHub Release with all three artifacts ────────────────────
@@ -168,11 +182,11 @@ jobs:
     needs: [backend, frontend, android]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist-artifacts
       - name: Publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.versionName) }}
           generate_release_notes: true
@@ -180,3 +194,4 @@ jobs:
             dist-artifacts/backend-war/*.war
             dist-artifacts/frontend-dist/*.zip
             dist-artifacts/android-apk/*.apk
+            dist-artifacts/android-apk/version.json
