@@ -1,0 +1,77 @@
+name: Deploy to Pi (self-hosted)
+
+# Deploys the artifacts built by release.yml to the Pi. Runs on a SELF-HOSTED
+# runner installed on the Pi, so no inbound SSH/firewall holes are needed — the
+# job executes locally on the box (like Jenkins). It DOWNLOADS the already-built
+# public release assets instead of rebuilding, so you deploy the exact bytes you
+# released.
+#
+# Prerequisites (one-time):
+#   1. Register the Pi as a self-hosted runner (repo → Settings → Actions →
+#      Runners → New self-hosted runner). Default labels (self-hosted) are fine.
+#      Run it as a SERVICE so it survives reboots / SSH logout:
+#        sudo ./svc.sh install && sudo ./svc.sh start
+#   2. Create a `production` Environment (Settings → Environments), optionally
+#      with a required reviewer so each deploy waits for your approval.
+#   3. The runner user can `sudo /usr/local/bin/dbworldctl` (NOPASSWD sudoers)
+#      and write to /var/www/dbworld; `curl` + `unzip` installed.
+#
+# A release must exist first: tag → release.yml builds it → run this with that tag.
+# This OVERLAPS the Jenkins deploy — use one path, not both.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy (e.g. v3.0.0)
+        required: true
+      part:
+        description: What to deploy
+        type: choice
+        options: [full, frontend, backend]
+        default: full
+  # To auto-deploy every published release instead, uncomment:
+  # release:
+  #   types: [published]
+
+concurrency:
+  group: deploy-pi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted   # your Pi runner (default labels: self-hosted, Linux, ARM64)
+    environment: production
+    env:
+      TAG:  ${{ inputs.tag  || github.event.release.tag_name }}
+      PART: ${{ inputs.part || 'full' }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Download release assets
+        run: |
+          set -euxo pipefail
+          WORK="$RUNNER_TEMP/dbworld-deploy"
+          rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"
+          BASE="https://github.com/$REPO/releases/download/$TAG"
+          if [ "$PART" != "frontend" ]; then curl -fL -o db-world.war "$BASE/db-world.war"; fi
+          if [ "$PART" != "backend"  ]; then curl -fL -o dist.zip     "$BASE/db-world-frontend-dist.zip"; fi
+          ls -la
+
+      - name: Deploy backend
+        if: ${{ env.PART != 'frontend' }}
+        run: |
+          set -euxo pipefail
+          sudo /usr/local/bin/dbworldctl update "$RUNNER_TEMP/dbworld-deploy/db-world.war"
+
+      - name: Deploy frontend
+        if: ${{ env.PART != 'backend' }}
+        run: |
+          set -euxo pipefail
+          WORK="$RUNNER_TEMP/dbworld-deploy"
+          unzip -oq "$WORK/dist.zip" -d "$WORK"
+          REL="/var/www/dbworld/releases/$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$REL"
+          cp -r "$WORK/dist/." "$REL/"
+          ln -sfn "$REL" /var/www/dbworld/current
+          # keep only the last 5 releases
+          ls -dt /var/www/dbworld/releases/* | tail -n +6 | xargs rm -rf || true
+          echo "Deployed frontend -> $REL"

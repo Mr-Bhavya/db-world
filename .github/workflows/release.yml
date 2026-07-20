@@ -1,0 +1,197 @@
+name: Release
+
+# Publishes a GitHub Release with every artifact:
+#   • db-world.war                  — backend      (deployment)
+#   • db-world-frontend-dist.zip    — frontend     (deployment)
+#   • db-world-<version>.apk        — Android app  (PUBLIC download / in-app updater)
+#   • version.json                  — updater metadata (versionCode/Name + apkUrl)
+#
+# Trigger: push a version tag  ->  git tag v1.2.3 && git push origin v1.2.3
+# or run it manually from the Actions tab (provide a version).
+#
+# ── Required repository SECRETS (Settings → Secrets and variables → Actions) ──
+#   FRONTEND_ENV_PRODUCTION   full contents of runtime/.env.production. Optional —
+#                             without it the frontend builds with default env (fine
+#                             for a smoke build, not a real production deploy).
+#   ANDROID_KEYSTORE_BASE64   base64 of your release keystore (.jks/.keystore)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   Without the ANDROID_* secrets the APK falls back to DEBUG signing — installable
+#   for testing but NOT valid for public release / the updater.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: Version name (e.g. 1.2.3)
+        required: true
+      versionCode:
+        description: Android versionCode (integer; blank = workflow run number)
+        required: false
+
+permissions:
+  contents: write   # create the Release + upload assets
+
+jobs:
+  # ── Backend WAR (deployment artifact) ──────────────────────────────────────
+  backend:
+    name: Backend WAR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build WAR
+        working-directory: db-world-backend
+        run: mvn -B -ntp -P prod -DskipTests package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backend-war
+          path: db-world-backend/target/*.war
+          if-no-files-found: error
+
+  # ── Frontend bundle (deployment artifact) ──────────────────────────────────
+  frontend:
+    name: Frontend bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Build web bundle
+        working-directory: db-world-frontend
+        env:
+          FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
+        run: |
+          npm install --no-audit --no-fund
+          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
+            mkdir -p ../runtime
+            printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            npm run build:production
+          else
+            echo "FRONTEND_ENV_PRODUCTION not set — building with default env."
+            npm run build
+          fi
+      - name: Zip dist
+        run: (cd db-world-frontend && zip -r ../db-world-frontend-dist.zip dist)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: db-world-frontend-dist.zip
+          if-no-files-found: error
+
+  # ── Android APK (PUBLIC release) ───────────────────────────────────────────
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      # Android Gradle Plugin needs JDK 17 (up to ~21) — NOT 25 (backend uses 25).
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            NAME="${{ github.ref_name }}"; NAME="${NAME#v}"
+          else
+            NAME="${{ inputs.versionName }}"
+          fi
+          CODE="${{ inputs.versionCode }}"
+          [ -z "$CODE" ] && CODE="${{ github.run_number }}"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Building v$NAME (versionCode $CODE)"
+
+      - name: Build web bundle + Capacitor sync
+        working-directory: db-world-frontend
+        env:
+          FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
+        run: |
+          npm install --no-audit --no-fund
+          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
+            mkdir -p ../runtime
+            printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            npm run build:production
+          else
+            npm run build
+          fi
+          npx cap sync android
+
+      - name: Configure release signing (if secrets present)
+        working-directory: db-world-frontend/android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > app/release.keystore
+            printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > keystore.properties
+            echo "Release signing configured."
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 secret — APK will be DEBUG-signed (not for public release)."
+          fi
+
+      - name: Assemble release APK
+        working-directory: db-world-frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -PappVersionCode=${{ steps.ver.outputs.code }} \
+            -PappVersionName=${{ steps.ver.outputs.name }}
+          cp app/build/outputs/apk/release/app-release.apk \
+             "$GITHUB_WORKSPACE/db-world-${{ steps.ver.outputs.name }}.apk"
+
+      # Metadata the in-app updater (GET /api/app/version) consumes: versionCode
+      # (auto-incremented = run number), versionName (= tag), and the public APK URL.
+      - name: Write version.json (updater metadata)
+        run: |
+          printf '{"versionCode":%s,"versionName":"%s","mandatory":false,"minSupportedCode":0,"apkUrl":"%s","changelog":""}\n' \
+            "${{ steps.ver.outputs.code }}" \
+            "${{ steps.ver.outputs.name }}" \
+            "https://github.com/${{ github.repository }}/releases/download/v${{ steps.ver.outputs.name }}/db-world-${{ steps.ver.outputs.name }}.apk" \
+            > "$GITHUB_WORKSPACE/version.json"
+          cat "$GITHUB_WORKSPACE/version.json"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: |
+            db-world-*.apk
+            version.json
+          if-no-files-found: error
+
+  # ── Publish the GitHub Release with all three artifacts ────────────────────
+  release:
+    name: Publish Release
+    needs: [backend, frontend, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist-artifacts
+      - name: Publish
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.versionName) }}
+          generate_release_notes: true
+          files: |
+            dist-artifacts/backend-war/*.war
+            dist-artifacts/frontend-dist/*.zip
+            dist-artifacts/android-apk/*.apk
+            dist-artifacts/android-apk/version.json

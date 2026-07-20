@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 def resolvedVersionCode = (project.findProperty('appVersionCode')
         ?: System.getenv('APP_VERSION_CODE') ?: '1') as Integer
 def resolvedVersionName = (project.findProperty('appVersionName')
-        ?: System.getenv('APP_VERSION_NAME') ?: '1.0').toString()
+        ?: System.getenv('APP_VERSION_NAME') ?: '3.0.0').toString()
 
 android {
     namespace "com.db.dbworld"

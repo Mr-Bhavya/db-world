@@ -581,7 +581,6 @@ const FileListPanel = memo(function FileListPanel({
 });
 
 function FolderModeForm() {
-  const T = useT();
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const qc = useQueryClient();

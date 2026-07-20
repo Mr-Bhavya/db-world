@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { Box, Typography, IconButton, useMediaQuery, useTheme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
+import { openRecord } from '../../utils/recordNav';
 import ContinueCard from './ContinueCard';
 
 const SCROLL_AMOUNT = 0.75;
@@ -21,6 +22,7 @@ const ContinueRailRow = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
 
   const scrollRef = useRef(null);
@@ -57,6 +59,19 @@ const ContinueRailRow = () => {
       state: { resume: { recordId: item.recordId, title: item.title, type: item.type } },
     });
   }, [navigate]);
+
+  // Open the record's detail overlay (modal on desktop, sheet on mobile) — the
+  // ✕ removes and the card taps resume, so details need their own affordance.
+  const onInfo = useCallback((item, rect) => {
+    openRecord(
+      navigate, location,
+      {
+        id: item.recordId, title: item.title, type: item.type,
+        posterPath: item.posterPath, backdropPath: item.backdropPath, logoPath: item.logoPath,
+      },
+      rect ? { originRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } } : {},
+    );
+  }, [navigate, location]);
 
   const updateButtons = useCallback(() => {
     const el = scrollRef.current;
@@ -130,6 +145,8 @@ const ContinueRailRow = () => {
                 item={item}
                 onResume={onResume}
                 onRemove={(it) => removeMut.mutate(it.recordId)}
+                onInfo={onInfo}
+                isMobile={isMobile}
               />
             ))}
           </Box>

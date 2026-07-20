@@ -215,14 +215,12 @@ export const ExpandedInfoBar = ({ record, interaction, isMobile, goPlay, onWatch
             <PlayArrow sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
-        {!interaction?.watched && (
-          <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-              sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-              {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 12 }} /> : <BookmarkAdd sx={{ fontSize: 12 }} />}
-            </IconButton>
-          </Tooltip>
-        )}
+        <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
+          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
+            sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
+            {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 12 }} /> : <BookmarkAdd sx={{ fontSize: 12 }} />}
+          </IconButton>
+        </Tooltip>
         <CardReactionButton
           record={record}
           liked={interaction.liked}
@@ -294,14 +292,12 @@ export const WideHoverOverlay = ({ record, interaction, goPlay, onWatchlist, onL
           <PlayArrow sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
-      {!interaction?.watched && (
-        <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-            sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.42, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' } }}>
-            {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 13 }} /> : <BookmarkAdd sx={{ fontSize: 13 }} />}
-          </IconButton>
-        </Tooltip>
-      )}
+      <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
+          sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.42, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' } }}>
+          {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 13 }} /> : <BookmarkAdd sx={{ fontSize: 13 }} />}
+        </IconButton>
+      </Tooltip>
       <CardReactionButton
         record={record}
         liked={interaction.liked}

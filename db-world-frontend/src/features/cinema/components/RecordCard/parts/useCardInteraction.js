@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery, useTheme } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { openRecord, preloadDetail, rectOf } from '../../../utils/recordNav';
+import { fetchRecord } from '../../../api/cinemaApi';
 import useDeviceTier from '../../../hooks/useDeviceTier';
 import { navBlock } from './cardHelpers';
 
@@ -14,6 +16,7 @@ export default function useCardInteraction({ expandOnHover, useInlineWideHover, 
   const isTv = tier === 'tv';
   const navigate = useNavigate();
   const location = useLocation();
+  const qc = useQueryClient();
 
   const [hovered, setHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -43,9 +46,19 @@ export default function useCardInteraction({ expandOnHover, useInlineWideHover, 
     hoverTimer.current = setTimeout(() => {
       if (cardRef.current) setAnchorRect(cardRef.current.getBoundingClientRect());
       setHovered(true);
+      // Warm the DETAIL DATA (not just the chunk) so the modal usually opens with
+      // the full record already cached → the preview→full fill is instant, no flash.
+      // Same key/fetcher RecordDetailContent uses; staleTime dedupes repeat hovers.
+      if (record?.id != null) {
+        qc.prefetchQuery({
+          queryKey: ['cinema-record', String(record.id)],
+          queryFn: () => fetchRecord(record.id),
+          staleTime: 5 * 60 * 1000,
+        });
+      }
       if (expandOnHover) onHoverExpand?.(index);
     }, delay);
-  }, [isMobile, expandOnHover, onHoverExpand, index, useInlineWideHover, hovered]);
+  }, [isMobile, expandOnHover, onHoverExpand, index, useInlineWideHover, hovered, qc, record]);
 
   const onMouseLeave = useCallback(() => {
     // Cancel any not-yet-fired open first.
@@ -63,6 +76,15 @@ export default function useCardInteraction({ expandOnHover, useInlineWideHover, 
     }, CLOSE_DELAY);
   }, [expandOnHover, useInlineWideHover, onHoverExpand]);
 
+  // Immediate close (no intent delay) — used to dismiss the hover popup on scroll,
+  // so it vanishes at once instead of hanging frozen through a drag-scroll.
+  const closeNow = useCallback(() => {
+    clearTimeout(hoverTimer.current);
+    clearTimeout(leaveTimer.current);
+    setHovered(false);
+    if (expandOnHover) onHoverExpand?.(null, null);
+  }, [expandOnHover, onHoverExpand]);
+
   // Always open the detail as an OVERLAY (background location set): a bottom sheet
   // on mobile, a Netflix modal on desktop. The page stays mounted.
   const goDetail = useCallback((e) => {
@@ -79,6 +101,6 @@ export default function useCardInteraction({ expandOnHover, useInlineWideHover, 
     isMobile, tier, isTv,
     hovered, anchorRect, cardRef,
     imgError, imgLoaded, setImgError, setImgLoaded,
-    onMouseEnter, onMouseLeave, goDetail, goPlay,
+    onMouseEnter, onMouseLeave, closeNow, goDetail, goPlay,
   };
 }

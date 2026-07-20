@@ -16,7 +16,9 @@ export const RAIL_TYPE_CONFIG = {
   // poster mobile uses for `standard`, and not the oversized `wide`.
   landscape: {
     cardAspect: '16/9',
-    tiers: { mobile: 150, tablet: 165, desktop: 180, tv: 240 },
+    // Same heights as `standard` so a landscape rail and a standard rail line up
+    // (identical card width/height) when they sit on the same page.
+    tiers: { mobile: 160, tablet: 170, desktop: 170, tv: 220 },
     hover: 'popup',
     skeleton: 'backdrop',
     scroll: 'horizontal',
@@ -37,7 +39,8 @@ export const RAIL_TYPE_CONFIG = {
     cardAspect: '9/16',
     // mobile/tablet show a portrait poster (no hover-expand), so they need a
     // proper poster height; desktop/tv keep the tall expand-on-hover slot.
-    tiers: { mobile: 210, tablet: 250, desktop: 380, tv: 500 },
+    // desktop/tv bumped for a bigger, richer landscape expansion on hover.
+    tiers: { mobile: 210, tablet: 250, desktop: 420, tv: 560 },
     hover: 'expand',
     skeleton: 'portrait',
     scroll: 'horizontal',

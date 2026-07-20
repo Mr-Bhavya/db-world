@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
+import { notify } from '@shared/notify';
 import SearchOverlay from '../screens/search';
 import { fetchPageCategories, fetchUnreadCount, fetchNotifications } from '../api/cinemaApi';
 import DB_WORLD_TEAL_SVG from '@assets/images/db-circle-icon.webp';

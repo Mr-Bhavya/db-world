@@ -3,10 +3,14 @@ package com.db.dbworld.app.cinema.progress.service;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.repository.InteractionRepository;
 import com.db.dbworld.app.cinema.progress.dto.ContinueWatchingDto;
 import com.db.dbworld.app.cinema.progress.entity.WatchProgressEntity;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.ImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.LogoImageEntity;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import lombok.Builder;
@@ -19,10 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -43,6 +49,7 @@ public class WatchProgressService {
     private final WatchProgressRepository       repository;
     private final RecordRepository              recordRepository;
     private final MediaInfoService              mediaInfoService;
+    private final InteractionRepository         interactionRepository;
 
     @Value
     @Builder
@@ -112,8 +119,18 @@ public class WatchProgressService {
                 latestByRecord.putIfAbsent(wp.getRecordId(), wp); // first seen = newest (rows are DESC)
             }
         }
+
+        // Titles the user has marked (or auto-marked on finish) as Watched are hidden —
+        // a completed movie / last episode shouldn't linger. BUT an active RE-WATCH (a
+        // live, unfinished resume point) stays visible so it's one tap to resume; only a
+        // finished / reset-to-start Watched title is dropped.
+        Set<Long> watched = latestByRecord.isEmpty() ? Set.of()
+                : new HashSet<>(interactionRepository.findRecordIdsByUserIdAndTypeIn(
+                        userId, InteractionType.WATCHED, new ArrayList<>(latestByRecord.keySet())));
+
         List<ContinueWatchingDto> out = new ArrayList<>();
         for (Map.Entry<Long, WatchProgressEntity> e : latestByRecord.entrySet()) {
+            if (watched.contains(e.getKey()) && !isActiveResume(e.getValue())) continue;
             ContinueWatchingDto dto = buildContinueItem(e.getKey(), e.getValue());
             if (dto != null) out.add(dto);
         }
@@ -168,6 +185,7 @@ public class WatchProgressService {
                 .type(record.getType().name())
                 .posterPath(tmdb != null ? tmdb.getPosterPath() : null)
                 .backdropPath(tmdb != null ? tmdb.getBackdropPath() : null)
+                .logoPath(tmdb != null ? selectLogoPath(tmdb.getImages()) : null)
                 .resumeFileId(resumeFileId)
                 .season(season)
                 .episode(episode)
@@ -177,9 +195,46 @@ public class WatchProgressService {
                 .build();
     }
 
+    // Title-logo selection (locale-best: hi > en > gu > language-neutral) — mirrors
+    // the catalog/detail logo pick so Continue Watching shows the same wordmark.
+    private static final List<String> LOGO_LOCALES = List.of("hi", "en", "gu");
+
+    private static String selectLogoPath(List<ImageEntity> images) {
+        if (images == null) return null;
+        String best = null;
+        int bestScore = -1;
+        for (ImageEntity img : images) {
+            if (!(img instanceof LogoImageEntity logo) || logo.getFilePath() == null) continue;
+            int score = logoLocaleScore(logo.getIso6391());
+            if (score <= 0) continue; // keep en/hi/gu/neutral only
+            if (score > bestScore) {
+                bestScore = score;
+                best = logo.getFilePath();
+            }
+        }
+        return best;
+    }
+
+    private static int logoLocaleScore(String iso) {
+        if (iso == null) return 1;                       // language-neutral logo
+        int idx = LOGO_LOCALES.indexOf(iso);
+        return idx >= 0 ? (LOGO_LOCALES.size() - idx) * 10 : 0;  // hi > en > gu > other
+    }
+
     private boolean isFinished(long pos, long dur) {
         if (dur <= 0) return false;
         return pos >= dur - COMPLETION_TAIL_MS || ((double) pos / dur) >= COMPLETION_THRESHOLD;
+    }
+
+    /**
+     * A live, unfinished resume point: partway in and not yet finished. On finish the
+     * player resets the saved position to 0, so a finished/reset title returns false while
+     * an active re-watch (progress &gt; 0) returns true.
+     */
+    private boolean isActiveResume(WatchProgressEntity wp) {
+        long pos = nz(wp.getPositionMs());
+        long dur = nz(wp.getDurationMs());
+        return pos > 0 && !isFinished(pos, dur);
     }
 
     private MediaFileDto fileById(List<MediaFileDto> files, String id) {

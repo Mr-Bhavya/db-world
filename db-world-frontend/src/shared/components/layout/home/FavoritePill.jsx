@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import { Bookmark as BookmarkFilledIcon } from '@mui/icons-material';
 
-import { useT } from '@shared/theme';
 import { cardFocusSx, clampTextSx } from './homeStyles';
 
 const FavoritePill = memo(function FavoritePill({
@@ -10,7 +9,6 @@ const FavoritePill = memo(function FavoritePill({
   onNavigate,
   onToggleFavorite,
 }) {
-  const T = useT();
   const Icon = app.Icon;
 
   return (

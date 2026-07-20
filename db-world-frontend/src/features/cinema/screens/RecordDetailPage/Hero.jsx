@@ -4,7 +4,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -70,66 +70,15 @@ function ToggleButton({ cfg, active, onToggle, btnSize, iconSize }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   DOMINANT COLOR HOOK
+   ACCENT
+
+   A per-poster dominant colour used to be extracted here, but it
+   resolved a beat late (the Watch button visibly changed colour)
+   and its corner glow read poorly. A stable brand accent is
+   cleaner and matches TMDB/Netflix's neutral treatment.
 ═══════════════════════════════════════════════════════════ */
 
 const DEFAULT_ACCENT = '#0d9488';
-
-function useDominantColor(posterPath) {
-  const [color, setColor] = useState(null);
-
-  useEffect(() => {
-    if (!posterPath) return;
-
-    let cancelled = false;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = tmdbImg(posterPath, 'w92');
-
-    img.onload = () => {
-      if (cancelled) return;
-      try {
-        const size = 12;
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-
-        let bestR = 0, bestG = 0, bestB = 0, bestScore = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          const lum = max / 255;
-          const sat = max ? (max - min) / max : 0;
-
-          const lumPenalty = lum < 0.15 ? 0.1 : lum > 0.85 ? 0.3 : 1.0;
-          const score = sat * lumPenalty * (0.5 + lum * 0.5);
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestR = r; bestG = g; bestB = b;
-          }
-        }
-
-        if (bestScore > 0.08) {
-          const mid = (Math.max(bestR, bestG, bestB) + Math.min(bestR, bestG, bestB)) / 2;
-          const boost = (c) => Math.round(Math.min(255, Math.max(0, mid + (c - mid) * 1.25)));
-          setColor(`rgb(${boost(bestR)},${boost(bestG)},${boost(bestB)})`);
-        }
-      } catch {
-        /* CORS or canvas error */
-      }
-    };
-
-    return () => { cancelled = true; };
-  }, [posterPath]);
-
-  return color ?? DEFAULT_ACCENT;
-}
 
 /* ═══════════════════════════════════════════════════════════
    HERO COMPONENT
@@ -138,6 +87,7 @@ function useDominantColor(posterPath) {
 export default function Hero({
   record, interaction, onToggle,
   onPlayTrailer, onWatchClick, onBack, inModal = false, preview = null,
+  loading = false,
 }) {
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
@@ -147,23 +97,38 @@ export default function Hero({
   const isXl = useMediaQuery(theme.breakpoints.up('xl'));
   const isTv = useMediaQuery('(min-width:1920px)');
 
-  const backdropUrl = tmdbImg(tmdb.backdropPath, isXs ? 'w780' : isTv ? 'original' : 'w1280');
+  // Only ever show the FULL record's backdrop — never the rail/preview one. On
+  // desktop the record is hover-prefetched so it's already loaded on open; mobile has
+  // no hover, so without this the hero paints the preview backdrop and then visibly
+  // swaps to the API image once it loads. While the full record is loading we show a
+  // skeleton instead (the flash-free desktop behaviour, applied everywhere).
+  const backdropUrl = loading
+    ? null
+    : tmdbImg(tmdb.backdropPath, isXs ? 'w780' : isTv ? 'original' : 'w1280');
   const posterUrl = tmdbImg(tmdb.posterPath, 'w342');
   const logoUrl = tmdbImg(tmdb.logoPath, isTv ? 'w780' : 'w500');
-  // Instant bases from the clicked card, so the real images crossfade in with
-  // no dark flash / pop on open.
-  const previewBackdropUrl = tmdbImg(preview?.backdropPath ?? preview?.posterPath, isXs ? 'w780' : 'w1280');
+  // Instant poster base from the clicked card, so the real one crossfades in.
   const previewPosterUrl = tmdbImg(preview?.posterPathClean ?? preview?.posterPath ?? preview?.backdropPath, 'w342');
 
-  const accentColor = useDominantColor(tmdb.posterPath);
+  const accentColor = DEFAULT_ACCENT;
 
   const [posterLoaded, setPosterLoaded] = useState(false);
-  const [backdropLoaded, setBackdropLoaded] = useState(false);
+  useEffect(() => { setPosterLoaded(false); }, [posterUrl]);
 
+  // Flash-free backdrop: only ever SHOW a source that has already finished
+  // loading. So when the preview backdrop is replaced by the full (or higher-res)
+  // one, it crossfades cached-frame → cached-frame instead of blanking to black
+  // and reloading (which was the "backdrop still flashing" on open).
+  const [shownBackdrop, setShownBackdrop] = useState(null);
   useEffect(() => {
-    setPosterLoaded(false);
-    setBackdropLoaded(false);
-  }, [posterUrl, backdropUrl]);
+    if (!backdropUrl) return undefined;
+    let cancelled = false;
+    const img = new Image();
+    img.src = backdropUrl;
+    const done = () => { if (!cancelled) setShownBackdrop(backdropUrl); };
+    if (img.complete) done(); else img.onload = done;
+    return () => { cancelled = true; };
+  }, [backdropUrl]);
 
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const endYear = !isMovie && tmdb.lastAirDate ? tmdb.lastAirDate.slice(0, 4) : null;
@@ -201,41 +166,37 @@ export default function Hero({
         alignItems: 'flex-end',
       }}
     >
-      {/* Preview backdrop — instant base (from the clicked card) so the real
-          backdrop crossfades in over it instead of flashing from black. */}
-      {previewBackdropUrl && !backdropLoaded && (
-        <Box
-          component="img"
-          src={previewBackdropUrl}
-          alt=""
-          draggable={false}
-          sx={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover', objectPosition: 'center 25%',
-            opacity: 0.6, pointerEvents: 'none',
-          }}
-        />
-      )}
+      {/* Backdrop — crossfades between already-loaded frames, so it never blanks
+          to black when the preview image is upgraded to the full one. */}
+      <AnimatePresence initial={false}>
+        {shownBackdrop && (
+          <Box
+            component={motion.img}
+            key={shownBackdrop}
+            src={shownBackdrop}
+            alt=""
+            draggable={false}
+            initial={{ opacity: 0, scale: 1.06 }}
+            animate={{ opacity: 0.6, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ opacity: { duration: 0.6, ease: 'easeOut' }, scale: { duration: 1.4, ease: 'easeOut' } }}
+            sx={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center 25%',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Backdrop */}
-      {backdropUrl && (
-        <Box
-          component={motion.img}
-          src={backdropUrl}
-          alt=""
-          draggable={false}
-          onLoad={() => setBackdropLoaded(true)}
-          initial={{ scale: 1.08, opacity: 0 }}
-          animate={{ scale: 1, opacity: backdropLoaded ? 0.6 : 0 }}
-          transition={{ duration: 1.4, ease: 'easeOut' }}
-          sx={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center 25%',
-            pointerEvents: 'none',
-          }}
+      {/* Skeleton while the real backdrop is still loading — shown instead of the
+          rail/preview image, so there's no visible image swap when the record loads. */}
+      {!shownBackdrop && (loading || backdropUrl) && (
+        <Skeleton
+          variant="rectangular"
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', bgcolor: alpha('#fff', 0.05) }}
         />
       )}
 
@@ -254,12 +215,6 @@ export default function Hero({
         position: 'absolute', inset: 0, pointerEvents: 'none',
         display: { xs: 'none', md: 'block' },
         background: 'linear-gradient(to right, rgba(10,10,10,0.9) 0%, rgba(10,10,10,0.4) 40%, transparent 75%)',
-      }} />
-
-      <Box sx={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: `radial-gradient(${isTv ? '80% 70%' : '120% 80%'} at 0% 100%, ${alpha(accentColor, isTv ? 0.25 : 0.2)} 0%, transparent ${isTv ? '45%' : '55%'})`,
-        transition: 'background 1.2s ease',
       }} />
 
       {/* Back button */}
@@ -451,7 +406,7 @@ export default function Hero({
                 </Typography>
               )}
 
-              {runtimeLine && (
+              {runtimeLine ? (
                 <>
                   {metaDot}
                   <Typography sx={{
@@ -462,7 +417,12 @@ export default function Hero({
                     {runtimeLine}
                   </Typography>
                 </>
-              )}
+              ) : loading ? (
+                <>
+                  {metaDot}
+                  <Skeleton width={64} height={16} sx={{ bgcolor: alpha('#fff', 0.09), borderRadius: 0.5 }} />
+                </>
+              ) : null}
 
               {tmdb.status && (
                 <Chip
@@ -482,7 +442,7 @@ export default function Hero({
               )}
             </Box>
 
-            {genres.length > 0 && (
+            {genres.length > 0 ? (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.25 }}>
                 {genres.map((g) => (
                   <Chip
@@ -498,9 +458,16 @@ export default function Hero({
                   />
                 ))}
               </Box>
-            )}
+            ) : loading ? (
+              <Box sx={{ display: 'flex', gap: 0.6, mb: 1.25 }}>
+                {[62, 80, 54].map((w, i) => (
+                  <Skeleton key={i} variant="rounded" width={w} height={isXs ? 22 : 26}
+                    sx={{ bgcolor: alpha('#fff', 0.08), borderRadius: 1 }} />
+                ))}
+              </Box>
+            ) : null}
 
-            {heroOverview && !isXs && (
+            {heroOverview && !isXs ? (
               <Typography sx={{
                 color: alpha('#fff', 0.55),
                 fontSize: { sm: '0.82rem', md: '0.85rem', lg: '0.88rem', xl: '1rem' },
@@ -516,7 +483,12 @@ export default function Hero({
               }}>
                 {heroOverview}
               </Typography>
-            )}
+            ) : loading && !isXs ? (
+              <Box sx={{ mb: 1.75, maxWidth: { sm: 400, md: 520, lg: 600, xl: 700 } }}>
+                <Skeleton width="92%" height={16} sx={{ bgcolor: alpha('#fff', 0.08) }} />
+                <Skeleton width="74%" height={16} sx={{ bgcolor: alpha('#fff', 0.08) }} />
+              </Box>
+            ) : null}
 
             <Box sx={{
               display: 'flex',

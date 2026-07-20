@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Container, Skeleton, Typography, useMediaQuery,
+  Alert, Box, Button, Container, Skeleton, useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { notify } from '@shared/notify';
 
 import {
   addLike, addLove, addWatched, addWatchlist,
-  fetchInteraction, fetchRecord, tmdbImg,
+  fetchInteraction, fetchRecord,
   removeLike, removeLove, removeWatched, removeWatchlist,
 } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -117,6 +117,29 @@ export default function RecordDetailContent({
     retry: (count, err) => err?.response?.status !== 401 && err?.response?.status !== 404 && count < 2,
   });
 
+  // Preview record shaped like the full record, so the SAME layout renders at once
+  // from the rail/hover summary and then FILLS IN when the full record arrives —
+  // no loading-branch swap, no fade-from-blank, no double flash. The preview
+  // already carries title/backdrop/poster/rating/year; everything else skeletons.
+  const previewRecord = useMemo(() => {
+    if (!preview) return null;
+    return {
+      id,
+      type: preview.type ?? null,
+      tmdb: {
+        title: preview.title ?? null,
+        posterPath: preview.posterPath ?? null,
+        backdropPath: preview.backdropPath ?? null,
+        voteAverage: preview.voteAverage ?? null,
+        releaseDate: preview.releaseDate ?? null,
+        firstAirDate: preview.releaseDate ?? null,
+      },
+    };
+  }, [preview, id]);
+
+  const displayRecord = record ?? previewRecord;
+  const fullLoaded = !!record;
+
   // ── Interaction ────────────────────────────────────────────────────────
   const { data: interaction } = useQuery({
     queryKey: ['cinema-interaction', userId, id],
@@ -207,7 +230,7 @@ export default function RecordDetailContent({
   // ── Compose section list (Seasons only for TV) ─────────────────────────
   // Watch sits right after Overview — users come here primarily to watch, so
   // surface the files near the top instead of burying them at the bottom.
-  const isTv = record?.type === 'TV_SERIES';
+  const isTv = displayRecord?.type === 'TV_SERIES';
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
     { id: SECTION_IDS.watch, label: 'Watch' },
@@ -238,28 +261,15 @@ export default function RecordDetailContent({
     }
   }, [record, location.state, scrollToSection]);
 
-  // ── Loading / error states ─────────────────────────────────────────────
-  if (recordLoading) {
-    // Instant hero: if the caller passed a card summary, paint its poster/
-    // backdrop + title immediately so the open has no grey flash — only the
-    // below-the-fold sections skeleton while the full record loads.
-    const previewImg = preview && tmdbImg(preview.backdropPath ?? preview.posterPath, 'w780');
+  // ── Error / empty states ───────────────────────────────────────────────
+  // Only fall back to a bare skeleton when there's NO preview to render from
+  // (e.g. opened via a direct URL). With a preview, we go straight to the real
+  // layout below and let it fill in.
+  if (!displayRecord && recordLoading) {
     return (
       <Box sx={{ bgcolor: surface, minHeight: inModal ? 'auto' : '100vh' }}>
         <Box sx={{ position: 'relative', width: '100%', height: { xs: 360, sm: 440, md: 500 }, bgcolor: '#050505', overflow: 'hidden' }}>
-          {previewImg ? (
-            <>
-              <Box component="img" src={previewImg} alt="" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', opacity: 0.5 }} />
-              <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.45) 45%, transparent 75%)' }} />
-              {preview?.title && (
-                <Typography variant="h4" sx={{ position: 'absolute', left: { xs: 16, md: 40 }, bottom: 28, right: 16, color: '#fff', fontWeight: 800, lineHeight: 1.1, textShadow: '0 2px 16px rgba(0,0,0,0.9)' }}>
-                  {preview.title}
-                </Typography>
-              )}
-            </>
-          ) : (
-            <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
-          )}
+          <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
         </Box>
         <Container maxWidth="lg" sx={{ py: 4 }}>
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
@@ -277,7 +287,7 @@ export default function RecordDetailContent({
     );
   }
 
-  if (recordError || !record) {
+  if (recordError || !displayRecord) {
     return (
       <Box sx={{ bgcolor: T.bg, minHeight: inModal ? 320 : '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
         <Alert
@@ -311,18 +321,10 @@ export default function RecordDetailContent({
   }
 
   return (
-    <Box
-      ref={contentRef}
-      sx={{
-        bgcolor: surface,
-        // Gentle fade-in so the full record eases over the loading preview
-        // instead of popping in.
-        animation: 'rdContentIn 0.4s ease both',
-        '@keyframes rdContentIn': { from: { opacity: 0 }, to: { opacity: 1 } },
-      }}
-    >
+    <Box ref={contentRef} sx={{ bgcolor: surface }}>
       <Hero
-        record={record}
+        record={displayRecord}
+        loading={!fullLoaded}
         interaction={currentInteraction}
         onToggle={handleToggle}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
@@ -334,31 +336,51 @@ export default function RecordDetailContent({
 
       <PillNav sections={sectionList} scrollRoot={scrollRoot} stickyOffset={stickyOffset} />
 
-      <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 } }}>
-        <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <OverviewSection record={record} />
-        </Box>
-        <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <WatchSection recordId={id} record={record} />
-        </Box>
-        {isTv && (
-          <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <SeasonsSection record={record} />
+      {fullLoaded ? (
+        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 } }}>
+          <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <OverviewSection record={record} />
           </Box>
-        )}
-        <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <CastCrewSection record={record} onPersonClick={openPerson} />
-        </Box>
-        <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <GallerySection record={record} />
-        </Box>
-        <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <ReviewsSection record={record} recordId={id} />
-        </Box>
-        <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <RelatedSection recordId={id} isMobile={isMobile} />
-        </Box>
-      </Container>
+          <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <WatchSection recordId={id} record={record} />
+          </Box>
+          {isTv && (
+            <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <SeasonsSection record={record} />
+            </Box>
+          )}
+          <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <CastCrewSection record={record} onPersonClick={openPerson} />
+          </Box>
+          <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <GallerySection record={record} />
+          </Box>
+          <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <ReviewsSection record={record} recordId={id} />
+          </Box>
+          <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+            <RelatedSection recordId={id} isMobile={isMobile} />
+          </Box>
+        </Container>
+      ) : (
+        // Same-layout skeletons for the below-the-fold sections; they fill in when
+        // the full record arrives (no subtree swap → no flash).
+        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+          <Skeleton variant="text" width={160} height={32} sx={{ bgcolor: alpha(T.text, 0.08), mb: 1.5 }} />
+          <Skeleton variant="text" width="94%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
+          <Skeleton variant="text" width="88%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
+          <Skeleton variant="text" width="70%" height={18} sx={{ bgcolor: alpha(T.text, 0.06), mb: 3 }} />
+          <Skeleton variant="text" width={140} height={28} sx={{ bgcolor: alpha(T.text, 0.08), mb: 1.5 }} />
+          <Box sx={{ display: 'flex', gap: 2, overflow: 'hidden' }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Box key={i} sx={{ flexShrink: 0 }}>
+                <Skeleton variant="rounded" width={120} height={72} sx={{ bgcolor: alpha(T.text, 0.06), mb: 1, borderRadius: 1.5 }} />
+                <Skeleton variant="text" width={90} height={14} sx={{ bgcolor: alpha(T.text, 0.05) }} />
+              </Box>
+            ))}
+          </Box>
+        </Container>
+      )}
 
       {trailerVideo && <VideoDialog video={trailerVideo} onClose={() => setTrailerVideo(null)} />}
     </Box>

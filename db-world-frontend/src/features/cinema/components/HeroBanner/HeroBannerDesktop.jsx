@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Button,
-  Chip,
   IconButton,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,7 +35,6 @@ const HeroBannerDesktop = ({
   featured,
   idx,
   ix,
-  heroColor = '20,20,20',
   reducedMotion,
   onWatchlist,
   go,
@@ -45,6 +43,8 @@ const HeroBannerDesktop = ({
   goToDetail,
   isMonitor,
   isTv,
+  onHoverPause,
+  onHoverResume,
 }) => {
   const stripRef = useRef(null);
   const thumbRefs = useRef([]);
@@ -62,16 +62,30 @@ const HeroBannerDesktop = ({
   const tagLabel = record?.type === 'MOVIE' ? 'Movie' : 'TV Series';
   const logo = tmdbImg(record?.logoPath, isTv ? 'w780' : 'w500');
 
+  // Netflix-style single metadata line: genre(s) · year · type · seasons.
+  const metaItems = useMemo(() => {
+    const items = [];
+    if (record?.genres?.length) items.push(record.genres.slice(0, 2).join(' · '));
+    if (displayYear) items.push(displayYear);
+    items.push(tagLabel);
+    if (record?.type !== 'MOVIE' && record?.numberOfSeasons > 0) {
+      items.push(record.numberOfSeasons === 1 ? '1 Season' : `${record.numberOfSeasons} Seasons`);
+    }
+    return items;
+  }, [record, displayYear, tagLabel]);
+
   const metrics = useMemo(
     () => ({
       heroHeight: isTv
-        ? 'clamp(760px, 86vh, 1100px)'
+        ? 'clamp(760px, 90vh, 1120px)'
         : isMonitor
-          ? 'clamp(680px, 82vh, 980px)'
-          : 'clamp(560px, 78vh, 860px)',
+          ? 'clamp(680px, 88vh, 1040px)'
+          : 'clamp(600px, 86vh, 940px)',
 
       contentLeft: isTv ? 56 : isMonitor ? 72 : 56,
-      contentBottom: isTv ? 160 : isMonitor ? 140 : 120,
+      // Sits clear of the first rail's overlap (a fixed px in CinemaPage), so the
+      // rail never rides up over the title/buttons on big screens.
+      contentBottom: isTv ? 240 : isMonitor ? 206 : 176,
 
       contentWidth: isTv
         ? 'min(35vw, 780px)'
@@ -88,8 +102,7 @@ const HeroBannerDesktop = ({
       logoMaxH: isTv ? 200 : isMonitor ? 168 : 132,
 
       bodySize: isTv ? '1.1rem' : isMonitor ? '1rem' : '0.95rem',
-      chipSize: isTv ? '0.9rem' : '0.74rem',
-      chipHeight: isTv ? 30 : 24,
+      metaSize: isTv ? '1rem' : '0.86rem',
 
       buttonHeight: isTv ? 60 : 46,
       buttonFont: isTv ? '1.06rem' : '0.95rem',
@@ -125,9 +138,9 @@ const HeroBannerDesktop = ({
   const handlePrev = useCallback(() => go(-1), [go]);
   const handleNext = useCallback(() => go(1), [go]);
 
-  // Keep the active thumbnail centred — but scroll ONLY the strip, never via
-  // scrollIntoView. scrollIntoView({inline:'center'}) also scrolls the page/ancestors
-  // to centre the bottom-right strip, which yanks the whole hero sideways on load.
+  // Keep the active thumbnail centred as the hero advances (auto-rotate or manual)
+  // — but scroll ONLY the strip, never via scrollIntoView (that would yank the
+  // whole page/hero sideways to centre the bottom-right strip).
   useEffect(() => {
     const strip = stripRef.current;
     const el = thumbRefs.current[idx];
@@ -140,6 +153,8 @@ const HeroBannerDesktop = ({
 
   return (
     <Box
+      onMouseEnter={onHoverPause}
+      onMouseLeave={onHoverResume}
       sx={{
         position: 'relative',
         width: '100%',
@@ -174,9 +189,9 @@ const HeroBannerDesktop = ({
               inset: 0,
               pointerEvents: 'none',
               WebkitMaskImage:
-                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.92) 70%, rgba(0,0,0,0.45) 86%, rgba(0,0,0,0.08) 94%, rgba(0,0,0,0) 100%)',
+                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 80%, rgba(0,0,0,0.6) 90%, rgba(0,0,0,0.18) 97%, rgba(0,0,0,0) 100%)',
               maskImage:
-                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.92) 70%, rgba(0,0,0,0.45) 86%, rgba(0,0,0,0.08) 94%, rgba(0,0,0,0) 100%)',
+                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 80%, rgba(0,0,0,0.6) 90%, rgba(0,0,0,0.18) 97%, rgba(0,0,0,0) 100%)',
             }}
           >
             {/* Backdrop */}
@@ -237,46 +252,6 @@ const HeroBannerDesktop = ({
               }}
             />
 
-            {/* Image-color mood wash */}
-            <Box
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                background: isTv
-                  ? `linear-gradient(
-                      to right,
-                      rgba(${heroColor}, 0.42) 0%,
-                      rgba(${heroColor}, 0.22) 34%,
-                      rgba(${heroColor}, 0.08) 56%,
-                      transparent 80%
-                    )`
-                  : `linear-gradient(
-                      to right,
-                      rgba(${heroColor}, 0.38) 0%,
-                      rgba(${heroColor}, 0.18) 38%,
-                      rgba(${heroColor}, 0.06) 58%,
-                      transparent 82%
-                    )`,
-                mixBlendMode: 'multiply',
-              }}
-            />
-
-            {/* Soft glow */}
-            <Box
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                background: `
-                  radial-gradient(
-                    ellipse at 22% 76%,
-                    rgba(${heroColor}, 0.24) 0%,
-                    rgba(${heroColor}, 0.10) 28%,
-                    transparent 60%
-                  )
-                `,
-                mixBlendMode: 'screen',
-              }}
-            />
           </Box>
         </motion.div>
       </AnimatePresence>
@@ -335,99 +310,36 @@ const HeroBannerDesktop = ({
               </Typography>
             )}
 
+            {/* Netflix-style single metadata line: ★rating · genres · year · type */}
             <Box
               sx={{
                 display: 'flex',
-                gap: 1,
-                mb: isTv ? 2 : 1.5,
-                flexWrap: 'wrap',
                 alignItems: 'center',
+                flexWrap: 'wrap',
+                rowGap: 0.5,
+                mb: isTv ? 2 : 1.5,
+                textShadow: '0 2px 8px rgba(0,0,0,0.55)',
               }}
             >
-              <Chip
-                label={tagLabel}
-                size="small"
-                sx={{
-                  bgcolor: record.type === 'MOVIE' ? '#ff1f1f' : '#0b84ff',
-                  color: '#fff',
-                  fontWeight: 800,
-                  fontSize: metrics.chipSize,
-                  height: metrics.chipHeight,
-                }}
-              />
-
-              {displayYear && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: 'rgba(255,255,255,0.78)',
-                    fontWeight: 600,
-                    fontSize: isTv ? '0.95rem' : '0.8rem',
-                  }}
-                >
-                  {displayYear}
-                </Typography>
-              )}
-
               {record.voteAverage > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.45 }}>
-                  <Star
-                    sx={{
-                      fontSize: isTv ? 18 : 14,
-                      color: ratingColor(record.voteAverage),
-                    }}
-                  />
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: ratingColor(record.voteAverage),
-                      fontWeight: 800,
-                      fontSize: isTv ? '0.95rem' : '0.8rem',
-                    }}
-                  >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                  <Star sx={{ fontSize: isTv ? 18 : 14, color: ratingColor(record.voteAverage) }} />
+                  <Typography sx={{ color: ratingColor(record.voteAverage), fontWeight: 800, fontSize: metrics.metaSize }}>
                     {Number(record.voteAverage).toFixed(1)}
                   </Typography>
                 </Box>
               )}
+              {metaItems.map((m, i) => (
+                <React.Fragment key={`${m}-${i}`}>
+                  {(record.voteAverage > 0 || i > 0) && (
+                    <Box component="span" sx={{ color: 'rgba(255,255,255,0.32)', px: 0.9, fontSize: metrics.metaSize }}>•</Box>
+                  )}
+                  <Typography sx={{ color: 'rgba(255,255,255,0.82)', fontWeight: 600, fontSize: metrics.metaSize }}>
+                    {m}
+                  </Typography>
+                </React.Fragment>
+              ))}
             </Box>
-
-            {record.genres?.length > 0 && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 0.8,
-                  mb: isTv ? 2 : 1.5,
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                }}
-              >
-                {record.genres.slice(0, isTv ? 5 : 4).map((g, i, arr) => (
-                  <React.Fragment key={g}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: 'rgba(255,255,255,0.74)',
-                        fontSize: isTv ? '0.96rem' : '0.8rem',
-                      }}
-                    >
-                      {g}
-                    </Typography>
-
-                    {i < arr.length - 1 && (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: 'rgba(255,255,255,0.34)',
-                          fontSize: isTv ? '0.96rem' : '0.8rem',
-                        }}
-                      >
-                        ·
-                      </Typography>
-                    )}
-                  </React.Fragment>
-                ))}
-              </Box>
-            )}
 
             {record.overview && (
               <Typography
@@ -546,8 +458,8 @@ const HeroBannerDesktop = ({
         </AnimatePresence>
       </Box>
 
-      {/* Slide navigator — thumbnail strip on the right (replaces the bottom
-          dots + side arrows, so it doesn't take its own vertical band). */}
+      {/* Slide navigator — thumbnail strip on the right. The active thumb follows
+          the hero's auto-rotation (and manual prev/next). */}
       {featured.length > 1 && (
         <Box
           sx={{

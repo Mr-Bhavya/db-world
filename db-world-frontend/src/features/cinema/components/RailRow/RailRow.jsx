@@ -1,13 +1,15 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Box, Typography, IconButton, useMediaQuery, useTheme,
+  Box, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import RecordCard, { RecordCardSkeleton } from '../RecordCard/RecordCard';
 import useRailRecords from '../../hooks/useRailRecords';
 import useDeviceTier from '../../hooks/useDeviceTier';
+import { useViewportWidth, fluidDesktopHeight, desktopFluidFactor } from '../../hooks/useFluidCardSize';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT, inferRailType } from './railTypeConfig';
+import { navBlock } from '../RecordCard/parts/cardHelpers';
 
 const SCROLL_AMOUNT = 0.75;
 const CARD_LEAVE_COLLAPSE_MS = 95;
@@ -21,39 +23,83 @@ const ROW_LEAVE_COLLAPSE_MS = 130;
 const PRIME_ANIM_MS = 300;
 const PRIME_ANIM_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
-const ScrollDots = ({ scrollRef, count = 5 }) => {
+// App accent (teal) — matches the Continue Watching progress bar + spinners.
+const RAIL_ACCENT = '#14b8a6';
+
+// Scroll indicator, teal-themed. Hides itself when the row doesn't overflow.
+//  - Desktop/tablet: Netflix-style segmented dots — one thin segment per scrollable
+//    "page" (real count, not a fixed 5), the current one lit teal, aligned 1:1 with
+//    each arrow click.
+//  - Mobile: a single compact progress bar (the full-width dashes read as clutter on a
+//    narrow screen) whose teal fill tracks how far through the row you've scrolled.
+const ScrollDots = ({ scrollRef }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [pages, setPages] = useState(1);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [filled, setFilled] = useState(0); // 0..1 scroll progress (mobile bar)
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el) return undefined;
 
     const update = () => {
-      const max = el.scrollWidth - el.clientWidth;
-      if (max <= 0) {
-        setActiveIdx(0);
-        return;
-      }
-      setActiveIdx(Math.round((el.scrollLeft / max) * (count - 1)));
+      // Page by a WHOLE number of cards (same width the arrows scroll by), so the
+      // indicator segments line up 1:1 with each arrow click.
+      const kids = el.children;
+      let stride = el.clientWidth || 1;
+      if (kids.length >= 2) stride = Math.abs(kids[1].offsetLeft - kids[0].offsetLeft) || stride;
+      else if (kids.length === 1) stride = kids[0].offsetWidth || stride;
+      const perPage = Math.max(1, Math.floor(el.clientWidth / stride));
+      const pageW = Math.max(1, perPage * stride);
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      // Pages = the scroll stops (0, pageW, 2·pageW, …, maxScroll). Count from the
+      // SCROLLABLE distance, not the whole content, or the last dot is a phantom.
+      const total = maxScroll <= 1 ? 1 : Math.ceil(maxScroll / pageW) + 1;
+      setPages(total);
+      // The final stop lands on maxScroll (not always a page multiple), so pin the
+      // active dot to the last segment there — otherwise it never lit the last one
+      // and looked like one more page was still available.
+      const active = el.scrollLeft >= maxScroll - 1
+        ? total - 1
+        : Math.min(total - 1, Math.round(el.scrollLeft / pageW));
+      setActiveIdx(active);
+      // Mobile bar: fraction of the row that has scrolled into/through view — starts
+      // partially filled (first page visible) and reaches 100% at the end.
+      setFilled(el.scrollWidth <= el.clientWidth
+        ? 1
+        : Math.min(1, (el.scrollLeft + el.clientWidth) / el.scrollWidth));
     };
 
     el.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
     update();
 
-    return () => el.removeEventListener('scroll', update);
-  }, [scrollRef, count]);
+    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
+  }, [scrollRef]);
+
+  if (pages <= 1) return null;
+
+  if (isMobile) {
+    return (
+      <Box sx={{ ml: 'auto', flexShrink: 0, width: 40, height: 3, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.22)' }}>
+        <Box sx={{ width: `${Math.round(filled * 100)}%`, height: '100%', bgcolor: RAIL_ACCENT, borderRadius: 2, transition: 'width 0.15s ease' }} />
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center', ml: 'auto', flexShrink: 0, pr: 0.5 }}>
-      {Array.from({ length: count }).map((_, i) => (
+    <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', ml: 'auto', flexShrink: 0, pr: 0.5 }}>
+      {Array.from({ length: pages }).map((_, i) => (
         <Box
           key={i}
           sx={{
-            width: i === activeIdx ? 6 : 4,
-            height: i === activeIdx ? 6 : 4,
-            borderRadius: '50%',
-            bgcolor: i === activeIdx ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.22)',
-            transition: 'all 0.18s ease',
+            width: 14,
+            height: 2,
+            borderRadius: 1,
+            bgcolor: i === activeIdx ? RAIL_ACCENT : 'rgba(255,255,255,0.28)',
+            transition: 'background-color 0.2s ease',
             flexShrink: 0,
           }}
         />
@@ -95,12 +141,19 @@ const RailRow = ({
   const isTop10 = cfg.showRank ?? false;
   const isBillboard = cfg.scroll === 'snap';
 
+  // Fluid desktop card height — keeps the prime-shift math (below) in lock-step
+  // with PrimeDesktopCard, which receives this same scaled height from RecordCard.
+  const vw = useViewportWidth();
+  const fluidDeskH = fluidDesktopHeight(cfg.tiers.desktop, tier, vw);
+
   const rowRef = useRef(null);
   const scrollRef = useRef(null);
   const observerRef = useRef(null);
   const cardRefs = useRef([]);
   const collapseTimerRef = useRef(null);
   const prevExpandedIdxRef = useRef(null);
+  // Live scroll-arrow state read by cards on hover (a ref → no re-render on scroll).
+  const edgeArrowRef = useRef({ left: false, right: true });
 
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
@@ -124,7 +177,7 @@ const RailRow = ({
     if (isTv) return cfg.tiers.tv;
     if (isMobile) return cfg.tiers.mobile;
     if (isTablet) return cfg.tiers.tablet;
-    return cfg.tiers.desktop;
+    return fluidDeskH;
   };
 
   
@@ -311,8 +364,11 @@ const PRIME_SHIFT = (() => {
   const updateButtons = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    setShowLeft(el.scrollLeft > 8);
-    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
+    const canLeft = el.scrollLeft > 8;
+    const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 8;
+    setShowLeft(canLeft);
+    setShowRight(canRight);
+    edgeArrowRef.current = { left: canLeft, right: canRight };
   }, []);
 
   useEffect(() => {
@@ -353,10 +409,28 @@ const PRIME_SHIFT = (() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    el.scrollBy({
-      left: dir * el.clientWidth * SCROLL_AMOUNT,
-      behavior: 'smooth',
-    });
+    // Suppress hover popups for the duration of the smooth scroll, so cards
+    // sliding under the stationary cursor don't pop open as you click through.
+    navBlock.until = Date.now() + 700;
+
+    // Advance by a WHOLE number of cards (a "page"), snapped to a stride multiple
+    // measured from 0 — so every click moves the same amount, no card is left
+    // half-cut, right→left returns to the exact original position, and it lines up
+    // with the segmented indicator. Works on every screen (stride read from the DOM).
+    const kids = el.children;
+    let stride = el.clientWidth * SCROLL_AMOUNT;
+    if (kids.length >= 2) stride = Math.abs(kids[1].offsetLeft - kids[0].offsetLeft) || stride;
+    else if (kids.length === 1) stride = kids[0].offsetWidth || stride;
+    const perPage = Math.max(1, Math.floor(el.clientWidth / stride));
+    const maxScroll = el.scrollWidth - el.clientWidth;
+
+    let snapped = Math.round((el.scrollLeft + dir * perPage * stride) / stride) * stride;
+    // Land cleanly on the two ends so the first/last card is never left half-cut.
+    if (snapped <= stride * 0.5) snapped = 0;
+    if (snapped >= maxScroll - stride * 0.5) snapped = maxScroll;
+    snapped = Math.max(0, Math.min(snapped, maxScroll));
+
+    el.scrollTo({ left: snapped, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -374,6 +448,12 @@ const PRIME_SHIFT = (() => {
 
   const rowPadY = expandOnHover ? '44px' : isTop10 ? '72px' : '16px';
   const rowNegY = expandOnHover ? '-44px' : isTop10 ? '-72px' : '-16px';
+
+  // Inter-card gap scales with the viewport on desktop (matches the fluid cards),
+  // and falls back to the breakpoint-based spacing on mobile/tablet/TV.
+  const railGap = tier === 'desktop'
+    ? `${Math.round((isTop10 ? 4 : 16) * desktopFluidFactor(vw))}px`
+    : (isTop10 ? 0.5 : { xs: 1.25, md: 2 });
 
   return (
     <motion.div
@@ -426,61 +506,77 @@ const PRIME_SHIFT = (() => {
         >
           {showLeft && !isMobile && !isTv && (
             <Box
+              onMouseEnter={() => { navBlock.until = Date.now() + 600; }}
+              onClick={() => scroll(-1)}
+              role="button"
+              aria-label="Scroll left"
               sx={{
                 position: 'absolute', left: 0, top: 0, bottom: 0, width: 64, zIndex: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.5,
-                background: 'linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.12) 65%, transparent 100%)',
+                background: 'linear-gradient(to right, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.42) 45%, rgba(0,0,0,0.08) 80%, transparent 100%)',
                 opacity: navHovered ? 1 : 0,
-                pointerEvents: 'none', // strip is click-through; only the button captures clicks
+                // Full-height handle: captures hover so an edge card can't pop open
+                // UNDER it (which used to cover the control), and the WHOLE strip is
+                // the click target. Hovering it also suppresses card popups (navBlock).
+                pointerEvents: 'auto',
+                cursor: 'pointer',
                 transition: 'opacity 0.22s ease',
+                '&:hover .rail-arrow': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
               }}
             >
-              <IconButton
-                onClick={() => scroll(-1)}
-                aria-label="Scroll left"
+              <Box
+                className="rail-arrow"
                 sx={{
-                  width: 40, height: 40, color: '#fff',
-                  pointerEvents: navHovered ? 'auto' : 'none',
-                  bgcolor: 'rgba(0,0,0,0.62)',
+                  width: 40, height: 40, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', bgcolor: 'rgba(0,0,0,0.62)',
                   border: '1px solid rgba(255,255,255,0.16)',
                   backdropFilter: 'blur(6px)',
                   boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                  pointerEvents: 'none',
                   transition: 'background 0.15s ease, transform 0.15s ease',
-                  '&:hover': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
                 }}
               >
                 <ChevronLeft />
-              </IconButton>
+              </Box>
             </Box>
           )}
 
           {showRight && !isMobile && !isTv && (
             <Box
+              onMouseEnter={() => { navBlock.until = Date.now() + 600; }}
+              onClick={() => scroll(1)}
+              role="button"
+              aria-label="Scroll right"
               sx={{
                 position: 'absolute', right: 0, top: 0, bottom: 0, width: 64, zIndex: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 0.5,
-                background: 'linear-gradient(to left, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.12) 65%, transparent 100%)',
+                background: 'linear-gradient(to left, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.42) 45%, rgba(0,0,0,0.08) 80%, transparent 100%)',
                 opacity: navHovered ? 1 : 0,
-                pointerEvents: 'none', // strip is click-through; only the button captures clicks
+                // Full-height handle: captures hover so an edge card can't pop open
+                // UNDER it (which used to cover the control), and the WHOLE strip is
+                // the click target. Hovering it also suppresses card popups (navBlock).
+                pointerEvents: 'auto',
+                cursor: 'pointer',
                 transition: 'opacity 0.22s ease',
+                '&:hover .rail-arrow': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
               }}
             >
-              <IconButton
-                onClick={() => scroll(1)}
-                aria-label="Scroll right"
+              <Box
+                className="rail-arrow"
                 sx={{
-                  width: 40, height: 40, color: '#fff',
-                  pointerEvents: navHovered ? 'auto' : 'none',
-                  bgcolor: 'rgba(0,0,0,0.62)',
+                  width: 40, height: 40, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', bgcolor: 'rgba(0,0,0,0.62)',
                   border: '1px solid rgba(255,255,255,0.16)',
                   backdropFilter: 'blur(6px)',
                   boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                  pointerEvents: 'none',
                   transition: 'background 0.15s ease, transform 0.15s ease',
-                  '&:hover': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
                 }}
               >
                 <ChevronRight />
-              </IconButton>
+              </Box>
             </Box>
           )}
 
@@ -491,7 +587,7 @@ const PRIME_SHIFT = (() => {
             onMouseEnter={expandOnHover ? handleRowMouseEnter : undefined}
             sx={{
               display: 'flex',
-              gap: isTop10 ? 0.5 : { xs: 1.25, md: 2 },
+              gap: railGap,
               overflowX: isBillboard ? 'hidden' : 'auto',
               overflowY: 'visible',
               px,
@@ -565,6 +661,7 @@ const PRIME_SHIFT = (() => {
                         onLove={onLove}
                         onWatched={onWatched}
                         onExplore={onExplore}
+                        edgeArrowRef={edgeArrowRef}
                         rank={isTop10 ? i + 1 : undefined}
                       />
                     </Box>

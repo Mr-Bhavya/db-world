@@ -52,7 +52,7 @@ export default function RecordDetailSheet() {
 
   // FIX #1: Only navigate on close animation, not peek↔full transitions.
   // Check `closingRef` instead of relying on animation type.
-  const handleAnimComplete = useCallback((definition) => {
+  const handleAnimComplete = useCallback(() => {
     if (closingRef.current && !navigatedRef.current) {
       navigatedRef.current = true; // guard against double fire
       navigate(-1);

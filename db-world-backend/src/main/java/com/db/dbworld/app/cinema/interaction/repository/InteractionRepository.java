@@ -43,4 +43,18 @@ public interface InteractionRepository
             List<Long> recordIds
     );
 
+    /** Record ids (from the given candidates) the user has an interaction of {@code type} on. */
+    @Query("""
+                SELECT ui.record.id
+                FROM UserInteractionEntity ui
+                WHERE ui.userId = :userId
+                AND ui.interactionType = :type
+                AND ui.record.id IN :recordIds
+            """)
+    List<Long> findRecordIdsByUserIdAndTypeIn(
+            Long userId,
+            InteractionType type,
+            List<Long> recordIds
+    );
+
 }
