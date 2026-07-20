@@ -4,32 +4,27 @@ import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.appupdate.model.AppVersionInfo;
 import com.db.dbworld.app.appupdate.service.AppUpdateService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.net.URI;
 
 /**
  * In-app updater endpoints (public — the app checks before login).
- *   GET /api/app/version   → latest build metadata
- *   GET /api/app/download  → streams the signed APK
+ *   GET /api/app/version   → latest build metadata (sourced from the latest GitHub Release)
+ *   GET /api/app/download  → 302-redirects to the release's APK on GitHub
+ *
+ * The download path is kept relative + served here so ALL installed apps (which only
+ * ever build {@code <apiBase>/api/app/download}) keep working when the source moves
+ * to GitHub. The native updater follows the redirect.
  */
 @RestController
 @RequestMapping("/api/app")
 @RequiredArgsConstructor
 public class AppUpdateController {
-
-    private static final MediaType APK_MEDIA_TYPE =
-            MediaType.parseMediaType("application/vnd.android.package-archive");
 
     private final AppUpdateService appUpdateService;
 
@@ -44,17 +39,14 @@ public class AppUpdateController {
     }
 
     @GetMapping("/download")
-    public ResponseEntity<Resource> download() throws IOException {
-        Path apk = appUpdateService.getApkPath();
-        if (!Files.isRegularFile(apk)) {
+    public ResponseEntity<Void> download() {
+        String apkUrl = appUpdateService.getLatestApkUrl();
+        if (apkUrl == null) {
             return ResponseEntity.notFound().build();
         }
-        Resource body = new FileSystemResource(apk);
-        return ResponseEntity.ok()
-                .contentType(APK_MEDIA_TYPE)
-                .contentLength(Files.size(apk))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"db-world.apk\"")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
-                .body(body);
+        // 302 to the GitHub release asset; the native downloader follows the redirect.
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(apkUrl))
+                .build();
     }
 }

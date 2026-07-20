@@ -11,7 +11,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.time.Duration;
 
 /**
@@ -20,18 +19,21 @@ import java.time.Duration;
  *
  * The Release workflow (.github/workflows/release.yml) attaches a {@code version.json}
  * asset ({ versionCode, versionName, mandatory, minSupportedCode, apkUrl, changelog })
- * plus the signed APK. We read that metadata and hand the app the GitHub APK URL, so
- * publishing a new build is just pushing a {@code v*} tag — no scp, no backend redeploy.
+ * plus the signed APK. We read that metadata and hand the app a RELATIVE download path
+ * ({@code /api/app/download}) which 302-redirects to the GitHub APK — so EVERY already-
+ * installed app keeps working unchanged (it only ever sees the same relative endpoints
+ * it always has), while publishing a new build is just pushing a {@code v*} tag.
  *
- * Result is cached briefly so a burst of app launches doesn't exhaust GitHub's
- * unauthenticated rate limit (60 req/hr per IP). On any failure we serve the last
- * cached value (or null → the app silently skips the update).
+ * The lookup is cached briefly so a burst of app launches doesn't exhaust GitHub's
+ * unauthenticated rate limit (60 req/hr per IP). On failure we serve the last cached
+ * value (or null → the app silently skips the update).
  */
 @Slf4j
 @Service
 public class AppUpdateService {
 
-    public static final String APK_FILE = "app-release.apk";
+    /** Relative path the app hits to download — 302s to GitHub (kept relative for old builds). */
+    public static final String DOWNLOAD_PATH = "/api/app/download";
     private static final String META_ASSET = "version.json";
     private static final long CACHE_TTL_MS = 5 * 60 * 1000L;
 
@@ -42,32 +44,41 @@ public class AppUpdateService {
     @Value("${app.github-repo:Mr-Bhavya/db-world}")
     private String githubRepo;
 
-    // Retained for the legacy GET /api/app/download (kept for backward compatibility;
-    // unused once apkUrl points at GitHub).
-    @Value("${app.release-dir:/app/db_world/releases}")
-    private String releaseDir;
-
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
-    private volatile AppVersionInfo cached;
+    /** Cached lookup: what the app sees (info) + the real GitHub APK URL (download target). */
+    private record Snapshot(AppVersionInfo info, String githubApkUrl) {}
+
+    private volatile Snapshot cached;
     private volatile long cachedAt;
 
-    /** @return latest build info, or {@code null} if nothing is published / GitHub is unreachable. */
+    /** @return latest build metadata (with a relative apkUrl), or {@code null}. */
     public AppVersionInfo getLatest() {
+        Snapshot s = snapshot();
+        return s == null ? null : s.info();
+    }
+
+    /** @return the GitHub APK URL the {@code /api/app/download} redirect points at, or {@code null}. */
+    public String getLatestApkUrl() {
+        Snapshot s = snapshot();
+        return s == null ? null : s.githubApkUrl();
+    }
+
+    private Snapshot snapshot() {
         long now = System.currentTimeMillis();
-        AppVersionInfo c = cached;
+        Snapshot c = cached;
         if (c != null && now - cachedAt < CACHE_TTL_MS) {
             return c;
         }
         try {
-            AppVersionInfo info = fetchFromGitHub();
-            if (info != null) {
-                cached = info;
+            Snapshot s = fetchFromGitHub();
+            if (s != null) {
+                cached = s;
                 cachedAt = now;
-                return info;
+                return s;
             }
         } catch (Exception e) {
             log.warn("GitHub release lookup failed: {} — serving last cached value", e.toString());
@@ -75,9 +86,8 @@ public class AppUpdateService {
         return cached; // may be null (never published, or first lookup failed)
     }
 
-    private AppVersionInfo fetchFromGitHub() throws Exception {
-        String api = "https://api.github.com/repos/" + githubRepo + "/releases/latest";
-        JsonNode rel = getJson(api);
+    private Snapshot fetchFromGitHub() throws Exception {
+        JsonNode rel = getJson("https://api.github.com/repos/" + githubRepo + "/releases/latest");
         if (rel == null) {
             return null;
         }
@@ -105,16 +115,22 @@ public class AppUpdateService {
             return null;
         }
         // apkUrl embedded in version.json wins; fall back to the .apk asset URL.
-        String resolvedApkUrl = n.path("apkUrl").asText(apkUrl == null ? "" : apkUrl);
-        return new AppVersionInfo(
+        String githubApkUrl = n.path("apkUrl").asText(apkUrl == null ? "" : apkUrl);
+        if (githubApkUrl.isEmpty()) {
+            log.warn("Latest release has no APK URL");
+            return null;
+        }
+
+        AppVersionInfo info = new AppVersionInfo(
                 n.path("versionCode").asLong(0L),
                 n.path("versionName").asText(""),
-                resolvedApkUrl,
+                DOWNLOAD_PATH,   // relative — resolved by the app against its API base (old + new builds)
                 n.path("mandatory").asBoolean(false),
                 n.path("minSupportedCode").asLong(0L),
                 n.path("changelog").asText(""),
                 apkSize
         );
+        return new Snapshot(info, githubApkUrl);
     }
 
     private JsonNode getJson(String url) throws Exception {
@@ -130,10 +146,5 @@ public class AppUpdateService {
             return null;
         }
         return MAPPER.readTree(resp.body());
-    }
-
-    /** Absolute path to a locally-published APK (legacy GET /api/app/download). */
-    public Path getApkPath() {
-        return Path.of(releaseDir, APK_FILE);
     }
 }
