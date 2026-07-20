@@ -109,8 +109,13 @@ jobs:
           else
             NAME="${{ inputs.versionName }}"
           fi
+          # versionCode: explicit input wins; otherwise a monotonic date stamp
+          # (yymmddHH, UTC) — always increases over time and sits well above any
+          # small hand-set codes, so the updater reliably offers newer builds.
+          # (Only collides if two releases go out in the same UTC hour — then pass
+          # an explicit versionCode via manual dispatch.)
           CODE="${{ inputs.versionCode }}"
-          [ -z "$CODE" ] && CODE="${{ github.run_number }}"
+          [ -z "$CODE" ] && CODE="$(date -u +%y%m%d%H)"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Building v$NAME (versionCode $CODE)"

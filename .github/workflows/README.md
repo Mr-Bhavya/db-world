@@ -35,10 +35,10 @@ These **complement** the Jenkins pipeline (`db-world-config/server_config/Jenkin
 Encode the keystore once: `base64 -w0 your-release.jks` (or `certutil -encode` on Windows) → paste as `ANDROID_KEYSTORE_BASE64`.
 
 ### Cutting a release
-`git tag v3.0.0 && git push origin v3.0.0` (or Actions → Release → Run workflow). The APK build uses **JDK 17** (AGP breaks on 25); versionName comes from the tag and versionCode defaults to the run number (override via manual dispatch).
+`git tag v3.0.0 && git push origin v3.0.0` (or Actions → Release → Run workflow). The APK build uses **JDK 17** (AGP breaks on 25); versionName comes from the tag and **versionCode is an auto monotonic date stamp `yymmddHH` (UTC)** — always increasing and above any small hand-set codes, so the updater offers newer builds. Override it via the manual-dispatch `versionCode` input if ever needed.
 
 ### In-app updater ↔ GitHub releases
-Each release ships a **`version.json`** (`versionCode`, `versionName`, `apkUrl`, `mandatory`, `minSupportedCode`, `changelog`) — the exact shape the Android updater (`AppUpdateGate` → `GET /api/app/version`) already expects. To make the updater serve the GitHub release APK, point the backend's `/api/app/version` at the latest release's `version.json` (backend proxy — recommended; the app stays unchanged). `versionCode` auto-increments from the workflow run number — keep it ahead of any code already installed on devices (use the manual `versionCode` input to set a high starting value once).
+Each release ships a **`version.json`** (`versionCode`, `versionName`, `apkUrl`, `mandatory`, `minSupportedCode`, `changelog`) — the exact shape the Android updater (`AppUpdateGate` → `GET /api/app/version`) already expects. To make the updater serve the GitHub release APK, point the backend's `/api/app/version` at the latest release's `version.json` (backend proxy — recommended; the app stays unchanged). `versionCode` is an auto monotonic date stamp (`yymmddHH`, UTC) — it stays ahead of small hand-set codes on installed devices, so no manual bumping is needed (override via the manual `versionCode` input only for edge cases).
 
 ## `deploy.yml` prerequisites
 Deploys the artifacts from an existing release, so **build a release first** (`v*` tag).
