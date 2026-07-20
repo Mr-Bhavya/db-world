@@ -1,0 +1,52 @@
+name: Deploy to Pi (self-hosted)
+
+# OPTIONAL — a GitHub Actions equivalent of the Jenkins deploy. It runs on a
+# SELF-HOSTED runner installed on the Pi, so no inbound SSH/firewall holes are
+# needed (the job runs locally on the box, just like Jenkins does).
+#
+# Before this works you must:
+#   1. Register the Pi as a self-hosted runner: repo → Settings → Actions →
+#      Runners → New self-hosted runner. Give it the label `dbworldpi`.
+#   2. Create a `production` Environment (Settings → Environments) — optionally
+#      with a required reviewer so a deploy waits for your approval.
+#   3. Make sure the runner's user can run `dbworldctl` (sudoers) and write to
+#      /var/www/dbworld, and that /etc/dbworld/.env.production exists (as today).
+#
+# This OVERLAPS with the Jenkins pipeline — pick one deploy path, don't run both.
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: What to deploy
+        type: choice
+        options: [full, frontend, backend]
+        default: full
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dbworldpi]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build + deploy backend
+        if: ${{ inputs.part != 'frontend' }}
+        run: |
+          set -ex
+          (cd db-world-backend && mvn -B -ntp -P prod -DskipTests package)
+          sudo /usr/local/bin/dbworldctl update db-world-backend/target/db-world.war
+
+      - name: Build + deploy frontend
+        if: ${{ inputs.part != 'backend' }}
+        run: |
+          set -ex
+          mkdir -p runtime
+          cp /etc/dbworld/.env.production runtime/.env.production
+          cd db-world-frontend
+          npm install --no-audit --no-fund
+          NODE_OPTIONS=--max-old-space-size=2048 npm run build:production
+          RELEASE_DIR="/var/www/dbworld/releases/$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$RELEASE_DIR"
+          cp -r dist/* "$RELEASE_DIR/"
+          ln -sfn "$RELEASE_DIR" /var/www/dbworld/current
+          ls -dt /var/www/dbworld/releases/* | tail -n +6 | xargs rm -rf || true

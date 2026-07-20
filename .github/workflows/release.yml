@@ -1,0 +1,49 @@
+name: Release
+
+# Publishes a GitHub Release with build artifacts when you push a version tag
+# (e.g. `git tag v1.2.0 && git push origin v1.2.0`), or run it manually.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # required to create the Release + upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build backend WAR
+        working-directory: db-world-backend
+        run: mvn -B -ntp -P prod -DskipTests package
+
+      # ── Optional: frontend bundle ────────────────────────────────────────────
+      # `npm run build` works without the server .env; for a real production
+      # bundle, add the env as a secret and write it to runtime/.env.production
+      # first, then use `npm run build:production`. Uncomment + add dist to files.
+      # - name: Build frontend
+      #   working-directory: db-world-frontend
+      #   run: |
+      #     npm install --no-audit --no-fund
+      #     npm run build
+      # - run: (cd db-world-frontend && zip -r ../frontend-dist.zip dist)
+
+      # ── Optional: Android APK ────────────────────────────────────────────────
+      # Needs the Android SDK (android-actions/setup-android) + your signing
+      # keystore stored as secrets (base64-decoded at runtime). Heavier; add when
+      # you want release APKs published here instead of your own API.
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: db-world-backend/target/*.war
+          generate_release_notes: true
