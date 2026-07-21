@@ -1,65 +1,44 @@
 import React from 'react';
 import { Box, Skeleton } from '@mui/material';
-import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from './railTypeConfig';
 import useDeviceTier from '../../hooks/useDeviceTier';
+import { useViewportWidth, desktopFluidFactor } from '../../hooks/useFluidCardSize';
+import RecordCardSkeleton from '../RecordCard/parts/RecordCardSkeleton';
 
-const SkeletonCard = ({ type, tier }) => {
-  const cfg     = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
-  const h       = cfg.tiers[tier];
-  const isCirc  = type === 'person';
-  const isTop10 = type === 'top10';
-  const isPrime = type === 'prime';
-  // Respect mobileAspect for standard on mobile/tablet (poster vs backdrop)
-  const isMobileTier = tier === 'mobile' || tier === 'tablet';
-  const aspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
-  const [aw, ah] = aspect.split('/').map(Number);
-  const w = isPrime  ? Math.round(h * 9/16)
-    : isTop10        ? Math.round(h * 2/3)
-    : isCirc         ? h
-    :                  Math.round(h * aw / ah);
-
-  return (
-    <Box sx={{
-      flexShrink: 0,
-      pl: isTop10 ? { xs: 6, md: 10 } : 0,
-      width: w,
-      height: (isPrime || isCirc) ? h : undefined,
-      aspectRatio: (!isPrime && !isCirc) ? aspect : undefined,
-      borderRadius: isCirc ? '50%' : 1.5,
-      overflow: 'hidden',
-      bgcolor: 'rgba(255,255,255,.06)',
-    }}>
-      <Skeleton
-        variant="rectangular"
-        width="100%"
-        height="100%"
-        sx={{
-          bgcolor: 'rgba(255,255,255,.06)',
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-        }}
-      />
-    </Box>
-  );
-};
+// Page-level rail placeholder shown before the rail list resolves. Mirrors
+// RailRow's layout (same horizontal padding + fluid inter-card gap + row margin)
+// and reuses RecordCardSkeleton so the placeholder cards match the REAL cards at
+// every tier — mobile, tablet, desktop, large monitor (fluid scale-up) and TV.
+// (The old bespoke SkeletonCard sized off `cfg.tiers[tier]`, which over-sized on
+// TV and skipped the desktop fluid factor on large monitors.)
+const RAIL_PX = 'clamp(12px, 4vw, 48px)';
 
 const RailSkeleton = ({ type = 'standard', count = 6 }) => {
   const tier = useDeviceTier();
+  const vw = useViewportWidth();
+  const isTop10 = type === 'top10';
+
+  // Same gap rule as RailRow: fluid on desktop, breakpoint-based elsewhere.
+  const railGap = tier === 'desktop'
+    ? `${Math.round((isTop10 ? 4 : 16) * desktopFluidFactor(vw))}px`
+    : (isTop10 ? 0.5 : { xs: 1.25, md: 2 });
 
   return (
-    <Box sx={{ mb: { xs: 2.5, md: 3.5 }, px: { xs: 2, md: 4 } }}>
-      <Skeleton
-        variant="text"
-        width={200}
-        height={28}
-        sx={{
-          bgcolor: 'rgba(255,255,255,.08)',
-          mb: 1,
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-        }}
-      />
-      <Box sx={{ display: 'flex', gap: type === 'top10' ? 0.5 : 1.5, overflowX: 'hidden' }}>
+    <Box sx={{ mb: { xs: 3.25, md: 5 } }}>
+      <Box sx={{ px: RAIL_PX, mb: 1 }}>
+        <Skeleton
+          variant="text"
+          width={200}
+          height={28}
+          sx={{
+            bgcolor: 'rgba(255,255,255,.08)',
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          }}
+        />
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: railGap, px: RAIL_PX, overflowX: 'hidden' }}>
         {Array.from({ length: count }).map((_, i) => (
-          <SkeletonCard key={i} type={type} tier={tier} />
+          <RecordCardSkeleton key={i} type={type} />
         ))}
       </Box>
     </Box>
