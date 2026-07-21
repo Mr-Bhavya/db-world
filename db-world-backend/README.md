@@ -1,6 +1,6 @@
 # DB World — Backend
 
-Spring Boot 3.5 REST API server. Packages as a WAR and runs on the production server via `dbworldctl`. Also serves the frontend SPA from `classpath:/public/` in the same WAR.
+Spring Boot 4 REST API server (Java 25). Packages as a WAR and runs on the production server via `dbworldctl`. The frontend SPA is served separately by Nginx — it is **not** bundled in the WAR.
 
 ---
 
@@ -8,24 +8,24 @@ Spring Boot 3.5 REST API server. Packages as a WAR and runs on the production se
 
 | Technology | Purpose |
 |---|---|
-| Spring Boot 3.5 / Java 21 | Application framework |
-| Spring Security + JWT (RSA) | Authentication and authorisation |
-| Spring Data JPA + Hibernate 6 | ORM and database access |
+| Spring Boot 4.0 / Java 25 (Jetty) | Application framework |
+| Spring Security + OAuth2 Resource Server · JWT (RSA, Nimbus) | Authentication and authorisation |
+| Spring Data JPA + Hibernate 7 | ORM and database access |
 | MySQL 8 | Primary datastore |
 | Redis | Response caching (60 s default TTL) |
-| Spring WebFlux / WebClient | Reactive HTTP client (TMDB API) |
+| Spring WebFlux / WebClient | Reactive HTTP client (TMDB API, streaming) |
 | Spring WebSocket | Real-time push to admin console |
 | Jasypt | Encrypted properties |
 | MapStruct 1.6 | DTO ↔ entity mapping |
 | Log4j2 + LMAX Disruptor | Async structured logging |
-| SpringDoc OpenAPI 2.6 | Auto-generated Swagger UI |
+| SpringDoc OpenAPI 3.0 | Auto-generated Swagger UI |
 
 ---
 
 ## Prerequisites
 
-- Java 21+
-- Maven 3.9+ (or use the wrapper at `mvnw`)
+- Java 25 (JDK 25)
+- Maven 3.9+ (no wrapper is committed)
 - MySQL 8 running and accessible
 - Redis running locally (`localhost:6379` by default)
 
@@ -99,7 +99,7 @@ mvn clean package \
     -DskipTests
 ```
 
-The WAR lands at `db-world-backend/db-world.war`. The Jenkins pipeline copies it to the staging directory and calls `dbworldctl update` to deploy.
+The WAR lands at `target/db-world.war`. In CI it's built by [`.github/workflows/backend.yml`](../.github/workflows/backend.yml) (→ rolling `backend-latest` prerelease) and shipped to the server by `deploy.yml` via `dbworldctl update`. See [docs/RELEASING.md](../docs/RELEASING.md).
 
 ---
 
@@ -124,9 +124,9 @@ src/main/java/com/db/dbworld/
 src/main/resources/
 ├── application.yml           # Shared defaults
 ├── application-local.yml     # Local overrides (gitignored if contains secrets)
-├── log4j2.xml                # Async logging config (JSON + rolling file)
-└── public/                   # Frontend dist — populated at build time
+└── log4j2.xml                # Async logging config (JSON + rolling file)
 ```
+> The frontend is built + deployed separately (Nginx serves it); it is not bundled here.
 
 ---
 
