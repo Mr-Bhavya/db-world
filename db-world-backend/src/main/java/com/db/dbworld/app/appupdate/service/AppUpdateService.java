@@ -53,7 +53,7 @@ public class AppUpdateService {
     private record Snapshot(AppVersionInfo info, String githubApkUrl) {}
 
     private volatile Snapshot cached;
-    private volatile long cachedAt;
+    private volatile long nextFetchAt;   // don't hit GitHub again until this time (success OR failure)
 
     /** @return latest build metadata (with a relative apkUrl), or {@code null}. */
     public AppVersionInfo getLatest() {
@@ -69,20 +69,21 @@ public class AppUpdateService {
 
     private Snapshot snapshot() {
         long now = System.currentTimeMillis();
-        Snapshot c = cached;
-        if (c != null && now - cachedAt < CACHE_TTL_MS) {
-            return c;
+        if (now < nextFetchAt) {
+            return cached;
         }
         try {
             Snapshot s = fetchFromGitHub();
             if (s != null) {
-                cached = s;
-                cachedAt = now;
-                return s;
+                cached = s; // refresh; keep the previous good value if a refresh returns nothing
             }
         } catch (Exception e) {
-            log.warn("GitHub release lookup failed: {} — serving last cached value", e.toString());
+            log.warn("GitHub release lookup failed: {} — keeping last cached value", e.toString());
         }
+        // Back off for the full TTL whether the fetch SUCCEEDED or FAILED — otherwise a
+        // failing fetch leaves the window "expired" and every request re-hits GitHub,
+        // burning the 60/hr unauthenticated rate limit and freezing on stale data.
+        nextFetchAt = now + CACHE_TTL_MS;
         return cached; // may be null (never published, or first lookup failed)
     }
 
