@@ -12,55 +12,64 @@ auto-updating Android app. All automation lives in [`.github/workflows/`](../.gi
 
 ## The pipeline at a glance
 
+**Backend and app are separate tracks** — a backend change never rebuilds the APK,
+and an app release never rebuilds the WAR. Everything is built on GitHub runners; the
+Pi only downloads + deploys.
+
 ```
- feature ──►(merge)──► development ──►(PR)──► main ──►(tag vX.Y.Z)
-                            │                 │              │
-                        ci.yml (lint+compile) │              ▼
-                                                       release.yml  (cloud runners)
-                                              builds WAR + frontend dist.zip +
-                                              signed APK + version.json
-                                              → GitHub Release  ┐
-                                                                │
-    Actions ▸ Deploy to Pi ──►(self-hosted runner on the Pi)◄──┘
-        downloads that release's WAR/dist → dbworldctl + /var/www/dbworld
-                                                                │
-    Android app on launch ─► GET /api/app/version ─► backend proxies the
-        latest Release's version.json ─► app self-updates from GitHub
+ feature ─(merge)─► development ─(PR)─► main
+                        │                │
+                    ci.yml         ┌─────┴─────────────┐
+               (lint+compile)  (tag vX.Y.Z)     (backend change)
+                                    │                  │
+                             release.yml          backend.yml     (cloud runners)
+                        frontend dist +          builds the WAR
+                        signed APK +             → rolling `backend-latest`
+                        version.json             prerelease
+                        → GitHub Release             │
+                                    │                │
+   Actions ▸ Deploy to Pi ─(self-hosted runner on the Pi)
+        frontend ◄ app release dist        backend ◄ backend-latest WAR
+             → /var/www/dbworld                 → dbworldctl
+                                    │
+   Android app on launch ─► GET /api/app/version ─► backend returns the latest
+        app Release's version.json ─► self-updates from GitHub
 ```
 
-Three workflows:
-| Workflow | Runs on | Trigger | Does |
-|----------|---------|---------|------|
-| `ci.yml` | cloud | push/PR to `development`,`main` | lint frontend + compile backend |
-| `release.yml` | cloud | push tag `v*` (or manual) | build WAR, frontend zip, signed APK, `version.json` → GitHub Release |
-| `deploy.yml` | **self-hosted (Pi)** | manual | download a release's artifacts → deploy to the Pi |
+| Workflow | Runs on | Trigger | Builds |
+|----------|---------|---------|--------|
+| `ci.yml` | cloud | push/PR to `development`,`main` | lint FE + compile BE (checks only) |
+| `release.yml` | cloud | tag `v*` (or manual) | **app**: frontend zip + signed APK + `version.json` → Release |
+| `backend.yml` | cloud | push to `main` under `db-world-backend/**` (or manual) | **backend**: WAR → rolling `backend-latest` prerelease |
+| `deploy.yml` | **Pi (self-hosted)** | manual | download + deploy (backend ← `backend-latest`, frontend ← app release) |
 
-## Release + deploy the next version
+## Ship a change
 
-**1. Promote `development` → `main`** (PR, because `main` is protected)
-- Open: `https://github.com/Mr-Bhavya/db-world/compare/main...development`
-- CI runs on the PR → **Merge**.
+Both start by promoting to `main` (PR, because `main` is protected):
+open `https://github.com/Mr-Bhavya/db-world/compare/main...development` → CI runs → **Merge**.
 
-**2. Tag the release on `main`**
-```bash
-git checkout main && git pull
-git tag v3.0.1
-git push origin v3.0.1
-```
-`release.yml` fires and publishes a **GitHub Release `v3.0.1`** with `db-world.war`,
-`db-world-frontend-dist.zip`, `db-world-3.0.1.apk`, and `version.json`.
-*(Alternative: Actions ▸ Release ▸ Run workflow — lets you set versionName + an explicit versionCode.)*
+**Backend-only change**
+1. `backend.yml` runs automatically on the merge (or run it manually) → refreshes the
+   `backend-latest` prerelease WAR. No APK is built.
+2. **Actions ▸ Deploy to Pi ▸ Run workflow** → part **`backend`**. Pulls the
+   `backend-latest` WAR → `dbworldctl update`.
 
-**3. Deploy to the Pi**
-- **Actions ▸ Deploy to Pi (self-hosted) ▸ Run workflow**
-- Enter tag `v3.0.1` (a bare `3.0.1` also works), part `full` / `frontend` / `backend`.
-- The Pi runner pulls the release's artifacts → `dbworldctl update` (backend) and
-  a new `/var/www/dbworld/releases/<ts>` symlinked as `current` (frontend).
+**Frontend / Android change (app release)**
+1. Tag it on `main`:
+   ```bash
+   git checkout main && git pull
+   git tag v3.0.1 && git push origin v3.0.1
+   ```
+   `release.yml` publishes **Release `v3.0.1`** with `db-world-frontend-dist.zip`,
+   `db-world-3.0.1.apk`, and `version.json` (no WAR).
+   *(Alternative: Actions ▸ Release ▸ Run workflow — set versionName + explicit versionCode.)*
+2. **Actions ▸ Deploy to Pi ▸ Run workflow** → part **`frontend`**, appTag `v3.0.1`
+   (blank = latest app release). Deploys the dist under `/var/www/dbworld`.
+3. **The Android app self-updates**: on launch `/api/app/version` returns the release's
+   `version.json`; if **versionCode > installed**, it downloads + installs the APK
+   (`/api/app/download` → 302 → GitHub). No manual APK distribution.
 
-**4. The Android app updates itself**
-- On launch it calls `/api/app/version`; the backend returns the latest Release's
-  `version.json`; if that **versionCode > installed**, the app offers the update and
-  downloads the APK (`/api/app/download` → 302 → GitHub). No manual APK distribution.
+**Both changed?** Deploy with part **`full`** (pulls `backend-latest` + the app release).
 
 ## versionCode
 - Auto: a monotonic **date stamp `yymmddHH` (UTC)** — always increasing and above any
@@ -71,8 +80,11 @@ git push origin v3.0.1
   same keystore** as installed apps, or Android refuses the update.
 
 ## Rollback
-Deploys are tag-based and repeatable: run **Deploy to Pi** again with a previous tag
-(e.g. `v3.0.0`) to redeploy those exact artifacts.
+- **Frontend**: run **Deploy to Pi** again with an older `appTag` (e.g. `v3.0.0`) to
+  redeploy that release's dist.
+- **Backend**: `backend-latest` is rolling (no history). To roll back, run `backend.yml`
+  manually from an older commit/branch (Run workflow → pick the ref) to rebuild the WAR,
+  then deploy part `backend`.
 
 ## Prerequisites (one-time)
 - **Release secrets** (repo → Settings → Secrets → Actions): `ANDROID_KEYSTORE_BASE64`,

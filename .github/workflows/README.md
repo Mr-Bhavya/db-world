@@ -5,8 +5,11 @@ Public repo → GitHub-hosted runners are **free & unlimited**, so CI/CD here co
 | Workflow | Trigger | What it does | Needs setup? |
 |----------|---------|--------------|--------------|
 | [`ci.yml`](ci.yml) | push / PR to `development`,`main`; manual | Lint frontend (ESLint) + compile backend (JDK 25) | No — works immediately |
-| [`release.yml`](release.yml) | push tag `v*`; manual | Build + attach **WAR** (deploy), **frontend dist zip** (deploy), **APK** (public), and **version.json** (updater metadata) to a GitHub Release | APK needs signing secrets; frontend env optional |
-| [`deploy.yml`](deploy.yml) | manual (tag) | Download a release's artifacts and deploy them to the Pi | **Yes** — self-hosted runner + `production` env |
+| [`release.yml`](release.yml) | push tag `v*`; manual | **App release**: frontend dist zip + **APK** (public) + **version.json** (updater) → GitHub Release. No WAR. | APK needs signing secrets; frontend env optional |
+| [`backend.yml`](backend.yml) | push to `main` under `db-world-backend/**`; manual | Build the backend **WAR** → rolling **`backend-latest`** prerelease (no APK) | No |
+| [`deploy.yml`](deploy.yml) | manual | Deploy to the Pi — backend ← `backend-latest`, frontend ← an app release | **Yes** — self-hosted runner + `production` env |
+
+**Backend and app are separate tracks** so a backend change never rebuilds the APK, and an app release never rebuilds the WAR. Everything is built on GitHub runners; the Pi only downloads + deploys.
 
 ## Relationship to Jenkins
 These **complement** the Jenkins pipeline (`db-world-config/server_config/Jenkinsfile`), which still owns the real Pi build + deploy. Recommended split:
@@ -34,15 +37,18 @@ These **complement** the Jenkins pipeline (`db-world-config/server_config/Jenkin
 
 Encode the keystore once: `base64 -w0 your-release.jks` (or `certutil -encode` on Windows) → paste as `ANDROID_KEYSTORE_BASE64`.
 
-### Cutting a release
+### Cutting an app release (frontend + APK)
 `git tag v3.0.0 && git push origin v3.0.0` (or Actions → Release → Run workflow). The APK build uses **JDK 17** (AGP breaks on 25); versionName comes from the tag and **versionCode is an auto monotonic date stamp `yymmddHH` (UTC)** — always increasing and above any small hand-set codes, so the updater offers newer builds. Override it via the manual-dispatch `versionCode` input if ever needed.
+
+### Building the backend (WAR)
+Backend changes merged to `main` auto-trigger `backend.yml` (or run it manually), which republishes the rolling **`backend-latest`** prerelease. No tag, no APK. Deploy pulls the WAR from there.
 
 ### In-app updater ↔ GitHub releases
 Each release ships a **`version.json`** (`versionCode`, `versionName`, `apkUrl`, `mandatory`, `minSupportedCode`, `changelog`) — the exact shape the Android updater (`AppUpdateGate` → `GET /api/app/version`) already expects. To make the updater serve the GitHub release APK, point the backend's `/api/app/version` at the latest release's `version.json` (backend proxy — recommended; the app stays unchanged). `versionCode` is an auto monotonic date stamp (`yymmddHH`, UTC) — it stays ahead of small hand-set codes on installed devices, so no manual bumping is needed (override via the manual `versionCode` input only for edge cases).
 
 ## `deploy.yml` prerequisites
-Deploys the artifacts from an existing release, so **build a release first** (`v*` tag).
-1. **Self-hosted runner** on the Pi (Settings → Actions → Runners → New self-hosted runner) — default labels are fine (`runs-on: self-hosted`). Install as a **service** so it survives reboot/logout: `sudo ./svc.sh install && sudo ./svc.sh start`. **The workflow must also be on the repo's default branch** for the manual "Run workflow" button to appear.
+Deploys prebuilt artifacts (build a release / backend WAR first).
+1. **Self-hosted runner** on the Pi (Settings → Actions → Runners → New self-hosted runner) — default labels are fine (`runs-on: self-hosted`). Install as a **service** so it survives reboot/logout: `sudo ./svc.sh install && sudo ./svc.sh start`. **The workflow must be on the repo's default branch** for the manual "Run workflow" button to appear.
 2. A **`production` Environment** (Settings → Environments), optionally with a required reviewer for approval gating.
 3. Runner user can `sudo /usr/local/bin/dbworldctl` (NOPASSWD) and write to `/var/www/dbworld`; `curl` + `unzip` installed.
-4. Run it: **Actions → Deploy to Pi → Run workflow**, enter the tag (e.g. `v3.0.0`) + part.
+4. Run it: **Actions → Deploy to Pi → Run workflow** → choose **part** (`full`/`backend`/`frontend`); for frontend, optionally set **appTag** (blank = latest app release). Backend always deploys the current `backend-latest`.
