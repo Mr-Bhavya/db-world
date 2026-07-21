@@ -53,7 +53,8 @@ const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
   return (
     <Box sx={{
       flexShrink: 0,
-      pl: is10 ? { xs: 6, md: 10 } : 0,
+      // reserve space for the (now ~half-height) Top 10 numeral that overlaps the poster
+      pl: is10 ? { xs: 4, sm: 5, md: 7 } : 0,
       width: w,
       ...aspectRatioSx,
       borderRadius: isCirc ? '50%' : 1,
