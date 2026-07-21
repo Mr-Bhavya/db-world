@@ -1,0 +1,46 @@
+name: Build Backend WAR
+
+# Builds the backend WAR on a GitHub-hosted runner and publishes it to a rolling
+# "backend-latest" prerelease, which the deploy workflow downloads. Kept SEPARATE
+# from the app Release (release.yml) so a backend change never rebuilds the APK,
+# and an app release never rebuilds the WAR.
+#
+# It's a PRERELEASE on purpose: GitHub's "latest release" (which the in-app updater
+# reads) ignores prereleases, so this backend build never masks the app release.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'db-world-backend/**'
+
+permissions:
+  contents: write   # create/update the backend-latest release
+
+concurrency:
+  group: backend-war
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + publish WAR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'   # backend targets JDK 25
+          cache: maven
+      - name: Build WAR
+        working-directory: db-world-backend
+        run: mvn -B -ntp -P prod -DskipTests package
+      - name: Publish rolling backend-latest release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: backend-latest
+          name: Backend WAR (rolling latest)
+          prerelease: true          # excluded from "latest release" → invisible to the updater
+          make_latest: 'false'
+          body: "Rolling backend WAR built from `main`. Deployed via the Deploy to Pi workflow."
+          files: db-world-backend/target/*.war

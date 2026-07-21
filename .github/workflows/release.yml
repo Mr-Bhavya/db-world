@@ -1,8 +1,9 @@
 name: Release
 
-# Publishes a GitHub Release with every artifact:
-#   • db-world.war                  — backend      (deployment)
-#   • db-world-frontend-dist.zip    — frontend     (deployment)
+# Publishes the APP release (frontend + Android). The backend WAR is built
+# separately by backend.yml (backend changes don't rebuild the APK). See
+# docs/RELEASING.md. Assets:
+#   • db-world-frontend-dist.zip    — frontend bundle (deployment)
 #   • db-world-<version>.apk        — Android app  (PUBLIC download / in-app updater)
 #   • version.json                  — updater metadata (versionCode/Name + apkUrl)
 #
@@ -35,26 +36,6 @@ permissions:
   contents: write   # create the Release + upload assets
 
 jobs:
-  # ── Backend WAR (deployment artifact) ──────────────────────────────────────
-  backend:
-    name: Backend WAR
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-      - name: Build WAR
-        working-directory: db-world-backend
-        run: mvn -B -ntp -P prod -DskipTests package
-      - uses: actions/upload-artifact@v7
-        with:
-          name: backend-war
-          path: db-world-backend/target/*.war
-          if-no-files-found: error
-
   # ── Frontend bundle (deployment artifact) ──────────────────────────────────
   frontend:
     name: Frontend bundle
@@ -181,10 +162,10 @@ jobs:
             version.json
           if-no-files-found: error
 
-  # ── Publish the GitHub Release with all three artifacts ────────────────────
+  # ── Publish the GitHub Release (frontend + APK + version.json) ─────────────
   release:
     name: Publish Release
-    needs: [backend, frontend, android]
+    needs: [frontend, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -196,7 +177,6 @@ jobs:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.versionName) }}
           generate_release_notes: true
           files: |
-            dist-artifacts/backend-war/*.war
             dist-artifacts/frontend-dist/*.zip
             dist-artifacts/android-apk/*.apk
             dist-artifacts/android-apk/version.json
