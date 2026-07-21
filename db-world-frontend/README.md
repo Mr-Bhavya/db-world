@@ -1,6 +1,6 @@
 # DB World — Frontend
 
-React 18 SPA built with Vite. Served as static files from Spring Boot in production; runs against the backend API via a dev-server proxy in development.
+React 18 SPA built with Vite 6. Served as static files by Nginx in production; runs against the backend API via the dev server in development. Also packaged as a self-updating Android app via Capacitor.
 
 ---
 
@@ -8,8 +8,9 @@ React 18 SPA built with Vite. Served as static files from Spring Boot in product
 
 | Library | Purpose |
 |---|---|
-| React 18 + Vite 5 | UI framework and build tool |
+| React 18 + Vite 6 | UI framework and build tool |
 | MUI v7 + Emotion | Component library and styling |
+| MUI X (Charts, Data Grid, Date Pickers) | Tables, charts, date pickers |
 | TanStack Query v5 | Server state, caching, pagination |
 | React Hook Form + Zod | Forms and validation |
 | Zustand | Client-side global state |
@@ -17,7 +18,7 @@ React 18 SPA built with Vite. Served as static files from Spring Boot in product
 | Notistack | Toast notifications |
 | Capacitor 7 | Android app wrapper |
 | Axios | HTTP client |
-| Recharts + Chart.js | Charts and data visualisation |
+| pdfjs-dist · Leaflet | PDF viewer · maps |
 
 ---
 
@@ -85,7 +86,7 @@ npm run build:local
 # Output: dist/
 ```
 
-The `dist/` folder is copied into `src/main/resources/public/` inside the backend WAR so the whole application ships as a single deployable artifact.
+The `dist/` folder is published by CI ([`release.yml`](../.github/workflows/release.yml)) and deployed to the server's Nginx web root by [`deploy.yml`](../.github/workflows/deploy.yml) (see [docs/RELEASING.md](../docs/RELEASING.md)). It is **not** bundled into the backend WAR.
 
 ---
 
@@ -119,7 +120,7 @@ npm run cap:sync
 # Then open the android/ directory in Android Studio and run on device
 ```
 
-Capacitor plugins in use: `@capacitor/app`, `@capacitor/filesystem`, `@capacitor/geolocation`, `@capacitor/haptics`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/screen-orientation`, `capacitor-video-player`.
+Capacitor plugins in use: `@capacitor/app`, `@capacitor/browser`, `@capacitor/filesystem`, `@capacitor/geolocation`, `@capacitor/haptics`, `@capacitor/push-notifications`, `@capacitor/status-bar`, `@capacitor/screen-orientation`, `@capacitor-community/screen-brightness`, `@capgo/capacitor-native-biometric`, `capacitor-video-player`, plus a custom `AppUpdate` plugin (in-app APK self-update).
 
 ---
 
