@@ -3,12 +3,14 @@ name: CI
 # Fast safety-net checks on GitHub-hosted runners (free & unlimited for public
 # repos). This does NOT build or deploy — the Pi build/deploy stays in Jenkins
 # (or the optional deploy.yml). Lint the frontend, compile the backend.
+# Triggers are split to avoid duplicate runs: a PR fires only `pull_request`,
+# not also `push`. `push` runs only on `main` for post-merge validation.
 on:
   push:
-    branches: [development, main]
+    branches: [main]                 # post-merge check on the release branch
   pull_request:
-    branches: [development, main]
-  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+    branches: [development, main]     # validate every PR (into development or main)
+  workflow_dispatch: {}              # manual run from the Actions tab
 
 jobs:
   frontend:
