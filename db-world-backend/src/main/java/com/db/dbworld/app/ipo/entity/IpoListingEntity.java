@@ -15,7 +15,8 @@ import java.time.LocalDate;
  */
 @Entity
 @Table(schema = "db_world", name = "ipo_listing",
-        uniqueConstraints = @UniqueConstraint(name = "uk_ipo_listing_match_key", columnNames = "match_key"))
+        uniqueConstraints = @UniqueConstraint(name = "uk_ipo_listing_match_key", columnNames = "match_key"),
+        indexes = @Index(name = "idx_ipo_listing_status", columnList = "status"))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class IpoListingEntity {
 
