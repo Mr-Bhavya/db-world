@@ -112,10 +112,22 @@ public class IpoIngestService {
         boolean transitioningToListed = !STATUS_LISTED.equals(entity.getStatus()) && STATUS_LISTED.equals(dto.status());
         boolean listingPriceNewlySet = entity.getListingPrice() == null && dto.listingPrice() != null;
         if (transitioningToListed || listingPriceNewlySet) {
-            events.add(event(ipoId, "LISTING", null, dto.listingExchange() + " " + dto.listingGainPct(), now));
+            events.add(event(ipoId, "LISTING", null, listingEventValue(dto.listingExchange(), dto.listingGainPct()), now));
         }
 
         return events;
+    }
+
+    /** Joins whichever of {exchange, gainPct + "%"} are non-null with a space; empty if both are null. */
+    private static String listingEventValue(String exchange, BigDecimal gainPct) {
+        List<String> parts = new ArrayList<>();
+        if (exchange != null) {
+            parts.add(exchange);
+        }
+        if (gainPct != null) {
+            parts.add(gainPct + "%");
+        }
+        return String.join(" ", parts);
     }
 
     /** Append-on-change: only inserts a history row when the captured value actually moved. */

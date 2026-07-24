@@ -81,23 +81,30 @@ class IpoMergeServiceTest {
 
     @Test
     void merge_fieldMissingFromAllPrecedenceSources_fallsBackToAnyNonNullInGroup() {
-        // allotmentStatus's precedence is [chittorgarh, ipoguru, nse]; supply it only from nse,
-        // which is last in that precedence list but still the only value available.
+        // allotmentStatus's precedence is [chittorgarh, ipoguru, nse]. Both precedence-listed
+        // sources present here (nse, ipoguru) leave it null, so the only way the merged value
+        // can come through is the true fallback branch — any non-null value anywhere in the
+        // group — picking it up from "manual", a source that isn't even in the precedence list.
         IpoDto nse = new IpoDto("nse", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                "finalized-only-nse", null, null);
+                null, null, null);
         IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null);
+        IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null,
+                "finalized-manual-only", null, null);
 
-        List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru));
+        List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, manual));
 
         assertThat(merged).hasSize(1);
-        assertThat(merged.get(0).allotmentStatus()).isEqualTo("finalized-only-nse");
+        assertThat(merged.get(0).allotmentStatus()).isEqualTo("finalized-manual-only");
     }
 
     @Test

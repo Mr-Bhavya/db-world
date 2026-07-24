@@ -237,7 +237,24 @@ class IpoIngestServiceTest {
 
         IpoChangeEventEntity listingEvent = events.stream()
                 .filter(e -> "LISTING".equals(e.getEventType())).findFirst().orElseThrow();
-        assertThat(listingEvent.getNewValue()).isEqualTo("NSE 22.73");
+        assertThat(listingEvent.getNewValue()).isEqualTo("NSE 22.73%");
+    }
+
+    @Test
+    void ingest_statusTransitionsToListedWithNullExchangeAndGainPct_listingEventValueSkipsNulls() {
+        IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", null, null, null);
+        stubExisting(existing);
+        IpoDto dto = dto("listed", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", null, null, null);
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoChangeEventEntity> eventCaptor = ArgumentCaptor.forClass(IpoChangeEventEntity.class);
+        verify(changeEventRepo, times(2)).save(eventCaptor.capture()); // STATUS (open->listed) + LISTING
+        IpoChangeEventEntity listingEvent = eventCaptor.getAllValues().stream()
+                .filter(e -> "LISTING".equals(e.getEventType())).findFirst().orElseThrow();
+        assertThat(listingEvent.getNewValue()).isEmpty();
     }
 
     @Test
@@ -253,6 +270,24 @@ class IpoIngestServiceTest {
         ArgumentCaptor<IpoChangeEventEntity> eventCaptor = ArgumentCaptor.forClass(IpoChangeEventEntity.class);
         verify(changeEventRepo, times(1)).save(eventCaptor.capture());
         assertThat(eventCaptor.getValue().getEventType()).isEqualTo("LISTING");
+    }
+
+    @Test
+    void ingest_alreadyListedReingestedWithIdenticalListedDto_emitsNoListingEventOrNewHistory() {
+        // Entity has already completed the listed transition (status + listingPrice both set);
+        // re-ingesting the same listed dto must not re-fire LISTING or append fresh history rows.
+        IpoListingEntity existing = existingEntity("listed", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", "NSE", new BigDecimal("22.73"), new BigDecimal("135.00"));
+        stubExisting(existing);
+        IpoDto dto = dto("listed", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", "NSE", new BigDecimal("22.73"), new BigDecimal("135.00"));
+
+        service.ingest(List.of(dto));
+
+        verify(listingRepo, times(1)).save(any()); // lastSeenAt bump only — acceptable
+        verify(changeEventRepo, never()).save(any());
+        verify(gmpHistoryRepo, never()).save(any());
+        verify(subHistoryRepo, never()).save(any());
     }
 
     @Test

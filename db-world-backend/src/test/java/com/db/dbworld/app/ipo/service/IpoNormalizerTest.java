@@ -76,6 +76,19 @@ class IpoNormalizerTest {
     }
 
     @Test
+    void matchKey_stripsMultipleStackedLegalSuffixes() {
+        LocalDate open = LocalDate.of(2026, 7, 20);
+
+        String privateLimited = normalizer.matchKey(dtoWith("XYZ Private Limited", open));
+        String pvtLtd = normalizer.matchKey(dtoWith("XYZ Pvt Ltd", open));
+        String pvtDotLtdDot = normalizer.matchKey(dtoWith("XYZ Pvt. Ltd.", open));
+        String limited = normalizer.matchKey(dtoWith("XYZ Limited", open));
+        String ltd = normalizer.matchKey(dtoWith("XYZ Ltd", open));
+
+        assertThat(privateLimited).isEqualTo(pvtLtd).isEqualTo(pvtDotLtdDot).isEqualTo(limited).isEqualTo(ltd);
+    }
+
+    @Test
     void matchKey_stripsNonAlphanumericsAndCollapsesWhitespace() {
         LocalDate open = LocalDate.of(2026, 7, 20);
 

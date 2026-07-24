@@ -15,7 +15,7 @@ import java.util.List;
 public class IpoNormalizer {
 
     /** Checked longest-most-specific first so e.g. "ltd." isn't shadowed by a looser match. */
-    private static final List<String> LEGAL_SUFFIXES = List.of("limited", "private", "ltd.", "ltd", "pvt");
+    private static final List<String> LEGAL_SUFFIXES = List.of("limited", "private", "ltd.", "pvt.", "ltd", "pvt");
 
     private static final java.util.regex.Pattern NON_ALPHANUMERIC = java.util.regex.Pattern.compile("[^a-z0-9\\s]");
     private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
@@ -48,10 +48,18 @@ public class IpoNormalizer {
 
     private String normalize(String companyName) {
         String s = companyName.toLowerCase().trim();
-        for (String suffix : LEGAL_SUFFIXES) {
-            if (s.endsWith(suffix)) {
-                s = s.substring(0, s.length() - suffix.length());
-                break;
+        // Repeatedly strip trailing legal-suffix tokens (a name can carry more than one, e.g.
+        // "XYZ Private Limited") until none remain, so all legal-suffix variants of a company
+        // collapse onto the same key.
+        boolean strippedSomething = true;
+        while (strippedSomething) {
+            strippedSomething = false;
+            for (String suffix : LEGAL_SUFFIXES) {
+                if (s.endsWith(suffix)) {
+                    s = s.substring(0, s.length() - suffix.length()).trim();
+                    strippedSomething = true;
+                    break;
+                }
             }
         }
         s = NON_ALPHANUMERIC.matcher(s).replaceAll("");
