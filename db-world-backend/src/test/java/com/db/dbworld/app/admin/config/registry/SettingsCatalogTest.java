@@ -43,7 +43,7 @@ class SettingsCatalogTest {
 
     @Test
     void catalogCoversExpectedKeyCount() {
-        // 10 recommend + 9 tracking + 1 weather + 3 cdn + 2 wallet = 25
-        assertThat(SettingsCatalog.ALL).hasSize(25);
+        // 10 recommend + 9 tracking + 1 weather + 3 cdn + 2 wallet + 6 ipo = 31
+        assertThat(SettingsCatalog.ALL).hasSize(31);
     }
 }

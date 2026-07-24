@@ -19,6 +19,7 @@ public final class SettingsCatalog {
     private static final String C_WEATHER   = "Weather";
     private static final String C_CDN       = "CDN Signing";
     private static final String C_WALLET    = "Document Wallet";
+    private static final String C_IPO       = "IPO Tracker";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -89,7 +90,23 @@ public final class SettingsCatalog {
             "Maximum upload size per wallet document.", 10_485_760L, 1_048_576L, 104_857_600L, 0),
         str(WALLET_ALLOWED_CONTENT_TYPES, C_WALLET, "Allowed content types",
             "Comma-separated MIME types accepted for wallet uploads.",
-            "application/pdf,image/png,image/jpeg", false, 1)
+            "application/pdf,image/png,image/jpeg", false, 1),
+
+        // ── IPO Tracker ──────────────────────────────────────────────────
+        str(IPO_SOURCES_ENABLED, C_IPO, "Enabled sources",
+            "Comma-separated keys of enabled IPO data sources.",
+            "ipoguru,nse,chittorgarh", false, 0),
+        str(IPO_IPOGURU_BASE_URL, C_IPO, "IPO Guru base URL",
+            "Base URL for the IPO Guru API.",
+            "https://www.ipoguru.in/api/v1", false, 1),
+        lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
+            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 2),
+        lng(IPO_POLL_LIST_INTERVAL_HOURS, C_IPO, "Listing poll interval (hours)",
+            "How often the IPO listing list is refreshed from sources.", 24L, 1L, 168L, 3),
+        lng(IPO_POLL_GMP_INTERVAL_HOURS, C_IPO, "GMP poll interval (hours)",
+            "How often grey market premium is refreshed from sources.", 12L, 1L, 72L, 4),
+        lng(IPO_POLL_SUBSCRIPTION_INTERVAL_HOURS, C_IPO, "Subscription poll interval (hours)",
+            "How often subscription figures are refreshed from sources.", 6L, 1L, 72L, 5)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =
