@@ -103,7 +103,7 @@ export const EDIT_RECORD_ROUTE =
 export const DB_WALLET_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-wallet`;
 export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
 
-export const DB_IPO_ROUTE = '/ipo';
+export const DB_IPO_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
 export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
 

@@ -99,36 +99,36 @@ export default function IpoDetailPage() {
           </Box>
         </Box>
 
-        <SectionCard T={T} title="Timeline">
+        <SectionCard title="Timeline">
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            <DateChip T={T} label="Opens" value={formatShortDate(ipo.openDate)} />
-            <DateChip T={T} label="Closes" value={formatShortDate(ipo.closeDate)} />
-            <DateChip T={T} label="Allotment" value={formatShortDate(ipo.allotmentDate)} />
-            <DateChip T={T} label="Listing" value={formatShortDate(ipo.listingDate)} />
+            <DateChip label="Opens" value={formatShortDate(ipo.openDate)} />
+            <DateChip label="Closes" value={formatShortDate(ipo.closeDate)} />
+            <DateChip label="Allotment" value={formatShortDate(ipo.allotmentDate)} />
+            <DateChip label="Listing" value={formatShortDate(ipo.listingDate)} />
           </Box>
         </SectionCard>
 
-        <SectionCard T={T} title="Issue details">
+        <SectionCard title="Issue details">
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 1.5 }}>
-            <StatBlock T={T} label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
-            <StatBlock T={T} label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
-            <StatBlock T={T} label="Issue size" value={ipo.issueSize ?? null} />
+            <StatBlock label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
+            <StatBlock label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
+            <StatBlock label="Issue size" value={ipo.issueSize ?? null} />
             {ipo.status === 'listed' && (
               <>
-                <StatBlock T={T} label="Listing price" value={formatCurrency(ipo.listingPrice)} />
-                <StatBlock T={T} label="Listing gain" value={formatPct(ipo.listingGainPct)} valueColor={gainColor} />
-                <StatBlock T={T} label="Exchange" value={ipo.listingExchange} />
+                <StatBlock label="Listing price" value={formatCurrency(ipo.listingPrice)} />
+                <StatBlock label="Listing gain" value={formatPct(ipo.listingGainPct)} valueColor={gainColor} />
+                <StatBlock label="Exchange" value={ipo.listingExchange} />
               </>
             )}
           </Box>
         </SectionCard>
 
-        <SectionCard T={T} title="Subscription">
+        <SectionCard title="Subscription">
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: 1.5 }}>
-            <StatBlock T={T} label="Total" value={formatMultiplier(ipo.subTotal ?? latestSub?.total)} highlight />
-            <StatBlock T={T} label="QIB" value={formatMultiplier(latestSub?.qib)} />
-            <StatBlock T={T} label="NII" value={formatMultiplier(latestSub?.nii)} />
-            <StatBlock T={T} label="Retail" value={formatMultiplier(latestSub?.retail)} />
+            <StatBlock label="Total" value={formatMultiplier(ipo.subTotal ?? latestSub?.total)} highlight />
+            <StatBlock label="QIB" value={formatMultiplier(latestSub?.qib)} />
+            <StatBlock label="NII" value={formatMultiplier(latestSub?.nii)} />
+            <StatBlock label="Retail" value={formatMultiplier(latestSub?.retail)} />
           </Box>
         </SectionCard>
 
@@ -141,7 +141,7 @@ export default function IpoDetailPage() {
           <SubscriptionChart points={subPoints} loading={subLoading} />
         </Box>
 
-        <SectionCard T={T} title="Allotment" icon={<FactCheckOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+        <SectionCard title="Allotment" icon={<FactCheckOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontSize: 12, color: T.textFaint }}>Status</Typography>
@@ -172,7 +172,8 @@ export default function IpoDetailPage() {
   );
 }
 
-function SectionCard({ T, title, icon, children }) {
+function SectionCard({ title, icon, children }) {
+  const T = useT();
   return (
     <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 3, p: { xs: 1.5, sm: 2 }, mb: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
@@ -186,7 +187,8 @@ function SectionCard({ T, title, icon, children }) {
   );
 }
 
-function DateChip({ T, label, value }) {
+function DateChip({ label, value }) {
+  const T = useT();
   return (
     <Box sx={{
       display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.75, borderRadius: 2,
@@ -203,7 +205,8 @@ function DateChip({ T, label, value }) {
   );
 }
 
-function StatBlock({ T, label, value, highlight, valueColor }) {
+function StatBlock({ label, value, highlight, valueColor }) {
+  const T = useT();
   return (
     <Box sx={{
       p: 1.25, borderRadius: 2,

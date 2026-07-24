@@ -23,7 +23,8 @@ function StatusBadge({ status }) {
   );
 }
 
-function Stat({ label, children, T }) {
+function Stat({ label, children }) {
+  const T = useT();
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
@@ -34,7 +35,8 @@ function Stat({ label, children, T }) {
   );
 }
 
-function GmpValue({ gmp, gmpPct, T }) {
+function GmpValue({ gmp, gmpPct }) {
+  const T = useT();
   if (gmp == null && gmpPct == null) {
     return <Typography sx={{ fontSize: 13, color: T.textFaint }}>—</Typography>;
   }
@@ -108,13 +110,13 @@ export default function IpoCard({ ipo, index = 0 }) {
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-          <Stat label="Price band" T={T}>
+          <Stat label="Price band">
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>
               {formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}
             </Typography>
           </Stat>
-          <Stat label="GMP" T={T}>
-            <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} T={T} />
+          <Stat label="GMP">
+            <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
           </Stat>
         </Box>
 
