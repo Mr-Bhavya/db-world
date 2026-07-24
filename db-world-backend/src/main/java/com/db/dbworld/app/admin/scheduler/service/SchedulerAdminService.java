@@ -67,7 +67,7 @@ public class SchedulerAdminService {
             // needs only one cron cadence (no separate per-category schedules).
             SchedulerJobConfigEntity.builder().jobId(IpoPollScheduler.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 0 */3 * * *")
-                    .enabled(true).displayOrder(5).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(5).build()
     );
 
     private final Map<String, String>            jobStatus = new ConcurrentHashMap<>();
