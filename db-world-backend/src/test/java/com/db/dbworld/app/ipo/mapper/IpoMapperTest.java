@@ -174,4 +174,83 @@ class IpoMapperTest {
         assertThat(dto.lastStatus()).isEqualTo("OK");
         assertThat(dto.consecutiveFailures()).isZero();
     }
+
+    private IpoDto fullDto() {
+        return new IpoDto("nse", "acme-corp|2026-07-20", "Acme Corp", "mainboard", "open",
+                LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
+                new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
+                "NSE", new BigDecimal("135.00"), new BigDecimal("22.73"),
+                new BigDecimal("25.00"), new BigDecimal("22.73"),
+                new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("15.50"),
+                "finalized", "Link Intime", "https://linkintime.co.in/acme");
+    }
+
+    @Test
+    void toNewEntity_mapsAllUpdatableFieldsAndMatchKey() {
+        IpoListingEntity entity = mapper.toNewEntity(fullDto());
+
+        assertThat(entity.getId()).isNull(); // JPA/DB assigns this on save
+        assertThat(entity.getMatchKey()).isEqualTo("acme-corp|2026-07-20");
+        assertThat(entity.getCompanyName()).isEqualTo("Acme Corp");
+        assertThat(entity.getIpoType()).isEqualTo("mainboard");
+        assertThat(entity.getStatus()).isEqualTo("open");
+        assertThat(entity.getOpenDate()).isEqualTo(LocalDate.of(2026, 7, 20));
+        assertThat(entity.getCloseDate()).isEqualTo(LocalDate.of(2026, 7, 24));
+        assertThat(entity.getAllotmentDate()).isEqualTo(LocalDate.of(2026, 7, 28));
+        assertThat(entity.getListingDate()).isEqualTo(LocalDate.of(2026, 7, 30));
+        assertThat(entity.getPriceMin()).isEqualByComparingTo("100.00");
+        assertThat(entity.getPriceMax()).isEqualByComparingTo("110.00");
+        assertThat(entity.getListingPrice()).isEqualByComparingTo("135.00");
+        assertThat(entity.getListingGainPct()).isEqualByComparingTo("22.73");
+        assertThat(entity.getGmp()).isEqualByComparingTo("25.00");
+        assertThat(entity.getGmpPct()).isEqualByComparingTo("22.73");
+        assertThat(entity.getSubTotal()).isEqualByComparingTo("15.50");
+        assertThat(entity.getLotSize()).isEqualTo(130);
+        assertThat(entity.getIssueSize()).isEqualTo("500 Cr");
+        assertThat(entity.getListingExchange()).isEqualTo("NSE");
+        assertThat(entity.getAllotmentStatus()).isEqualTo("finalized");
+        assertThat(entity.getRegistrar()).isEqualTo("Link Intime");
+        assertThat(entity.getRegistrarUrl()).isEqualTo("https://linkintime.co.in/acme");
+        // firstSeenAt/lastSeenAt are the ingest service's responsibility, not the mapper's.
+        assertThat(entity.getFirstSeenAt()).isNull();
+        assertThat(entity.getLastSeenAt()).isNull();
+    }
+
+    @Test
+    void applyUpdatable_overwritesOnlyNonNullDtoFields() {
+        IpoListingEntity entity = fullListing();
+
+        IpoDto partial = new IpoDto("chittorgarh", "acme-corp|2026-07-20", null, null, "listed",
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null,
+                null, null, null, null, null, null,
+                "finalized", null, null);
+
+        mapper.applyUpdatable(partial, entity);
+
+        // overwritten because dto supplied a non-null value
+        assertThat(entity.getStatus()).isEqualTo("listed");
+        assertThat(entity.getAllotmentStatus()).isEqualTo("finalized");
+
+        // preserved because dto's value was null (source didn't report it this round)
+        assertThat(entity.getCompanyName()).isEqualTo("Acme Corp");
+        assertThat(entity.getGmp()).isEqualByComparingTo("25.00");
+        assertThat(entity.getSubTotal()).isEqualByComparingTo("15.50");
+        assertThat(entity.getRegistrar()).isEqualTo("Link Intime");
+        assertThat(entity.getListingExchange()).isEqualTo("NSE");
+    }
+
+    @Test
+    void applyUpdatable_doesNotTouchIdOrTimestamps() {
+        IpoListingEntity entity = fullListing();
+        Instant originalFirstSeen = entity.getFirstSeenAt();
+        Instant originalLastSeen = entity.getLastSeenAt();
+
+        mapper.applyUpdatable(fullDto(), entity);
+
+        assertThat(entity.getId()).isEqualTo("ipo-1");
+        assertThat(entity.getFirstSeenAt()).isEqualTo(originalFirstSeen);
+        assertThat(entity.getLastSeenAt()).isEqualTo(originalLastSeen);
+    }
 }

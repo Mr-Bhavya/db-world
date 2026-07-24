@@ -1,0 +1,178 @@
+package com.db.dbworld.app.ipo.service;
+
+import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.entity.IpoChangeEventEntity;
+import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
+import com.db.dbworld.app.ipo.entity.IpoListingEntity;
+import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
+import com.db.dbworld.app.ipo.mapper.IpoMapper;
+import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
+import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
+import com.db.dbworld.app.ipo.repository.IpoListingRepository;
+import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Persists the merged per-IPO feed produced by {@link IpoMergeService}: creates new listings,
+ * applies field updates to existing ones, and appends a change-event / GMP / subscription trail.
+ *
+ * <p>Everything here is append-on-change and therefore idempotent: re-ingesting a feed that is
+ * identical to what's already stored emits no events and inserts no history rows (only
+ * {@code lastSeenAt} advances).
+ */
+@Log4j2
+@Service
+public class IpoIngestService {
+
+    private static final String STATUS_LISTED = "listed";
+
+    private final IpoListingRepository listingRepo;
+    private final IpoGmpHistoryRepository gmpHistoryRepo;
+    private final IpoSubscriptionHistoryRepository subHistoryRepo;
+    private final IpoChangeEventRepository changeEventRepo;
+    private final IpoMapper mapper;
+    private final Clock clock;
+
+    @Autowired
+    public IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
+                             IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
+                             IpoMapper mapper) {
+        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, mapper, Clock.systemUTC());
+    }
+
+    /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
+    IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
+                      IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
+                      IpoMapper mapper, Clock clock) {
+        this.listingRepo = listingRepo;
+        this.gmpHistoryRepo = gmpHistoryRepo;
+        this.subHistoryRepo = subHistoryRepo;
+        this.changeEventRepo = changeEventRepo;
+        this.mapper = mapper;
+        this.clock = clock;
+    }
+
+    @Transactional
+    public void ingest(List<IpoDto> merged) {
+        for (IpoDto dto : merged) {
+            ingestOne(dto);
+        }
+    }
+
+    private void ingestOne(IpoDto dto) {
+        Instant now = clock.instant();
+        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
+
+        if (existing == null) {
+            IpoListingEntity entity = mapper.toNewEntity(dto);
+            entity.setFirstSeenAt(now);
+            entity.setLastSeenAt(now);
+            IpoListingEntity saved = listingRepo.save(entity);
+            changeEventRepo.save(event(saved.getId(), "NEW", null, dto.companyName(), now));
+            appendHistory(saved.getId(), dto, now);
+            return;
+        }
+
+        List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
+        mapper.applyUpdatable(dto, existing);
+        existing.setLastSeenAt(now);
+        listingRepo.save(existing);
+        events.forEach(changeEventRepo::save);
+        appendHistory(existing.getId(), dto, now);
+    }
+
+    /** Compares {@code dto} against {@code entity}'s pre-update state — must run before {@code applyUpdatable}. */
+    private List<IpoChangeEventEntity> detectChanges(IpoListingEntity entity, IpoDto dto, Instant now) {
+        List<IpoChangeEventEntity> events = new ArrayList<>();
+        String ipoId = entity.getId();
+
+        if (dto.status() != null && !Objects.equals(entity.getStatus(), dto.status())) {
+            events.add(event(ipoId, "STATUS", entity.getStatus(), dto.status(), now));
+        }
+        if (dto.gmp() != null && bigDecimalDiffers(entity.getGmp(), dto.gmp())) {
+            events.add(event(ipoId, "GMP", toPlainString(entity.getGmp()), toPlainString(dto.gmp()), now));
+        }
+        if (dto.subTotal() != null && bigDecimalDiffers(entity.getSubTotal(), dto.subTotal())) {
+            events.add(event(ipoId, "SUBSCRIPTION", toPlainString(entity.getSubTotal()), toPlainString(dto.subTotal()), now));
+        }
+        if (dto.allotmentStatus() != null && !Objects.equals(entity.getAllotmentStatus(), dto.allotmentStatus())) {
+            events.add(event(ipoId, "ALLOTMENT", entity.getAllotmentStatus(), dto.allotmentStatus(), now));
+        }
+
+        boolean transitioningToListed = !STATUS_LISTED.equals(entity.getStatus()) && STATUS_LISTED.equals(dto.status());
+        boolean listingPriceNewlySet = entity.getListingPrice() == null && dto.listingPrice() != null;
+        if (transitioningToListed || listingPriceNewlySet) {
+            events.add(event(ipoId, "LISTING", null, dto.listingExchange() + " " + dto.listingGainPct(), now));
+        }
+
+        return events;
+    }
+
+    /** Append-on-change: only inserts a history row when the captured value actually moved. */
+    private void appendHistory(String ipoId, IpoDto dto, Instant now) {
+        if (dto.gmp() != null) {
+            BigDecimal lastGmp = gmpHistoryRepo.findTopByIpoIdOrderByCapturedAtDesc(ipoId)
+                    .map(IpoGmpHistoryEntity::getGmp)
+                    .orElse(null);
+            if (bigDecimalDiffers(lastGmp, dto.gmp())) {
+                gmpHistoryRepo.save(IpoGmpHistoryEntity.builder()
+                        .ipoId(ipoId)
+                        .gmp(dto.gmp())
+                        .gmpPct(dto.gmpPct())
+                        .source(dto.source())
+                        .capturedAt(now)
+                        .build());
+            }
+        }
+        if (dto.subTotal() != null) {
+            BigDecimal lastTotal = subHistoryRepo.findTopByIpoIdOrderByCapturedAtDesc(ipoId)
+                    .map(IpoSubscriptionHistoryEntity::getTotal)
+                    .orElse(null);
+            if (bigDecimalDiffers(lastTotal, dto.subTotal())) {
+                subHistoryRepo.save(IpoSubscriptionHistoryEntity.builder()
+                        .ipoId(ipoId)
+                        .qib(dto.subQib())
+                        .nii(dto.subNii())
+                        .retail(dto.subRetail())
+                        .total(dto.subTotal())
+                        .source(dto.source())
+                        .capturedAt(now)
+                        .build());
+            }
+        }
+    }
+
+    private static IpoChangeEventEntity event(String ipoId, String eventType, String oldValue, String newValue, Instant now) {
+        return IpoChangeEventEntity.builder()
+                .ipoId(ipoId)
+                .eventType(eventType)
+                .oldValue(oldValue)
+                .newValue(newValue)
+                .createdAt(now)
+                .build();
+    }
+
+    private static boolean bigDecimalDiffers(BigDecimal a, BigDecimal b) {
+        if (a == null && b == null) {
+            return false;
+        }
+        if (a == null || b == null) {
+            return true;
+        }
+        return a.compareTo(b) != 0;
+    }
+
+    private static String toPlainString(BigDecimal value) {
+        return value == null ? null : value.toPlainString();
+    }
+}
