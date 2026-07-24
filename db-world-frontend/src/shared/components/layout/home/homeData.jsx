@@ -4,6 +4,7 @@ import {
   Lock as PasswordIcon,
   MovieFilter as CinemaIcon,
   SportsEsports as GamesIcon,
+  TrendingUp as IpoIcon,
   WbSunny as WeatherIcon,
 } from '@mui/icons-material';
 
@@ -59,6 +60,16 @@ export const APPS = [
     adminOnly: false,
     accent: '#0d9488',
     gradient: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+  },
+  {
+    id: 'ipo',
+    label: 'IPO',
+    description: 'Live GMP, subscription & allotment tracker',
+    Icon: IpoIcon,
+    route: Constants.DB_IPO_ROUTE,
+    adminOnly: false,
+    accent: '#22c55e',
+    gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
   },
   {
     id: 'admin',
