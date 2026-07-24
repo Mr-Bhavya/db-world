@@ -62,8 +62,8 @@ class NseSourceTest {
         HttpHeaders homeHeaders = new HttpHeaders();
         homeHeaders.add(HttpHeaders.SET_COOKIE, "nsit=abc123; Path=/; HttpOnly");
         homeHeaders.add(HttpHeaders.SET_COOKIE, "nseappid=xyz789; Path=/");
-        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse(200, "<html></html>", homeHeaders));
-        when(httpClient.get(eq(DATA_URL), any())).thenReturn(new IpoHttpResponse(200, FIXTURE, new HttpHeaders()));
+        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse("<html></html>", homeHeaders));
+        when(httpClient.get(eq(DATA_URL), any())).thenReturn(new IpoHttpResponse(FIXTURE, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
@@ -100,8 +100,8 @@ class NseSourceTest {
     void fetchAll_companyNameFallsBackToSymbolWhenMissing() {
         HttpHeaders homeHeaders = new HttpHeaders();
         homeHeaders.add(HttpHeaders.SET_COOKIE, "nsit=abc123; Path=/");
-        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse(200, "<html></html>", homeHeaders));
-        when(httpClient.get(eq(DATA_URL), any())).thenReturn(new IpoHttpResponse(200, """
+        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse("<html></html>", homeHeaders));
+        when(httpClient.get(eq(DATA_URL), any())).thenReturn(new IpoHttpResponse("""
                 [ { "symbol": "EPSILON", "status": "Active" } ]
                 """, new HttpHeaders()));
 
@@ -124,7 +124,7 @@ class NseSourceTest {
     @Test
     void fetchAll_noCookiesReturned_returnsEmptyListWithoutCallingDataEndpoint() {
         when(httpClient.get(eq(HOME_URL), any()))
-                .thenReturn(new IpoHttpResponse(200, "<html></html>", new HttpHeaders()));
+                .thenReturn(new IpoHttpResponse("<html></html>", new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
@@ -136,7 +136,7 @@ class NseSourceTest {
     void fetchAll_dataEndpointFails_returnsEmptyList() {
         HttpHeaders homeHeaders = new HttpHeaders();
         homeHeaders.add(HttpHeaders.SET_COOKIE, "nsit=abc123; Path=/");
-        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse(200, "<html></html>", homeHeaders));
+        when(httpClient.get(eq(HOME_URL), any())).thenReturn(new IpoHttpResponse("<html></html>", homeHeaders));
         when(httpClient.get(eq(DATA_URL), any())).thenThrow(new SourceFetchException("403"));
 
         List<IpoDto> result = newSource().fetchAll();

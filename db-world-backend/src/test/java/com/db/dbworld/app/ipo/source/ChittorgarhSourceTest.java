@@ -114,7 +114,7 @@ class ChittorgarhSourceTest {
     @Test
     void fetchAll_delegatesToHttpClientAndParsesResult() {
         when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(200, FIXTURE_HTML, new HttpHeaders()));
+                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 

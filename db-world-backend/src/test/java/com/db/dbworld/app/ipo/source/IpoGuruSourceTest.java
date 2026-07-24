@@ -78,7 +78,7 @@ class IpoGuruSourceTest {
     void fetchAll_mapsDocumentedFields() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL)).thenReturn("https://www.ipoguru.in/api/v1");
         when(httpClient.get(eq("https://www.ipoguru.in/api/v1/ipos"), any()))
-                .thenReturn(new IpoHttpResponse(200, FIXTURE, new HttpHeaders()));
+                .thenReturn(new IpoHttpResponse(FIXTURE, new HttpHeaders()));
 
         List<IpoDto> result = newSource("test-key").fetchAll();
 
@@ -134,7 +134,7 @@ class IpoGuruSourceTest {
     void fetchAll_malformedJson_returnsEmptyList() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL)).thenReturn("https://www.ipoguru.in/api/v1");
         when(httpClient.get(anyString(), any()))
-                .thenReturn(new IpoHttpResponse(200, "not json", new HttpHeaders()));
+                .thenReturn(new IpoHttpResponse("not json", new HttpHeaders()));
 
         List<IpoDto> result = newSource("test-key").fetchAll();
 
@@ -152,6 +152,17 @@ class IpoGuruSourceTest {
     @Test
     void fetchAll_nullApiKey_returnsEmptyWithoutCallingHttpClient() {
         List<IpoDto> result = newSource(null).fetchAll();
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(httpClient);
+    }
+
+    @Test
+    void fetchAll_settingsServiceThrows_returnsEmptyList() {
+        when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL))
+                .thenThrow(new RuntimeException("settings lookup boom"));
+
+        List<IpoDto> result = newSource("test-key").fetchAll();
 
         assertThat(result).isEmpty();
         verifyNoInteractions(httpClient);

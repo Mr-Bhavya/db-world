@@ -89,12 +89,12 @@ public class IpoGuruSource implements IpoSource {
             return List.of();
         }
 
-        String baseUrl = settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL);
-        if (baseUrl == null || baseUrl.isBlank()) {
-            baseUrl = DEFAULT_BASE_URL;
-        }
-
         try {
+            String baseUrl = settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL);
+            if (baseUrl == null || baseUrl.isBlank()) {
+                baseUrl = DEFAULT_BASE_URL;
+            }
+
             IpoHttpResponse response = httpClient.get(baseUrl + IPOS_PATH, Map.of(API_KEY_HEADER, apiKey));
             JsonNode root = MAPPER.readTree(response.body());
             JsonNode data = root.path(F_DATA);
@@ -110,8 +110,9 @@ public class IpoGuruSource implements IpoSource {
             return result;
         } catch (Exception e) {
             // Covers SourceFetchException (non-2xx / network, incl. HTTP 429 — not retried per
-            // the documented contract) and JSON parse failures alike: any expected upstream
-            // failure here is logged and swallowed to [] per the IpoSource contract.
+            // the documented contract), a failing settingsService.getString() lookup, and JSON
+            // parse failures alike: any expected upstream failure here is logged and swallowed to
+            // [] per the IpoSource contract.
             log.warn("IPO Guru fetch failed: {}", e.toString());
             return List.of();
         }
