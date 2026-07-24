@@ -40,10 +40,9 @@ public final class ConfigKeys {
     public static final String WALLET_ALLOWED_CONTENT_TYPES         = "wallet.allowed-content-types";
 
     // IPO Tracker (IPO Guru API key is a SECRET — read from env IPO_GURU_API_KEY, not here)
+    // Poll cadence is NOT a setting here — it lives in scheduler_job_config (job id "ipo-poll"),
+    // admin-editable via the Scheduler page like every other cron job.
     public static final String IPO_SOURCES_ENABLED                  = "ipo.sources.enabled";
     public static final String IPO_IPOGURU_BASE_URL                 = "ipo.ipoguru.base-url";
     public static final String IPO_GMP_NOTIFY_THRESHOLD_PCT         = "ipo.gmp.notify-threshold-pct";
-    public static final String IPO_POLL_LIST_INTERVAL_HOURS         = "ipo.poll.list-interval-hours";
-    public static final String IPO_POLL_GMP_INTERVAL_HOURS          = "ipo.poll.gmp-interval-hours";
-    public static final String IPO_POLL_SUBSCRIPTION_INTERVAL_HOURS = "ipo.poll.subscription-interval-hours";
 }

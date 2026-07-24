@@ -100,13 +100,7 @@ public final class SettingsCatalog {
             "Base URL for the IPO Guru API.",
             "https://www.ipoguru.in/api/v1", false, 1),
         lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
-            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 2),
-        lng(IPO_POLL_LIST_INTERVAL_HOURS, C_IPO, "Listing poll interval (hours)",
-            "How often the IPO listing list is refreshed from sources.", 24L, 1L, 168L, 3),
-        lng(IPO_POLL_GMP_INTERVAL_HOURS, C_IPO, "GMP poll interval (hours)",
-            "How often grey market premium is refreshed from sources.", 12L, 1L, 72L, 4),
-        lng(IPO_POLL_SUBSCRIPTION_INTERVAL_HOURS, C_IPO, "Subscription poll interval (hours)",
-            "How often subscription figures are refreshed from sources.", 6L, 1L, 72L, 5)
+            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 2)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

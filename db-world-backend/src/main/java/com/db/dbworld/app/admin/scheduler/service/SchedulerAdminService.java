@@ -8,6 +8,7 @@ import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryReposito
 import com.db.dbworld.app.cinema.catalog.tags.scheduler.TagScheduler;
 import com.db.dbworld.app.cinema.tmdb.people.scheduler.PersonSyncScheduler;
 import com.db.dbworld.app.cinema.tmdb.sync.scheduler.TmdbSyncScheduler;
+import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler;
 import com.db.dbworld.app.media.sync.MediaSyncService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class SchedulerAdminService {
     private final TmdbSyncScheduler             tmdbSyncScheduler;
     private final PersonSyncScheduler           personSyncScheduler;
     private final MediaSyncService              mediaSyncService;
+    private final IpoPollScheduler              ipoPollScheduler;
     private final JdbcTemplate                  jdbcTemplate;
 
     private static final List<SchedulerJobConfigEntity> DEFAULTS = List.of(
@@ -60,7 +62,12 @@ public class SchedulerAdminService {
             SchedulerJobConfigEntity.builder().jobId("MediaSync")
                     .jobType(JobType.FIXED_DELAY).intervalSeconds(60)
                     .stabilityWindowSeconds(5)
-                    .enabled(true).displayOrder(4).build()
+                    .enabled(true).displayOrder(4).build(),
+            // A single IPO Guru /ipos call returns list + GMP + subscription together, so v1
+            // needs only one cron cadence (no separate per-category schedules).
+            SchedulerJobConfigEntity.builder().jobId(IpoPollScheduler.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 0 */3 * * *")
+                    .enabled(true).displayOrder(5).build()
     );
 
     private final Map<String, String>            jobStatus = new ConcurrentHashMap<>();
@@ -165,6 +172,7 @@ public class SchedulerAdminService {
                 case "TmdbTvSync"          -> tmdbSyncScheduler.runTvSync();
                 case "PersonSyncScheduler" -> personSyncScheduler.runPersonSync();
                 case "MediaSync"           -> mediaSyncService.scan();
+                case IpoPollScheduler.JOB_ID -> ipoPollScheduler.pollOnce();
                 default -> throw new IllegalArgumentException("Unknown job: " + jobId);
             }
         } catch (Exception e) {
@@ -362,6 +370,7 @@ public class SchedulerAdminService {
             case "TmdbTvSync"          -> "TMDB TV Sync";
             case "PersonSyncScheduler" -> "Person Detail Sync";
             case "MediaSync"           -> "Media File Sync";
+            case IpoPollScheduler.JOB_ID -> "IPO Tracker Poll";
             default -> jobId;
         };
     }
@@ -373,6 +382,7 @@ public class SchedulerAdminService {
             case "TmdbTvSync"          -> "Syncs updated TV series metadata and images from TMDB (2:10 AM IST)";
             case "PersonSyncScheduler" -> "Fetches full biography and images for unsynced cast/crew (" + unsyncedPersons + " pending)";
             case "MediaSync"           -> "Reconciles media_files against the stream directory — picks up SSH/SMB/file-manager adds, deletes, renames";
+            case IpoPollScheduler.JOB_ID -> "Polls enabled IPO sources (IPO Guru, NSE, Chittorgarh), merges and ingests listing/GMP/subscription updates";
             default -> "";
         };
     }
