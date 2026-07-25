@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,7 +41,7 @@ class IpoMergeServiceTest {
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr-" + source,
                 "NSE-" + source, new BigDecimal("135.00"), new BigDecimal("22.73"),
                 new BigDecimal("25.00"), new BigDecimal("22.00"),
-                new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("6.75"),
+                Map.of("Cat-" + source, new BigDecimal("1.00")), new BigDecimal("6.75"),
                 "finalized-" + source, "Link Intime-" + source, "https://registrar/" + source,
                 "https://logo/" + source, "About " + source,
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
@@ -70,6 +71,7 @@ class IpoMergeServiceTest {
         // volatile group -> ipoguru wins
         assertThat(m.gmp()).isEqualByComparingTo("25.00");
         assertThat(m.subTotal()).isEqualByComparingTo("6.75");
+        assertThat(m.subscriptionCategories()).containsOnlyKeys("Cat-ipoguru");
 
         // registrar group -> chittorgarh wins
         assertThat(m.allotmentStatus()).isEqualTo("finalized-chittorgarh");
@@ -115,19 +117,19 @@ class IpoMergeServiceTest {
         IpoDto nse = new IpoDto("nse", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
         IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
         IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 "finalized-manual-only", null, null, null, null, null, null,
                 null, null, null, null, null, null);
 
@@ -143,7 +145,7 @@ class IpoMergeServiceTest {
         IpoDto other = new IpoDto("nse", null, "Widget Industries Ltd", "mainboard", "open",
                 LocalDate.of(2026, 8, 1), null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
 
@@ -159,7 +161,7 @@ class IpoMergeServiceTest {
         IpoDto uningestable = new IpoDto("nse", null, null, null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
         IpoDto valid = full("ipoguru");

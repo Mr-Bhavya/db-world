@@ -2,12 +2,15 @@ package com.db.dbworld.app.ipo.mapper;
 
 import com.db.dbworld.app.ipo.dto.*;
 import com.db.dbworld.app.ipo.entity.*;
+import com.db.dbworld.app.ipo.service.IpoSubscriptionJson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -219,13 +222,16 @@ class IpoMapperTest {
     }
 
     @Test
-    void toSubscriptionPoint_mapsAllFields() {
+    void toSubscriptionPoint_mapsCategoriesAndDerivesQibNiiRetail() {
+        Map<String, BigDecimal> categories = new LinkedHashMap<>();
+        categories.put("QIB", new BigDecimal("5.00"));
+        categories.put("NII", new BigDecimal("10.00"));
+        categories.put("Retail", new BigDecimal("2.50"));
+        categories.put("Anchor", new BigDecimal("3.00"));
         IpoSubscriptionHistoryEntity entity = IpoSubscriptionHistoryEntity.builder()
                 .id("sub-1")
                 .ipoId("ipo-1")
-                .qib(new BigDecimal("5.00"))
-                .nii(new BigDecimal("10.00"))
-                .retail(new BigDecimal("2.50"))
+                .categoriesJson(IpoSubscriptionJson.toJson(categories))
                 .total(new BigDecimal("6.75"))
                 .source("chittorgarh")
                 .capturedAt(Instant.parse("2026-07-23T09:30:00Z"))
@@ -234,10 +240,28 @@ class IpoMapperTest {
         SubscriptionPointDto dto = mapper.toSubscriptionPoint(entity);
 
         assertThat(dto.t()).isEqualTo(Instant.parse("2026-07-23T09:30:00Z"));
+        assertThat(dto.total()).isEqualByComparingTo("6.75");
+        assertThat(dto.categories().keySet()).containsExactly("QIB", "NII", "Retail", "Anchor");
         assertThat(dto.qib()).isEqualByComparingTo("5.00");
         assertThat(dto.nii()).isEqualByComparingTo("10.00");
         assertThat(dto.retail()).isEqualByComparingTo("2.50");
-        assertThat(dto.total()).isEqualByComparingTo("6.75");
+    }
+
+    @Test
+    void toSubscriptionPoint_nullCategoriesJson_emptyCategoriesAndNullDerivedFields() {
+        IpoSubscriptionHistoryEntity entity = IpoSubscriptionHistoryEntity.builder()
+                .id("sub-1")
+                .ipoId("ipo-1")
+                .total(new BigDecimal("6.75"))
+                .capturedAt(Instant.parse("2026-07-23T09:30:00Z"))
+                .build();
+
+        SubscriptionPointDto dto = mapper.toSubscriptionPoint(entity);
+
+        assertThat(dto.categories()).isEmpty();
+        assertThat(dto.qib()).isNull();
+        assertThat(dto.nii()).isNull();
+        assertThat(dto.retail()).isNull();
     }
 
     @Test
@@ -299,13 +323,21 @@ class IpoMapperTest {
         assertThat(dto.ipo().lotSize()).isEqualTo(130);
     }
 
+    private static Map<String, BigDecimal> sampleCategories() {
+        Map<String, BigDecimal> categories = new LinkedHashMap<>();
+        categories.put("QIB", new BigDecimal("5.00"));
+        categories.put("NII", new BigDecimal("10.00"));
+        categories.put("Retail", new BigDecimal("2.50"));
+        return categories;
+    }
+
     private IpoDto fullDto() {
         return new IpoDto("nse", "acme-corp|2026-07-20", "Acme Corp", "mainboard", "open",
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
                 "NSE", new BigDecimal("135.00"), new BigDecimal("22.73"),
                 new BigDecimal("25.00"), new BigDecimal("22.73"),
-                new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("15.50"),
+                sampleCategories(), new BigDecimal("15.50"),
                 "finalized", "Link Intime", "https://linkintime.co.in/acme",
                 "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.",
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
@@ -362,7 +394,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null, null,
                 null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 "finalized", null, null, null, null, null, null,
                 null, null, null, null, null, null);
 
@@ -398,7 +430,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null, null,
                 null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 new BigDecimal("5.00"), new BigDecimal("200.00"), new BigDecimal("50.00"),
                 "NEWTICK", "New strength", "New risk");
@@ -421,7 +453,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null, null,
                 null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null,
                 LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3),
                 null, null, null, null, null, null);

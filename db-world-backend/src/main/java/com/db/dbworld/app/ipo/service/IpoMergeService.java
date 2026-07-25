@@ -85,9 +85,8 @@ public class IpoMergeService {
 
         Picked<BigDecimal> gmp = pick(group, PRECEDENCE_VOLATILE, IpoDto::gmp, "gmp");
         Picked<BigDecimal> gmpPct = pick(group, PRECEDENCE_VOLATILE, IpoDto::gmpPct, "gmpPct");
-        Picked<BigDecimal> subQib = pick(group, PRECEDENCE_VOLATILE, IpoDto::subQib, "subQib");
-        Picked<BigDecimal> subNii = pick(group, PRECEDENCE_VOLATILE, IpoDto::subNii, "subNii");
-        Picked<BigDecimal> subRetail = pick(group, PRECEDENCE_VOLATILE, IpoDto::subRetail, "subRetail");
+        Picked<Map<String, BigDecimal>> subscriptionCategories =
+                pick(group, PRECEDENCE_VOLATILE, IpoDto::subscriptionCategories, "subscriptionCategories");
         Picked<BigDecimal> subTotal = pick(group, PRECEDENCE_VOLATILE, IpoDto::subTotal, "subTotal");
 
         Picked<String> allotmentStatus = pick(group, PRECEDENCE_REGISTRAR, IpoDto::allotmentStatus, "allotmentStatus");
@@ -105,7 +104,7 @@ public class IpoMergeService {
                 openDate.value(), closeDate.value(), allotmentDate.value(), listingDate.value(),
                 priceMin.value(), priceMax.value(), lotSize.value(), issueSize.value(),
                 listingExchange.value(), listingPrice.value(), listingGainPct.value(),
-                gmp.value(), gmpPct.value(), subQib.value(), subNii.value(), subRetail.value(), subTotal.value(),
+                gmp.value(), gmpPct.value(), subscriptionCategories.value(), subTotal.value(),
                 allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value(),
                 refundDate.value(), dematDate.value(), faceValue.value(), freshIssue.value(), offerForSale.value(),
                 tickerSymbol.value(), strengths.value(), risks.value());

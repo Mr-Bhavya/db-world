@@ -2,10 +2,13 @@ package com.db.dbworld.app.ipo.mapper;
 
 import com.db.dbworld.app.ipo.dto.*;
 import com.db.dbworld.app.ipo.entity.*;
+import com.db.dbworld.app.ipo.service.IpoSubscriptionJson;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class IpoMapper {
@@ -49,8 +52,26 @@ public class IpoMapper {
         return new GmpPointDto(e.getCapturedAt(), e.getGmp(), e.getGmpPct());
     }
 
+    /**
+     * {@code categories} is deserialized from the entity's JSON column (never null — an empty
+     * map for null/blank/malformed JSON, see {@link IpoSubscriptionJson#fromJson}); {@code qib}/
+     * {@code nii}/{@code retail} are derived from it (case-insensitive lookup, {@code null} if
+     * that category is absent) purely for frontend back-compat during the categories migration.
+     */
     public SubscriptionPointDto toSubscriptionPoint(IpoSubscriptionHistoryEntity e) {
-        return new SubscriptionPointDto(e.getCapturedAt(), e.getQib(), e.getNii(), e.getRetail(), e.getTotal());
+        Map<String, BigDecimal> categories = IpoSubscriptionJson.fromJson(e.getCategoriesJson());
+        return new SubscriptionPointDto(e.getCapturedAt(), e.getTotal(), categories,
+                findCategory(categories, "qib"), findCategory(categories, "nii"), findCategory(categories, "retail"));
+    }
+
+    /** Case-insensitive lookup of one category's value; {@code null} if absent. */
+    private static BigDecimal findCategory(Map<String, BigDecimal> categories, String key) {
+        for (Map.Entry<String, BigDecimal> entry : categories.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     public IpoChangeDto toChangeDto(IpoChangeEventEntity e) {

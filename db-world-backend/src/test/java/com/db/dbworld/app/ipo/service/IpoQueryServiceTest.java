@@ -22,7 +22,9 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -387,13 +389,12 @@ class IpoQueryServiceTest {
     void subscriptionHistory_mapsInAscendingOrder() {
         IpoSubscriptionHistoryEntity p1 = IpoSubscriptionHistoryEntity.builder()
                 .ipoId("1").capturedAt(Instant.parse("2026-07-01T00:00:00Z"))
-                .qib(new java.math.BigDecimal("1.00")).nii(new java.math.BigDecimal("2.00"))
-                .retail(new java.math.BigDecimal("3.00")).total(new java.math.BigDecimal("6.00")).build();
+                .total(new BigDecimal("6.00")).build();
         when(subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc("1")).thenReturn(List.of(p1));
 
         List<SubscriptionPointDto> points = service.subscriptionHistory("1");
 
-        assertThat(points).extracting(SubscriptionPointDto::total).containsExactly(new java.math.BigDecimal("6.00"));
+        assertThat(points).extracting(SubscriptionPointDto::total).containsExactly(new BigDecimal("6.00"));
     }
 
     @Test
@@ -403,5 +404,51 @@ class IpoQueryServiceTest {
         List<SubscriptionPointDto> points = service.subscriptionHistory("1");
 
         assertThat(points).isEmpty();
+    }
+
+    @Test
+    void subscriptionHistory_categoriesDeserializedAndQibNiiRetailDerivedCaseInsensitively() {
+        // "nii" is deliberately lower-case (a source might report it that way) to prove the
+        // derived-field lookup is case-insensitive; insertion order is preserved end-to-end.
+        Map<String, BigDecimal> categories = new LinkedHashMap<>();
+        categories.put("nii", new BigDecimal("10.00"));
+        categories.put("QIB", new BigDecimal("5.00"));
+        categories.put("Retail", new BigDecimal("2.50"));
+        categories.put("Employee", new BigDecimal("1.20"));
+        IpoSubscriptionHistoryEntity p1 = IpoSubscriptionHistoryEntity.builder()
+                .ipoId("1").capturedAt(Instant.parse("2026-07-01T00:00:00Z"))
+                .categoriesJson(IpoSubscriptionJson.toJson(categories))
+                .total(new BigDecimal("18.70"))
+                .build();
+        when(subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc("1")).thenReturn(List.of(p1));
+
+        List<SubscriptionPointDto> points = service.subscriptionHistory("1");
+
+        assertThat(points).hasSize(1);
+        SubscriptionPointDto point = points.get(0);
+        assertThat(point.categories().keySet()).containsExactly("nii", "QIB", "Retail", "Employee");
+        assertThat(point.qib()).isEqualByComparingTo("5.00");
+        assertThat(point.nii()).isEqualByComparingTo("10.00");
+        assertThat(point.retail()).isEqualByComparingTo("2.50");
+        assertThat(point.total()).isEqualByComparingTo("18.70");
+    }
+
+    @Test
+    void subscriptionHistory_nullCategoriesJson_categoriesEmptyAndDerivedFieldsNullSafe() {
+        IpoSubscriptionHistoryEntity p1 = IpoSubscriptionHistoryEntity.builder()
+                .ipoId("1").capturedAt(Instant.parse("2026-07-01T00:00:00Z"))
+                .categoriesJson(null)
+                .total(new BigDecimal("6.00"))
+                .build();
+        when(subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc("1")).thenReturn(List.of(p1));
+
+        List<SubscriptionPointDto> points = service.subscriptionHistory("1");
+
+        SubscriptionPointDto point = points.get(0);
+        assertThat(point.categories()).isEmpty();
+        assertThat(point.qib()).isNull();
+        assertThat(point.nii()).isNull();
+        assertThat(point.retail()).isNull();
+        assertThat(point.total()).isEqualByComparingTo("6.00");
     }
 }

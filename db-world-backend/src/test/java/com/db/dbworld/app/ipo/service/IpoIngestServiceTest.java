@@ -19,7 +19,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +64,15 @@ class IpoIngestServiceTest {
         when(subHistoryRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
+    /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
+    private static Map<String, BigDecimal> subscriptionCategories() {
+        Map<String, BigDecimal> categories = new LinkedHashMap<>();
+        categories.put("QIB", new BigDecimal("5.00"));
+        categories.put("NII", new BigDecimal("10.00"));
+        categories.put("Retail", new BigDecimal("2.50"));
+        return categories;
+    }
+
     /** A merged dto (already carries matchKey) with every dimension the tests vary as a parameter. */
     private IpoDto dto(String status, BigDecimal gmp, BigDecimal gmpPct, BigDecimal subTotal, String allotmentStatus,
                         String listingExchange, BigDecimal listingGainPct, BigDecimal listingPrice) {
@@ -69,7 +80,7 @@ class IpoIngestServiceTest {
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
                 listingExchange, listingPrice, listingGainPct,
-                gmp, gmpPct, new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), subTotal,
+                gmp, gmpPct, subscriptionCategories(), subTotal,
                 allotmentStatus, "Link Intime", "https://registrar", null, null, null, null,
                 null, null, null, null, null, null);
     }
@@ -80,8 +91,7 @@ class IpoIngestServiceTest {
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
                 null, null, null,
-                new BigDecimal("20.00"), new BigDecimal("18.00"), new BigDecimal("5.00"), new BigDecimal("10.00"),
-                new BigDecimal("2.50"), new BigDecimal("1.50"),
+                new BigDecimal("20.00"), new BigDecimal("18.00"), subscriptionCategories(), new BigDecimal("1.50"),
                 "awaited", "Link Intime", "https://registrar", null, null, null, null,
                 null, null, null, null, null, null);
     }
@@ -158,6 +168,21 @@ class IpoIngestServiceTest {
 
         verify(gmpHistoryRepo, times(1)).save(any());
         verify(subHistoryRepo, times(1)).save(any());
+    }
+
+    @Test
+    void ingest_newIpo_subscriptionHistorySerializesCategoriesMapToJson() {
+        stubNoExisting();
+        IpoDto dto = dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoSubscriptionHistoryEntity> captor = ArgumentCaptor.forClass(IpoSubscriptionHistoryEntity.class);
+        verify(subHistoryRepo, times(1)).save(captor.capture());
+        IpoSubscriptionHistoryEntity saved = captor.getValue();
+        assertThat(saved.getCategoriesJson()).isEqualTo(IpoSubscriptionJson.toJson(subscriptionCategories()));
+        assertThat(saved.getTotal()).isEqualByComparingTo("1.50");
     }
 
     @Test
