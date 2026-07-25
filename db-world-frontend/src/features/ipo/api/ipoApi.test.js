@@ -3,11 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@shared/components/ui/utils/AxiosInstants', () => ({
   default: {
     get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
-import { getIpos, getIpo, getGmpHistory, getSubscriptionHistory, getFinancials } from './ipoApi';
+import {
+  getIpos, getIpo, getGmpHistory, getSubscriptionHistory, getFinancials,
+  getMyApplication, saveApplication, deleteApplication, getMyApplications,
+} from './ipoApi';
 
 const BASE = '/api/ipo';
 
@@ -88,5 +93,64 @@ describe('ipoApi', () => {
 
     expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/42/financials`);
     expect(result).toEqual(rows);
+  });
+
+  it('getMyApplication calls GET /api/ipo/{id}/application and unwraps the envelope', async () => {
+    const application = {
+      ipoId: '42', applicantName: 'Jane Doe', applicationNo: 'APP123',
+      dpClientId: 'DP456', panLast4: '234F', allotmentResult: 'allotted',
+    };
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: application } });
+
+    const result = await getMyApplication(42);
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/42/application`);
+    expect(result).toEqual(application);
+  });
+
+  it('getMyApplication resolves to null (not the envelope) when none is saved', async () => {
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: null } });
+
+    const result = await getMyApplication(42);
+
+    expect(result).toBeNull();
+  });
+
+  it('saveApplication calls POST /api/ipo/{id}/application with the body and unwraps the envelope', async () => {
+    const body = { applicantName: 'Jane Doe', applicationNo: 'APP123', dpClientId: 'DP456', pan: 'ABCDE1234F', allotmentResult: 'unknown' };
+    const dto = { ipoId: '42', applicantName: 'Jane Doe', applicationNo: 'APP123', dpClientId: 'DP456', panLast4: '234F', allotmentResult: 'unknown' };
+    axiosInstance.post.mockResolvedValueOnce({ data: { data: dto } });
+
+    const result = await saveApplication(42, body);
+
+    expect(axiosInstance.post).toHaveBeenCalledWith(`${BASE}/42/application`, body);
+    expect(result).toEqual(dto);
+  });
+
+  it('deleteApplication calls DELETE /api/ipo/{id}/application', async () => {
+    axiosInstance.delete.mockResolvedValueOnce({ data: { success: true, message: 'Removed' } });
+
+    const result = await deleteApplication(42);
+
+    expect(axiosInstance.delete).toHaveBeenCalledWith(`${BASE}/42/application`);
+    expect(result).toEqual({ success: true, message: 'Removed' });
+  });
+
+  it('getMyApplications calls GET /api/ipo/my/applications and unwraps the envelope', async () => {
+    const rows = [{ application: { ipoId: '42', panLast4: '234F' }, ipo: { id: '42', companyName: 'Acme Ltd' } }];
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: rows } });
+
+    const result = await getMyApplications();
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/my/applications`);
+    expect(result).toEqual(rows);
+  });
+
+  it('getMyApplications defaults to an empty array when data is missing', async () => {
+    axiosInstance.get.mockResolvedValueOnce({ data: {} });
+
+    const result = await getMyApplications();
+
+    expect(result).toEqual([]);
   });
 });

@@ -29,3 +29,25 @@ export const getSubscriptionHistory = (id) =>
  * on demand by the detail page's financials section, not with the rest of the detail. */
 export const getFinancials = (id) =>
   axiosInstance.get(`${BASE}/${id}/financials`).then(unwrap);
+
+/**
+ * Applicant-level "My IPOs" — per-user, login-gated (@AnyRole). The server stores only a
+ * PAN's last-4 characters; `saveApplication` sends the full `pan` the user typed (never
+ * persisted as-is), and every response only ever carries back `panLast4`.
+ */
+
+/** The caller's saved application for this IPO, or `null` when none exists yet — the server
+ * returns `data: null` here rather than a 404, so we must NOT fall back to the raw envelope
+ * (unlike `unwrap`, which would resolve a null `data` to the whole response body). */
+export const getMyApplication = (id) =>
+  axiosInstance.get(`${BASE}/${id}/application`).then((r) => r.data?.data ?? null);
+
+export const saveApplication = (id, body) =>
+  axiosInstance.post(`${BASE}/${id}/application`, body).then(unwrap);
+
+export const deleteApplication = (id) =>
+  axiosInstance.delete(`${BASE}/${id}/application`).then((r) => r.data);
+
+/** Every IPO the caller has saved an application for, each joined with a light IPO summary. */
+export const getMyApplications = () =>
+  axiosInstance.get(`${BASE}/my/applications`).then((r) => r.data?.data ?? []);
