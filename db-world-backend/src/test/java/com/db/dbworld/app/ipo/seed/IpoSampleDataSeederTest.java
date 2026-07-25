@@ -90,8 +90,8 @@ class IpoSampleDataSeederTest {
 
         seeder(true).run(null);
 
-        verify(listingRepository, times(10)).save(any());
-        verify(financialRepository, times(30)).save(any()); // 3 fiscal years x 10 IPOs
+        verify(listingRepository, times(8)).save(any());
+        verify(financialRepository, times(26)).save(any()); // 6 IPOs x 3 fiscal years + 2 IPOs x (3 + 1 interim row)
         verify(gmpHistoryRepository, times(15)).save(any()); // 5 points x 3 IPOs flagged for trading history
         verify(subscriptionHistoryRepository, times(15)).save(any());
     }
@@ -99,14 +99,14 @@ class IpoSampleDataSeederTest {
     @Test
     void run_enabledAndTableEmpty_reRunning_isANoOpSecondTime() {
         // First run seeds; simulate the table now having rows for a second boot in the same JVM.
-        when(listingRepository.count()).thenReturn(0L).thenReturn(10L);
+        when(listingRepository.count()).thenReturn(0L).thenReturn(8L);
         stubSaveAssignsId();
         IpoSampleDataSeeder seeder = seeder(true);
 
         seeder.run(null);
         seeder.run(null);
 
-        verify(listingRepository, times(10)).save(any()); // only from the first run
+        verify(listingRepository, times(8)).save(any()); // only from the first run
     }
 
     @Test
@@ -117,19 +117,19 @@ class IpoSampleDataSeederTest {
         seeder(true).run(null);
 
         ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
-        verify(listingRepository, times(10)).save(captor.capture());
+        verify(listingRepository, times(8)).save(captor.capture());
         List<IpoListingEntity> saved = captor.getAllValues();
 
         assertThat(saved).allSatisfy(e -> {
             assertThat(e.getMatchKey()).isNotBlank();
-            assertThat(e.getLogoUrl()).startsWith("https://ui-avatars.com/api/?name=");
+            assertThat(e.getLogoUrl()).startsWith("https://logo.clearbit.com/");
             assertThat(e.getFirstSeenAt()).isEqualTo(NOW);
             assertThat(e.getLastSeenAt()).isEqualTo(NOW);
         });
-        // Covers the required status matrix (at least 2 of each) and both IPO types.
+        // Covers the required status matrix and both IPO types.
         assertThat(saved).extracting(IpoListingEntity::getStatus)
-                .containsExactlyInAnyOrder("upcoming", "upcoming", "upcoming", "open", "open",
-                        "closed", "closed", "listed", "listed", "listed");
+                .containsExactlyInAnyOrder("upcoming", "upcoming", "open", "open",
+                        "closed", "listed", "listed", "listed");
         assertThat(saved).extracting(IpoListingEntity::getIpoType).contains("mainboard", "sme");
     }
 
@@ -141,9 +141,35 @@ class IpoSampleDataSeederTest {
         seeder(true).run(null);
 
         ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
-        verify(listingRepository, times(10)).save(captor.capture());
+        verify(listingRepository, times(8)).save(captor.capture());
         List<String> matchKeys = captor.getAllValues().stream().map(IpoListingEntity::getMatchKey).toList();
 
         assertThat(matchKeys).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_newFieldsArePopulatedForListedCompanies() {
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepository, times(8)).save(captor.capture());
+        List<IpoListingEntity> saved = captor.getAllValues();
+
+        assertThat(saved).allSatisfy(e -> {
+            assertThat(e.getFaceValue()).isNotNull();
+            assertThat(e.getFreshIssue()).isNotNull();
+            assertThat(e.getOfferForSale()).isNotNull();
+            assertThat(e.getStrengths()).isNotBlank();
+            assertThat(e.getRisks()).isNotBlank();
+        });
+        assertThat(saved).filteredOn(e -> "listed".equals(e.getStatus()))
+                .extracting(IpoListingEntity::getTickerSymbol)
+                .allSatisfy(ticker -> assertThat(ticker).isNotBlank());
+        assertThat(saved).filteredOn(e -> !"listed".equals(e.getStatus()))
+                .extracting(IpoListingEntity::getTickerSymbol)
+                .containsOnlyNulls();
     }
 }
