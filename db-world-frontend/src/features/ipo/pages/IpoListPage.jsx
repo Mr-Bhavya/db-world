@@ -22,7 +22,18 @@ export default function IpoListPage() {
   const lastUpdated = formatIstTime(data?.lastUpdated);
   const hasActiveFilter = !!status || type !== 'all';
 
-  const gridTemplateColumns = { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)', xl: 'repeat(4,1fr)' };
+  // `minmax(0, 1fr)` (not bare `1fr`) — a CSS Grid track's automatic minimum size
+  // otherwise defaults to the *content* min-content size of whatever's inside, so a
+  // long/unbreakable string anywhere in a card (e.g. a lengthy company name) can force
+  // the whole track — and every card sharing it — wider than the viewport at 360px.
+  // `minmax(0, 1fr)` pins the floor to 0 so the track (and the card) can always shrink
+  // down to the available width instead of overflowing it.
+  const gridTemplateColumns = {
+    xs: 'minmax(0, 1fr)',
+    sm: 'repeat(2, minmax(0, 1fr))',
+    md: 'repeat(3, minmax(0, 1fr))',
+    xl: 'repeat(4, minmax(0, 1fr))',
+  };
 
   const handleFilterChange = ({ status: nextStatus, type: nextType, sort: nextSort }) => {
     setStatus(nextStatus);

@@ -20,10 +20,10 @@ function StatusBadge({ status }) {
   const meta = statusMeta(status, T);
   return (
     <Box sx={{
-      flexShrink: 0, px: 1, py: 0.25, borderRadius: 999,
+      flexShrink: 0, maxWidth: '45%', px: 1, py: 0.25, borderRadius: 999,
       bgcolor: meta.bg, border: `1px solid ${meta.color}55`,
     }}>
-      <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: meta.color, letterSpacing: 0.3, lineHeight: 1.6 }}>
+      <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: meta.color, letterSpacing: 0.3, lineHeight: 1.6 }} noWrap>
         {meta.label}
       </Typography>
     </Box>
@@ -52,8 +52,8 @@ function GmpValue({ gmp, gmpPct }) {
   const color = positive ? T.success : negative ? T.error : T.textMuted;
   const Icon = positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon;
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-      <Icon sx={{ fontSize: 15, color }} />
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+      <Icon sx={{ fontSize: 15, color, flexShrink: 0 }} />
       <Typography sx={{ fontSize: 13, fontWeight: 800, color }} noWrap>
         {gmp != null ? `₹${gmp}` : '—'}
         {gmpPct != null && <Box component="span" sx={{ fontWeight: 600, opacity: 0.85 }}> ({formatPct(gmpPct)})</Box>}
@@ -148,7 +148,7 @@ export default function IpoCard({ ipo, index = 0 }) {
       transition={{ duration: 0.28, delay: Math.min(index, 10) * 0.04 }}
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.99 }}
-      style={{ height: '100%' }}
+      style={{ height: '100%', width: '100%', minWidth: 0 }}
     >
       <Box
         onClick={() => navigate(Constants.ipoDetailPath(ipo.id))}
@@ -158,16 +158,20 @@ export default function IpoCard({ ipo, index = 0 }) {
           borderLeft: `3px solid ${meta.color}`,
           borderRadius: 3,
           cursor: 'pointer',
+          width: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
           gap: 1,
           p: 1.75,
+          overflow: 'hidden',
           transition: 'border-color 0.2s, box-shadow 0.2s',
           '&:hover': { borderColor: T.teal, boxShadow: `0 8px 24px ${T.tealGlow}` },
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
             <CompanyLogo logoUrl={ipo.logoUrl} companyName={ipo.companyName} />
             <Box sx={{ minWidth: 0 }}>
@@ -190,9 +194,9 @@ export default function IpoCard({ ipo, index = 0 }) {
           <StatusBadge status={ipo.status} />
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 1 }}>
           <Stat label="Price band">
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }} noWrap>
               {formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}
             </Typography>
           </Stat>
