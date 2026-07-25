@@ -88,14 +88,19 @@ function ListingGainFactTile({ gainPct }) {
 
 /** The About section's Website fact renders as an external link rather than plain text —
  * `target="_blank" rel="noopener noreferrer"` (new tab, no opener leak/referrer), showing
- * just the bare domain via `websiteDomain()` while the href keeps the full URL the API
- * gave us. Only ever rendered when `website` is present (see call site). */
+ * just the bare domain via `websiteDomain()`. A source can report a website with no scheme
+ * at all (e.g. "paytm.com") — used as-is, that reads as a RELATIVE href and navigates
+ * within the app instead of out to the company site, so an "https://" prefix is added
+ * for the href specifically whenever one isn't already there; the displayed text stays the
+ * bare domain either way. Null-safe — renders nothing for a blank/missing website. */
 function WebsiteLink({ website }) {
   const T = useT();
+  if (!website) return null;
+  const href = /^https?:\/\//i.test(website) ? website : `https://${website}`;
   return (
     <Box
       component="a"
-      href={website}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
@@ -113,11 +118,13 @@ function WebsiteLink({ website }) {
  * is present rather than the whole grid gating on one field.
  */
 function AboutFacts({ ipo }) {
+  const T = useT();
   return (
     <Box sx={{
       display: 'grid',
       gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' },
       gap: 2,
+      color: T.textPrimary,
     }}>
       {ipo.foundedYear != null && (
         <FactTile icon={CalendarMonthOutlinedIcon} label="Founded" value={String(ipo.foundedYear)} />

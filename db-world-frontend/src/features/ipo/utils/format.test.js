@@ -429,6 +429,10 @@ describe('shortFinancialLabel', () => {
     expect(shortFinancialLabel('FY 2022-23')).toBe('2023');
   });
 
+  it('rolls the century over correctly for a century-crossing range', () => {
+    expect(shortFinancialLabel('FY 1999-00')).toBe('2000');
+  });
+
   it('handles the range with no space after "FY"', () => {
     expect(shortFinancialLabel('FY2021-22')).toBe('2022');
   });
