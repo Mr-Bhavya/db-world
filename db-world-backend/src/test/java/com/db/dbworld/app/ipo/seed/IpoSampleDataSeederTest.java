@@ -2,15 +2,18 @@ package com.db.dbworld.app.ipo.seed;
 
 import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
+import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.app.ipo.service.IpoNormalizer;
+import com.db.dbworld.app.ipo.service.IpoSubscriptionJson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -259,5 +263,81 @@ class IpoSampleDataSeederTest {
 
         assertThat(interimRows).hasSize(2); // Zomato + Ola are the two seeded with an interim row
         assertThat(interimRows).allSatisfy(f -> assertThat(f.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 6, 30)));
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_everySubscriptionHistoryRowCarriesNonEmptyCategoriesSummingToTotal() {
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoSubscriptionHistoryEntity> captor = ArgumentCaptor.forClass(IpoSubscriptionHistoryEntity.class);
+        verify(subscriptionHistoryRepository, times(15)).save(captor.capture());
+
+        assertThat(captor.getAllValues()).allSatisfy(row -> {
+            assertThat(row.getTotal()).isNotNull();
+            Map<String, BigDecimal> categories = IpoSubscriptionJson.fromJson(row.getCategoriesJson());
+            assertThat(categories).isNotEmpty();
+            BigDecimal sum = categories.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Per-category rounding (2dp each) can drift slightly from the point's total; 0.05 comfortably
+            // covers that for up to 5 categories.
+            assertThat(sum).isCloseTo(row.getTotal(), offset(new BigDecimal("0.05")));
+        });
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_mostCompaniesGetTheDefaultThreeCategories_twoGetExtrasForTheDynamicUi() {
+        // Only Zomato, LIC and Ola Electric are seeded with any trading history at all (see
+        // seedTradingHistory(true) in buildSampleIpoSpecs); listingRepository.save assigns ids in
+        // spec-list order (Zomato, Nykaa, LIC, Ola, ...) via the stubbed counter, so those three
+        // land on ids "sample-ipo-1", "sample-ipo-3" and "sample-ipo-4" respectively.
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoSubscriptionHistoryEntity> captor = ArgumentCaptor.forClass(IpoSubscriptionHistoryEntity.class);
+        verify(subscriptionHistoryRepository, times(15)).save(captor.capture());
+        Map<String, List<IpoSubscriptionHistoryEntity>> byIpoId = captor.getAllValues().stream()
+                .collect(Collectors.groupingBy(IpoSubscriptionHistoryEntity::getIpoId, LinkedHashMap::new, Collectors.toList()));
+
+        assertThat(byIpoId).hasSize(3);
+
+        List<IpoSubscriptionHistoryEntity> zomato = byIpoId.get("sample-ipo-1");
+        assertThat(zomato).hasSize(5);
+        assertThat(IpoSubscriptionJson.fromJson(zomato.get(4).getCategoriesJson()).keySet())
+                .containsExactly("QIB", "NII", "Retail", "Employee", "Anchor");
+
+        List<IpoSubscriptionHistoryEntity> lic = byIpoId.get("sample-ipo-3");
+        assertThat(lic).hasSize(5);
+        assertThat(IpoSubscriptionJson.fromJson(lic.get(4).getCategoriesJson()).keySet())
+                .containsExactly("QIB", "NII", "Retail", "Employee", "Shareholder");
+
+        List<IpoSubscriptionHistoryEntity> ola = byIpoId.get("sample-ipo-4");
+        assertThat(ola).hasSize(5);
+        assertThat(IpoSubscriptionJson.fromJson(ola.get(4).getCategoriesJson()).keySet())
+                .containsExactly("QIB", "NII", "Retail");
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_subscriptionHistoryCategoryValuesGrowTowardTheFinalTotal() {
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoSubscriptionHistoryEntity> captor = ArgumentCaptor.forClass(IpoSubscriptionHistoryEntity.class);
+        verify(subscriptionHistoryRepository, times(15)).save(captor.capture());
+        List<IpoSubscriptionHistoryEntity> zomato = captor.getAllValues().stream()
+                .filter(row -> "sample-ipo-1".equals(row.getIpoId())).toList();
+
+        List<BigDecimal> qibOverTime = zomato.stream()
+                .map(row -> IpoSubscriptionJson.fromJson(row.getCategoriesJson()).get("QIB"))
+                .toList();
+
+        assertThat(qibOverTime).hasSize(5);
+        assertThat(qibOverTime).allSatisfy(v -> assertThat(v).isNotNull());
+        assertThat(qibOverTime).isSortedAccordingTo(BigDecimal::compareTo);
     }
 }

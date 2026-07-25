@@ -10,6 +10,7 @@ import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.app.ipo.service.IpoNormalizer;
+import com.db.dbworld.app.ipo.service.IpoSubscriptionJson;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
@@ -28,8 +29,10 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * DEV-only convenience: seeds a realistic spread of sample IPOs (every status/type combination,
@@ -171,7 +174,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
 
             if (spec.isSeedTradingHistory()) {
                 seedGmpHistory(entity.getId(), spec.getGmp(), spec.getGmpPct(), today);
-                seedSubscriptionHistory(entity.getId(), spec.getSubTotal(), today);
+                Map<String, Double> categoryWeights = spec.getSubscriptionCategoryWeights() != null
+                        ? spec.getSubscriptionCategoryWeights() : defaultCategoryWeights();
+                seedSubscriptionHistory(entity.getId(), spec.getSubTotal(), today, categoryWeights);
             }
         }
     }
@@ -191,22 +196,59 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         }
     }
 
-    /** Five points over the last ~10 days, steadily increasing toward the final subscription total. */
-    private void seedSubscriptionHistory(String ipoId, BigDecimal finalTotal, LocalDate today) {
+    /**
+     * Five points over the last ~10 days, steadily increasing toward the final subscription
+     * total, split across {@code categoryWeights} (fractions of each point's total; insertion
+     * order preserved end-to-end into {@code categoriesJson} so the frontend gets a stable
+     * category order straight from the seed data).
+     */
+    private void seedSubscriptionHistory(String ipoId, BigDecimal finalTotal, LocalDate today,
+                                          Map<String, Double> categoryWeights) {
         double[] fractions = {0.10, 0.35, 0.65, 0.85, 1.00};
         int[] daysAgo = {9, 7, 5, 3, 1};
         for (int i = 0; i < fractions.length; i++) {
             BigDecimal total = scale(finalTotal, fractions[i]);
+            Map<String, BigDecimal> categories = new LinkedHashMap<>();
+            categoryWeights.forEach((category, weight) -> categories.put(category, scale(total, weight)));
             subscriptionHistoryRepository.save(IpoSubscriptionHistoryEntity.builder()
                     .ipoId(ipoId)
-                    .qib(scale(total, 0.45))
-                    .nii(scale(total, 0.30))
-                    .retail(scale(total, 0.25))
+                    .categoriesJson(IpoSubscriptionJson.toJson(categories))
                     .total(total)
                     .source("seed")
                     .capturedAt(instantAt(today.minusDays(daysAgo[i])))
                     .build());
         }
+    }
+
+    /** The default 3-way split most sample IPOs use. */
+    private static Map<String, Double> defaultCategoryWeights() {
+        Map<String, Double> weights = new LinkedHashMap<>();
+        weights.put("QIB", 0.45);
+        weights.put("NII", 0.30);
+        weights.put("Retail", 0.25);
+        return weights;
+    }
+
+    /** Zomato: adds an Employee reservation and an Anchor tranche alongside the usual three, so the dynamic UI has something to show. */
+    private static Map<String, Double> zomatoCategoryWeights() {
+        Map<String, Double> weights = new LinkedHashMap<>();
+        weights.put("QIB", 0.35);
+        weights.put("NII", 0.22);
+        weights.put("Retail", 0.18);
+        weights.put("Employee", 0.10);
+        weights.put("Anchor", 0.15);
+        return weights;
+    }
+
+    /** LIC: adds Employee and Shareholder (policyholder) reservation categories alongside the usual three. */
+    private static Map<String, Double> licCategoryWeights() {
+        Map<String, Double> weights = new LinkedHashMap<>();
+        weights.put("QIB", 0.25);
+        weights.put("NII", 0.15);
+        weights.put("Retail", 0.10);
+        weights.put("Employee", 0.05);
+        weights.put("Shareholder", 0.45);
+        return weights;
     }
 
     private static BigDecimal scale(BigDecimal value, double fraction) {
@@ -226,7 +268,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
     private String matchKeyFor(String companyName, LocalDate openDate) {
         IpoDto probe = new IpoDto(null, null, companyName, null, null, openDate, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
         return normalizer.matchKey(probe);
@@ -299,6 +341,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         fy("FY 2024-25", LocalDate.of(2025, 3, 31), "10200.00", "780.00", "13200.00"),
                         interimFy(today, "12800.00", "1150.00", "15400.00")))
                 .seedTradingHistory(true)
+                .subscriptionCategoryWeights(zomatoCategoryWeights())
                 .build());
 
         ipos.add(SampleIpo.builder()
@@ -366,6 +409,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         fy("FY 2023-24", LocalDate.of(2024, 3, 31), "231392.00", "40916.00", "4600000.00"),
                         fy("FY 2024-25", LocalDate.of(2025, 3, 31), "246500.00", "43809.00", "4950000.00")))
                 .seedTradingHistory(true)
+                .subscriptionCategoryWeights(licCategoryWeights())
                 .build());
 
         // ── Open (2): a few days into the subscription window ───────────────────────────────
@@ -549,6 +593,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         private String strengths;
         private String risks;
         private boolean seedTradingHistory;
+        /** Category → weight-of-total split for seeded subscription history; {@code null} = {@link #defaultCategoryWeights()}. */
+        private Map<String, Double> subscriptionCategoryWeights;
         private List<FinancialRow> financials;
 
         // ── Company "About" profile facts (seeder-populated; see IpoListingEntity) ──────────
