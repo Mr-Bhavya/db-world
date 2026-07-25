@@ -1,28 +1,34 @@
 import { useState } from 'react';
-import { Box, Typography, Chip, Skeleton } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useT } from '@shared/theme';
 import { useIpos } from '../hooks/useIpo';
 import { formatIstTime } from '../utils/format';
+import IpoFilterBar from '../components/IpoFilterBar';
 import IpoCard from '../components/IpoCard';
+import IpoCardSkeleton from '../components/IpoCardSkeleton';
 
-const FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'open', label: 'Open' },
-  { value: 'closed', label: 'Closed' },
-  { value: 'listed', label: 'Listed' },
-];
+const SKELETON_COUNT = 8;
 
 export default function IpoListPage() {
   const T = useT();
+  const [type, setType] = useState('mainboard');
   const [status, setStatus] = useState('');
-  const { data, isLoading } = useIpos(status);
+  const [sort, setSort] = useState('date');
+
+  const { data, isLoading } = useIpos({ status, type, sort });
   const ipos = data?.ipos ?? [];
   const lastUpdated = formatIstTime(data?.lastUpdated);
+  const hasActiveFilter = !!status || type !== 'all';
 
   const gridTemplateColumns = { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)', xl: 'repeat(4,1fr)' };
+
+  const handleFilterChange = ({ status: nextStatus, type: nextType, sort: nextSort }) => {
+    setStatus(nextStatus);
+    setType(nextType);
+    setSort(nextSort);
+  };
 
   return (
     <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
@@ -46,25 +52,12 @@ export default function IpoListPage() {
         )}
       </Box>
 
-      <Box sx={{
-        display: 'flex', gap: 1, mb: 2.5, overflowX: 'auto', pb: 0.5,
-        '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none',
-      }}>
-        {FILTERS.map((f) => (
-          <Chip
-            key={f.value}
-            label={f.label}
-            onClick={() => setStatus(f.value)}
-            color={status === f.value ? 'primary' : 'default'}
-            sx={{ transition: 'all 0.15s', flexShrink: 0, fontWeight: 600 }}
-          />
-        ))}
-      </Box>
+      <IpoFilterBar type={type} status={status} sort={sort} onChange={handleFilterChange} />
 
       {isLoading ? (
         <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={168} sx={{ bgcolor: T.glass }} />
+          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+            <IpoCardSkeleton key={i} />
           ))}
         </Box>
       ) : ipos.length === 0 ? (
@@ -76,7 +69,9 @@ export default function IpoListPage() {
             <TrendingUpIcon sx={{ fontSize: 56, color: T.textFaint }} />
             <Typography sx={{ fontSize: 17, fontWeight: 700, color: T.textPrimary }}>No IPOs found</Typography>
             <Typography sx={{ fontSize: 13, color: T.textMuted, maxWidth: 320 }}>
-              {status ? 'No IPOs match this filter right now. Try a different status.' : 'Nothing to show yet — check back soon.'}
+              {hasActiveFilter
+                ? 'No IPOs match these filters right now. Try a different type, status or sort.'
+                : 'Nothing to show yet — check back soon.'}
             </Typography>
           </Box>
         </motion.div>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Chip } from '@mui/material';
 import { motion } from 'framer-motion';
@@ -9,8 +10,49 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { formatShortDate, formatPriceBand, formatPct, IPO_TYPE_LABEL, statusMeta } from '../utils/format';
 
+/** Small circular company logo; falls back to initials on a teal tint if there's no
+ * logoUrl or the image fails to load (broken URL, network error, etc). */
+function CompanyLogo({ logoUrl, companyName }) {
+  const T = useT();
+  const [errored, setErrored] = useState(false);
+  const initials = (companyName || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('') || '?';
+
+  if (!logoUrl || errored) {
+    return (
+      <Box sx={{
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: T.tealBg, border: `1px solid ${T.border}`,
+      }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 800, color: T.teal, lineHeight: 1 }}>
+          {initials}
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      component="img"
+      src={logoUrl}
+      alt=""
+      onError={() => setErrored(true)}
+      sx={{
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+        objectFit: 'cover', border: `1px solid ${T.border}`, bgcolor: T.glassHover,
+      }}
+    />
+  );
+}
+
 function StatusBadge({ status }) {
-  const meta = statusMeta(status);
+  const T = useT();
+  const meta = statusMeta(status, T);
   return (
     <Box sx={{
       flexShrink: 0, px: 1, py: 0.25, borderRadius: 999,
@@ -63,9 +105,15 @@ function keyDateLabel(ipo) {
   return '—';
 }
 
+/**
+ * Minimal IPO card: logo + name + type chip, status badge, price band, GMP, and one key
+ * date — heavier detail lives on the detail page. A left accent strip (via `statusMeta`)
+ * gives an at-a-glance read on where the IPO is in its lifecycle.
+ */
 export default function IpoCard({ ipo, index = 0 }) {
   const T = useT();
   const navigate = useNavigate();
+  const meta = statusMeta(ipo.status, T);
   const positiveGain = ipo.listingGainPct != null && ipo.listingGainPct > 0;
   const negativeGain = ipo.listingGainPct != null && ipo.listingGainPct < 0;
 
@@ -83,6 +131,7 @@ export default function IpoCard({ ipo, index = 0 }) {
         sx={{
           bgcolor: T.glass,
           border: `1px solid ${T.border}`,
+          borderLeft: `3px solid ${meta.color}`,
           borderRadius: 3,
           cursor: 'pointer',
           height: '100%',
@@ -95,16 +144,19 @@ export default function IpoCard({ ipo, index = 0 }) {
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, lineHeight: 1.3 }} noWrap>
-              {ipo.companyName}
-            </Typography>
-            <Chip
-              label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
-              size="small"
-              variant="outlined"
-              sx={{ height: 19, fontSize: 10.5, mt: 0.5, borderColor: T.border, color: T.textMuted, '& .MuiChip-label': { px: 0.75 } }}
-            />
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+            <CompanyLogo logoUrl={ipo.logoUrl} companyName={ipo.companyName} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, lineHeight: 1.3 }} noWrap>
+                {ipo.companyName}
+              </Typography>
+              <Chip
+                label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
+                size="small"
+                variant="outlined"
+                sx={{ height: 19, fontSize: 10.5, mt: 0.5, borderColor: T.border, color: T.textMuted, '& .MuiChip-label': { px: 0.75 } }}
+              />
+            </Box>
           </Box>
           <StatusBadge status={ipo.status} />
         </Box>
