@@ -14,7 +14,7 @@ public class IpoMapper {
         return new IpoSummaryDto(e.getId(), e.getCompanyName(), e.getIpoType(), e.getStatus(),
                 e.getOpenDate(), e.getCloseDate(), e.getListingDate(), e.getPriceMin(), e.getPriceMax(),
                 e.getGmp(), e.getGmpPct(), e.getSubTotal(), e.getListingExchange(), e.getListingGainPct(),
-                e.getAllotmentStatus(), e.getLogoUrl());
+                e.getAllotmentStatus(), e.getLogoUrl(), e.getRegistrarUrl());
     }
 
     public IpoDetailDto toDetail(IpoListingEntity e) {

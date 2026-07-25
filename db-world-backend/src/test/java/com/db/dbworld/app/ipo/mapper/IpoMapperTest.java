@@ -79,6 +79,7 @@ class IpoMapperTest {
         assertThat(dto.listingGainPct()).isEqualByComparingTo("22.73");
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
         assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(dto.registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
     }
 
     @Test
@@ -224,6 +225,25 @@ class IpoMapperTest {
         assertThat(dto.lastSuccessAt()).isEqualTo(Instant.parse("2026-07-24T06:00:00Z"));
         assertThat(dto.lastStatus()).isEqualTo("OK");
         assertThat(dto.consecutiveFailures()).isZero();
+    }
+
+    @Test
+    void toMyIpoDto_wrapsApplicationWithIpoSummaryIncludingRegistrarUrl() {
+        IpoUserApplicationEntity application = IpoUserApplicationEntity.builder()
+                .ipoId("ipo-1")
+                .applicantName("Jane Doe")
+                .applicationNo("APP123")
+                .dpClientId("DP456")
+                .panLast4("234F")
+                .allotmentResult("unknown")
+                .build();
+
+        MyIpoDto dto = mapper.toMyIpoDto(application, fullListing());
+
+        assertThat(dto.application().ipoId()).isEqualTo("ipo-1");
+        assertThat(dto.application().applicationNo()).isEqualTo("APP123");
+        // MyIpoDto wraps a plain IpoSummaryDto, so registrarUrl rides along automatically.
+        assertThat(dto.ipo().registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
     }
 
     private IpoDto fullDto() {
