@@ -110,6 +110,9 @@ export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
 export const DB_IPO_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
 export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
+// "My IPOs" — applicant-level saved-application list. Declared before DB_IPO_DETAIL_ROUTE's
+// `:id` param in the route table (see App.jsx) so `/my` never gets swallowed as an :id.
+export const DB_IPO_MY_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo/my`;
 
 /* =========================
  * USER ROLES
@@ -242,6 +245,7 @@ export default {
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,
   ipoDetailPath,
+  DB_IPO_MY_ROUTE,
 
   OWNER_USER_ROLE,
   ADMIN_USER_ROLE,

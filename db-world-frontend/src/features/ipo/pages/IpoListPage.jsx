@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import BookmarkAddedOutlinedIcon from '@mui/icons-material/BookmarkAddedOutlined';
 import { useT } from '@shared/theme';
+import Constants from '@shared/constants';
 import { useIpos } from '../hooks/useIpo';
 import { formatIstTime } from '../utils/format';
 import IpoFilterBar from '../components/IpoFilterBar';
@@ -13,6 +16,7 @@ const SKELETON_COUNT = 8;
 
 export default function IpoListPage() {
   const T = useT();
+  const navigate = useNavigate();
   const [type, setType] = useState('mainboard');
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState('date');
@@ -50,17 +54,32 @@ export default function IpoListPage() {
             Mainboard &amp; SME IPOs — dates, GMP and subscription at a glance.
           </Typography>
         </Box>
-        {lastUpdated && (
-          <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.6,
-            borderRadius: 999, bgcolor: T.glass, border: `1px solid ${T.border}`,
-          }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.success, flexShrink: 0 }} />
-            <Typography sx={{ fontSize: 11.5, color: T.textMuted, whiteSpace: 'nowrap' }}>
-              Last updated {lastUpdated} IST
-            </Typography>
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          {lastUpdated && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.6,
+              borderRadius: 999, bgcolor: T.glass, border: `1px solid ${T.border}`,
+            }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.success, flexShrink: 0 }} />
+              <Typography sx={{ fontSize: 11.5, color: T.textMuted, whiteSpace: 'nowrap' }}>
+                Last updated {lastUpdated} IST
+              </Typography>
+            </Box>
+          )}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<BookmarkAddedOutlinedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => navigate(Constants.DB_IPO_MY_ROUTE)}
+            sx={{
+              borderColor: T.border, color: T.textPrimary, fontSize: 12.5, fontWeight: 700,
+              whiteSpace: 'nowrap', bgcolor: T.glass,
+              '&:hover': { borderColor: T.teal, bgcolor: T.tealBg, color: T.teal },
+            }}
+          >
+            My IPOs
+          </Button>
+        </Box>
       </Box>
 
       <IpoFilterBar type={type} status={status} sort={sort} onChange={handleFilterChange} />

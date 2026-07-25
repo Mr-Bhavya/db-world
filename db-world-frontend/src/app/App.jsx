@@ -79,6 +79,7 @@ const LazyWallet              = lazy(() => import('@features/wallet'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
+const LazyMyIposPage          = lazy(() => import('@features/ipo/pages/MyIposPage.jsx'));
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
@@ -213,6 +214,7 @@ const routeConfig = {
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
     { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
+    { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
     { path: Constants.DB_IPO_DETAIL_ROUTE, element: <LazyIpoDetailPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
