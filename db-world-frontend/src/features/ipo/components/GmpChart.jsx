@@ -4,15 +4,18 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { format } from 'date-fns';
 import { useT, useThemeMode } from '@shared/theme';
 
-/** Dual-axis GMP chart: ₹ on the left, % on the right, shared time x-axis. Sized entirely
- * by its parent (never a hardcoded pixel `width`) — see the `width: '100%', minWidth: 0`
- * chain below, which is what actually keeps this full-width on mobile. */
+/** GMP history chart with a ₹ / % / both toggle, defaulting to ₹ alone — a single left-hand
+ * axis, so the plot gets the chart's full width rather than splitting it with a second axis.
+ * Switching to "both" (or "%") adds/moves to a right-hand axis on the same shared time
+ * x-axis. Sized entirely by its parent (never a hardcoded pixel `width`) — see the
+ * `width: '100%', minWidth: 0` chain below, which is what actually keeps this full-width
+ * on mobile. */
 export default function GmpChart({ points = [], loading }) {
   const T = useT();
   const { mode } = useThemeMode();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [view, setView] = useState('both'); // 'both' | 'rupee' | 'pct'
+  const [view, setView] = useState('rupee'); // 'both' | 'rupee' | 'pct' — defaults to ₹ (single-axis, full-width plot)
 
   const axisColor = mode === 'dark' ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.55)';
   const gridColor = mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
