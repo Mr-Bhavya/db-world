@@ -83,7 +83,7 @@ const MS_PER_DAY = 86_400_000;
  * floored to midnight on both ends so "tomorrow" is always exactly 1 regardless of
  * the current time of day. Positive = future, negative = past, null if undeterminable.
  */
-const daysUntil = (dateStr) => {
+export const daysUntil = (dateStr) => {
   if (!dateStr) return null;
   try {
     const target = parseISO(dateStr);
@@ -156,4 +156,76 @@ export const subscriptionMeta = (subTotal, T) => {
   else if (n <= 10) { color = T.success; }
   else              { color = T.warning; }
   return { fillPct, color, hot: n > 10 };
+};
+
+/** "yyyy-MM-dd" → { dayMonth: "24 Jul", year: "2026" } — the two-line date label used by
+ * the timeline stepper (day+month prominent, year small underneath). Null-safe. */
+export const formatStageDate = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    const d = parseISO(dateStr);
+    if (Number.isNaN(d.getTime())) return null;
+    return { dayMonth: format(d, 'dd MMM'), year: format(d, 'yyyy') };
+  } catch { return null; }
+};
+
+/** Ordered stage definitions for the detail-page timeline stepper. */
+const TIMELINE_STAGE_DEFS = (ipo) => [
+  { key: 'open', label: 'Open', date: ipo.openDate },
+  { key: 'close', label: 'Close', date: ipo.closeDate },
+  { key: 'allotment', label: 'Allotment', date: ipo.allotmentDate },
+  { key: 'refund', label: 'Refund', date: ipo.refundDate },
+  { key: 'demat', label: 'Demat', date: ipo.dematDate },
+  { key: 'listing', label: 'Listing', date: ipo.listingDate },
+];
+
+/**
+ * Builds the ordered list of timeline stages for `IpoTimeline`, one entry per
+ * Open/Close/Allotment/Refund/Demat/Listing date the IPO actually has (any stage whose
+ * date is null/undefined is dropped entirely rather than rendered broken). Each surviving
+ * stage is tagged with a `status`:
+ *   'done'    — date is in the past
+ *   'current' — the first stage (in chronological order) that's today or in the future
+ *   'upcoming'— every later stage after the current one
+ * Returns [] for a falsy ipo.
+ */
+export const buildTimelineStages = (ipo) => {
+  if (!ipo) return [];
+  const present = TIMELINE_STAGE_DEFS(ipo).filter((d) => d.date != null);
+  let currentAssigned = false;
+  return present.map((d) => {
+    const n = daysUntil(d.date);
+    let status;
+    if (n == null)            { status = 'upcoming'; }
+    else if (n < 0)           { status = 'done'; }
+    else if (!currentAssigned) { status = 'current'; currentAssigned = true; }
+    else                      { status = 'upcoming'; }
+    return { ...d, status };
+  });
+};
+
+/**
+ * Expected listing price = upper price band + latest GMP, with the implied gain %
+ * vs the upper band (equivalent to `latestGmp / priceMax * 100`). Null whenever either
+ * input is missing or the price band is zero (can't divide), so callers can hide the
+ * stat entirely rather than show a bogus number.
+ */
+export const expectedListingPrice = (priceMax, latestGmp) => {
+  if (priceMax == null || latestGmp == null) return null;
+  const band = Number(priceMax);
+  const gmp = Number(latestGmp);
+  if (band === 0) return null;
+  return { price: band + gmp, gainPct: (gmp / band) * 100 };
+};
+
+/**
+ * Day-over-day change between two consecutive history values (e.g. GMP ₹). Null when
+ * either side is missing (e.g. the earliest row in the table has no prior day to compare
+ * against). `direction` drives the ▲/▼/flat treatment in the day-wise history tables.
+ */
+export const dayOverDayDelta = (current, previous) => {
+  if (current == null || previous == null) return null;
+  const delta = Number(current) - Number(previous);
+  const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  return { delta, direction };
 };

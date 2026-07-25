@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta } from './format';
+import {
+  daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
+  formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta,
+} from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
 const TODAY = '2026-07-24T09:00:00';
@@ -150,5 +153,115 @@ describe('ipoTypeMeta', () => {
     expect(ipoTypeMeta(null, T)).toBeNull();
     expect(ipoTypeMeta(undefined, T)).toBeNull();
     expect(ipoTypeMeta('bogus', T)).toBeNull();
+  });
+});
+
+describe('formatStageDate', () => {
+  it('splits a "yyyy-MM-dd" into day+month and year', () => {
+    expect(formatStageDate('2026-07-24')).toEqual({ dayMonth: '24 Jul', year: '2026' });
+  });
+
+  it('is null-safe for missing/unparseable input', () => {
+    expect(formatStageDate(null)).toBeNull();
+    expect(formatStageDate(undefined)).toBeNull();
+    expect(formatStageDate('not-a-date')).toBeNull();
+  });
+});
+
+describe('buildTimelineStages', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-24T09:00:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns [] for a falsy ipo', () => {
+    expect(buildTimelineStages(null)).toEqual([]);
+    expect(buildTimelineStages(undefined)).toEqual([]);
+  });
+
+  it('drops stages with no date rather than rendering them broken', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-10', closeDate: '2026-07-14',
+      allotmentDate: null, refundDate: null, dematDate: null,
+      listingDate: '2026-07-22',
+    });
+    expect(stages.map((s) => s.key)).toEqual(['open', 'close', 'listing']);
+  });
+
+  it('marks past dates done, the nearest upcoming/today date current, and the rest upcoming', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-10',       // past → done
+      closeDate: '2026-07-14',      // past → done
+      allotmentDate: '2026-07-24',  // today → current
+      refundDate: '2026-07-26',     // future → upcoming
+      dematDate: '2026-07-26',      // future → upcoming
+      listingDate: '2026-07-28',    // future → upcoming
+    });
+    expect(stages.map((s) => [s.key, s.status])).toEqual([
+      ['open', 'done'],
+      ['close', 'done'],
+      ['allotment', 'current'],
+      ['refund', 'upcoming'],
+      ['demat', 'upcoming'],
+      ['listing', 'upcoming'],
+    ]);
+  });
+
+  it('marks every stage upcoming when nothing has started yet', () => {
+    const stages = buildTimelineStages({ openDate: '2026-08-01', closeDate: '2026-08-05' });
+    expect(stages.map((s) => s.status)).toEqual(['current', 'upcoming']);
+  });
+
+  it('marks every stage done once fully listed', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-01', closeDate: '2026-07-05',
+      allotmentDate: '2026-07-10', listingDate: '2026-07-15',
+    });
+    expect(stages.map((s) => s.status)).toEqual(['done', 'done', 'done', 'done']);
+  });
+});
+
+describe('expectedListingPrice', () => {
+  it('adds the latest GMP to the upper price band and derives the gain %', () => {
+    expect(expectedListingPrice(100, 20)).toEqual({ price: 120, gainPct: 20 });
+  });
+
+  it('handles a negative GMP (expected discount to the band)', () => {
+    expect(expectedListingPrice(100, -10)).toEqual({ price: 90, gainPct: -10 });
+  });
+
+  it('is null when priceMax is missing', () => {
+    expect(expectedListingPrice(null, 20)).toBeNull();
+  });
+
+  it('is null when the latest GMP is missing', () => {
+    expect(expectedListingPrice(100, null)).toBeNull();
+  });
+
+  it('is null when priceMax is zero (can\'t derive a %)', () => {
+    expect(expectedListingPrice(0, 20)).toBeNull();
+  });
+});
+
+describe('dayOverDayDelta', () => {
+  it('reports an "up" direction for an increase', () => {
+    expect(dayOverDayDelta(55, 50)).toEqual({ delta: 5, direction: 'up' });
+  });
+
+  it('reports a "down" direction for a decrease', () => {
+    expect(dayOverDayDelta(45, 50)).toEqual({ delta: -5, direction: 'down' });
+  });
+
+  it('reports "flat" for no change', () => {
+    expect(dayOverDayDelta(50, 50)).toEqual({ delta: 0, direction: 'flat' });
+  });
+
+  it('is null when either side is missing (e.g. the earliest row)', () => {
+    expect(dayOverDayDelta(50, null)).toBeNull();
+    expect(dayOverDayDelta(null, 50)).toBeNull();
   });
 });
