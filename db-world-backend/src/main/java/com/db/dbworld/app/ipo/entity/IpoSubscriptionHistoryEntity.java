@@ -21,9 +21,14 @@ public class IpoSubscriptionHistoryEntity {
     @Column(name = "ipo_id", nullable = false, length = 36)
     private String ipoId;
 
-    @Column(precision = 10, scale = 2) private BigDecimal qib;
-    @Column(precision = 10, scale = 2) private BigDecimal nii;
-    @Column(precision = 10, scale = 2) private BigDecimal retail;
+    /**
+     * Category → multiple JSON object, e.g. {@code {"QIB":2.10,"NII":5.30,"Retail":8.00}}. Any
+     * category a source reports (QIB/NII/Retail/Employee/Shareholder/Anchor/...) lives here —
+     * see {@link com.db.dbworld.app.ipo.service.IpoSubscriptionJson} for the (de)serialization.
+     */
+    @Column(name = "categories_json", columnDefinition = "TEXT")
+    private String categoriesJson;
+
     @Column(precision = 10, scale = 2) private BigDecimal total;
 
     @Column(length = 30)
