@@ -44,6 +44,8 @@ class IpoMapperTest {
                 .allotmentStatus("finalized")
                 .registrar("Link Intime")
                 .registrarUrl("https://linkintime.co.in/acme")
+                .logoUrl("https://ui-avatars.com/api/?name=Acme+Corp")
+                .about("Acme Corp is a leading widget manufacturer.")
                 .firstSeenAt(Instant.parse("2026-07-01T00:00:00Z"))
                 .lastSeenAt(Instant.parse("2026-07-24T00:00:00Z"))
                 .build();
@@ -67,6 +69,7 @@ class IpoMapperTest {
         assertThat(dto.listingExchange()).isEqualTo("NSE");
         assertThat(dto.listingGainPct()).isEqualByComparingTo("22.73");
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
+        assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
     }
 
     @Test
@@ -94,6 +97,25 @@ class IpoMapperTest {
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
         assertThat(dto.registrar()).isEqualTo("Link Intime");
         assertThat(dto.registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
+        assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(dto.about()).isEqualTo("Acme Corp is a leading widget manufacturer.");
+    }
+
+    @Test
+    void toFinancial_mapsAllFields() {
+        IpoFinancialEntity entity = IpoFinancialEntity.builder()
+                .id("fin-1")
+                .ipoId("ipo-1")
+                .fiscalYear("FY24")
+                .revenue(new BigDecimal("500.00"))
+                .pat(new BigDecimal("50.00"))
+                .build();
+
+        IpoFinancialDto dto = mapper.toFinancial(entity);
+
+        assertThat(dto.fiscalYear()).isEqualTo("FY24");
+        assertThat(dto.revenue()).isEqualByComparingTo("500.00");
+        assertThat(dto.pat()).isEqualByComparingTo("50.00");
     }
 
     @Test
@@ -182,7 +204,8 @@ class IpoMapperTest {
                 "NSE", new BigDecimal("135.00"), new BigDecimal("22.73"),
                 new BigDecimal("25.00"), new BigDecimal("22.73"),
                 new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("15.50"),
-                "finalized", "Link Intime", "https://linkintime.co.in/acme");
+                "finalized", "Link Intime", "https://linkintime.co.in/acme",
+                "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.");
     }
 
     @Test
@@ -211,6 +234,8 @@ class IpoMapperTest {
         assertThat(entity.getAllotmentStatus()).isEqualTo("finalized");
         assertThat(entity.getRegistrar()).isEqualTo("Link Intime");
         assertThat(entity.getRegistrarUrl()).isEqualTo("https://linkintime.co.in/acme");
+        assertThat(entity.getLogoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
         // firstSeenAt/lastSeenAt are the ingest service's responsibility, not the mapper's.
         assertThat(entity.getFirstSeenAt()).isNull();
         assertThat(entity.getLastSeenAt()).isNull();
@@ -225,7 +250,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null,
                 null, null, null, null, null, null,
-                "finalized", null, null);
+                "finalized", null, null, null, null);
 
         mapper.applyUpdatable(partial, entity);
 
@@ -239,6 +264,8 @@ class IpoMapperTest {
         assertThat(entity.getSubTotal()).isEqualByComparingTo("15.50");
         assertThat(entity.getRegistrar()).isEqualTo("Link Intime");
         assertThat(entity.getListingExchange()).isEqualTo("NSE");
+        assertThat(entity.getLogoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
     }
 
     @Test

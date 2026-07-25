@@ -67,6 +67,12 @@ public class IpoListingEntity {
     @Column(name = "registrar_url", length = 500)
     private String registrarUrl;
 
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String about;
+
     @Column(name = "first_seen_at", nullable = false)
     private Instant firstSeenAt;
 

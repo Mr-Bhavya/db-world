@@ -70,7 +70,7 @@ class IpoIngestServiceTest {
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
                 listingExchange, listingPrice, listingGainPct,
                 gmp, gmpPct, new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), subTotal,
-                allotmentStatus, "Link Intime", "https://registrar");
+                allotmentStatus, "Link Intime", "https://registrar", null, null);
     }
 
     /** The DB row that mirrors a prior ingest of {@code dto(...)} with the same field values. */

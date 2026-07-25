@@ -32,5 +32,7 @@ public record IpoDto(
         BigDecimal subTotal,
         String allotmentStatus,
         String registrar,
-        String registrarUrl
+        String registrarUrl,
+        String logoUrl,
+        String about
 ) {}

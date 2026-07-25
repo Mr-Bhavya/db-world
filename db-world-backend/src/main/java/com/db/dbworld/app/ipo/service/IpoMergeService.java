@@ -72,6 +72,8 @@ public class IpoMergeService {
         Picked<String> issueSize = pick(group, PRECEDENCE_PRIMARY, IpoDto::issueSize, "issueSize");
         Picked<String> listingExchange = pick(group, PRECEDENCE_PRIMARY, IpoDto::listingExchange, "listingExchange");
         Picked<BigDecimal> listingPrice = pick(group, PRECEDENCE_PRIMARY, IpoDto::listingPrice, "listingPrice");
+        Picked<String> logoUrl = pick(group, PRECEDENCE_PRIMARY, IpoDto::logoUrl, "logoUrl");
+        Picked<String> about = pick(group, PRECEDENCE_PRIMARY, IpoDto::about, "about");
 
         Picked<BigDecimal> gmp = pick(group, PRECEDENCE_VOLATILE, IpoDto::gmp, "gmp");
         Picked<BigDecimal> gmpPct = pick(group, PRECEDENCE_VOLATILE, IpoDto::gmpPct, "gmpPct");
@@ -96,7 +98,7 @@ public class IpoMergeService {
                 priceMin.value(), priceMax.value(), lotSize.value(), issueSize.value(),
                 listingExchange.value(), listingPrice.value(), listingGainPct.value(),
                 gmp.value(), gmpPct.value(), subQib.value(), subNii.value(), subRetail.value(), subTotal.value(),
-                allotmentStatus.value(), registrar.value(), registrarUrl.value());
+                allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value());
     }
 
     @SafeVarargs

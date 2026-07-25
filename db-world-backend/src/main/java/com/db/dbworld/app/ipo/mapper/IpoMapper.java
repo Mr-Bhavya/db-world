@@ -10,7 +10,8 @@ public class IpoMapper {
     public IpoSummaryDto toSummary(IpoListingEntity e) {
         return new IpoSummaryDto(e.getId(), e.getCompanyName(), e.getIpoType(), e.getStatus(),
                 e.getOpenDate(), e.getCloseDate(), e.getListingDate(), e.getPriceMin(), e.getPriceMax(),
-                e.getGmp(), e.getGmpPct(), e.getListingExchange(), e.getListingGainPct(), e.getAllotmentStatus());
+                e.getGmp(), e.getGmpPct(), e.getListingExchange(), e.getListingGainPct(), e.getAllotmentStatus(),
+                e.getLogoUrl());
     }
 
     public IpoDetailDto toDetail(IpoListingEntity e) {
@@ -18,7 +19,12 @@ public class IpoMapper {
                 e.getOpenDate(), e.getCloseDate(), e.getAllotmentDate(), e.getListingDate(),
                 e.getPriceMin(), e.getPriceMax(), e.getListingPrice(), e.getListingGainPct(),
                 e.getGmp(), e.getGmpPct(), e.getSubTotal(), e.getLotSize(), e.getIssueSize(),
-                e.getListingExchange(), e.getAllotmentStatus(), e.getRegistrar(), e.getRegistrarUrl());
+                e.getListingExchange(), e.getAllotmentStatus(), e.getRegistrar(), e.getRegistrarUrl(),
+                e.getLogoUrl(), e.getAbout());
+    }
+
+    public IpoFinancialDto toFinancial(IpoFinancialEntity e) {
+        return new IpoFinancialDto(e.getFiscalYear(), e.getRevenue(), e.getPat());
     }
 
     public GmpPointDto toGmpPoint(IpoGmpHistoryEntity e) {
@@ -66,6 +72,8 @@ public class IpoMapper {
                 .allotmentStatus(dto.allotmentStatus())
                 .registrar(dto.registrar())
                 .registrarUrl(dto.registrarUrl())
+                .logoUrl(dto.logoUrl())
+                .about(dto.about())
                 .build();
     }
 
@@ -96,5 +104,7 @@ public class IpoMapper {
         if (dto.allotmentStatus() != null) entity.setAllotmentStatus(dto.allotmentStatus());
         if (dto.registrar() != null) entity.setRegistrar(dto.registrar());
         if (dto.registrarUrl() != null) entity.setRegistrarUrl(dto.registrarUrl());
+        if (dto.logoUrl() != null) entity.setLogoUrl(dto.logoUrl());
+        if (dto.about() != null) entity.setAbout(dto.about());
     }
 }

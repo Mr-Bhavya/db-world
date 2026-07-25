@@ -29,7 +29,8 @@ class IpoMergeServiceTest {
                 "NSE-" + source, new BigDecimal("135.00"), new BigDecimal("22.73"),
                 new BigDecimal("25.00"), new BigDecimal("22.00"),
                 new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("6.75"),
-                "finalized-" + source, "Link Intime-" + source, "https://registrar/" + source);
+                "finalized-" + source, "Link Intime-" + source, "https://registrar/" + source,
+                "https://logo/" + source, "About " + source);
     }
 
     @Test
@@ -89,17 +90,17 @@ class IpoMergeServiceTest {
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null, null);
         IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null, null);
         IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                "finalized-manual-only", null, null);
+                "finalized-manual-only", null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, manual));
 
@@ -114,7 +115,7 @@ class IpoMergeServiceTest {
                 LocalDate.of(2026, 8, 1), null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(acme, other));
 
@@ -129,7 +130,7 @@ class IpoMergeServiceTest {
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null, null);
         IpoDto valid = full("ipoguru");
 
         List<IpoDto> merged = mergeService.merge(List.of(uningestable, valid));

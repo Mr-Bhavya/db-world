@@ -180,7 +180,9 @@ public class NseSource implements IpoSource {
                 null, null, null, null,                      // subQib, subNii, subRetail, subTotal
                 null,                                          // allotmentStatus
                 null,                                           // registrar
-                null                                              // registrarUrl
+                null,                                             // registrarUrl
+                null,                                              // logoUrl — not this source's strength
+                null                                                // about — ditto
         );
     }
 }

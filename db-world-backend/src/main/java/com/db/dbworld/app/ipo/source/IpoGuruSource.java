@@ -161,7 +161,9 @@ public class IpoGuruSource implements IpoSource {
                 decimal(sub, F_SUB_TOTAL),                          // subTotal
                 null,                                                // allotmentStatus — not documented for this source
                 text(n, F_REGISTRAR),                                 // registrar
-                null                                                   // registrarUrl — not documented for this source
+                null,                                                  // registrarUrl — not documented for this source
+                null,                                                   // logoUrl — not documented for this source
+                null                                                     // about — not documented for this source
         );
     }
 }

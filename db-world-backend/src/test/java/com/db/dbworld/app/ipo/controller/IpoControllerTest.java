@@ -36,7 +36,7 @@ class IpoControllerTest {
         IpoSummaryDto summary = new IpoSummaryDto("1", "Acme Corp", "mainboard", "open",
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), null,
                 new BigDecimal("100.00"), new BigDecimal("110.00"), new BigDecimal("20.00"),
-                new BigDecimal("18.00"), null, null, "awaited");
+                new BigDecimal("18.00"), null, null, "awaited", null);
         IpoListResponse expected = new IpoListResponse(List.of(summary), Instant.parse("2026-07-24T09:00:00Z"));
         when(queryService.list("open")).thenReturn(expected);
 
@@ -63,7 +63,7 @@ class IpoControllerTest {
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28),
                 LocalDate.of(2026, 7, 30), new BigDecimal("100.00"), new BigDecimal("110.00"),
                 null, null, new BigDecimal("20.00"), new BigDecimal("18.00"), new BigDecimal("1.50"),
-                130, "500 Cr", null, "awaited", "Link Intime", "https://registrar");
+                130, "500 Cr", null, "awaited", "Link Intime", "https://registrar", null, null);
         when(queryService.detail("1")).thenReturn(expected);
 
         ApiResponse<IpoDetailDto> response = controller.detail("1");

@@ -25,5 +25,7 @@ public record IpoDetailDto(
         String listingExchange,
         String allotmentStatus,
         String registrar,
-        String registrarUrl
+        String registrarUrl,
+        String logoUrl,
+        String about
 ) {}
