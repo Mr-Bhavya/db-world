@@ -11,6 +11,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useIpo, useGmpHistory, useSubscriptionHistory } from '../hooks/useIpo';
 import { IPO_TYPE_LABEL, statusMeta, formatExchange } from '../utils/format';
+import { markListRestoreOnBack } from '../utils/listScrollRestore';
 import CompanyLogo from '../components/CompanyLogo';
 import IpoDetailSkeleton from '../components/IpoDetailSkeleton';
 import OverviewTab from '../components/OverviewTab';
@@ -31,7 +32,12 @@ export default function IpoDetailPage() {
   const T = useT();
   const { id } = useParams();
   const navigate = useNavigate();
-  const backToList = () => navigate(Constants.DB_IPO_ROUTE);
+  // Flag this as a genuine in-app "back to the list" so `IpoListPage` restores its saved
+  // scroll position instead of resetting to the top (see `listScrollRestore.js`).
+  const backToList = () => {
+    markListRestoreOnBack();
+    navigate(Constants.DB_IPO_ROUTE);
+  };
   const [tab, setTab] = useState('overview');
 
   const { data: ipo, isLoading, isError } = useIpo(id);

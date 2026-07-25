@@ -13,6 +13,7 @@ import {
   formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel,
   subscriptionLabel, subscriptionMeta,
 } from '../utils/format';
+import { saveListScrollForBack } from '../utils/listScrollRestore';
 import CompanyLogo from './CompanyLogo';
 
 function StatusBadge({ status }) {
@@ -141,6 +142,14 @@ export default function IpoCard({ ipo, index = 0 }) {
   const positiveGain = ipo.listingGainPct != null && ipo.listingGainPct > 0;
   const negativeGain = ipo.listingGainPct != null && ipo.listingGainPct < 0;
 
+  // Remember the list's current scroll position before leaving it for this IPO's detail
+  // page, so a subsequent in-app "back" (see `IpoDetailPage`'s back action) can restore it
+  // — see `listScrollRestore.js` for why this has to be scoped to this exact navigation.
+  const goToDetail = () => {
+    saveListScrollForBack();
+    navigate(Constants.ipoDetailPath(ipo.id));
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -151,7 +160,7 @@ export default function IpoCard({ ipo, index = 0 }) {
       style={{ height: '100%', width: '100%', minWidth: 0 }}
     >
       <Box
-        onClick={() => navigate(Constants.ipoDetailPath(ipo.id))}
+        onClick={goToDetail}
         role="button"
         tabIndex={0}
         aria-label={`View ${ipo.companyName} details`}
@@ -163,7 +172,7 @@ export default function IpoCard({ ipo, index = 0 }) {
           if (e.target !== e.currentTarget) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            navigate(Constants.ipoDetailPath(ipo.id));
+            goToDetail();
           }
         }}
         sx={{
