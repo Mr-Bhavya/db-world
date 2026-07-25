@@ -9,7 +9,10 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
-import { formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel } from '../utils/format';
+import {
+  formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel,
+  subscriptionLabel, subscriptionMeta,
+} from '../utils/format';
 import CompanyLogo from './CompanyLogo';
 
 function StatusBadge({ status }) {
@@ -93,6 +96,39 @@ function DaysLeftPill({ ipo }) {
 }
 
 /**
+ * Slim subscription progress bar — open/closed IPOs only, and only once `subTotal` is
+ * known. Fill is capped at 100% (past 1× the bar just stays full; the multiple itself
+ * is what carries "oversubscribed" — no ever-growing bar past full), color-tiered via
+ * `subscriptionMeta` so a 15× "hot" issue reads as unmistakably different from a 1.2×
+ * scrape-by. Hidden for upcoming/listed via the caller's condition, not in here, so the
+ * "no bar at all" case never even mounts this.
+ */
+function SubscriptionBar({ subTotal }) {
+  const T = useT();
+  const meta = subscriptionMeta(subTotal, T);
+  if (!meta) return null;
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.4 }}>
+        <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
+          Subscription
+        </Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color }} noWrap>
+          {subscriptionLabel(subTotal)}
+        </Typography>
+      </Box>
+      <Box sx={{ height: 5, borderRadius: 999, bgcolor: T.glassHover, overflow: 'hidden' }}>
+        <Box sx={{
+          height: '100%', width: `${meta.fillPct}%`, borderRadius: 999, bgcolor: meta.color,
+          boxShadow: meta.hot ? `0 0 6px ${meta.color}` : 'none',
+          transition: 'width 0.3s ease',
+        }} />
+      </Box>
+    </Box>
+  );
+}
+
+/**
  * Minimal IPO card: logo + name + type chip, status badge, price band, GMP, and one key
  * date — heavier detail lives on the detail page. A left accent strip (via `statusMeta`)
  * gives an at-a-glance read on where the IPO is in its lifecycle.
@@ -164,6 +200,10 @@ export default function IpoCard({ ipo, index = 0 }) {
             <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
           </Stat>
         </Box>
+
+        {(ipo.status === 'open' || ipo.status === 'closed') && ipo.subTotal != null && (
+          <SubscriptionBar subTotal={ipo.subTotal} />
+        )}
 
         <Box sx={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 0.75,
