@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Chip, Skeleton, Button, IconButton } from '@mui/material';
+import { Box, Typography, Chip, Button, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CalendarTodayIcon from '@mui/icons-material/CalendarTodayOutlined';
@@ -18,6 +18,8 @@ import SubscriptionChart from '../components/SubscriptionChart';
 import IpoGuruAttribution from '../components/IpoGuruAttribution';
 import CompanyLogo from '../components/CompanyLogo';
 import SectionCard from '../components/SectionCard';
+import FinancialsTable from '../components/FinancialsTable';
+import IpoDetailSkeleton from '../components/IpoDetailSkeleton';
 
 const FALLBACK_ALLOTMENT_URL = 'https://www.bseindia.com/investors/appli_check.aspx';
 const PAGE_SX = { pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4 };
@@ -33,15 +35,7 @@ export default function IpoDetailPage() {
   const { data: subPoints = [], isLoading: subLoading } = useSubscriptionHistory(id);
 
   if (isLoading) {
-    return (
-      <Box sx={{ ...PAGE_SX, color: T.textPrimary, maxWidth: 1100, mx: 'auto' }}>
-        <Skeleton variant="text" width={220} height={32} sx={{ mb: 2 }} />
-        <Skeleton variant="rounded" height={90} sx={{ mb: 2, bgcolor: T.glass }} />
-        <Skeleton variant="rounded" height={110} sx={{ mb: 2, bgcolor: T.glass }} />
-        <Skeleton variant="rounded" height={280} sx={{ mb: 2, bgcolor: T.glass }} />
-        <Skeleton variant="rounded" height={280} sx={{ bgcolor: T.glass }} />
-      </Box>
-    );
+    return <IpoDetailSkeleton />;
   }
 
   if (isError || !ipo) {
@@ -154,6 +148,8 @@ export default function IpoDetailPage() {
         <Box sx={{ mb: 2 }}>
           <SubscriptionChart points={subPoints} loading={subLoading} />
         </Box>
+
+        <FinancialsTable id={id} />
 
         <SectionCard title="Allotment" icon={<FactCheckOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
