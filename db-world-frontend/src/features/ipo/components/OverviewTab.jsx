@@ -7,11 +7,12 @@ import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalance
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import DomainOutlinedIcon from '@mui/icons-material/DomainOutlined';
+import PriceCheckOutlinedIcon from '@mui/icons-material/PriceCheckOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
-import { formatPriceBand, formatPct, formatMultiplier, buildTimelineStages } from '../utils/format';
+import { formatPriceBand, formatCurrency, formatPct, formatMultiplier, buildTimelineStages } from '../utils/format';
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
 import FinancialsTable from './FinancialsTable';
@@ -48,12 +49,29 @@ function GmpFactTile({ gmp, gmpPct }) {
   if (gmp == null && gmpPct == null) {
     return <FactTile icon={TrendingFlatIcon} label="GMP" value={null} />;
   }
-  const positive = (gmp ?? gmpPct) > 0;
-  const negative = (gmp ?? gmpPct) < 0;
+  // Direction follows gmpPct when it's present (it's the more meaningful signal — gmp
+  // itself can be legitimately 0 while the % is still nonzero), falling back to gmp
+  // only when there's no gmpPct at all. Prevents `(gmp ?? gmpPct)` from silently
+  // keeping a 0 gmp and reading "flat" when gmpPct clearly isn't.
+  const signal = gmpPct ?? gmp;
+  const positive = signal > 0;
+  const negative = signal < 0;
   const color = positive ? T.success : negative ? T.error : T.textMuted;
   const Icon = positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon;
   const value = `${gmp != null ? `₹${gmp}` : '—'}${gmpPct != null ? ` (${formatPct(gmpPct)})` : ''}`;
   return <FactTile icon={Icon} label="GMP" value={value} valueColor={color} />;
+}
+
+/** Listing gain fact tile — same up/down/flat color treatment as `GmpFactTile`, for the
+ * post-listing gain % vs. the issue price. Only ever rendered when `gainPct` is non-null
+ * (see call site), so no null-guard needed here. */
+function ListingGainFactTile({ gainPct }) {
+  const T = useT();
+  const positive = gainPct > 0;
+  const negative = gainPct < 0;
+  const color = positive ? T.success : negative ? T.error : T.textMuted;
+  const Icon = positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon;
+  return <FactTile icon={Icon} label="Listing gain" value={formatPct(gainPct)} valueColor={color} />;
 }
 
 /**
@@ -82,6 +100,10 @@ export default function OverviewTab({ ipo, id }) {
           <FactTile icon={Inventory2OutlinedIcon} label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
           <FactTile icon={AccountBalanceWalletOutlinedIcon} label="Issue size" value={ipo.issueSize} />
           <FactTile icon={StorefrontOutlinedIcon} label="Exchange" value={ipo.listingExchange} />
+          {ipo.listingPrice != null && (
+            <FactTile icon={PriceCheckOutlinedIcon} label="Listing price" value={formatCurrency(ipo.listingPrice)} />
+          )}
+          {ipo.listingGainPct != null && <ListingGainFactTile gainPct={ipo.listingGainPct} />}
           <GmpFactTile gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
           <FactTile icon={PeopleAltOutlinedIcon} label="Subscription" value={formatMultiplier(ipo.subTotal)} />
           <FactTile icon={DomainOutlinedIcon} label="Registrar" value={ipo.registrar} />
