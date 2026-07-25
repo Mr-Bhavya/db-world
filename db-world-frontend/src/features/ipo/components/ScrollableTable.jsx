@@ -9,11 +9,16 @@ import { useT } from '@shared/theme';
  * or squeezing values. Pair with `stickyColumnSx` on each table's first-column cells
  * (the row label — a date or fiscal year) so it stays pinned in view while the rest
  * of a wide row scrolls underneath it.
+ *
+ * Carries `data-swipe-ignore` so the detail page's tab-swipe handler (`IpoDetailPage`)
+ * knows a touch gesture starting here is this table's own horizontal scroll, not a
+ * request to switch tabs — see the swipe-ignore selector there.
  */
 export default function ScrollableTable({ minWidth = 420, children }) {
   const T = useT();
   return (
     <Box
+      data-swipe-ignore
       sx={{
         overflowX: 'auto',
         overscrollBehaviorX: 'contain',
