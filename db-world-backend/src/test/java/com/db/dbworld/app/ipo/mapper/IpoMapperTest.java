@@ -140,6 +140,8 @@ class IpoMapperTest {
                 .fiscalYear("FY24")
                 .revenue(new BigDecimal("500.00"))
                 .pat(new BigDecimal("50.00"))
+                .totalAssets(new BigDecimal("1200.00"))
+                .periodEnd(LocalDate.of(2024, 3, 31))
                 .build();
 
         IpoFinancialDto dto = mapper.toFinancial(entity);
@@ -147,6 +149,23 @@ class IpoMapperTest {
         assertThat(dto.fiscalYear()).isEqualTo("FY24");
         assertThat(dto.revenue()).isEqualByComparingTo("500.00");
         assertThat(dto.pat()).isEqualByComparingTo("50.00");
+        assertThat(dto.totalAssets()).isEqualByComparingTo("1200.00");
+    }
+
+    @Test
+    void toFinancial_nullTotalAssets_mapsToNull() {
+        IpoFinancialEntity entity = IpoFinancialEntity.builder()
+                .id("fin-1")
+                .ipoId("ipo-1")
+                .fiscalYear("FY24")
+                .revenue(new BigDecimal("500.00"))
+                .pat(new BigDecimal("50.00"))
+                .periodEnd(LocalDate.of(2024, 3, 31))
+                .build();
+
+        IpoFinancialDto dto = mapper.toFinancial(entity);
+
+        assertThat(dto.totalAssets()).isNull();
     }
 
     @Test

@@ -222,8 +222,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         return normalizer.matchKey(probe);
     }
 
+    // TODO(unit 3): rework to also carry periodEnd + totalAssets and a dynamic interim month.
     private static IpoFinancialDto fy(String fiscalYear, String revenue, String pat) {
-        return new IpoFinancialDto(fiscalYear, new BigDecimal(revenue), new BigDecimal(pat));
+        return new IpoFinancialDto(fiscalYear, new BigDecimal(revenue), new BigDecimal(pat), null);
     }
 
     private static String bullets(String... lines) {

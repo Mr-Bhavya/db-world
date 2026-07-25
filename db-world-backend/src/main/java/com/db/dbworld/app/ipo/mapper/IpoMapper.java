@@ -40,7 +40,7 @@ public class IpoMapper {
     }
 
     public IpoFinancialDto toFinancial(IpoFinancialEntity e) {
-        return new IpoFinancialDto(e.getFiscalYear(), e.getRevenue(), e.getPat());
+        return new IpoFinancialDto(e.getFiscalYear(), e.getRevenue(), e.getPat(), e.getTotalAssets());
     }
 
     public GmpPointDto toGmpPoint(IpoGmpHistoryEntity e) {

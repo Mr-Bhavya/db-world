@@ -93,9 +93,14 @@ public class IpoQueryService {
         return withDerivedTimelineDates(mapper.toDetail(entity));
     }
 
-    /** Fiscal-year revenue/PAT series for the detail page's P&amp;L section; empty (not 404) if none captured. */
+    /**
+     * Fiscal-year revenue/PAT/total-assets series for the detail page's P&amp;L section, in
+     * chronological order (sorted by {@code periodEnd}, not the {@code fiscalYear} display label —
+     * that label isn't sortable as a string, e.g. "Feb 2026" would otherwise sort before
+     * "FY 2021-22"). Empty (not 404) if none captured.
+     */
     public List<IpoFinancialDto> financials(String id) {
-        return financialRepository.findByIpoIdOrderByFiscalYearAsc(id).stream()
+        return financialRepository.findByIpoIdOrderByPeriodEndAsc(id).stream()
                 .map(mapper::toFinancial)
                 .toList();
     }

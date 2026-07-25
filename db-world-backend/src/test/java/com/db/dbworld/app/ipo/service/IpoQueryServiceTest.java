@@ -298,21 +298,38 @@ class IpoQueryServiceTest {
     }
 
     @Test
-    void financials_mapsInFiscalYearAscendingOrder() {
+    void financials_mapsInPeriodEndChronologicalOrder() {
+        // Repo is stubbed to already return periodEnd-ascending order (that's the repository
+        // method's job); the service/mapper must preserve that order and pass totalAssets through.
         IpoFinancialEntity fy23 = IpoFinancialEntity.builder()
-                .ipoId("1").fiscalYear("FY23").revenue(new BigDecimal("400.00")).pat(new BigDecimal("30.00")).build();
+                .ipoId("1").fiscalYear("FY23").revenue(new BigDecimal("400.00")).pat(new BigDecimal("30.00"))
+                .totalAssets(new BigDecimal("900.00")).periodEnd(LocalDate.of(2023, 3, 31)).build();
         IpoFinancialEntity fy24 = IpoFinancialEntity.builder()
-                .ipoId("1").fiscalYear("FY24").revenue(new BigDecimal("500.00")).pat(new BigDecimal("50.00")).build();
-        when(financialRepository.findByIpoIdOrderByFiscalYearAsc("1")).thenReturn(List.of(fy23, fy24));
+                .ipoId("1").fiscalYear("FY24").revenue(new BigDecimal("500.00")).pat(new BigDecimal("50.00"))
+                .totalAssets(new BigDecimal("1200.00")).periodEnd(LocalDate.of(2024, 3, 31)).build();
+        when(financialRepository.findByIpoIdOrderByPeriodEndAsc("1")).thenReturn(List.of(fy23, fy24));
 
         List<IpoFinancialDto> result = service.financials("1");
 
         assertThat(result).extracting(IpoFinancialDto::fiscalYear).containsExactly("FY23", "FY24");
+        assertThat(result).extracting(IpoFinancialDto::totalAssets)
+                .containsExactly(new BigDecimal("900.00"), new BigDecimal("1200.00"));
+    }
+
+    @Test
+    void financials_delegatesToPeriodEndOrderedRepositoryMethod_notTheStringFiscalYearSort() {
+        // Regression guard for the ordering bug: must call the periodEnd-ordered finder, never the
+        // old fiscalYear-string-ordered one (e.g. "Feb 2026" sorts before "FY 2021-22" as a string).
+        when(financialRepository.findByIpoIdOrderByPeriodEndAsc("1")).thenReturn(List.of());
+
+        service.financials("1");
+
+        verify(financialRepository).findByIpoIdOrderByPeriodEndAsc("1");
     }
 
     @Test
     void financials_empty_returnsEmptyListNotError() {
-        when(financialRepository.findByIpoIdOrderByFiscalYearAsc("1")).thenReturn(List.of());
+        when(financialRepository.findByIpoIdOrderByPeriodEndAsc("1")).thenReturn(List.of());
 
         assertThat(service.financials("1")).isEmpty();
     }

@@ -77,7 +77,7 @@ class IpoControllerTest {
 
     @Test
     void financials_delegatesIdAndReturnsServiceResult() {
-        List<IpoFinancialDto> expected = List.of(new IpoFinancialDto("FY24", new BigDecimal("500.00"), new BigDecimal("50.00")));
+        List<IpoFinancialDto> expected = List.of(new IpoFinancialDto("FY24", new BigDecimal("500.00"), new BigDecimal("50.00"), new BigDecimal("1200.00")));
         when(queryService.financials("1")).thenReturn(expected);
 
         ApiResponse<List<IpoFinancialDto>> response = controller.financials("1");

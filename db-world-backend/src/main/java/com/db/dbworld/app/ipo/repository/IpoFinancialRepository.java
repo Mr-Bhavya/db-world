@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface IpoFinancialRepository extends JpaRepository<IpoFinancialEntity, String> {
-    List<IpoFinancialEntity> findByIpoIdOrderByFiscalYearAsc(String ipoId);
+    /** Chronological order by the period's actual end date — NOT a string sort on {@code fiscalYear}. */
+    List<IpoFinancialEntity> findByIpoIdOrderByPeriodEndAsc(String ipoId);
 }
