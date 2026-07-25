@@ -177,7 +177,7 @@ public class NseSource implements IpoSource {
                 decimal(n, F_LISTING_PRICE),             // listingPrice
                 null,                                      // listingGainPct — not documented for this endpoint
                 null, null,                                 // gmp, gmpPct — not NSE's domain
-                null, null, null, null,                      // subQib, subNii, subRetail, subTotal
+                null, null,                                   // subscriptionCategories, subTotal — not NSE's domain
                 null,                                          // allotmentStatus
                 null,                                           // registrar
                 null,                                             // registrarUrl

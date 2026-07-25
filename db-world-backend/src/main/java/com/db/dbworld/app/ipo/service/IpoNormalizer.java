@@ -42,7 +42,7 @@ public class IpoNormalizer {
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
-                dto.gmp(), dto.gmpPct(), dto.subQib(), dto.subNii(), dto.subRetail(), dto.subTotal(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
                 dto.tickerSymbol(), dto.strengths(), dto.risks());

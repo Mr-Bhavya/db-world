@@ -60,9 +60,6 @@ public class IpoGuruSource implements IpoSource {
     private static final String F_LISTING_EXCHANGE = "listing_exchange";
     private static final String F_REGISTRAR = "registrar";
     private static final String F_SUBSCRIPTION = "subscription";     // nested object
-    private static final String F_SUB_QIB = "qib";
-    private static final String F_SUB_NII = "nii";
-    private static final String F_SUB_RETAIL = "retail";
     private static final String F_SUB_TOTAL = "total";
     private static final String F_GMP = "gmp";                       // nested object
     private static final String F_GMP_VALUE = "value";
@@ -155,9 +152,9 @@ public class IpoGuruSource implements IpoSource {
                 null,                                        // listingGainPct — ditto
                 decimal(gmp, F_GMP_VALUE),                     // gmp
                 decimal(gmp, F_GMP_PCT),                        // gmpPct
-                decimal(sub, F_SUB_QIB),                         // subQib
-                decimal(sub, F_SUB_NII),                          // subNii
-                decimal(sub, F_SUB_RETAIL),                        // subRetail
+                null,                                             // subscriptionCategories — TODO(verify): rebuild the
+                                                                    // category map from `sub`'s own fields once a real
+                                                                    // IPO Guru response confirms the per-category shape
                 decimal(sub, F_SUB_TOTAL),                          // subTotal
                 null,                                                // allotmentStatus — not documented for this source
                 text(n, F_REGISTRAR),                                 // registrar

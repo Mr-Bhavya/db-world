@@ -120,7 +120,7 @@ public class ChittorgarhSource implements IpoSource {
                     null,                                              // listingPrice
                     parsePercent(cellText(cells, idxGain)),            // listingGainPct
                     null, null,                                        // gmp, gmpPct
-                    null, null, null, null,                            // subQib, subNii, subRetail, subTotal
+                    null, null,                                        // subscriptionCategories, subTotal
                     null,                                               // allotmentStatus
                     null, null,                                         // registrar, registrarUrl
                     null, null,                                         // logoUrl, about — not on this page

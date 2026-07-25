@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -120,8 +121,9 @@ class IpoControllerTest {
     @Test
     void subscriptionHistory_delegatesIdAndReturnsServiceResult() {
         List<SubscriptionPointDto> expected = List.of(new SubscriptionPointDto(
-                Instant.parse("2026-07-01T00:00:00Z"), new BigDecimal("1.00"), new BigDecimal("2.00"),
-                new BigDecimal("3.00"), new BigDecimal("6.00")));
+                Instant.parse("2026-07-01T00:00:00Z"), new BigDecimal("6.00"),
+                Map.of("QIB", new BigDecimal("1.00"), "NII", new BigDecimal("2.00"), "Retail", new BigDecimal("3.00")),
+                new BigDecimal("1.00"), new BigDecimal("2.00"), new BigDecimal("3.00")));
         when(queryService.subscriptionHistory("1")).thenReturn(expected);
 
         ApiResponse<List<SubscriptionPointDto>> response = controller.subscriptionHistory("1");

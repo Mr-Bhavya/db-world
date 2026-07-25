@@ -15,7 +15,7 @@ class IpoNormalizerTest {
         return new IpoDto("nse", null, companyName, "mainboard", "open",
                 openDate, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
     }

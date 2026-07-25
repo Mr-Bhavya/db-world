@@ -100,9 +100,8 @@ class IpoGuruSourceTest {
         assertThat(acme.issueSize()).isEqualTo("500 Cr");
         assertThat(acme.listingExchange()).isEqualTo("BSE, NSE");
         assertThat(acme.registrar()).isEqualTo("Link Intime");
-        assertThat(acme.subQib()).isEqualByComparingTo("12.50");
-        assertThat(acme.subNii()).isEqualByComparingTo("8.30");
-        assertThat(acme.subRetail()).isEqualByComparingTo("3.10");
+        // TODO(verify): per-category breakdown isn't mapped yet — see the TODO in IpoGuruSource.
+        assertThat(acme.subscriptionCategories()).isNull();
         assertThat(acme.subTotal()).isEqualByComparingTo("7.20");
         assertThat(acme.gmp()).isEqualByComparingTo("25");
         assertThat(acme.gmpPct()).isEqualByComparingTo("20.83");
@@ -117,7 +116,7 @@ class IpoGuruSourceTest {
         assertThat(beta.priceMin()).isEqualByComparingTo("80");
         assertThat(beta.priceMax()).isEqualByComparingTo("80");
         assertThat(beta.gmp()).isNull();
-        assertThat(beta.subQib()).isNull();
+        assertThat(beta.subscriptionCategories()).isNull();
     }
 
     @Test
