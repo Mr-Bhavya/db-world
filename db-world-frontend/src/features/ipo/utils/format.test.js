@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
+  averageSubscription,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -138,6 +139,26 @@ describe('subscriptionMeta', () => {
 
   it('never exceeds a 100% fill even far past 1x', () => {
     expect(subscriptionMeta(50, T).fillPct).toBe(100);
+  });
+});
+
+describe('averageSubscription', () => {
+  it('averages every known value', () => {
+    expect(averageSubscription([1, 2, 3])).toBe(2);
+  });
+
+  it('ignores null/undefined entries rather than treating them as zero', () => {
+    expect(averageSubscription([2, null, 4, undefined])).toBe(3);
+  });
+
+  it('is null when nothing is known yet', () => {
+    expect(averageSubscription([null, undefined])).toBeNull();
+    expect(averageSubscription([])).toBeNull();
+    expect(averageSubscription(undefined)).toBeNull();
+  });
+
+  it('coerces numeric strings', () => {
+    expect(averageSubscription(['2', '4'])).toBe(3);
   });
 });
 

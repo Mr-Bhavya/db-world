@@ -185,6 +185,17 @@ export const subscriptionMeta = (subTotal, T) => {
   return { fillPct, color, hot: n > 10 };
 };
 
+/**
+ * Mean of the available (non-null) subscription multiples — e.g. QIB/NII/Retail on the
+ * detail page's Subscription tab — so a category that hasn't reported yet doesn't drag
+ * the average toward zero. Null when none of the inputs are known yet (never `NaN`).
+ */
+export const averageSubscription = (values) => {
+  const known = (values ?? []).filter((v) => v != null).map(Number);
+  if (known.length === 0) return null;
+  return known.reduce((sum, v) => sum + v, 0) / known.length;
+};
+
 /** "yyyy-MM-dd" → { dayMonth: "24 Jul", year: "2026" } — the two-line date label used by
  * the timeline stepper (day+month prominent, year small underneath). Null-safe. */
 export const formatStageDate = (dateStr) => {
