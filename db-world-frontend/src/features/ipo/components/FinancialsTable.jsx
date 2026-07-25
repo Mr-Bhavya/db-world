@@ -6,6 +6,7 @@ import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import { useT } from '@shared/theme';
 import { useFinancials } from '../hooks/useIpo';
 import SectionCard from './SectionCard';
+import FinancialsChart from './FinancialsChart';
 
 const GRID_COLS = '1fr 1fr 1fr';
 
@@ -70,6 +71,7 @@ function FinancialsSkeleton() {
   const T = useT();
   return (
     <Box>
+      <Skeleton variant="rounded" height={240} sx={{ bgcolor: T.glassHover, mb: 2 }} />
       {[0, 1, 2].map((i) => (
         <Box key={i} sx={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: 1, py: 0.85 }}>
           <Skeleton variant="text" width={48} height={16} sx={{ bgcolor: T.glassHover }} />
@@ -103,6 +105,7 @@ export default function FinancialsTable({ id }) {
         </Box>
       ) : (
         <Box>
+          <FinancialsChart rows={rows} />
           <HeaderRow />
           {rows.map((row, i) => (
             <FinancialRow
