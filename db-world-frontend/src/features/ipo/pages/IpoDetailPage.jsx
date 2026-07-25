@@ -1,34 +1,38 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Chip, Button, IconButton } from '@mui/material';
+import { Box, Typography, Chip, Button, IconButton, Tabs, Tab } from '@mui/material';
 import { motion } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CalendarTodayIcon from '@mui/icons-material/CalendarTodayOutlined';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useIpo, useGmpHistory, useSubscriptionHistory } from '../hooks/useIpo';
-import {
-  formatShortDate, formatPriceBand, formatCurrency, formatPct, formatMultiplier,
-  IPO_TYPE_LABEL, statusMeta,
-} from '../utils/format';
-import GmpChart from '../components/GmpChart';
-import SubscriptionChart from '../components/SubscriptionChart';
-import IpoGuruAttribution from '../components/IpoGuruAttribution';
+import { IPO_TYPE_LABEL, statusMeta } from '../utils/format';
 import CompanyLogo from '../components/CompanyLogo';
-import SectionCard from '../components/SectionCard';
-import FinancialsTable from '../components/FinancialsTable';
 import IpoDetailSkeleton from '../components/IpoDetailSkeleton';
+import OverviewTab from '../components/OverviewTab';
+import GmpTab from '../components/GmpTab';
+import SubscriptionTab from '../components/SubscriptionTab';
+import AllotmentTab from '../components/AllotmentTab';
 
-const FALLBACK_ALLOTMENT_URL = 'https://www.bseindia.com/investors/appli_check.aspx';
 const PAGE_SX = { pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4 };
+
+const TABS = [
+  { value: 'overview', label: 'Overview', Icon: DashboardOutlinedIcon },
+  { value: 'gmp', label: 'GMP', Icon: ShowChartIcon },
+  { value: 'subscription', label: 'Subscription', Icon: PeopleAltOutlinedIcon },
+  { value: 'allotment', label: 'Allotment', Icon: FactCheckOutlinedIcon },
+];
 
 export default function IpoDetailPage() {
   const T = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const backToList = () => navigate(Constants.DB_IPO_ROUTE);
+  const [tab, setTab] = useState('overview');
 
   const { data: ipo, isLoading, isError } = useIpo(id);
   const { data: gmpPoints = [], isLoading: gmpLoading } = useGmpHistory(id);
@@ -62,15 +66,12 @@ export default function IpoDetailPage() {
   }
 
   const meta = statusMeta(ipo.status, T);
-  const latestSub = subPoints.length ? subPoints[subPoints.length - 1] : null;
-  const registrarHref = ipo.registrarUrl || FALLBACK_ALLOTMENT_URL;
-  const gainColor = ipo.listingGainPct > 0 ? T.success : ipo.listingGainPct < 0 ? T.error : undefined;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <Box sx={{ ...PAGE_SX, color: T.textPrimary, maxWidth: 1100, mx: 'auto' }}>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 2 }}>
           <IconButton
             onClick={backToList}
             aria-label="Back to IPO Tracker"
@@ -97,123 +98,34 @@ export default function IpoDetailPage() {
           </Box>
         </Box>
 
-        {ipo.about && (
-          <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-            <Typography sx={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7 }}>
-              {ipo.about}
-            </Typography>
-          </SectionCard>
-        )}
+        <Tabs
+          value={tab}
+          onChange={(_e, v) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          aria-label="IPO detail sections"
+          sx={{
+            mb: 2, minHeight: 40, borderBottom: `1px solid ${T.border}`,
+            '& .MuiTab-root': {
+              minHeight: 44, fontSize: 12.5, fontWeight: 700, textTransform: 'none',
+              color: T.textMuted, minWidth: 0, px: 1.5, gap: 0.5,
+            },
+            '& .Mui-selected': { color: `${T.teal} !important` },
+            '& .MuiTabs-indicator': { bgcolor: T.teal, height: 2.5, borderRadius: 999 },
+            '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 },
+          }}
+        >
+          {TABS.map(({ value, label, Icon }) => (
+            <Tab key={value} value={value} label={label} icon={<Icon sx={{ fontSize: 17 }} />} iconPosition="start" />
+          ))}
+        </Tabs>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 0, md: 1.5 } }}>
-          <SectionCard title="Timeline">
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              <DateChip label="Opens" value={formatShortDate(ipo.openDate)} />
-              <DateChip label="Closes" value={formatShortDate(ipo.closeDate)} />
-              <DateChip label="Allotment" value={formatShortDate(ipo.allotmentDate)} />
-              <DateChip label="Listing" value={formatShortDate(ipo.listingDate)} />
-            </Box>
-          </SectionCard>
-
-          <SectionCard title="Issue details">
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(2,1fr)' }, gap: 1.5 }}>
-              <StatBlock label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
-              <StatBlock label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
-              <StatBlock label="Issue size" value={ipo.issueSize ?? null} />
-              {ipo.status === 'listed' && (
-                <>
-                  <StatBlock label="Listing price" value={formatCurrency(ipo.listingPrice)} />
-                  <StatBlock label="Listing gain" value={formatPct(ipo.listingGainPct)} valueColor={gainColor} />
-                  <StatBlock label="Exchange" value={ipo.listingExchange} />
-                </>
-              )}
-            </Box>
-          </SectionCard>
-        </Box>
-
-        <SectionCard title="Subscription">
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: 1.5 }}>
-            <StatBlock label="Total" value={formatMultiplier(ipo.subTotal ?? latestSub?.total)} highlight />
-            <StatBlock label="QIB" value={formatMultiplier(latestSub?.qib)} />
-            <StatBlock label="NII" value={formatMultiplier(latestSub?.nii)} />
-            <StatBlock label="Retail" value={formatMultiplier(latestSub?.retail)} />
-          </Box>
-        </SectionCard>
-
-        <Box sx={{ mb: 2 }}>
-          <IpoGuruAttribution />
-          <GmpChart points={gmpPoints} loading={gmpLoading} />
-        </Box>
-
-        <Box sx={{ mb: 2 }}>
-          <SubscriptionChart points={subPoints} loading={subLoading} />
-        </Box>
-
-        <FinancialsTable id={id} />
-
-        <SectionCard title="Allotment" icon={<FactCheckOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 12, color: T.textFaint }}>Status</Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, mt: 0.25 }}>
-                {ipo.allotmentStatus ?? 'Not available yet'}
-              </Typography>
-              {ipo.registrar && (
-                <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.5 }}>
-                  Registrar: {ipo.registrar}
-                </Typography>
-              )}
-            </Box>
-            <Button
-              variant="contained"
-              endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
-              component="a"
-              href={registrarHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, whiteSpace: 'nowrap', flexShrink: 0 }}
-            >
-              Check allotment
-            </Button>
-          </Box>
-        </SectionCard>
+        {tab === 'overview' && <OverviewTab ipo={ipo} id={id} />}
+        {tab === 'gmp' && <GmpTab ipo={ipo} points={gmpPoints} loading={gmpLoading} />}
+        {tab === 'subscription' && <SubscriptionTab ipo={ipo} points={subPoints} loading={subLoading} />}
+        {tab === 'allotment' && <AllotmentTab ipo={ipo} />}
       </Box>
     </motion.div>
-  );
-}
-
-function DateChip({ label, value }) {
-  const T = useT();
-  return (
-    <Box sx={{
-      display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.75, borderRadius: 2,
-      bgcolor: value ? T.glassHover : T.glass, border: `1px solid ${T.border}`, opacity: value ? 1 : 0.55,
-    }}>
-      <CalendarTodayIcon sx={{ fontSize: 13, color: T.textFaint }} />
-      <Box>
-        <Typography sx={{ fontSize: 10, color: T.textFaint, lineHeight: 1.2 }}>{label}</Typography>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textPrimary, lineHeight: 1.3 }}>
-          {value ?? '—'}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-function StatBlock({ label, value, highlight, valueColor }) {
-  const T = useT();
-  return (
-    <Box sx={{
-      p: 1.25, borderRadius: 2,
-      bgcolor: highlight ? T.tealBg : 'transparent',
-      border: highlight ? `1px solid ${T.teal}33` : 'none',
-    }}>
-      <Typography sx={{ fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: 15, fontWeight: 800, color: valueColor ?? T.textPrimary, mt: 0.25 }} noWrap>
-        {value ?? '—'}
-      </Typography>
-    </Box>
   );
 }
