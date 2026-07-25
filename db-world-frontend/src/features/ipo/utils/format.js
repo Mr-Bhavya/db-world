@@ -65,14 +65,15 @@ export const statusMeta = (status, T) => {
  * badge). Mainboard reuses the brand teal; SME gets its own violet so the two chip
  * kinds are never confusable at a glance. `#8b5cf6` matches the violet already used
  * for EDITOR_PICK tags elsewhere in the app (see admin/records/tagConstants.js).
+ * Returns null (hide the chip) for an unrecognized/missing ipoType rather than
+ * fabricating a "Mainboard" default — no generic "IPO" fallback label either way.
  */
 const SME_VIOLET = '#8b5cf6';
 export const ipoTypeMeta = (ipoType, T) => {
-  const label = IPO_TYPE_LABEL[ipoType] ?? null;
-  if (ipoType === 'sme') {
-    return { label: label ?? 'SME', color: SME_VIOLET, bg: `${SME_VIOLET}1f` };
-  }
-  return { label: label ?? 'Mainboard', color: T.teal, bg: T.tealBg };
+  const label = IPO_TYPE_LABEL[ipoType];
+  if (!label) return null;
+  if (ipoType === 'sme') return { label, color: SME_VIOLET, bg: `${SME_VIOLET}1f` };
+  return { label, color: T.teal, bg: T.tealBg };
 };
 
 const MS_PER_DAY = 86_400_000;

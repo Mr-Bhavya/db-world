@@ -2,12 +2,14 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Chip } from '@mui/material';
 import { motion } from 'framer-motion';
 import CalendarTodayIcon from '@mui/icons-material/CalendarTodayOutlined';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
-import { formatShortDate, formatPriceBand, formatPct, IPO_TYPE_LABEL, statusMeta } from '../utils/format';
+import { formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel } from '../utils/format';
 import CompanyLogo from './CompanyLogo';
 
 function StatusBadge({ status }) {
@@ -66,6 +68,31 @@ function keyDateLabel(ipo) {
 }
 
 /**
+ * Status-aware "time left" pill for the footer, next to the absolute date range —
+ * upcoming/open get a clock (still counting down to a date), closed/listed get a
+ * calendar-check (past the subscription window, event-based from here). Hidden
+ * entirely when `daysLeftLabel` can't derive anything (missing/unparseable dates).
+ */
+function DaysLeftPill({ ipo }) {
+  const T = useT();
+  const label = daysLeftLabel(ipo);
+  if (!label) return null;
+  const Icon = ipo.status === 'upcoming' || ipo.status === 'open' ? AccessTimeRoundedIcon : EventAvailableRoundedIcon;
+  const meta = statusMeta(ipo.status, T);
+  return (
+    <Box sx={{
+      display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0,
+      px: 0.75, py: 0.15, borderRadius: 999, bgcolor: meta.bg,
+    }}>
+      <Icon sx={{ fontSize: 11, color: meta.color }} />
+      <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: meta.color, whiteSpace: 'nowrap' }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
+/**
  * Minimal IPO card: logo + name + type chip, status badge, price band, GMP, and one key
  * date — heavier detail lives on the detail page. A left accent strip (via `statusMeta`)
  * gives an at-a-glance read on where the IPO is in its lifecycle.
@@ -74,6 +101,7 @@ export default function IpoCard({ ipo, index = 0 }) {
   const T = useT();
   const navigate = useNavigate();
   const meta = statusMeta(ipo.status, T);
+  const typeMeta = ipoTypeMeta(ipo.ipoType, T);
   const positiveGain = ipo.listingGainPct != null && ipo.listingGainPct > 0;
   const negativeGain = ipo.listingGainPct != null && ipo.listingGainPct < 0;
 
@@ -110,12 +138,17 @@ export default function IpoCard({ ipo, index = 0 }) {
               <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, lineHeight: 1.3 }} noWrap>
                 {ipo.companyName}
               </Typography>
-              <Chip
-                label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
-                size="small"
-                variant="outlined"
-                sx={{ height: 19, fontSize: 10.5, mt: 0.5, borderColor: T.border, color: T.textMuted, '& .MuiChip-label': { px: 0.75 } }}
-              />
+              {typeMeta && (
+                <Chip
+                  label={typeMeta.label}
+                  size="small"
+                  sx={{
+                    height: 19, fontSize: 10.5, fontWeight: 700, mt: 0.5,
+                    bgcolor: typeMeta.bg, color: typeMeta.color,
+                    '& .MuiChip-label': { px: 0.75 },
+                  }}
+                />
+              )}
             </Box>
           </Box>
           <StatusBadge status={ipo.status} />
@@ -133,28 +166,37 @@ export default function IpoCard({ ipo, index = 0 }) {
         </Box>
 
         <Box sx={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 0.75,
           mt: 'auto', pt: 1, borderTop: `1px solid ${T.border}`,
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-            <CalendarTodayIcon sx={{ fontSize: 12.5, color: T.textFaint }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: '1 1 auto' }}>
+            <CalendarTodayIcon sx={{ fontSize: 12.5, color: T.textFaint, flexShrink: 0 }} />
             <Typography sx={{ fontSize: 11.5, color: T.textFaint }} noWrap>
               {keyDateLabel(ipo)}
             </Typography>
           </Box>
-          {ipo.status === 'listed' && ipo.listingGainPct != null && (
-            <Box sx={{
-              flexShrink: 0, px: 0.75, py: 0.15, borderRadius: 999,
-              bgcolor: positiveGain ? T.successBg : negativeGain ? T.errorBg : T.glassHover,
-            }}>
-              <Typography sx={{
-                fontSize: 10.5, fontWeight: 800,
-                color: positiveGain ? T.success : negativeGain ? T.error : T.textMuted,
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <DaysLeftPill ipo={ipo} />
+            {ipo.status === 'listed' && ipo.listingGainPct != null && (
+              <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 0.2, flexShrink: 0,
+                px: 0.75, py: 0.15, borderRadius: 999,
+                bgcolor: positiveGain ? T.successBg : negativeGain ? T.errorBg : T.glassHover,
               }}>
-                {formatPct(ipo.listingGainPct)}
-              </Typography>
-            </Box>
-          )}
+                {positiveGain
+                  ? <TrendingUpIcon sx={{ fontSize: 11, color: T.success }} />
+                  : negativeGain
+                    ? <TrendingDownIcon sx={{ fontSize: 11, color: T.error }} />
+                    : <TrendingFlatIcon sx={{ fontSize: 11, color: T.textMuted }} />}
+                <Typography sx={{
+                  fontSize: 10.5, fontWeight: 800,
+                  color: positiveGain ? T.success : negativeGain ? T.error : T.textMuted,
+                }}>
+                  {formatPct(ipo.listingGainPct)}
+                </Typography>
+              </Box>
+            )}
+          </Box>
         </Box>
       </Box>
     </motion.div>

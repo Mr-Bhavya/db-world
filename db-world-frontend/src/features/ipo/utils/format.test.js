@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { daysLeftLabel, subscriptionLabel, subscriptionMeta } from './format';
+import { daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
 const TODAY = '2026-07-24T09:00:00';
@@ -135,5 +135,21 @@ describe('subscriptionMeta', () => {
 
   it('never exceeds a 100% fill even far past 1x', () => {
     expect(subscriptionMeta(50, T).fillPct).toBe(100);
+  });
+});
+
+describe('ipoTypeMeta', () => {
+  const T = { teal: 'teal', tealBg: 'tealBg' };
+
+  it('labels mainboard distinctly from sme, never a generic "IPO"', () => {
+    expect(ipoTypeMeta('mainboard', T)).toEqual({ label: 'Mainboard', color: 'teal', bg: 'tealBg' });
+    expect(ipoTypeMeta('sme', T).label).toBe('SME');
+    expect(ipoTypeMeta('sme', T).color).not.toBe('teal');
+  });
+
+  it('returns null (hide the chip) for an unrecognized/missing ipoType', () => {
+    expect(ipoTypeMeta(null, T)).toBeNull();
+    expect(ipoTypeMeta(undefined, T)).toBeNull();
+    expect(ipoTypeMeta('bogus', T)).toBeNull();
   });
 });
