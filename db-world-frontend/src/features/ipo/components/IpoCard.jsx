@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Chip } from '@mui/material';
 import { motion } from 'framer-motion';
@@ -9,46 +8,7 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { formatShortDate, formatPriceBand, formatPct, IPO_TYPE_LABEL, statusMeta } from '../utils/format';
-
-/** Small circular company logo; falls back to initials on a teal tint if there's no
- * logoUrl or the image fails to load (broken URL, network error, etc). */
-function CompanyLogo({ logoUrl, companyName }) {
-  const T = useT();
-  const [errored, setErrored] = useState(false);
-  const initials = (companyName || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('') || '?';
-
-  if (!logoUrl || errored) {
-    return (
-      <Box sx={{
-        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: T.tealBg, border: `1px solid ${T.border}`,
-      }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 800, color: T.teal, lineHeight: 1 }}>
-          {initials}
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box
-      component="img"
-      src={logoUrl}
-      alt=""
-      onError={() => setErrored(true)}
-      sx={{
-        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-        objectFit: 'cover', border: `1px solid ${T.border}`, bgcolor: T.glassHover,
-      }}
-    />
-  );
-}
+import CompanyLogo from './CompanyLogo';
 
 function StatusBadge({ status }) {
   const T = useT();

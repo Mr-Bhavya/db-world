@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CalendarTodayIcon from '@mui/icons-material/CalendarTodayOutlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useIpo, useGmpHistory, useSubscriptionHistory } from '../hooks/useIpo';
@@ -15,6 +16,8 @@ import {
 import GmpChart from '../components/GmpChart';
 import SubscriptionChart from '../components/SubscriptionChart';
 import IpoGuruAttribution from '../components/IpoGuruAttribution';
+import CompanyLogo from '../components/CompanyLogo';
+import SectionCard from '../components/SectionCard';
 
 const FALLBACK_ALLOTMENT_URL = 'https://www.bseindia.com/investors/appli_check.aspx';
 const PAGE_SX = { pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4 };
@@ -81,9 +84,10 @@ export default function IpoDetailPage() {
           >
             <ArrowBackIcon sx={{ fontSize: 20 }} />
           </IconButton>
-          <Box sx={{ minWidth: 0 }}>
+          <CompanyLogo logoUrl={ipo.logoUrl} companyName={ipo.companyName} size={44} />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: { xs: 19, sm: 22 }, fontWeight: 800, wordBreak: 'break-word' }}>
+              <Typography sx={{ fontSize: { xs: 18, sm: 21 }, fontWeight: 800, wordBreak: 'break-word' }}>
                 {ipo.companyName}
               </Typography>
               <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: meta.bg, border: `1px solid ${meta.color}55`, flexShrink: 0 }}>
@@ -99,29 +103,39 @@ export default function IpoDetailPage() {
           </Box>
         </Box>
 
-        <SectionCard title="Timeline">
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            <DateChip label="Opens" value={formatShortDate(ipo.openDate)} />
-            <DateChip label="Closes" value={formatShortDate(ipo.closeDate)} />
-            <DateChip label="Allotment" value={formatShortDate(ipo.allotmentDate)} />
-            <DateChip label="Listing" value={formatShortDate(ipo.listingDate)} />
-          </Box>
-        </SectionCard>
+        {ipo.about && (
+          <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+            <Typography sx={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7 }}>
+              {ipo.about}
+            </Typography>
+          </SectionCard>
+        )}
 
-        <SectionCard title="Issue details">
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 1.5 }}>
-            <StatBlock label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
-            <StatBlock label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
-            <StatBlock label="Issue size" value={ipo.issueSize ?? null} />
-            {ipo.status === 'listed' && (
-              <>
-                <StatBlock label="Listing price" value={formatCurrency(ipo.listingPrice)} />
-                <StatBlock label="Listing gain" value={formatPct(ipo.listingGainPct)} valueColor={gainColor} />
-                <StatBlock label="Exchange" value={ipo.listingExchange} />
-              </>
-            )}
-          </Box>
-        </SectionCard>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 0, md: 1.5 } }}>
+          <SectionCard title="Timeline">
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <DateChip label="Opens" value={formatShortDate(ipo.openDate)} />
+              <DateChip label="Closes" value={formatShortDate(ipo.closeDate)} />
+              <DateChip label="Allotment" value={formatShortDate(ipo.allotmentDate)} />
+              <DateChip label="Listing" value={formatShortDate(ipo.listingDate)} />
+            </Box>
+          </SectionCard>
+
+          <SectionCard title="Issue details">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(2,1fr)' }, gap: 1.5 }}>
+              <StatBlock label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
+              <StatBlock label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
+              <StatBlock label="Issue size" value={ipo.issueSize ?? null} />
+              {ipo.status === 'listed' && (
+                <>
+                  <StatBlock label="Listing price" value={formatCurrency(ipo.listingPrice)} />
+                  <StatBlock label="Listing gain" value={formatPct(ipo.listingGainPct)} valueColor={gainColor} />
+                  <StatBlock label="Exchange" value={ipo.listingExchange} />
+                </>
+              )}
+            </Box>
+          </SectionCard>
+        </Box>
 
         <SectionCard title="Subscription">
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: 1.5 }}>
@@ -169,21 +183,6 @@ export default function IpoDetailPage() {
         </SectionCard>
       </Box>
     </motion.div>
-  );
-}
-
-function SectionCard({ title, icon, children }) {
-  const T = useT();
-  return (
-    <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 3, p: { xs: 1.5, sm: 2 }, mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
-        {icon}
-        <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-          {title}
-        </Typography>
-      </Box>
-      {children}
-    </Box>
   );
 }
 
