@@ -41,12 +41,27 @@ export default function MyIpoCard({ row, index = 0 }) {
     >
       <Box
         onClick={goToDetail}
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${ipo.companyName} details`}
+        onKeyDown={(e) => {
+          // The guided-check link and "View IPO" button below are their own focusable,
+          // keyboard-activatable elements nested inside this card — only react to a
+          // keydown that lands directly on the card surface itself, so pressing
+          // Enter/Space on one of those doesn't also bubble up and double-navigate.
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            goToDetail();
+          }
+        }}
         sx={{
           bgcolor: T.glass, border: `1px solid ${T.border}`, borderLeft: `3px solid ${meta.color}`,
           borderRadius: 3, cursor: 'pointer', width: '100%', minWidth: 0, boxSizing: 'border-box',
           height: '100%', display: 'flex', flexDirection: 'column', gap: 1.1, p: 1.75, overflow: 'hidden',
           transition: 'border-color 0.2s, box-shadow 0.2s',
           '&:hover': { borderColor: T.teal, boxShadow: `0 8px 24px ${T.tealGlow}` },
+          '&:focus-visible': { outline: `2px solid ${T.teal}`, outlineOffset: 2 },
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>

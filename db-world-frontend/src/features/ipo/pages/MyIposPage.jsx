@@ -3,6 +3,8 @@ import { Box, Typography, Button, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BookmarkAddedOutlinedIcon from '@mui/icons-material/BookmarkAddedOutlined';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useMyApplications } from '../hooks/useIpo';
@@ -26,7 +28,7 @@ export default function MyIposPage() {
   const navigate = useNavigate();
   const backToList = () => navigate(Constants.DB_IPO_ROUTE);
 
-  const { data, isLoading } = useMyApplications();
+  const { data, isLoading, isError, refetch, isFetching } = useMyApplications();
   const rows = data ?? [];
 
   return (
@@ -53,6 +55,33 @@ export default function MyIposPage() {
             <MyIpoCardSkeleton key={i} />
           ))}
         </Box>
+      ) : isError ? (
+        // Distinct from the true-empty state below — a failed fetch (`data` undefined) must
+        // never be silently read as "you have no saved IPOs", or the applicant might assume
+        // nothing was ever saved and never retry.
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+          <Box sx={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            textAlign: 'center', gap: 1.5, py: 8,
+          }}>
+            <ErrorOutlineRoundedIcon sx={{ fontSize: 56, color: T.error }} />
+            <Typography sx={{ fontSize: 17, fontWeight: 700, color: T.textPrimary }}>
+              Couldn&rsquo;t load your IPOs
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: T.textMuted, maxWidth: 360 }}>
+              Something went wrong fetching your saved applications. Check your connection and try again.
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<ReplayRoundedIcon />}
+              onClick={() => refetch()}
+              disabled={isFetching}
+              sx={{ mt: 1, borderColor: T.teal, color: T.teal, '&:hover': { borderColor: T.tealHover, bgcolor: T.tealBg } }}
+            >
+              {isFetching ? 'Retrying…' : 'Retry'}
+            </Button>
+          </Box>
+        </motion.div>
       ) : rows.length === 0 ? (
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
           <Box sx={{

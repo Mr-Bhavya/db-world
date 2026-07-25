@@ -152,6 +152,20 @@ export default function IpoCard({ ipo, index = 0 }) {
     >
       <Box
         onClick={() => navigate(Constants.ipoDetailPath(ipo.id))}
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${ipo.companyName} details`}
+        onKeyDown={(e) => {
+          // Only react to keydowns that land directly on the card surface itself —
+          // there's no nested interactive element on this card today, but guarding on
+          // `e.target === e.currentTarget` keeps this safe if one's ever added (a
+          // bubbled Enter/Space from a descendant shouldn't double-navigate).
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            navigate(Constants.ipoDetailPath(ipo.id));
+          }
+        }}
         sx={{
           bgcolor: T.glass,
           border: `1px solid ${T.border}`,
@@ -169,6 +183,7 @@ export default function IpoCard({ ipo, index = 0 }) {
           overflow: 'hidden',
           transition: 'border-color 0.2s, box-shadow 0.2s',
           '&:hover': { borderColor: T.teal, boxShadow: `0 8px 24px ${T.tealGlow}` },
+          '&:focus-visible': { outline: `2px solid ${T.teal}`, outlineOffset: 2 },
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
