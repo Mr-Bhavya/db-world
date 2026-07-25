@@ -1,17 +1,16 @@
-import { useState } from 'react';
-import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
-import { useT } from '@shared/theme';
-
 /**
  * The common IPO terms a first-time applicant runs into on this site, each with a 1-line
  * plain-English definition — kept terse on purpose (this is a glossary, not an encyclopedia).
  * Ordered roughly by "how likely a reader is to meet this term first" (GMP/IPO/Mainboard/SME
  * up top since they're on every card) rather than alphabetically.
+ *
+ * Consumed by `IpoLearn`'s searchable "Terms" sub-tab (a dense, filterable grid) — this
+ * file is now purely the shared term/definition data, not a rendering component; the
+ * previous standalone per-term accordion section was folded into `IpoLearn` (see its git
+ * history for that treatment) since a search box + compact grid scales far better behind
+ * a sub-tab than ~24 permanently-listed accordions.
  */
-const GLOSSARY_TERMS = [
+export const GLOSSARY_TERMS = [
   { term: 'GMP', def: 'Grey Market Premium — the unofficial premium IPO shares trade at before listing; a rough gauge of listing-day demand, not guaranteed.' },
   { term: 'IPO', def: 'Initial Public Offering — the first time a company sells shares to the public and lists on a stock exchange.' },
   { term: 'Mainboard', def: 'The main NSE/BSE listing board, for larger/established companies with the full regulatory requirements.' },
@@ -37,76 +36,3 @@ const GLOSSARY_TERMS = [
   { term: 'ASBA', def: 'Applications Supported by Blocked Amount — your bank blocks (doesn’t debit) the application money until allotment is finalized.' },
   { term: 'UPI mandate', def: 'The payment-approval request sent to your UPI app when you apply — approving it blocks the funds via ASBA.' },
 ];
-
-/** One collapsible term/definition row — same accordion treatment as `IpoFaq`'s `FaqItem`
- * so the two glossary-adjacent sections read as one system. Owns its own `useT()`. */
-function GlossaryItem({ item, expanded, onToggle }) {
-  const T = useT();
-  return (
-    <Accordion
-      expanded={expanded}
-      onChange={onToggle}
-      disableGutters
-      elevation={0}
-      sx={{
-        bgcolor: T.glass,
-        border: `1px solid ${expanded ? alpha(T.teal, 0.4) : T.border}`,
-        borderRadius: '12px !important',
-        mb: 1,
-        '&:before': { display: 'none' },
-        transition: 'border-color 0.2s',
-      }}
-    >
-      <AccordionSummary
-        expandIcon={<ExpandMoreRoundedIcon sx={{ color: expanded ? T.teal : T.textFaint }} />}
-        sx={{ px: 2, py: 0.25, minHeight: 44, '& .MuiAccordionSummary-content': { my: 0.85 } }}
-      >
-        <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>
-          {item.term}
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails sx={{ px: 2, pt: 0, pb: 1.75 }}>
-        <Typography sx={{ fontSize: 12.5, color: T.textMuted, lineHeight: 1.6 }}>
-          {item.def}
-        </Typography>
-      </AccordionDetails>
-    </Accordion>
-  );
-}
-
-/**
- * Compact, collapsible "IPO terms" glossary for the list page, placed below the FAQ so a
- * reader who's just learned the concepts (via the FAQ) has a quick term-by-term reference
- * right underneath. Two-column on larger screens (single column on mobile) to keep the whole
- * glossary scannable without an excessive scroll. Only one term open at a time, matching
- * `IpoFaq`'s accordion behavior. Purely static content, no data dependency.
- */
-export default function IpoGlossary() {
-  const T = useT();
-  const [expandedIndex, setExpandedIndex] = useState(null);
-
-  return (
-    <Box component="section" sx={{ mt: 4, mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
-        <MenuBookOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />
-        <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-          IPO terms
-        </Typography>
-      </Box>
-      <Box sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
-        columnGap: 2,
-      }}>
-        {GLOSSARY_TERMS.map((item, i) => (
-          <GlossaryItem
-            key={item.term}
-            item={item}
-            expanded={expandedIndex === i}
-            onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
-          />
-        ))}
-      </Box>
-    </Box>
-  );
-}

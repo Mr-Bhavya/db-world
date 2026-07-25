@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import { useT } from '@shared/theme';
 
 /**
@@ -76,32 +75,28 @@ function FaqItem({ item, expanded, onToggle }) {
 }
 
 /**
- * FAQ accordion for the list page, below `WhyUseThis`. Only one question open at a time
- * (`expandedIndex`, not a Set) — simpler state and matches the reference pattern used by
- * the cinema feature's season accordion. Purely static content, no data dependency.
+ * FAQ accordion — the "FAQ" sub-tab content of the list page's compact `IpoLearn` card.
+ * Only one question open at a time (`expandedIndex`, not a Set) — simpler state and
+ * matches the reference pattern used by the cinema feature's season accordion. Purely
+ * static content, no data dependency.
+ *
+ * No longer a standalone page section with its own heading/icon — `IpoLearn` supplies
+ * the card chrome and the FAQ/Terms sub-tab picker around this, so this just renders the
+ * accordion list itself (including the closing "not investment advice" disclaimer item).
  */
 export default function IpoFaq() {
-  const T = useT();
   const [expandedIndex, setExpandedIndex] = useState(null);
 
   return (
-    <Box component="section" sx={{ mt: 4, mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
-        <HelpOutlineRoundedIcon sx={{ fontSize: 15, color: T.teal }} />
-        <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-          Frequently asked questions
-        </Typography>
-      </Box>
-      <Box sx={{ maxWidth: 780 }}>
-        {FAQ_ITEMS.map((item, i) => (
-          <FaqItem
-            key={item.q}
-            item={item}
-            expanded={expandedIndex === i}
-            onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
-          />
-        ))}
-      </Box>
+    <Box sx={{ maxWidth: 780 }}>
+      {FAQ_ITEMS.map((item, i) => (
+        <FaqItem
+          key={item.q}
+          item={item}
+          expanded={expandedIndex === i}
+          onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
+        />
+      ))}
     </Box>
   );
 }

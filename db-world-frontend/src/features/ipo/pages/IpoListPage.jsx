@@ -10,8 +10,7 @@ import IpoFilterBar from '../components/IpoFilterBar';
 import IpoCard from '../components/IpoCard';
 import IpoCardSkeleton from '../components/IpoCardSkeleton';
 import WhyUseThis from '../components/WhyUseThis';
-import IpoFaq from '../components/IpoFaq';
-import IpoGlossary from '../components/IpoGlossary';
+import IpoLearn from '../components/IpoLearn';
 import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
@@ -103,8 +102,7 @@ export default function IpoListPage() {
       )}
 
       <WhyUseThis />
-      <IpoFaq />
-      <IpoGlossary />
+      <IpoLearn />
     </Box>
   );
 }
