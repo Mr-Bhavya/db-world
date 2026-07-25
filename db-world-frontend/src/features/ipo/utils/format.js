@@ -211,28 +211,31 @@ const TIMELINE_STAGE_DEFS = (ipo) => [
  * Open/Close/Allotment/Refund/Demat/Listing stages, in order, never dropped just because
  * a date isn't known yet (a future/TBA stage is still a real stage the user should see
  * coming, per the reference design — dropping it made an upcoming/open IPO's timeline
- * look like it only had 2-3 stages total). Each stage is tagged with a `status`:
- *   'done'    — date is known and in the past
- *   'current' — the active stage: the earliest stage that isn't 'done' yet, whether
- *               because its date is today/future or because its date isn't known at all
- *               (a still-TBA stage reached once every earlier dated stage is done). If
- *               every stage already has a past date (fully listed), the last stage
- *               (Listing) is promoted to 'current' so there's always exactly one.
- *   'upcoming'— every stage after the current one, including further TBA stages
+ * look like it only had 2-3 stages total). Each stage is tagged with a `status`,
+ * evaluated PER STAGE (not positionally) so one unknown date can never block a later,
+ * already-known-past date from reading as done — e.g. a listed IPO whose Refund/Demat
+ * dates aren't published yet still shows Listing as 'done' rather than stuck 'upcoming':
+ *   'done'    — that stage's OWN date is known and strictly before today. A null/unknown
+ *               date is never 'done', no matter what any other stage looks like.
+ *   'current' — the first stage (in order) that isn't 'done' and has a known date of
+ *               today-or-later. A stage with no date at all (TBA) is never 'current' —
+ *               it just sits in 'upcoming' until it gets a real date. There can be NO
+ *               'current' stage at all (e.g. every stage is done, or the only not-done
+ *               stages are TBA past the last dated one) — that's fine, it just means a
+ *               fully (or currently-inert) timeline has no single active step.
+ *   'upcoming'— every other stage: not done, not current, including every TBA/null-date
+ *               stage (still renders its "TBA" date via `formatStageDate`/`StageNode`).
  * Returns [] for a falsy ipo.
  */
 export const buildTimelineStages = (ipo) => {
   if (!ipo) return [];
   const defs = TIMELINE_STAGE_DEFS(ipo);
-  const isPending = defs.map((d) => {
-    const n = d.date != null ? daysUntil(d.date) : null;
-    return n == null || n >= 0; // unknown date, or today/future → not done yet
-  });
-  let currentIndex = isPending.indexOf(true);
-  if (currentIndex === -1) currentIndex = defs.length - 1; // all done → last stage is "current"
+  const dayOffsets = defs.map((d) => (d.date != null ? daysUntil(d.date) : null));
+  const isDone = dayOffsets.map((n) => n != null && n < 0);
+  const currentIndex = dayOffsets.findIndex((n, i) => !isDone[i] && n != null && n >= 0);
   return defs.map((d, i) => ({
     ...d,
-    status: i < currentIndex ? 'done' : i === currentIndex ? 'current' : 'upcoming',
+    status: isDone[i] ? 'done' : i === currentIndex ? 'current' : 'upcoming',
   }));
 };
 

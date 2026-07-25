@@ -1,6 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined';
 import { useT } from '@shared/theme';
 import SectionCard from './SectionCard';
 
@@ -60,6 +61,7 @@ function StrengthsRisksColumn({ kind, title, items }) {
  * "Risks" heading with nothing under it. Two columns on desktop, stacked on mobile.
  */
 export default function StrengthsRisks({ ipo }) {
+  const T = useT();
   const strengths = ipo?.strengths ?? [];
   const risks = ipo?.risks ?? [];
   const hasStrengths = strengths.length > 0;
@@ -68,7 +70,7 @@ export default function StrengthsRisks({ ipo }) {
   const bothPresent = hasStrengths && hasRisks;
 
   return (
-    <SectionCard title="Strengths & Risks">
+    <SectionCard title="Strengths & Risks" icon={<BalanceOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
       <Box sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: bothPresent ? '1fr 1fr' : '1fr' },

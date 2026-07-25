@@ -232,7 +232,7 @@ describe('buildTimelineStages', () => {
     expect(stages.find((s) => s.key === 'listing').date).toBeNull();
   });
 
-  it('reaches an unknown-date stage as "current" once every earlier dated stage is done', () => {
+  it('leaves an unknown-date stage "upcoming" (TBA), not "current", even once every earlier dated stage is done — no known date, no current promotion', () => {
     const stages = buildTimelineStages({
       openDate: '2026-07-10', closeDate: '2026-07-14', // both past → done
       allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
@@ -240,23 +240,88 @@ describe('buildTimelineStages', () => {
     expect(stages.map((s) => [s.key, s.status])).toEqual([
       ['open', 'done'],
       ['close', 'done'],
-      ['allotment', 'current'],
+      ['allotment', 'upcoming'],
       ['refund', 'upcoming'],
       ['demat', 'upcoming'],
       ['listing', 'upcoming'],
     ]);
+    expect(stages.some((s) => s.status === 'current')).toBe(false);
   });
 
-  it('promotes the final stage to "current" once fully listed, so there is always exactly one', () => {
+  // KEY REGRESSION TEST: with the old positional logic, `currentIndex` was pinned to the
+  // first pending stage (Refund, since its date is null) and *everything after it* —
+  // including the already-past Listing date — rendered as positional "upcoming". A listed
+  // IPO whose registrar hasn't published Refund/Demat dates yet must still show Listing as
+  // done: done-ness is now evaluated per stage from that stage's own date, never blocked by
+  // an earlier stage's unknown date.
+  it('marks Listing "done" from its own past date even when earlier Refund/Demat dates are still null/TBA — a listed IPO', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-01',      // past → done
+      closeDate: '2026-07-05',     // past → done
+      allotmentDate: '2026-07-10', // past → done
+      refundDate: null,            // unknown → TBA/pending, never "done"
+      dematDate: null,             // unknown → TBA/pending, never "done"
+      listingDate: '2026-07-20',   // past → done, regardless of Refund/Demat being null
+    });
+    expect(stages.map((s) => [s.key, s.status])).toEqual([
+      ['open', 'done'],
+      ['close', 'done'],
+      ['allotment', 'done'],
+      ['refund', 'upcoming'],
+      ['demat', 'upcoming'],
+      ['listing', 'done'],
+    ]);
+    const refund = stages.find((s) => s.key === 'refund');
+    const demat = stages.find((s) => s.key === 'demat');
+    expect(refund.date).toBeNull();
+    expect(demat.date).toBeNull();
+    // No stage is "current" here: Refund/Demat are pending-but-dateless (never current),
+    // and there's no later not-done dated stage either.
+    expect(stages.some((s) => s.status === 'current')).toBe(false);
+  });
+
+  it('marks every stage "done" with no "current" at all once all 6 dates are in the past — a fully-completed timeline', () => {
     const stages = buildTimelineStages({
       openDate: '2026-07-01', closeDate: '2026-07-05',
       allotmentDate: '2026-07-10', refundDate: '2026-07-12',
       dematDate: '2026-07-13', listingDate: '2026-07-15', // all past
     });
     expect(stages.map((s) => s.status)).toEqual([
-      'done', 'done', 'done', 'done', 'done', 'current',
+      'done', 'done', 'done', 'done', 'done', 'done',
+    ]);
+    expect(stages.some((s) => s.status === 'current')).toBe(false);
+  });
+
+  it('marks a today-dated Open as "current" (not done) with every later null-date stage upcoming/TBA — a brand-new upcoming IPO', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-24', // today → not done yet, and the sole current stage
+      closeDate: null, allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
+    });
+    expect(stages.map((s) => [s.key, s.status])).toEqual([
+      ['open', 'current'],
+      ['close', 'upcoming'],
+      ['allotment', 'upcoming'],
+      ['refund', 'upcoming'],
+      ['demat', 'upcoming'],
+      ['listing', 'upcoming'],
     ]);
     expect(stages.filter((s) => s.status === 'current')).toHaveLength(1);
+  });
+
+  it('marks a past-dated Open as "done" with every later null-date stage upcoming/TBA and no "current" — nothing else scheduled yet', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-10', // past → done
+      closeDate: null, allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
+    });
+    expect(stages.map((s) => [s.key, s.status])).toEqual([
+      ['open', 'done'],
+      ['close', 'upcoming'],
+      ['allotment', 'upcoming'],
+      ['refund', 'upcoming'],
+      ['demat', 'upcoming'],
+      ['listing', 'upcoming'],
+    ]);
+    expect(stages.some((s) => s.status === 'current')).toBe(false);
   });
 });
 
