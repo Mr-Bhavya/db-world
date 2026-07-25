@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
 import BookmarkAddedOutlinedIcon from '@mui/icons-material/BookmarkAddedOutlined';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -49,7 +50,10 @@ export default function IpoListPage() {
     <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box>
-          <Typography sx={{ fontSize: 22, fontWeight: 800 }}>IPO Tracker</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.9 }}>
+            <RocketLaunchRoundedIcon sx={{ fontSize: 24, color: T.teal }} />
+            <Typography sx={{ fontSize: 22, fontWeight: 800 }}>IPO Tracker</Typography>
+          </Box>
           <Typography sx={{ fontSize: 13, color: T.textMuted, mt: 0.25 }}>
             Mainboard &amp; SME IPOs — dates, GMP and subscription at a glance.
           </Typography>

@@ -198,6 +198,11 @@ export default function IpoCard({ ipo, index = 0 }) {
           <Stat label="Price band">
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }} noWrap>
               {formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}
+              {ipo.lotSize != null && (
+                <Box component="span" sx={{ fontWeight: 600, color: T.textMuted, fontSize: 11.5 }}>
+                  {' '}&middot; Lot {ipo.lotSize}
+                </Box>
+              )}
             </Typography>
           </Stat>
           <Stat label="GMP">
