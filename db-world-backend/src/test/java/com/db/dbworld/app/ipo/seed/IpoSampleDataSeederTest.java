@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.seed;
 
+import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -12,9 +13,13 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -171,5 +176,88 @@ class IpoSampleDataSeederTest {
         assertThat(saved).filteredOn(e -> !"listed".equals(e.getStatus()))
                 .extracting(IpoListingEntity::getTickerSymbol)
                 .containsOnlyNulls();
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_aboutFieldsPopulatedForEveryCompany() {
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepository, times(8)).save(captor.capture());
+        List<IpoListingEntity> saved = captor.getAllValues();
+
+        // parentCompany is intentionally null for most (not every company has a distinct listed
+        // parent), so it's not asserted non-null here — only the always-known facts are.
+        assertThat(saved).allSatisfy(e -> {
+            assertThat(e.getFoundedYear()).isNotNull();
+            assertThat(e.getManagingDirector()).isNotBlank();
+            assertThat(e.getSector()).isNotBlank();
+            assertThat(e.getHeadquarters()).isNotBlank();
+            assertThat(e.getWebsite()).isNotBlank();
+        });
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_everyFinancialRowCarriesTotalAssetsAndPeriodEnd() {
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoFinancialEntity> captor = ArgumentCaptor.forClass(IpoFinancialEntity.class);
+        verify(financialRepository, times(26)).save(captor.capture());
+
+        assertThat(captor.getAllValues()).allSatisfy(f -> {
+            assertThat(f.getIpoId()).isNotBlank();
+            assertThat(f.getTotalAssets()).isNotNull();
+            assertThat(f.getPeriodEnd()).isNotNull();
+        });
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_financialRowsPerIpoAreInChronologicalPeriodEndOrder() {
+        // Regression guard for the ordering bug this unit fixes: the seeder must persist each
+        // IPO's financial rows in periodEnd order (the real chronological key), never relying on
+        // the fiscalYear display label sorting correctly as a string.
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoFinancialEntity> captor = ArgumentCaptor.forClass(IpoFinancialEntity.class);
+        verify(financialRepository, times(26)).save(captor.capture());
+
+        Map<String, List<IpoFinancialEntity>> byIpo = captor.getAllValues().stream()
+                .collect(Collectors.groupingBy(IpoFinancialEntity::getIpoId, LinkedHashMap::new, Collectors.toList()));
+
+        assertThat(byIpo).isNotEmpty();
+        byIpo.forEach((ipoId, rows) -> {
+            List<LocalDate> periodEnds = rows.stream().map(IpoFinancialEntity::getPeriodEnd).toList();
+            assertThat(periodEnds).isSorted();
+        });
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_interimFinancialRow_usesDynamicMonthNotAHardcodedOne() {
+        // NOW is fixed at 2026-07-24; the interim row (Zomato & Ola) must be labelled for the
+        // month before "today" ("Jun 2026") computed off the injected clock — never a hardcoded
+        // month like the old "Feb 2026" — with periodEnd at that month's last day.
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoFinancialEntity> captor = ArgumentCaptor.forClass(IpoFinancialEntity.class);
+        verify(financialRepository, times(26)).save(captor.capture());
+
+        List<IpoFinancialEntity> interimRows = captor.getAllValues().stream()
+                .filter(f -> "Jun 2026".equals(f.getFiscalYear()))
+                .toList();
+
+        assertThat(interimRows).hasSize(2); // Zomato + Ola are the two seeded with an interim row
+        assertThat(interimRows).allSatisfy(f -> assertThat(f.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 6, 30)));
     }
 }

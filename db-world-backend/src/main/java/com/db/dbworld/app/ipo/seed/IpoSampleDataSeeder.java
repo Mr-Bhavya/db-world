@@ -1,7 +1,6 @@
 package com.db.dbworld.app.ipo.seed;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
-import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
 import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
@@ -25,9 +24,12 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * DEV-only convenience: seeds a realistic spread of sample IPOs (every status/type combination,
@@ -140,6 +142,12 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .tickerSymbol(spec.getTickerSymbol())
                 .strengths(spec.getStrengths())
                 .risks(spec.getRisks())
+                .foundedYear(spec.getFoundedYear())
+                .managingDirector(spec.getManagingDirector())
+                .parentCompany(spec.getParentCompany())
+                .sector(spec.getSector())
+                .headquarters(spec.getHeadquarters())
+                .website(spec.getWebsite())
                 .firstSeenAt(now)
                 .lastSeenAt(now)
                 .build();
@@ -150,12 +158,14 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
             IpoListingEntity entity = saved.get(i);
             SampleIpo spec = specs.get(i);
 
-            for (IpoFinancialDto f : spec.getFinancials()) {
+            for (FinancialRow f : spec.getFinancials()) {
                 financialRepository.save(IpoFinancialEntity.builder()
                         .ipoId(entity.getId())
                         .fiscalYear(f.fiscalYear())
                         .revenue(f.revenue())
                         .pat(f.pat())
+                        .totalAssets(f.totalAssets())
+                        .periodEnd(f.periodEnd())
                         .build());
             }
 
@@ -222,9 +232,23 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         return normalizer.matchKey(probe);
     }
 
-    // TODO(unit 3): rework to also carry periodEnd + totalAssets and a dynamic interim month.
-    private static IpoFinancialDto fy(String fiscalYear, String revenue, String pat) {
-        return new IpoFinancialDto(fiscalYear, new BigDecimal(revenue), new BigDecimal(pat), null);
+    /** A completed fiscal year's figures; {@code periodEnd} is the real sort key, {@code fiscalYear} the display label. */
+    private static FinancialRow fy(String fiscalYear, LocalDate periodEnd, String revenue, String pat, String totalAssets) {
+        return new FinancialRow(fiscalYear, new BigDecimal(revenue), new BigDecimal(pat), new BigDecimal(totalAssets), periodEnd);
+    }
+
+    /**
+     * The latest available (interim/TTM) figures, labelled by the month they were reported —
+     * computed relative to {@code today} (one month back) so it's always current, e.g. "Jun 2026"
+     * when seeded in July 2026, never a hardcoded stale month.
+     */
+    private static final DateTimeFormatter INTERIM_MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+
+    private static FinancialRow interimFy(LocalDate today, String revenue, String pat, String totalAssets) {
+        YearMonth interimMonth = YearMonth.from(today).minusMonths(1);
+        String label = interimMonth.format(INTERIM_MONTH_LABEL);
+        return new FinancialRow(label, new BigDecimal(revenue), new BigDecimal(pat), new BigDecimal(totalAssets),
+                interimMonth.atEndOfMonth());
     }
 
     private static String bullets(String... lines) {
@@ -254,6 +278,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .registrar("Link Intime India").registrarUrl("https://linkintime.co.in/MIPO/ipoallotment.html")
                 .faceValue(new BigDecimal("1.00")).freshIssue(new BigDecimal("9375.00")).offerForSale(BigDecimal.ZERO)
                 .tickerSymbol("ZOMATO")
+                .foundedYear(2008).managingDirector("Deepinder Goyal").parentCompany("Eternal Ltd")
+                .sector("Foodtech").headquarters("Gurugram").website("https://www.zomato.com")
                 .about("Zomato operates a category-leading food-delivery platform across 1,000+ Indian cities, "
                         + "with a fast-growing quick-commerce arm (Blinkit) alongside its core dining-out and "
                         + "advertising businesses.")
@@ -268,10 +294,10 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Delivery-partner cost inflation and regulatory scrutiny over gig-worker classification",
                         "Discount-driven customer acquisition pressures unit economics"))
                 .financials(List.of(
-                        fy("FY 2021-22", "1993.10", "-1222.30"),
-                        fy("FY 2022-23", "4192.40", "-971.00"),
-                        fy("FY 2023-24", "7079.60", "175.00"),
-                        fy("Feb 2026", "11500.00", "950.00")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "4192.40", "-971.00", "6800.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "7079.60", "175.00", "9600.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "10200.00", "780.00", "13200.00"),
+                        interimFy(today, "12800.00", "1150.00", "15400.00")))
                 .seedTradingHistory(true)
                 .build());
 
@@ -287,6 +313,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .registrar("Link Intime India").registrarUrl("https://linkintime.co.in/MIPO/ipoallotment.html")
                 .faceValue(new BigDecimal("1.00")).freshIssue(new BigDecimal("630.00")).offerForSale(new BigDecimal("4722.00"))
                 .tickerSymbol("NYKAA")
+                .foundedYear(2012).managingDirector("Falguni Nayar").parentCompany(null)
+                .sector("Beauty & E-commerce").headquarters("Mumbai").website("https://www.nykaa.com")
                 .about("FSN E-Commerce (Nykaa) runs a leading omni-channel beauty and personal-care platform, "
                         + "combining a curated online marketplace with a growing owned-brand portfolio and "
                         + "physical retail footprint.")
@@ -301,9 +329,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Margin pressure from customer-acquisition and warehousing costs",
                         "Concentration risk in a small set of hero brands/categories"))
                 .financials(List.of(
-                        fy("FY 2021-22", "2183.20", "21.00"),
-                        fy("FY 2022-23", "3772.80", "20.30"),
-                        fy("FY 2023-24", "5143.60", "21.90")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "3772.80", "20.30", "2950.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "5143.60", "21.90", "3610.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "6421.00", "26.50", "4280.00")))
                 .build());
 
         ipos.add(SampleIpo.builder()
@@ -319,6 +347,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .registrar("KFin Technologies").registrarUrl("https://kprism.kfintech.com/ipostatus/")
                 .faceValue(new BigDecimal("10.00")).freshIssue(BigDecimal.ZERO).offerForSale(new BigDecimal("21000.00"))
                 .tickerSymbol("LICI")
+                .foundedYear(1956).managingDirector("Siddhartha Mohanty").parentCompany("Government of India")
+                .sector("Insurance").headquarters("Mumbai").website("https://licindia.in")
                 .about("LIC is India's largest life insurer by premium and assets under management, with an "
                         + "unmatched tied-agency distribution network built over six decades.")
                 .strengths(bullets(
@@ -332,9 +362,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Regulatory/government-ownership overhang can weigh on strategic flexibility",
                         "Product mix skewed toward lower-margin participating policies"))
                 .financials(List.of(
-                        fy("FY 2021-22", "202342.00", "4043.00"),
-                        fy("FY 2022-23", "210300.00", "36397.00"),
-                        fy("FY 2023-24", "231392.00", "40916.00")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "210300.00", "36397.00", "4300000.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "231392.00", "40916.00", "4600000.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "246500.00", "43809.00", "4950000.00")))
                 .seedTradingHistory(true)
                 .build());
 
@@ -347,6 +377,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .gmp(new BigDecimal("8.00")).gmpPct(new BigDecimal("10.53")).subTotal(new BigDecimal("4.20"))
                 .registrar("KFin Technologies").registrarUrl("https://kprism.kfintech.com/ipostatus/")
                 .faceValue(new BigDecimal("10.00")).freshIssue(new BigDecimal("5500.00")).offerForSale(new BigDecimal("645.00"))
+                .foundedYear(2017).managingDirector("Bhavish Aggarwal").parentCompany(null)
+                .sector("Electric Vehicles").headquarters("Bengaluru").website("https://www.olaelectric.com")
                 .about("Ola Electric is India's largest electric two-wheeler manufacturer by volume, with "
                         + "vertically integrated manufacturing including in-house battery-cell development.")
                 .strengths(bullets(
@@ -360,10 +392,10 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "After-sales service and product-quality complaints reported by customers",
                         "Sensitive to changes in government EV subsidies (FAME/state policies)"))
                 .financials(List.of(
-                        fy("FY 2021-22", "373.40", "-784.20"),
-                        fy("FY 2022-23", "1242.20", "-1472.10"),
-                        fy("FY 2023-24", "5010.00", "-1584.40"),
-                        fy("Feb 2026", "3800.00", "-620.00")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "1242.20", "-1472.10", "2100.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "5010.00", "-1584.40", "4800.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "4500.00", "-650.00", "5600.00"),
+                        interimFy(today, "4700.00", "-580.00", "6000.00")))
                 .seedTradingHistory(true)
                 .build());
 
@@ -375,6 +407,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .gmp(new BigDecimal("15.00")).gmpPct(new BigDecimal("3.85")).subTotal(new BigDecimal("3.59"))
                 .registrar("Link Intime India").registrarUrl("https://linkintime.co.in/MIPO/ipoallotment.html")
                 .faceValue(new BigDecimal("1.00")).freshIssue(new BigDecimal("4499.00")).offerForSale(new BigDecimal("6828.00"))
+                .foundedYear(2014).managingDirector("Sriharsha Majety").parentCompany(null)
+                .sector("Foodtech & Quick-commerce").headquarters("Bengaluru").website("https://www.swiggy.com")
                 .about("Swiggy is one of India's two leading food-delivery platforms, with a fast-growing "
                         + "Instamart quick-commerce business alongside dineout and logistics bets.")
                 .strengths(bullets(
@@ -388,9 +422,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Delivery-partner cost and regulatory risk around gig-work classification",
                         "Discounting-led growth could pressure long-term unit economics"))
                 .financials(List.of(
-                        fy("FY 2021-22", "5704.90", "-3628.90"),
-                        fy("FY 2022-23", "8264.60", "-4179.30"),
-                        fy("FY 2023-24", "11634.60", "-2350.00")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "8264.60", "-4179.30", "7200.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "11634.60", "-2350.00", "9800.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "15227.00", "-1600.00", "12400.00")))
                 .build());
 
         // ── Closed (1): allotment awaited, hugely oversubscribed SME ─────────────────────────
@@ -403,6 +437,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .allotmentStatus("awaited")
                 .registrar("Bigshare Services").registrarUrl("https://ipo.bigshareonline.com/ipo_status.html")
                 .faceValue(new BigDecimal("4.00")).freshIssue(BigDecimal.ZERO).offerForSale(new BigDecimal("583.00"))
+                .foundedYear(1999).managingDirector("Nitish Mittersain").parentCompany(null)
+                .sector("Gaming & Esports").headquarters("Mumbai").website("https://www.nazara.com")
                 .about("Nazara Technologies runs a diversified gaming and sports-media portfolio spanning "
                         + "esports, real-money gaming and edutainment, built through a series of acquisitions.")
                 .strengths(bullets(
@@ -416,9 +452,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Success depends on hit-driven content and continued acquisition integration",
                         "Competitive, fast-changing mobile-gaming landscape"))
                 .financials(List.of(
-                        fy("FY 2021-22", "665.20", "33.40"),
-                        fy("FY 2022-23", "1102.60", "5.10"),
-                        fy("FY 2023-24", "1166.70", "33.30")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "1102.60", "5.10", "1450.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "1166.70", "33.30", "1690.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "1387.00", "45.20", "1980.00")))
                 .build());
 
         // ── Upcoming (2): opens 7-15 days from now, no market data yet ──────────────────────
@@ -429,6 +465,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .lotSize(46).issueSize("₹1,701 Cr").listingExchange("NSE")
                 .registrar("Bigshare Services").registrarUrl("https://ipo.bigshareonline.com/ipo_status.html")
                 .faceValue(new BigDecimal("10.00")).freshIssue(new BigDecimal("365.00")).offerForSale(new BigDecimal("1336.00"))
+                .foundedYear(2016).managingDirector("Varun Alagh").parentCompany(null)
+                .sector("Beauty & Personal Care").headquarters("Gurugram").website("https://www.mamaearth.in")
                 .about("Honasa Consumer (Mamaearth) builds a house of \"clean and toxin-free\" D2C beauty and "
                         + "personal-care brands, marketed through a digital-first, social-led engine.")
                 .strengths(bullets(
@@ -442,9 +480,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Thin/volatile profitability track record",
                         "Customer loyalty in D2C beauty can be fickle and trend-driven"))
                 .financials(List.of(
-                        fy("FY 2021-22", "943.20", "-1332.30"),
-                        fy("FY 2022-23", "1492.90", "110.20"),
-                        fy("FY 2023-24", "1919.90", "110.50")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "1492.90", "110.20", "1180.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "1919.90", "110.50", "1520.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "2144.00", "122.00", "1780.00")))
                 .build());
 
         ipos.add(SampleIpo.builder()
@@ -454,6 +492,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .lotSize(6).issueSize("₹18,300 Cr").listingExchange("NSE")
                 .registrar("Link Intime India").registrarUrl("https://linkintime.co.in/MIPO/ipoallotment.html")
                 .faceValue(new BigDecimal("1.00")).freshIssue(new BigDecimal("8300.00")).offerForSale(new BigDecimal("10000.00"))
+                .foundedYear(2000).managingDirector("Vijay Shekhar Sharma").parentCompany(null)
+                .sector("Digital Payments & Fintech").headquarters("Noida").website("https://paytm.com")
                 .about("One97 Communications (Paytm) is a leading digital-payments brand in India, expanding "
                         + "from payments into lending, wealth and insurance distribution.")
                 .strengths(bullets(
@@ -467,9 +507,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                         "Intense competition from PhonePe, Google Pay and bank-led UPI apps",
                         "Dependent on continued growth of higher-margin lending-distribution revenue"))
                 .financials(List.of(
-                        fy("FY 2021-22", "4973.60", "-2943.50"),
-                        fy("FY 2022-23", "7990.10", "-1776.50"),
-                        fy("FY 2023-24", "9977.80", "-1422.40")))
+                        fy("FY 2022-23", LocalDate.of(2023, 3, 31), "7990.10", "-1776.50", "8900.00"),
+                        fy("FY 2023-24", LocalDate.of(2024, 3, 31), "9977.80", "-1422.40", "10200.00"),
+                        fy("FY 2024-25", LocalDate.of(2025, 3, 31), "10630.00", "-950.00", "11500.00")))
                 .build());
 
         return ipos;
@@ -509,6 +549,22 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         private String strengths;
         private String risks;
         private boolean seedTradingHistory;
-        private List<IpoFinancialDto> financials;
+        private List<FinancialRow> financials;
+
+        // ── Company "About" profile facts (seeder-populated; see IpoListingEntity) ──────────
+        private Integer foundedYear;
+        private String managingDirector;
+        private String parentCompany;
+        private String sector;
+        private String headquarters;
+        private String website;
     }
+
+    /**
+     * One financial-statement row for the seeder's own use — carries {@code periodEnd} (the
+     * entity's chronological sort key) alongside the display/figure fields. Deliberately not
+     * {@code IpoFinancialDto}: that record is the API's read shape and has no {@code periodEnd}.
+     */
+    private record FinancialRow(String fiscalYear, BigDecimal revenue, BigDecimal pat,
+                                 BigDecimal totalAssets, LocalDate periodEnd) {}
 }
