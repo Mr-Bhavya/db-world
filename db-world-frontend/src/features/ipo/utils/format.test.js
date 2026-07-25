@@ -3,6 +3,7 @@ import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
   averageSubscription, computeQuickStats, shortFinancialLabel, websiteDomain,
+  orderSubscriptionCategories, subscriptionCategoryColor,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -471,6 +472,57 @@ describe('websiteDomain', () => {
     expect(websiteDomain(null)).toBeNull();
     expect(websiteDomain(undefined)).toBeNull();
     expect(websiteDomain('')).toBeNull();
+  });
+});
+
+describe('orderSubscriptionCategories', () => {
+  it('sorts the classic trio into QIB, NII, Retail regardless of input order', () => {
+    expect(orderSubscriptionCategories(['Retail', 'QIB', 'NII'])).toEqual(['QIB', 'NII', 'Retail']);
+  });
+
+  it('matches the preferred list case-insensitively', () => {
+    expect(orderSubscriptionCategories(['retail', 'qib', 'nii'])).toEqual(['qib', 'nii', 'retail']);
+  });
+
+  it('places extra categories after the preferred trio, in the preferred list\'s own order', () => {
+    expect(orderSubscriptionCategories(['Anchor', 'Retail', 'Shareholder', 'QIB', 'Employee', 'NII']))
+      .toEqual(['QIB', 'NII', 'Retail', 'Employee', 'Shareholder', 'Anchor']);
+  });
+
+  it('sorts unrecognized categories alphabetically after every preferred one', () => {
+    expect(orderSubscriptionCategories(['Zeta', 'QIB', 'Alpha', 'Retail']))
+      .toEqual(['QIB', 'Retail', 'Alpha', 'Zeta']);
+  });
+
+  it('treats HNI as an alias for NII and RII as an alias for Retail (same rank as the canonical name)', () => {
+    expect(orderSubscriptionCategories(['HNI', 'QIB', 'RII'])).toEqual(['QIB', 'HNI', 'RII']);
+  });
+
+  it('is null-safe and never mutates the input array', () => {
+    const input = ['Retail', 'QIB'];
+    expect(orderSubscriptionCategories(null)).toEqual([]);
+    expect(orderSubscriptionCategories(undefined)).toEqual([]);
+    expect(orderSubscriptionCategories([])).toEqual([]);
+    orderSubscriptionCategories(input);
+    expect(input).toEqual(['Retail', 'QIB']);
+  });
+});
+
+describe('subscriptionCategoryColor', () => {
+  it('gives the same well-known category the same color regardless of index', () => {
+    expect(subscriptionCategoryColor('QIB', 0)).toBe(subscriptionCategoryColor('qib', 3));
+  });
+
+  it('gives different well-known categories different colors', () => {
+    const colors = new Set([
+      subscriptionCategoryColor('QIB'), subscriptionCategoryColor('NII'),
+      subscriptionCategoryColor('Retail'), subscriptionCategoryColor('Anchor'),
+    ]);
+    expect(colors.size).toBe(4);
+  });
+
+  it('cycles the fallback palette by index for an unrecognized category', () => {
+    expect(subscriptionCategoryColor('SomeNewCategory', 0)).not.toBe(subscriptionCategoryColor('SomeNewCategory', 1));
   });
 });
 

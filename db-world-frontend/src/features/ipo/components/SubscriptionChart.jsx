@@ -3,10 +3,13 @@ import { Box, Typography, Skeleton, useMediaQuery, useTheme } from '@mui/materia
 import { LineChart } from '@mui/x-charts/LineChart';
 import { format } from 'date-fns';
 import { useT, useThemeMode } from '@shared/theme';
+import { orderSubscriptionCategories, subscriptionCategoryColor } from '../utils/format';
 
-/** Multi-line subscription chart: QIB / NII / Retail / Total over time. Sized entirely by
- * its parent (never a hardcoded pixel `width`) — see the `width: '100%', minWidth: 0`
- * chain below, which is what actually keeps this full-width on mobile. */
+/** Multi-line subscription chart: one line per subscription category present across the
+ * points (dynamic — whatever `categories` a source reports, e.g. QIB/NII/Retail or extras
+ * like Employee/Shareholder/Anchor, in the app's preferred order), plus a Total line. Sized
+ * entirely by its parent (never a hardcoded pixel `width`) — see the `width: '100%',
+ * minWidth: 0` chain below, which is what actually keeps this full-width on mobile. */
 export default function SubscriptionChart({ points = [], loading }) {
   const T = useT();
   const { mode } = useThemeMode();
@@ -23,13 +26,24 @@ export default function SubscriptionChart({ points = [], loading }) {
     ? { left: 32, right: 8, top: 12, bottom: 24 }
     : { left: 44, right: 16, top: 16, bottom: 28 };
 
-  const { xData, qib, nii, retail, total } = useMemo(() => ({
-    xData:  points.map((p) => new Date(p.t)),
-    qib:    points.map((p) => p.qib),
-    nii:    points.map((p) => p.nii),
-    retail: points.map((p) => p.retail),
-    total:  points.map((p) => p.total),
-  }), [points]);
+  const { xData, series } = useMemo(() => {
+    const keySet = new Set();
+    points.forEach((p) => {
+      Object.entries(p.categories ?? {}).forEach(([k, v]) => { if (v != null) keySet.add(k); });
+    });
+    const orderedKeys = orderSubscriptionCategories(Array.from(keySet));
+    const categorySeries = orderedKeys.map((key, i) => ({
+      data: points.map((p) => p.categories?.[key] ?? null),
+      label: key,
+      color: subscriptionCategoryColor(key, i),
+      curve: 'monotoneX',
+      showMark: compact,
+    }));
+    const totalSeries = {
+      data: points.map((p) => p.total), label: 'Total', color: T.teal, curve: 'monotoneX', showMark: compact,
+    };
+    return { xData: points.map((p) => new Date(p.t)), series: [...categorySeries, totalSeries] };
+  }, [points, compact, T.teal]);
 
   return (
     <Box sx={{
@@ -52,12 +66,7 @@ export default function SubscriptionChart({ points = [], loading }) {
             height={280}
             xAxis={[{ data: xData, scaleType: 'time', valueFormatter: (v) => format(v, 'dd MMM') }]}
             yAxis={[{ scaleType: 'linear', valueFormatter: (v) => `${v}x` }]}
-            series={[
-              { data: qib,    label: 'QIB',    color: '#38bdf8', curve: 'monotoneX', showMark: compact },
-              { data: nii,    label: 'NII',    color: '#a855f7', curve: 'monotoneX', showMark: compact },
-              { data: retail, label: 'Retail', color: '#f59e0b', curve: 'monotoneX', showMark: compact },
-              { data: total,  label: 'Total',  color: T.teal,    curve: 'monotoneX', showMark: compact },
-            ]}
+            series={series}
             margin={margin}
             sx={{
               '.MuiChartsAxis-tickLabel': { fill: axisColor, fontSize: 10 },

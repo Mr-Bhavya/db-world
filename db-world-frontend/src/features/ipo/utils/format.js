@@ -206,6 +206,65 @@ export const averageSubscription = (values) => {
 };
 
 /**
+ * Preferred display order for subscription categories — the classic QIB/NII/Retail trio
+ * first, then the aliases some sources use for the same tranches (HNI ≈ NII, RII ≈ Retail),
+ * then the less-common reservation categories, all matched case-insensitively. Anything not
+ * in this list (a source-specific category we've never seen before) sorts after all of
+ * these, alphabetically — so a brand-new category never gets dropped, it just lands last.
+ */
+const PREFERRED_SUBSCRIPTION_CATEGORY_ORDER = [
+  'QIB', 'NII', 'HNI', 'Retail', 'RII', 'Employee', 'Shareholder', 'Anchor',
+];
+
+/**
+ * Sorts subscription category keys (from `SubscriptionPointDto.categories`, e.g.
+ * `['Retail','Anchor','QIB','NII']`) into the app's preferred display order —
+ * `PREFERRED_SUBSCRIPTION_CATEGORY_ORDER` first (case-insensitive), then any
+ * remaining/unrecognized keys alphabetically. Shared by the Subscription tab's bars, the
+ * day-wise chart's series/legend and the day-wise table's columns so all three always agree
+ * on category order regardless of what order the backend/source happened to report them in.
+ * Pure and null-safe: never mutates the input, returns `[]` for a falsy/empty input.
+ */
+export const orderSubscriptionCategories = (keys) => {
+  const list = keys ?? [];
+  const rankOf = (key) => {
+    const i = PREFERRED_SUBSCRIPTION_CATEGORY_ORDER.findIndex(
+      (p) => p.toLowerCase() === String(key).toLowerCase(),
+    );
+    return i === -1 ? PREFERRED_SUBSCRIPTION_CATEGORY_ORDER.length : i;
+  };
+  return [...list].sort((a, b) => {
+    const diff = rankOf(a) - rankOf(b);
+    return diff !== 0 ? diff : String(a).localeCompare(String(b));
+  });
+};
+
+/**
+ * Fixed line color per well-known subscription category (case-insensitive) so the same
+ * category reads as the same color on the day-wise chart across every IPO — e.g. QIB is
+ * always the same blue whether it's issue A or issue B. An unrecognized category (a source
+ * we've never seen) cycles through the same fallback palette by its position in the ordered
+ * series rather than rendering uncolored.
+ */
+const CATEGORY_COLOR_MAP = {
+  qib: '#38bdf8',
+  nii: '#a855f7',
+  hni: '#a855f7',
+  retail: '#f59e0b',
+  rii: '#f59e0b',
+  employee: '#34d399',
+  shareholder: '#f472b6',
+  anchor: '#818cf8',
+};
+const CATEGORY_COLOR_FALLBACK = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#f472b6', '#818cf8', '#facc15', '#fb7185'];
+
+export const subscriptionCategoryColor = (key, index = 0) => {
+  const known = CATEGORY_COLOR_MAP[String(key ?? '').toLowerCase()];
+  if (known) return known;
+  return CATEGORY_COLOR_FALLBACK[index % CATEGORY_COLOR_FALLBACK.length];
+};
+
+/**
  * `fiscalYear` display label → a short label for the financials chart's x-axis (the P&L
  * table keeps the full label as-is — this is chart-only). Recognizes two "FY" shapes and
  * passes anything else through unchanged (e.g. an already-short month label like

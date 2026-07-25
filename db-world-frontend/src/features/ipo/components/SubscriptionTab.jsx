@@ -4,13 +4,39 @@ import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import BusinessCenterOutlinedIcon from '@mui/icons-material/BusinessCenterOutlined';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import HowToRegOutlinedIcon from '@mui/icons-material/HowToRegOutlined';
+import AnchorOutlinedIcon from '@mui/icons-material/AnchorOutlined';
 import EqualizerOutlinedIcon from '@mui/icons-material/EqualizerOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import { useT } from '@shared/theme';
-import { formatShortDate, formatMultiplier, subscriptionMeta, averageSubscription } from '../utils/format';
+import {
+  formatShortDate, formatMultiplier, subscriptionMeta, averageSubscription,
+  orderSubscriptionCategories,
+} from '../utils/format';
 import SubscriptionChart from './SubscriptionChart';
 import SectionCard from './SectionCard';
 import DayWiseTable from './DayWiseTable';
+
+/** Icon per well-known category (case-insensitive); anything unrecognized falls back to the
+ * generic people icon rather than rendering iconless. */
+const CATEGORY_ICON_MAP = {
+  qib: BusinessCenterOutlinedIcon,
+  nii: WorkspacePremiumOutlinedIcon,
+  hni: WorkspacePremiumOutlinedIcon,
+  retail: PersonOutlineOutlinedIcon,
+  rii: PersonOutlineOutlinedIcon,
+  employee: BadgeOutlinedIcon,
+  shareholder: HowToRegOutlinedIcon,
+  anchor: AnchorOutlinedIcon,
+};
+const categoryIcon = (key) => CATEGORY_ICON_MAP[String(key).toLowerCase()] ?? PeopleAltOutlinedIcon;
+
+/** Friendlier label for a couple of categories whose raw key is a little terse on its own
+ * (NII reads better as "NII (HNI)", matching how retail investors usually see it referred
+ * to); anything else displays exactly as the backend reported it. */
+const CATEGORY_LABEL_OVERRIDES = { nii: 'NII (HNI)', hni: 'NII (HNI)' };
+const categoryLabel = (key) => CATEGORY_LABEL_OVERRIDES[String(key).toLowerCase()] ?? key;
 
 /** One labelled subscription figure (Total/Average) — icon + multiplier, null-safe
  * (falls back to an em dash rather than hiding the tile). */
@@ -36,11 +62,11 @@ function BreakdownTile({ icon: Icon, label, value, highlight }) {
 }
 
 /**
- * One category's subscription progress bar (QIB / NII-HNI / Retail) — reuses the exact
- * same color tiers and fill-capped-at-100% treatment (`subscriptionMeta`) as the list
- * card's own subscription bar, so a "hot" 15× issue reads identically here and there.
- * Null-safe: a category with no value yet (subscription hasn't opened, or the registrar
- * hasn't reported that split) renders nothing rather than a bar stuck at a misleading 0%.
+ * One category's subscription progress bar (QIB / NII-HNI / Retail / Employee / Shareholder /
+ * Anchor / ... — whatever the backend's `categories` map reports) — reuses the exact same
+ * color tiers and fill-capped-at-100% treatment (`subscriptionMeta`) as the list card's own
+ * subscription bar, so a "hot" 15× issue reads identically here and there. Null-safe: a
+ * category with no value yet renders nothing rather than a bar stuck at a misleading 0%.
  */
 function CategoryBar({ icon: Icon, label, value }) {
   const T = useT();
@@ -77,36 +103,58 @@ function Cell({ children, bold, align }) {
   );
 }
 
-const SUB_COLUMNS = [
-  { key: 'date', label: 'Date', width: '1.2fr', render: (r) => <Cell bold>{formatShortDate(r.date) ?? '—'}</Cell> },
-  { key: 'qib', label: 'QIB', align: 'right', render: (r) => <Cell align="right">{formatMultiplier(r.qib) ?? '—'}</Cell> },
-  { key: 'nii', label: 'NII', align: 'right', render: (r) => <Cell align="right">{formatMultiplier(r.nii) ?? '—'}</Cell> },
-  { key: 'retail', label: 'Retail', align: 'right', render: (r) => <Cell align="right">{formatMultiplier(r.retail) ?? '—'}</Cell> },
-  { key: 'total', label: 'Total', align: 'right', render: (r) => <Cell bold align="right">{formatMultiplier(r.total) ?? '—'}</Cell> },
-];
-
 /**
- * Subscription tab — current Total/Average headline, per-category (QIB/NII-HNI/Retail)
- * progress bars (from the latest history row; total falls back to `ipo.subTotal` when
- * there's no history yet), the existing multi-line chart, and a most-recent-first
- * day-wise subscription table.
+ * Subscription tab — current Total/Average headline, per-category progress bars (from the
+ * latest history point's `categories` map; total falls back to `ipo.subTotal` when there's no
+ * history yet), the day-wise multi-line chart, and a most-recent-first day-wise table. Fully
+ * dynamic on `categories` — whatever categories a source reports (QIB/NII/Retail, or extras
+ * like Employee/Shareholder/Anchor) auto-appear in all three, in the app's preferred order
+ * (`orderSubscriptionCategories`). The legacy `point.qib/nii/retail` fields are no longer read.
  */
 export default function SubscriptionTab({ ipo, points, loading }) {
   const T = useT();
   const latest = points.length ? points[points.length - 1] : null;
+  const latestCategories = useMemo(() => latest?.categories ?? {}, [latest]);
+  const latestKeys = useMemo(
+    () => orderSubscriptionCategories(
+      Object.keys(latestCategories).filter((k) => latestCategories[k] != null),
+    ),
+    [latestCategories],
+  );
+  const hasAnyCategory = latestKeys.length > 0;
+
   const totalValue = latest?.total ?? ipo.subTotal ?? null;
   // Mean of whichever category multiples are actually known yet — not the same figure as
   // `total`, which the registrar reports independently (weighted by the number of shares
-  // reserved per category, not a plain average of the three).
+  // reserved per category, not a plain average of the categories).
   const avgValue = useMemo(
-    () => averageSubscription([latest?.qib, latest?.nii, latest?.retail]),
-    [latest],
+    () => averageSubscription(latestKeys.map((k) => latestCategories[k])),
+    [latestKeys, latestCategories],
   );
-  const hasAnyCategory = latest != null
-    && (latest.qib != null || latest.nii != null || latest.retail != null);
+
+  // Union of category keys across every point (not just the latest) so the table's columns
+  // stay stable even if an earlier/later point is missing a category the others have.
+  const allCategoryKeys = useMemo(() => {
+    const set = new Set();
+    points.forEach((p) => {
+      Object.entries(p.categories ?? {}).forEach(([k, v]) => { if (v != null) set.add(k); });
+    });
+    return orderSubscriptionCategories(Array.from(set));
+  }, [points]);
+
+  const columns = useMemo(() => [
+    { key: 'date', label: 'Date', width: '1.2fr', render: (r) => <Cell bold>{formatShortDate(r.date) ?? '—'}</Cell> },
+    ...allCategoryKeys.map((key) => ({
+      key: `cat_${key}`,
+      label: categoryLabel(key),
+      align: 'right',
+      render: (r) => <Cell align="right">{formatMultiplier(r.categories?.[key]) ?? '—'}</Cell>,
+    })),
+    { key: 'total', label: 'Total', align: 'right', render: (r) => <Cell bold align="right">{formatMultiplier(r.total) ?? '—'}</Cell> },
+  ], [allCategoryKeys]);
 
   const rows = useMemo(() => [...points].reverse().map((p) => ({
-    key: p.t, date: p.t, qib: p.qib, nii: p.nii, retail: p.retail, total: p.total,
+    key: p.t, date: p.t, categories: p.categories, total: p.total,
   })), [points]);
 
   return (
@@ -118,10 +166,10 @@ export default function SubscriptionTab({ ipo, points, loading }) {
         </Box>
 
         {hasAnyCategory && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,1fr)' }, gap: 2 }}>
-            <CategoryBar icon={BusinessCenterOutlinedIcon} label="QIB" value={latest?.qib} />
-            <CategoryBar icon={WorkspacePremiumOutlinedIcon} label="NII (HNI)" value={latest?.nii} />
-            <CategoryBar icon={PersonOutlineOutlinedIcon} label="Retail" value={latest?.retail} />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(150px, 1fr))' }, gap: 2 }}>
+            {latestKeys.map((key) => (
+              <CategoryBar key={key} icon={categoryIcon(key)} label={categoryLabel(key)} value={latestCategories[key]} />
+            ))}
           </Box>
         )}
       </SectionCard>
@@ -131,7 +179,11 @@ export default function SubscriptionTab({ ipo, points, loading }) {
       </Box>
 
       <SectionCard title="Day-wise subscription" icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-        <DayWiseTable columns={SUB_COLUMNS} rows={rows} loading={loading} emptyLabel="No subscription data yet." />
+        <Box sx={{ overflowX: 'auto' }}>
+          <Box sx={{ minWidth: columns.length > 4 ? 480 : 0 }}>
+            <DayWiseTable columns={columns} rows={rows} loading={loading} emptyLabel="No subscription data yet." />
+          </Box>
+        </Box>
       </SectionCard>
     </Box>
   );
