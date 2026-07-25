@@ -9,6 +9,7 @@ import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import TrendingFlatRoundedIcon from '@mui/icons-material/TrendingFlatRounded';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import { useIpos } from '../hooks/useIpo';
 import { computeQuickStats, formatPct } from '../utils/format';
 
 /** One quick-stat pill — icon-in-a-tinted-circle + value/label, matching the
@@ -52,22 +53,33 @@ function QuickStatsSkeleton() {
 }
 
 /**
- * List-page hero — headline + tagline + a quick-stats row derived from the currently
- * loaded IPO list (whatever type/status filter is active — see `computeQuickStats`), plus
- * the "Last updated" stamp and the "My IPOs" shortcut that used to live in the plain title
- * block this replaces. Tasteful, not a giant banner: same glass/border language as the
- * rest of the feature, just with a slightly larger headline.
+ * List-page hero — headline + tagline + a quick-stats row, plus the "Last updated" stamp
+ * and the "My IPOs" shortcut that used to live in the plain title block this replaces.
+ * Tasteful, not a giant banner: same glass/border language as the rest of the feature,
+ * just with a slightly larger headline.
+ *
+ * The quick stats deliberately run their OWN `useIpos({ type: 'all', status: '' })` query
+ * rather than reading the page's filtered list — that list defaults to `type: 'mainboard'`
+ * and changes with every toolbar tweak, which (a) hides every SME IPO from the stats on
+ * first paint, directly under a tagline promising "every Indian IPO", and (b) makes the
+ * numbers shift when the user changes filters (e.g. Status=Open showing "Upcoming: 0"),
+ * reading as a broken counter. Sourcing from a separate unfiltered query keeps the stats
+ * a fixed, global summary independent of whatever the card grid below is showing. React
+ * Query dedupes/caches this against any other `['ipo','list',{type:'all',status:''}]`
+ * caller, so this doesn't cost an extra network round-trip beyond the first mount.
  *
  * Loading/empty are both handled gracefully — a loading list shows stat-chip skeletons,
  * and a genuinely empty (non-loading) list hides the stats row entirely rather than
  * showing "0 Open now / 0 Upcoming", which would read as a broken counter rather than
  * "nothing to report yet".
  */
-export default function IpoHero({ ipos, isLoading, lastUpdated }) {
+export default function IpoHero({ lastUpdated }) {
   const T = useT();
   const navigate = useNavigate();
-  const stats = computeQuickStats(ipos);
-  const hasStats = !isLoading && (ipos?.length ?? 0) > 0;
+  const { data: statsData, isLoading } = useIpos({ type: 'all', status: '' });
+  const statsIpos = statsData?.ipos ?? [];
+  const stats = computeQuickStats(statsIpos);
+  const hasStats = !isLoading && statsIpos.length > 0;
 
   const gmpPositive = stats.topGmp != null && stats.topGmp.gmpPct > 0;
   const gmpNegative = stats.topGmp != null && stats.topGmp.gmpPct < 0;

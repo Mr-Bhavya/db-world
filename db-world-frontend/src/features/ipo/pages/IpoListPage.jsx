@@ -46,7 +46,7 @@ export default function IpoListPage() {
 
   return (
     <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
-      <IpoHero ipos={ipos} isLoading={isLoading} lastUpdated={lastUpdated} />
+      <IpoHero lastUpdated={lastUpdated} />
 
       <IpoFilterBar type={type} status={status} sort={sort} onChange={handleFilterChange} />
 
