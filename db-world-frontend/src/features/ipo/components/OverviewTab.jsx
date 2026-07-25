@@ -8,11 +8,14 @@ import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import DomainOutlinedIcon from '@mui/icons-material/DomainOutlined';
 import PriceCheckOutlinedIcon from '@mui/icons-material/PriceCheckOutlined';
+import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
-import { formatPriceBand, formatCurrency, formatPct, formatMultiplier } from '../utils/format';
+import { formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange } from '../utils/format';
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
 import FinancialsTable from './FinancialsTable';
@@ -96,7 +99,16 @@ export default function OverviewTab({ ipo, id }) {
           <FactTile icon={CurrencyRupeeOutlinedIcon} label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
           <FactTile icon={Inventory2OutlinedIcon} label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
           <FactTile icon={AccountBalanceWalletOutlinedIcon} label="Issue size" value={ipo.issueSize} />
-          <FactTile icon={StorefrontOutlinedIcon} label="Exchange" value={ipo.listingExchange} />
+          <FactTile icon={StorefrontOutlinedIcon} label="Exchange" value={formatExchange(ipo.listingExchange)} />
+          {ipo.faceValue != null && (
+            <FactTile icon={SellOutlinedIcon} label="Face value" value={formatCurrency(ipo.faceValue)} />
+          )}
+          {ipo.freshIssue != null && (
+            <FactTile icon={AddCircleOutlineIcon} label="Fresh issue" value={`${formatCurrency(ipo.freshIssue)} Cr`} />
+          )}
+          {ipo.offerForSale != null && (
+            <FactTile icon={SwapHorizOutlinedIcon} label="Offer for sale" value={`${formatCurrency(ipo.offerForSale)} Cr`} />
+          )}
           {ipo.listingPrice != null && (
             <FactTile icon={PriceCheckOutlinedIcon} label="Listing price" value={formatCurrency(ipo.listingPrice)} />
           )}

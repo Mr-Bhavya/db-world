@@ -10,7 +10,7 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useIpo, useGmpHistory, useSubscriptionHistory } from '../hooks/useIpo';
-import { IPO_TYPE_LABEL, statusMeta } from '../utils/format';
+import { IPO_TYPE_LABEL, statusMeta, formatExchange } from '../utils/format';
 import CompanyLogo from '../components/CompanyLogo';
 import IpoDetailSkeleton from '../components/IpoDetailSkeleton';
 import OverviewTab from '../components/OverviewTab';
@@ -88,6 +88,13 @@ export default function IpoDetailPage() {
               <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: meta.bg, border: `1px solid ${meta.color}55`, flexShrink: 0 }}>
                 <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color }}>{meta.label}</Typography>
               </Box>
+              {ipo.tickerSymbol && (
+                <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: T.tealBg, border: `1px solid ${T.teal}55`, flexShrink: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: T.teal }}>
+                    {formatExchange(ipo.listingExchange)}: {ipo.tickerSymbol}
+                  </Typography>
+                </Box>
+              )}
             </Box>
             <Chip
               label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
