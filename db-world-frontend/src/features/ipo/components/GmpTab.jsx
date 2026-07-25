@@ -110,9 +110,11 @@ export default function GmpTab({ ipo, points, loading }) {
   }, [points]);
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <IpoGuruAttribution />
-      <GmpChart points={points} loading={loading} />
+      <Box sx={{ width: '100%', minWidth: 0, mb: 2 }}>
+        <GmpChart points={points} loading={loading} />
+      </Box>
 
       {!loading && <ExpectedListingStat ipo={ipo} points={points} />}
 

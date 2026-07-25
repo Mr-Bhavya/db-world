@@ -66,7 +66,7 @@ export default function SubscriptionTab({ ipo, points, loading }) {
   })), [points]);
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <SectionCard title="Current subscription" icon={<PeopleAltOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: 1.5 }}>
           <BreakdownTile icon={PeopleAltOutlinedIcon} label="Total" value={formatMultiplier(totalValue)} highlight />
@@ -76,7 +76,7 @@ export default function SubscriptionTab({ ipo, points, loading }) {
         </Box>
       </SectionCard>
 
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ width: '100%', minWidth: 0, mb: 2 }}>
         <SubscriptionChart points={points} loading={loading} />
       </Box>
 
