@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
-  averageSubscription, computeQuickStats, shortFinancialLabel,
+  averageSubscription, computeQuickStats, shortFinancialLabel, websiteDomain,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -450,6 +450,23 @@ describe('shortFinancialLabel', () => {
     expect(shortFinancialLabel(null)).toBeNull();
     expect(shortFinancialLabel(undefined)).toBeNull();
     expect(shortFinancialLabel('')).toBe('');
+  });
+});
+
+describe('websiteDomain', () => {
+  it('strips the scheme, path, and a leading "www."', () => {
+    expect(websiteDomain('https://www.paytm.com/ipo')).toBe('paytm.com');
+    expect(websiteDomain('https://zomato.com')).toBe('zomato.com');
+  });
+
+  it('falls back to the raw string when it cannot be parsed as a URL', () => {
+    expect(websiteDomain('paytm.com')).toBe('paytm.com');
+  });
+
+  it('is null-safe', () => {
+    expect(websiteDomain(null)).toBeNull();
+    expect(websiteDomain(undefined)).toBeNull();
+    expect(websiteDomain('')).toBeNull();
   });
 });
 

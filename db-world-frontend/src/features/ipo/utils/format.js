@@ -40,6 +40,15 @@ export const formatExchange = (exchange) => {
   return exchange;
 };
 
+/** `website` URL → bare display domain ("https://www.paytm.com/ipo" → "paytm.com"), for the
+ * About section's clickable link (the link itself still points at the full URL — this is
+ * display text only). Falls back to the raw string for anything `URL` can't parse (e.g. a
+ * bare "paytm.com" with no scheme) rather than hiding the field; null-safe. */
+export const websiteDomain = (website) => {
+  if (!website) return null;
+  try { return new URL(website).hostname.replace(/^www\./, ''); } catch { return website; }
+};
+
 export const IPO_TYPE_LABEL = {
   mainboard: 'Mainboard',
   sme: 'SME',

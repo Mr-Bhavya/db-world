@@ -14,8 +14,16 @@ import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
+import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import { useT } from '@shared/theme';
-import { formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange } from '../utils/format';
+import {
+  formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange, websiteDomain,
+} from '../utils/format';
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
 import FinancialsTable from './FinancialsTable';
@@ -78,13 +86,74 @@ function ListingGainFactTile({ gainPct }) {
   return <FactTile icon={Icon} label="Listing gain" value={formatPct(gainPct)} valueColor={color} />;
 }
 
+/** The About section's Website fact renders as an external link rather than plain text —
+ * `target="_blank" rel="noopener noreferrer"` (new tab, no opener leak/referrer), showing
+ * just the bare domain via `websiteDomain()` while the href keeps the full URL the API
+ * gave us. Only ever rendered when `website` is present (see call site). */
+function WebsiteLink({ website }) {
+  const T = useT();
+  return (
+    <Box
+      component="a"
+      href={website}
+      target="_blank"
+      rel="noopener noreferrer"
+      sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+    >
+      {websiteDomain(website) ?? website}
+    </Box>
+  );
+}
+
+/**
+ * The expanded "About" company facts — Founded/MD-CEO/Parent company/Sector/Headquarters/
+ * Website — laid out as the same compact icon+label+value tile grid as "Key facts", right
+ * alongside the free-text `about` blurb. Every field is independently optional (a real
+ * source may report some and not others), so each tile is only rendered when its own value
+ * is present rather than the whole grid gating on one field.
+ */
+function AboutFacts({ ipo }) {
+  return (
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' },
+      gap: 2,
+    }}>
+      {ipo.foundedYear != null && (
+        <FactTile icon={CalendarMonthOutlinedIcon} label="Founded" value={String(ipo.foundedYear)} />
+      )}
+      {ipo.managingDirector && (
+        <FactTile icon={BadgeOutlinedIcon} label="MD / CEO" value={ipo.managingDirector} />
+      )}
+      {ipo.parentCompany && (
+        <FactTile icon={AccountTreeOutlinedIcon} label="Parent company" value={ipo.parentCompany} />
+      )}
+      {ipo.sector && (
+        <FactTile icon={CategoryOutlinedIcon} label="Sector" value={ipo.sector} />
+      )}
+      {ipo.headquarters && (
+        <FactTile icon={LocationOnOutlinedIcon} label="Headquarters" value={ipo.headquarters} />
+      )}
+      {ipo.website && (
+        <FactTile icon={LanguageOutlinedIcon} label="Website" value={<WebsiteLink website={ipo.website} />} />
+      )}
+    </Box>
+  );
+}
+
+const hasAboutFacts = (ipo) =>
+  ipo.foundedYear != null || !!ipo.managingDirector || !!ipo.parentCompany
+  || !!ipo.sector || !!ipo.headquarters || !!ipo.website;
+
 /**
  * Overview tab — the at-a-glance summary: timeline stepper, a compact "key facts" grid,
- * About (only when present), and a financials snapshot. The full GMP/subscription charts
- * live on their own tabs now — this reads as a summary, not a data dump.
+ * About (only when there's a blurb and/or any expanded company fact to show), and a
+ * financials snapshot. The full GMP/subscription charts live on their own tabs now —
+ * this reads as a summary, not a data dump.
  */
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
+  const showAbout = !!ipo.about || hasAboutFacts(ipo);
   return (
     <Box>
       <SectionCard title="Timeline">
@@ -120,11 +189,14 @@ export default function OverviewTab({ ipo, id }) {
         </Box>
       </SectionCard>
 
-      {ipo.about && (
+      {showAbout && (
         <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <Typography sx={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7 }}>
-            {ipo.about}
-          </Typography>
+          {ipo.about && (
+            <Typography sx={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7, mb: hasAboutFacts(ipo) ? 2 : 0 }}>
+              {ipo.about}
+            </Typography>
+          )}
+          {hasAboutFacts(ipo) && <AboutFacts ipo={ipo} />}
         </SectionCard>
       )}
 
