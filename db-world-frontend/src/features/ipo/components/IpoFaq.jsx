@@ -86,9 +86,9 @@ export default function IpoFaq() {
 
   return (
     <Box component="section" sx={{ mt: 4, mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-        <HelpOutlineRoundedIcon sx={{ fontSize: 16, color: T.teal }} />
-        <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
+        <HelpOutlineRoundedIcon sx={{ fontSize: 15, color: T.teal }} />
+        <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
           Frequently asked questions
         </Typography>
       </Box>

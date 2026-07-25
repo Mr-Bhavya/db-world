@@ -87,7 +87,7 @@ export default function IpoHero({ ipos, isLoading, lastUpdated }) {
               IPO Radar
             </Typography>
           </Box>
-          <Typography sx={{ fontSize: 13, color: T.textMuted, mt: 0.35, maxWidth: 480, lineHeight: 1.5 }}>
+          <Typography sx={{ fontSize: 13, color: T.textMuted, mt: 0.25, maxWidth: 480, lineHeight: 1.5 }}>
             Track every Indian IPO — live GMP, subscription &amp; allotment, all in one place.
           </Typography>
         </Box>

@@ -77,15 +77,15 @@ function StepRow({ step, index, isLast }) {
 }
 
 /**
- * "How to check your allotment" — a short, numbered, icon-led guide, reusable anywhere in
- * the Allotment flow (currently `AllotmentTab`). Purely presentational/static: no props,
- * no data dependency, so it can drop into any IPO's Allotment tab unchanged.
+ * "How to check allotment" — a short, numbered, icon-led guide, reusable anywhere in the
+ * Allotment flow (currently `AllotmentTab`). Purely presentational/static: no props, no
+ * data dependency, so it can drop into any IPO's Allotment tab unchanged.
  */
 export default function AllotmentGuide() {
   const T = useT();
   return (
     <SectionCard
-      title="How to check your allotment"
+      title="How to check allotment"
       icon={<AssignmentTurnedInOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
