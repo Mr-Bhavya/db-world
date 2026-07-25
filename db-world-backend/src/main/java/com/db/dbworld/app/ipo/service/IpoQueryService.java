@@ -143,7 +143,9 @@ public class IpoQueryService {
                 dto.listingExchange(), dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(),
                 dto.logoUrl(), dto.about(), refundDate, dematDate,
                 dto.faceValue(), dto.freshIssue(), dto.offerForSale(), dto.tickerSymbol(),
-                dto.strengths(), dto.risks());
+                dto.strengths(), dto.risks(),
+                dto.foundedYear(), dto.managingDirector(), dto.parentCompany(),
+                dto.sector(), dto.headquarters(), dto.website());
     }
 
     /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */

@@ -103,6 +103,33 @@ public class IpoListingEntity {
     @Column(columnDefinition = "TEXT")
     private String risks;
 
+    // ── Company "About" profile facts ────────────────────────────────────────────────────────
+    // Seeder-populated for now (a live adapter can fill these via a separate path later). Not
+    // part of IpoDto/ingest — deliberately excluded from applyUpdatable/toNewEntity so ingest
+    // polling can never touch them.
+
+    @Column(name = "founded_year")
+    private Integer foundedYear;
+
+    /** The company's MD / CEO name. */
+    @Column(name = "managing_director", length = 150)
+    private String managingDirector;
+
+    /** Nullable — not every company has a distinct listed parent. */
+    @Column(name = "parent_company", length = 200)
+    private String parentCompany;
+
+    /** e.g. "Fintech", "E-commerce". */
+    @Column(length = 100)
+    private String sector;
+
+    /** City. */
+    @Column(length = 150)
+    private String headquarters;
+
+    @Column(length = 300)
+    private String website;
+
     @Column(name = "first_seen_at", nullable = false)
     private Instant firstSeenAt;
 

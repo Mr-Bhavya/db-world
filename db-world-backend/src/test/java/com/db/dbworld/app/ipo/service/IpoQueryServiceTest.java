@@ -232,6 +232,30 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void detail_aboutFieldsSurviveTheTimelineDateDerivationRebuild() {
+        // detail() rebuilds a new IpoDetailDto by hand (withDerivedTimelineDates) whenever
+        // refund/demat dates need deriving; that rebuild must carry every field forward,
+        // including the About-section ones — a field added to the record but forgotten in that
+        // rebuild would silently null out on any IPO whose allotment date is already known.
+        IpoListingEntity entity = IpoListingEntity.builder()
+                .id("1").matchKey("1-key").companyName("Company 1").status("closed")
+                .allotmentDate(LocalDate.of(2026, 7, 28))
+                .foundedYear(2010).managingDirector("Jane Founder").parentCompany("Acme Holdings Ltd")
+                .sector("Fintech").headquarters("Bengaluru").website("https://www.acmecorp.example")
+                .build();
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.foundedYear()).isEqualTo(2010);
+        assertThat(dto.managingDirector()).isEqualTo("Jane Founder");
+        assertThat(dto.parentCompany()).isEqualTo("Acme Holdings Ltd");
+        assertThat(dto.sector()).isEqualTo("Fintech");
+        assertThat(dto.headquarters()).isEqualTo("Bengaluru");
+        assertThat(dto.website()).isEqualTo("https://www.acmecorp.example");
+    }
+
+    @Test
     void detail_missing_throwsNotFound() {
         when(listingRepository.findById("missing")).thenReturn(Optional.empty());
 

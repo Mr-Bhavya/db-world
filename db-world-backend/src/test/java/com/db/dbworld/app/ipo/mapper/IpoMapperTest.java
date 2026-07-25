@@ -54,6 +54,12 @@ class IpoMapperTest {
                 .tickerSymbol("ACME")
                 .strengths("Strength one\nStrength two\n\nStrength three  ")
                 .risks("Risk one\nRisk two")
+                .foundedYear(2010)
+                .managingDirector("Jane Founder")
+                .parentCompany("Acme Holdings Ltd")
+                .sector("Fintech")
+                .headquarters("Bengaluru")
+                .website("https://www.acmecorp.example")
                 .firstSeenAt(Instant.parse("2026-07-01T00:00:00Z"))
                 .lastSeenAt(Instant.parse("2026-07-24T00:00:00Z"))
                 .build();
@@ -118,6 +124,32 @@ class IpoMapperTest {
         assertThat(dto.tickerSymbol()).isEqualTo("ACME");
         assertThat(dto.strengths()).containsExactly("Strength one", "Strength two", "Strength three");
         assertThat(dto.risks()).containsExactly("Risk one", "Risk two");
+        assertThat(dto.foundedYear()).isEqualTo(2010);
+        assertThat(dto.managingDirector()).isEqualTo("Jane Founder");
+        assertThat(dto.parentCompany()).isEqualTo("Acme Holdings Ltd");
+        assertThat(dto.sector()).isEqualTo("Fintech");
+        assertThat(dto.headquarters()).isEqualTo("Bengaluru");
+        assertThat(dto.website()).isEqualTo("https://www.acmecorp.example");
+    }
+
+    @Test
+    void toDetail_aboutFieldsNull_mapToNull() {
+        IpoListingEntity entity = fullListing();
+        entity.setFoundedYear(null);
+        entity.setManagingDirector(null);
+        entity.setParentCompany(null);
+        entity.setSector(null);
+        entity.setHeadquarters(null);
+        entity.setWebsite(null);
+
+        IpoDetailDto dto = mapper.toDetail(entity);
+
+        assertThat(dto.foundedYear()).isNull();
+        assertThat(dto.managingDirector()).isNull();
+        assertThat(dto.parentCompany()).isNull();
+        assertThat(dto.sector()).isNull();
+        assertThat(dto.headquarters()).isNull();
+        assertThat(dto.website()).isNull();
     }
 
     @Test

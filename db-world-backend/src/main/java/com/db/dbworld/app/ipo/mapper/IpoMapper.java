@@ -25,7 +25,9 @@ public class IpoMapper {
                 e.getListingExchange(), e.getAllotmentStatus(), e.getRegistrar(), e.getRegistrarUrl(),
                 e.getLogoUrl(), e.getAbout(), e.getRefundDate(), e.getDematDate(),
                 e.getFaceValue(), e.getFreshIssue(), e.getOfferForSale(), e.getTickerSymbol(),
-                splitLines(e.getStrengths()), splitLines(e.getRisks()));
+                splitLines(e.getStrengths()), splitLines(e.getRisks()),
+                e.getFoundedYear(), e.getManagingDirector(), e.getParentCompany(),
+                e.getSector(), e.getHeadquarters(), e.getWebsite());
     }
 
     /** Splits newline-delimited TEXT (as stored on the entity) into trimmed, non-blank lines; null/blank → empty list. */

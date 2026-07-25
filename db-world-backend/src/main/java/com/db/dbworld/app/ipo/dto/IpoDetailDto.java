@@ -36,5 +36,11 @@ public record IpoDetailDto(
         BigDecimal offerForSale,
         String tickerSymbol,
         List<String> strengths,
-        List<String> risks
+        List<String> risks,
+        Integer foundedYear,
+        String managingDirector,
+        String parentCompany,
+        String sector,
+        String headquarters,
+        String website
 ) {}
