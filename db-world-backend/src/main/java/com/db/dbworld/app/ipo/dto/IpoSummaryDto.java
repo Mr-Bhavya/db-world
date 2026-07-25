@@ -17,6 +17,7 @@ public record IpoSummaryDto(
         BigDecimal gmp,
         BigDecimal gmpPct,
         BigDecimal subTotal,
+        Integer lotSize,
         String listingExchange,
         BigDecimal listingGainPct,
         String allotmentStatus,

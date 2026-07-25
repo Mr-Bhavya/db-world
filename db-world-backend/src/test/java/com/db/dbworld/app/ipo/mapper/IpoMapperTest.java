@@ -75,6 +75,7 @@ class IpoMapperTest {
         assertThat(dto.gmp()).isEqualByComparingTo("25.00");
         assertThat(dto.gmpPct()).isEqualByComparingTo("22.73");
         assertThat(dto.subTotal()).isEqualByComparingTo("15.50");
+        assertThat(dto.lotSize()).isEqualTo(130);
         assertThat(dto.listingExchange()).isEqualTo("NSE");
         assertThat(dto.listingGainPct()).isEqualByComparingTo("22.73");
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
@@ -242,8 +243,9 @@ class IpoMapperTest {
 
         assertThat(dto.application().ipoId()).isEqualTo("ipo-1");
         assertThat(dto.application().applicationNo()).isEqualTo("APP123");
-        // MyIpoDto wraps a plain IpoSummaryDto, so registrarUrl rides along automatically.
+        // MyIpoDto wraps a plain IpoSummaryDto, so registrarUrl/lotSize ride along automatically.
         assertThat(dto.ipo().registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
+        assertThat(dto.ipo().lotSize()).isEqualTo(130);
     }
 
     private IpoDto fullDto() {
