@@ -20,8 +20,8 @@ const VALUE_PROPS = [
   },
   {
     icon: ShowChartRoundedIcon,
-    title: 'Live GMP & subscription',
-    desc: 'Track the grey-market premium and investor demand as they move.',
+    title: 'Latest GMP & subscription',
+    desc: 'Grey-market premium and demand, tracked and updated.',
   },
   {
     icon: FactCheckOutlinedIcon,
@@ -31,7 +31,7 @@ const VALUE_PROPS = [
   {
     icon: BoltRoundedIcon,
     title: 'Free & fast',
-    desc: 'No login walls to browse, no clutter — just the IPO info you need.',
+    desc: 'No paywalls, no clutter — just the IPO info you need.',
   },
 ];
 
