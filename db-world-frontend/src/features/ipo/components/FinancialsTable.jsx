@@ -8,7 +8,7 @@ import { useFinancials } from '../hooks/useIpo';
 import SectionCard from './SectionCard';
 import FinancialsChart from './FinancialsChart';
 
-const GRID_COLS = '1fr 1fr 1fr';
+const GRID_COLS = '0.85fr 1fr 1fr 1fr';
 
 const formatCr = (n) => (n == null ? '—'
   : Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -41,6 +41,7 @@ function HeaderRow() {
       <Typography sx={labelSx}>FY</Typography>
       <Typography sx={{ ...labelSx, textAlign: 'right' }}>Revenue (₹ Cr)</Typography>
       <Typography sx={{ ...labelSx, textAlign: 'right' }}>PAT (₹ Cr)</Typography>
+      <Typography sx={{ ...labelSx, textAlign: 'right' }}>Total Assets (₹ Cr)</Typography>
     </Box>
   );
 }
@@ -49,6 +50,7 @@ function FinancialRow({ row, prevRevenue, isLast }) {
   const T = useT();
   const revenue = row.revenue != null ? Number(row.revenue) : null;
   const pat = row.pat != null ? Number(row.pat) : null;
+  const totalAssets = row.totalAssets != null ? Number(row.totalAssets) : null;
   const patNegative = pat != null && pat < 0;
   return (
     <Box sx={{
@@ -63,6 +65,9 @@ function FinancialRow({ row, prevRevenue, isLast }) {
       <Typography sx={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: patNegative ? T.error : T.textPrimary }}>
         {formatCr(pat)}
       </Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: T.textPrimary }}>
+        {formatCr(totalAssets)}
+      </Typography>
     </Box>
   );
 }
@@ -75,6 +80,7 @@ function FinancialsSkeleton() {
       {[0, 1, 2].map((i) => (
         <Box key={i} sx={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: 1, py: 0.85 }}>
           <Skeleton variant="text" width={48} height={16} sx={{ bgcolor: T.glassHover }} />
+          <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />
           <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />
           <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />
         </Box>

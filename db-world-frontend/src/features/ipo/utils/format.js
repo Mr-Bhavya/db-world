@@ -196,6 +196,27 @@ export const averageSubscription = (values) => {
   return known.reduce((sum, v) => sum + v, 0) / known.length;
 };
 
+/**
+ * `fiscalYear` display label → a short label for the financials chart's x-axis (the P&L
+ * table keeps the full label as-is — this is chart-only). Recognizes two "FY" shapes and
+ * passes anything else through unchanged (e.g. an already-short month label like
+ * "Mar 2026"), so it's safe to call on whatever a source happens to report:
+ *   "FY 2021-22" / "FY2021-22" → "2022"  (ending year, century taken from the start year)
+ *   "FY22"                     → "2022"  (assumes 2000s — the only era this app covers)
+ *   anything else / null       → returned unchanged
+ */
+export const shortFinancialLabel = (fiscalYear) => {
+  if (!fiscalYear) return fiscalYear ?? null;
+  const rangeMatch = fiscalYear.match(/^FY\s*(\d{4})-(\d{2})$/i);
+  if (rangeMatch) {
+    const [, startYear, endSuffix] = rangeMatch;
+    return `${startYear.slice(0, 2)}${endSuffix}`;
+  }
+  const shortMatch = fiscalYear.match(/^FY\s*(\d{2})$/i);
+  if (shortMatch) return `20${shortMatch[1]}`;
+  return fiscalYear;
+};
+
 /** "yyyy-MM-dd" → { dayMonth: "24 Jul", year: "2026" } — the two-line date label used by
  * the timeline stepper (day+month prominent, year small underneath). Null-safe. */
 export const formatStageDate = (dateStr) => {

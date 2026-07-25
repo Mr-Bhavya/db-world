@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
-  averageSubscription, computeQuickStats,
+  averageSubscription, computeQuickStats, shortFinancialLabel,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -420,6 +420,36 @@ describe('computeQuickStats', () => {
   it('is null when nothing in the list has a known gmpPct', () => {
     const stats = computeQuickStats([{ status: 'open', gmpPct: null }, { status: 'upcoming' }]);
     expect(stats.topGmp).toBeNull();
+  });
+});
+
+describe('shortFinancialLabel', () => {
+  it('collapses a "FY yyyy-yy" range to the 4-digit ending year', () => {
+    expect(shortFinancialLabel('FY 2021-22')).toBe('2022');
+    expect(shortFinancialLabel('FY 2022-23')).toBe('2023');
+  });
+
+  it('handles the range with no space after "FY"', () => {
+    expect(shortFinancialLabel('FY2021-22')).toBe('2022');
+  });
+
+  it('expands a short "FYyy" form to the 4-digit ending year', () => {
+    expect(shortFinancialLabel('FY22')).toBe('2022');
+    expect(shortFinancialLabel('FY 26')).toBe('2026');
+  });
+
+  it('passes through a month label unchanged', () => {
+    expect(shortFinancialLabel('Mar 2026')).toBe('Mar 2026');
+  });
+
+  it('passes through anything it does not recognize unchanged', () => {
+    expect(shortFinancialLabel('2026')).toBe('2026');
+  });
+
+  it('is null-safe', () => {
+    expect(shortFinancialLabel(null)).toBeNull();
+    expect(shortFinancialLabel(undefined)).toBeNull();
+    expect(shortFinancialLabel('')).toBe('');
   });
 });
 
