@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import HourglassBottomOutlinedIcon from '@mui/icons-material/HourglassBottomOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
@@ -20,7 +20,22 @@ const STAGE_ICONS = {
   listing: TrendingUpIcon,
 };
 
-function StageNode({ stage }) {
+/** Short descriptor shown under each stage's date on desktop only — there's no room for
+ * these on the compact mobile layout, which stays label+date only. */
+const STAGE_DESCRIPTIONS = {
+  open: 'Bidding opens',
+  close: 'Bidding closes',
+  allotment: 'Basis of allotment',
+  refund: 'Refunds initiated',
+  demat: 'Shares credited',
+  listing: 'Lists on exchange',
+};
+
+/** `desktop` swaps this from a fixed-width node (mobile, inside the horizontally-scrolling
+ * strip) to a flex-growing one that shares the full row evenly with its siblings, and adds
+ * the stage's short descriptor line — everything else (state colors, TBA handling) is
+ * identical between the two. */
+function StageNode({ stage, desktop }) {
   const T = useT();
   const Icon = STAGE_ICONS[stage.key];
   const isDone = stage.status === 'done';
@@ -35,8 +50,10 @@ function StageNode({ stage }) {
 
   return (
     <Box sx={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      width: { xs: 78, sm: 96 }, flexShrink: 0, textAlign: 'center',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+      ...(desktop
+        ? { flex: '1 1 0', minWidth: 0, px: 0.5 }
+        : { width: { xs: 78, sm: 96 }, flexShrink: 0 }),
     }}>
       <Box sx={{
         width: NODE_SIZE, height: NODE_SIZE, borderRadius: '50%', flexShrink: 0,
@@ -61,19 +78,27 @@ function StageNode({ stage }) {
           {dateInfo.year}
         </Typography>
       )}
+      {desktop && (
+        <Typography sx={{ fontSize: 10, color: T.textFaint, mt: 0.5, lineHeight: 1.3, maxWidth: 140 }}>
+          {STAGE_DESCRIPTIONS[stage.key]}
+        </Typography>
+      )}
     </Box>
   );
 }
 
 /** Connector segment between two stage nodes — filled teal once the stage before it has
  * fully completed ('done'); still an outline while that stage is only 'current' (in
- * progress) or 'upcoming', so the line's fill always trails one step behind the active node. */
-function Connector({ filled }) {
+ * progress) or 'upcoming', so the line's fill always trails one step behind the active node.
+ * On desktop it grows to fill the gap between nodes (full-width row, no scroll); on mobile
+ * it's a fixed short segment inside the horizontally-scrolling strip. */
+function Connector({ filled, desktop }) {
   const T = useT();
   return (
     <Box sx={{
-      flex: '0 0 auto', width: { xs: 24, sm: 40 }, height: 2, mt: `${NODE_SIZE / 2 - 1}px`,
+      height: 2, mt: `${NODE_SIZE / 2 - 1}px`,
       bgcolor: filled ? T.teal : T.border, transition: 'background-color 0.2s',
+      ...(desktop ? { flex: '1 1 auto', minWidth: 16 } : { flex: '0 0 auto', width: { xs: 24, sm: 40 } }),
     }} />
   );
 }
@@ -87,14 +112,33 @@ function Connector({ filled }) {
  * shown as an icon node + label + date, joined by connector lines whose fill reflects
  * overall progress (filled up to the current stage, muted after).
  *
- * Responsive: the row scrolls horizontally past ~5 visible nodes instead of wrapping or
- * shrinking illegibly — this stays clean and readable even at a 360px viewport, unlike the
- * card list (where horizontal scroll would be the wrong call).
+ * Responsive, via two distinct layouts (not just CSS tweaks on one shared tree — the flex
+ * distribution and scroll behavior genuinely differ):
+ *   - Desktop (md+): a full-width row, stages evenly distributed and connectors stretching
+ *     to fill the gaps between them, plus a short descriptor line under each stage's date.
+ *     No horizontal scroll — everything fits the row.
+ *   - Mobile/tablet: unchanged from before — a compact, fixed-width, horizontally-scrolling
+ *     strip past ~5 visible nodes, no descriptor line (no room for it).
  */
 export default function IpoTimeline({ ipo }) {
   const T = useT();
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const stages = buildTimelineStages(ipo);
   if (stages.length === 0) return null;
+
+  if (isDesktop) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', width: '100%', pt: 0.25, pb: 0.5 }}>
+        {stages.map((stage, i) => (
+          <Box key={stage.key} sx={{ display: 'contents' }}>
+            {i > 0 && <Connector filled={stages[i - 1].status === 'done'} desktop />}
+            <StageNode stage={stage} desktop />
+          </Box>
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{
