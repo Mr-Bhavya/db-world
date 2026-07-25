@@ -38,6 +38,8 @@ export const darkTokens = {
   warningBg:        'rgba(251,191,36,0.12)',
   info:             '#38bdf8',
   infoBg:           'rgba(56,189,248,0.12)',
+  violet:           '#a78bfa',
+  violetBg:         'rgba(167,139,250,0.12)',
 };
 
 // ─── Light tokens (pure white + teal) ────────────────────────────────────────
@@ -74,6 +76,8 @@ export const lightTokens = {
   warningBg:        'rgba(217,119,6,0.08)',
   info:             '#0284c7',
   infoBg:           'rgba(2,132,199,0.08)',
+  violet:           '#7c3aed',
+  violetBg:         'rgba(124,58,237,0.08)',
 };
 
 /** Returns the correct token set for a given mode. */

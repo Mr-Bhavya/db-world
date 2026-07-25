@@ -139,12 +139,11 @@ describe('subscriptionMeta', () => {
 });
 
 describe('ipoTypeMeta', () => {
-  const T = { teal: 'teal', tealBg: 'tealBg' };
+  const T = { teal: 'teal', tealBg: 'tealBg', violet: 'violet', violetBg: 'violetBg' };
 
   it('labels mainboard distinctly from sme, never a generic "IPO"', () => {
     expect(ipoTypeMeta('mainboard', T)).toEqual({ label: 'Mainboard', color: 'teal', bg: 'tealBg' });
-    expect(ipoTypeMeta('sme', T).label).toBe('SME');
-    expect(ipoTypeMeta('sme', T).color).not.toBe('teal');
+    expect(ipoTypeMeta('sme', T)).toEqual({ label: 'SME', color: 'violet', bg: 'violetBg' });
   });
 
   it('returns null (hide the chip) for an unrecognized/missing ipoType', () => {

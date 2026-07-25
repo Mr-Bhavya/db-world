@@ -62,17 +62,17 @@ export const statusMeta = (status, T) => {
 
 /**
  * ipoType → themed chip tint, distinct from `statusMeta` (which colors the lifecycle
- * badge). Mainboard reuses the brand teal; SME gets its own violet so the two chip
- * kinds are never confusable at a glance. `#8b5cf6` matches the violet already used
- * for EDITOR_PICK tags elsewhere in the app (see admin/records/tagConstants.js).
- * Returns null (hide the chip) for an unrecognized/missing ipoType rather than
- * fabricating a "Mainboard" default — no generic "IPO" fallback label either way.
+ * badge). Mainboard reuses the brand teal; SME gets its own violet (`T.violet`/
+ * `T.violetBg`) so the two chip kinds are never confusable at a glance, and so the
+ * tint actually adapts between AMOLED dark and pure-white light like every other
+ * chip color here does. Returns null (hide the chip) for an unrecognized/missing
+ * ipoType rather than fabricating a "Mainboard" default — no generic "IPO" fallback
+ * label either way.
  */
-const SME_VIOLET = '#8b5cf6';
 export const ipoTypeMeta = (ipoType, T) => {
   const label = IPO_TYPE_LABEL[ipoType];
   if (!label) return null;
-  if (ipoType === 'sme') return { label, color: SME_VIOLET, bg: `${SME_VIOLET}1f` };
+  if (ipoType === 'sme') return { label, color: T.violet, bg: T.violetBg };
   return { label, color: T.teal, bg: T.tealBg };
 };
 
@@ -151,10 +151,9 @@ export const subscriptionMeta = (subTotal, T) => {
   const n = Number(subTotal);
   const fillPct = Math.max(0, Math.min(n, 1)) * 100;
   let color;
-  let bg;
-  if (n < 1)       { color = T.textFaint; bg = T.glassHover; }
-  else if (n < 3)  { color = T.teal;      bg = T.tealBg; }
-  else if (n <= 10) { color = T.success;  bg = T.successBg; }
-  else             { color = T.warning;   bg = T.warningBg; }
-  return { fillPct, color, bg, hot: n > 10 };
+  if (n < 1)        { color = T.textFaint; }
+  else if (n < 3)   { color = T.teal; }
+  else if (n <= 10) { color = T.success; }
+  else              { color = T.warning; }
+  return { fillPct, color, hot: n > 10 };
 };
