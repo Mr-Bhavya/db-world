@@ -58,9 +58,11 @@ export default function FinancialsChart({ rows = [] }) {
   if (rows.length === 0) return null;
 
   const rotateLabels = isMobile && years.length > 5;
+  // No left-hand axis to reserve room for anymore (see `yAxis.position: 'none'` below) —
+  // just a little breathing room so the edge bars/labels aren't flush against the card.
   const margin = isMobile
-    ? { left: 36, right: 12, top: 30, bottom: rotateLabels ? 40 : 24 }
-    : { left: 48, right: 16, top: 30, bottom: 28 };
+    ? { left: 8, right: 8, top: 30, bottom: rotateLabels ? 40 : 24 }
+    : { left: 16, right: 16, top: 30, bottom: 28 };
 
   const isProfit = active.value === 'pat';
 
@@ -104,6 +106,12 @@ export default function FinancialsChart({ rows = [] }) {
         yAxis={[{
           id: 'value',
           scaleType: 'linear',
+          // Groww-style: the on-bar labels already carry the value, so the axis itself
+          // (line + ticks + labels) is redundant — `position: 'none'` drops it entirely
+          // (and reclaims its width for the plot) while the scale/domain/baseline the bars
+          // are drawn against, and the piecewise loss/profit colorMap below, are unaffected;
+          // negative Profit bars still render below the zero baseline correctly.
+          position: 'none',
           valueFormatter: (v) => `₹${v}`,
           ...(isProfit ? { colorMap: { type: 'piecewise', thresholds: [0], colors: [T.error, T.success] } } : {}),
         }]}
