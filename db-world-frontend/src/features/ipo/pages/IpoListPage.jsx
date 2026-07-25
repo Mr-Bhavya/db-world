@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -15,6 +15,13 @@ import IpoGlossary from '../components/IpoGlossary';
 
 const SKELETON_COUNT = 8;
 
+// Bonus (nice-to-have): remember where the user was scrolled to on the list so going back
+// from an IPO's detail page restores it, instead of always dropping back to the top of a
+// long list. Session-scoped (not persisted across browser restarts) and cleared as soon as
+// it's consumed, so a genuinely fresh visit — as opposed to a "return from detail" — always
+// starts at the top.
+const LIST_SCROLL_KEY = 'ipo_list_scroll';
+
 export default function IpoListPage() {
   const T = useT();
   const [type, setType] = useState('mainboard');
@@ -25,6 +32,29 @@ export default function IpoListPage() {
   const ipos = data?.ipos ?? [];
   const lastUpdated = formatIstTime(data?.lastUpdated);
   const hasActiveFilter = !!status || type !== 'all';
+
+  // Save the scroll position whenever this page unmounts (e.g. navigating into an IPO's
+  // detail page) so a subsequent "back" restores it below.
+  useEffect(() => () => {
+    sessionStorage.setItem(LIST_SCROLL_KEY, String(window.scrollY));
+  }, []);
+
+  // Restore it once, but only after the list has actually rendered (there's nothing to
+  // scroll to before then) — then immediately clear the saved value so it's only ever
+  // consumed once. `scrollRestored` guards against re-running on later filter/sort changes,
+  // which reuse this same isLoading/ipos state but shouldn't re-trigger a scroll jump.
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    if (isLoading || ipos.length === 0 || scrollRestored.current) return;
+    scrollRestored.current = true;
+    const saved = sessionStorage.getItem(LIST_SCROLL_KEY);
+    sessionStorage.removeItem(LIST_SCROLL_KEY);
+    const y = saved != null ? parseInt(saved, 10) : 0;
+    if (y > 0) {
+      const t = setTimeout(() => window.scrollTo({ top: y, behavior: 'instant' }), 80);
+      return () => clearTimeout(t);
+    }
+  }, [isLoading, ipos.length]);
 
   // `minmax(0, 1fr)` (not bare `1fr`) — a CSS Grid track's automatic minimum size
   // otherwise defaults to the *content* min-content size of whatever's inside, so a

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Chip, Button, IconButton, Tabs, Tab } from '@mui/material';
 import { motion } from 'framer-motion';
@@ -37,6 +37,14 @@ export default function IpoDetailPage() {
   const { data: ipo, isLoading, isError } = useIpo(id);
   const { data: gmpPoints = [], isLoading: gmpLoading } = useGmpHistory(id);
   const { data: subPoints = [], isLoading: subLoading } = useSubscriptionHistory(id);
+
+  // Opening an IPO must land at the top of its detail page, never at wherever the list
+  // happened to be scrolled to — the browser otherwise keeps the previous page's scroll
+  // position across this in-app navigation. Keyed on `id` (not just mount) so navigating
+  // detail-to-detail (e.g. via a "similar IPO" link, should one ever exist) also resets.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [id]);
 
   if (isLoading) {
     return <IpoDetailSkeleton />;
