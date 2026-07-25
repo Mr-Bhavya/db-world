@@ -5,11 +5,10 @@ import * as api from '../api/ipoApi';
 // staleness avoids refetch storms on tab-focus while still feeling "live enough".
 const STALE_TIME = 3 * 60 * 1000;
 
-export function useIpos(status) {
-  const normalized = status || undefined;
+export function useIpos({ status = '', type = 'all', sort = 'date' } = {}) {
   return useQuery({
-    queryKey: ['ipo', 'list', normalized ?? 'all'],
-    queryFn: () => api.getIpos(normalized),
+    queryKey: ['ipo', 'list', { status, type, sort }],
+    queryFn: () => api.getIpos({ status, type, sort }),
     staleTime: STALE_TIME,
   });
 }

@@ -64,7 +64,7 @@ export default function IpoDetailPage() {
     );
   }
 
-  const meta = statusMeta(ipo.status);
+  const meta = statusMeta(ipo.status, T);
   const latestSub = subPoints.length ? subPoints[subPoints.length - 1] : null;
   const registrarHref = ipo.registrarUrl || FALLBACK_ALLOTMENT_URL;
   const gainColor = ipo.listingGainPct > 0 ? T.success : ipo.listingGainPct < 0 ? T.error : undefined;

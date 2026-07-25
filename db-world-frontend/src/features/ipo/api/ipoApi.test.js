@@ -16,22 +16,38 @@ describe('ipoApi', () => {
     vi.clearAllMocks();
   });
 
-  it('getIpos calls GET /api/ipo with a status param when provided and unwraps the envelope', async () => {
+  it('getIpos sends status, type and sort together when all are meaningful', async () => {
     const payload = { ipos: [{ id: 1, companyName: 'Acme Ltd' }], lastUpdated: '2026-07-24T10:15:30Z' };
     axiosInstance.get.mockResolvedValueOnce({ data: { data: payload } });
 
-    const result = await getIpos('open');
+    const result = await getIpos({ status: 'open', type: 'sme', sort: 'gmp' });
 
-    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: { status: 'open' } });
+    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: { status: 'open', type: 'sme', sort: 'gmp' } });
     expect(result).toEqual(payload);
   });
 
-  it('getIpos omits the status param when not provided', async () => {
+  it('getIpos omits status and type when All (empty status, type "all"), sending only sort', async () => {
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: { ipos: [], lastUpdated: null } } });
+
+    await getIpos({ status: '', type: 'all', sort: 'date' });
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: { sort: 'date' } });
+  });
+
+  it('getIpos sends a type filter without a status filter', async () => {
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: { ipos: [], lastUpdated: null } } });
+
+    await getIpos({ type: 'mainboard', sort: 'subscription' });
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: { sort: 'subscription', type: 'mainboard' } });
+  });
+
+  it('getIpos defaults sort to "date" and omits status/type when called with no args', async () => {
     axiosInstance.get.mockResolvedValueOnce({ data: { data: { ipos: [], lastUpdated: null } } });
 
     await getIpos();
 
-    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: undefined });
+    expect(axiosInstance.get).toHaveBeenCalledWith(BASE, { params: { sort: 'date' } });
   });
 
   it('getIpo calls GET /api/ipo/{id} and unwraps the envelope', async () => {

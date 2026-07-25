@@ -3,9 +3,18 @@ import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 const BASE = '/api/ipo';
 const unwrap = (r) => r.data?.data ?? r.data;
 
-/** status: one of upcoming|open|closed|listed, or omit/empty for all. */
-export const getIpos = (status) =>
-  axiosInstance.get(BASE, { params: status ? { status } : undefined }).then(unwrap);
+/**
+ * List IPOs.
+ * - status: canonical upcoming|open|closed|listed; omitted when falsy (= all).
+ * - type: mainboard|sme; omitted when falsy or 'all' (= all).
+ * - sort: date (default) | gmp | subscription — always sent.
+ */
+export const getIpos = ({ status, type, sort = 'date' } = {}) => {
+  const params = { sort };
+  if (status) params.status = status;
+  if (type && type !== 'all') params.type = type;
+  return axiosInstance.get(BASE, { params }).then(unwrap);
+};
 
 export const getIpo = (id) =>
   axiosInstance.get(`${BASE}/${id}`).then(unwrap);

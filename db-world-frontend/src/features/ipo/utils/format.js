@@ -36,11 +36,26 @@ export const IPO_TYPE_LABEL = {
   sme: 'SME',
 };
 
-export const STATUS_META = {
-  upcoming: { label: 'Upcoming', color: '#38bdf8', bg: 'rgba(56,189,248,0.14)' },
-  open:     { label: 'Open',     color: '#10b981', bg: 'rgba(16,185,129,0.14)' },
-  closed:   { label: 'Closed',   color: '#f59e0b', bg: 'rgba(245,158,11,0.14)' },
-  listed:   { label: 'Listed',   color: '#a855f7', bg: 'rgba(168,85,247,0.14)' },
+export const STATUS_LABEL = {
+  upcoming: 'Upcoming',
+  open: 'Open',
+  closed: 'Closed',
+  listed: 'Listed',
 };
 
-export const statusMeta = (status) => STATUS_META[status] ?? { label: status ?? 'Unknown', color: '#94a3b8', bg: 'rgba(148,163,184,0.14)' };
+/**
+ * Status → themed accent, resolved against the live design tokens (`useT()`) so it's
+ * correct in both AMOLED dark and pure-white light: upcoming = info/blue (announced,
+ * not live yet), open = success/green (live now), closed = warning/amber (subscription
+ * over, awaiting listing), listed = teal/accent (done — matches the brand accent).
+ */
+export const statusMeta = (status, T) => {
+  const label = STATUS_LABEL[status] ?? status ?? 'Unknown';
+  switch (status) {
+    case 'upcoming': return { label, color: T.info, bg: T.infoBg };
+    case 'open':     return { label, color: T.success, bg: T.successBg };
+    case 'closed':   return { label, color: T.warning, bg: T.warningBg };
+    case 'listed':   return { label, color: T.teal, bg: T.tealBg };
+    default:         return { label, color: T.textFaint, bg: T.glassHover };
+  }
+};
