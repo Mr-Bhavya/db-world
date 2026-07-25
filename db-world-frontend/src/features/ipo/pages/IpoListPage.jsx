@@ -10,6 +10,7 @@ import IpoFilterBar from '../components/IpoFilterBar';
 import IpoCard from '../components/IpoCard';
 import IpoCardSkeleton from '../components/IpoCardSkeleton';
 import WhyUseThis from '../components/WhyUseThis';
+import IpoFaq from '../components/IpoFaq';
 
 const SKELETON_COUNT = 8;
 
@@ -79,6 +80,7 @@ export default function IpoListPage() {
       )}
 
       <WhyUseThis />
+      <IpoFaq />
     </Box>
   );
 }
