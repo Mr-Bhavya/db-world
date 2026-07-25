@@ -19,6 +19,7 @@ import { formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExc
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
 import FinancialsTable from './FinancialsTable';
+import StrengthsRisks from './StrengthsRisks';
 
 /** One compact stat tile in the "key facts" grid — icon + label + value, null-safe
  * (falls back to an em dash rather than hiding the tile, so the grid never reflows). */
@@ -126,6 +127,8 @@ export default function OverviewTab({ ipo, id }) {
           </Typography>
         </SectionCard>
       )}
+
+      <StrengthsRisks ipo={ipo} />
 
       <FinancialsTable id={id} />
     </Box>
