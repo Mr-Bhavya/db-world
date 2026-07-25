@@ -44,7 +44,7 @@ public class IpoApplicationController {
         return ApiResponse.success(applicationService.getMine(userContext.userId(), id).orElse(null));
     }
 
-    @GetMapping("/my-applications")
+    @GetMapping("/my/applications")
     public ApiResponse<List<MyIpoDto>> myApplications() {
         return ApiResponse.success(applicationService.listMine(userContext.userId()));
     }

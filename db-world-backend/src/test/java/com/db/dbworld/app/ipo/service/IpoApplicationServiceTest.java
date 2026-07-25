@@ -145,9 +145,8 @@ class IpoApplicationServiceTest {
         IpoUserApplicationEntity app2 = IpoUserApplicationEntity.builder()
                 .userId(USER_ID).ipoId("ipo-2").applicantName("Jane Doe").build();
         when(applicationRepository.findByUserId(USER_ID)).thenReturn(List.of(app1, app2));
-        when(listingRepository.findById("ipo-1")).thenReturn(Optional.of(
-                IpoListingEntity.builder().id("ipo-1").companyName("Acme Corp").build()));
-        when(listingRepository.findById("ipo-2")).thenReturn(Optional.of(
+        when(listingRepository.findAllById(any())).thenReturn(List.of(
+                IpoListingEntity.builder().id("ipo-1").companyName("Acme Corp").build(),
                 IpoListingEntity.builder().id("ipo-2").companyName("Widget Ltd").build()));
 
         List<MyIpoDto> result = service.listMine(USER_ID);
@@ -164,8 +163,7 @@ class IpoApplicationServiceTest {
         IpoUserApplicationEntity valid = IpoUserApplicationEntity.builder()
                 .userId(USER_ID).ipoId("ipo-1").applicantName("Jane Doe").build();
         when(applicationRepository.findByUserId(USER_ID)).thenReturn(List.of(orphan, valid));
-        when(listingRepository.findById("deleted-ipo")).thenReturn(Optional.empty());
-        when(listingRepository.findById("ipo-1")).thenReturn(Optional.of(
+        when(listingRepository.findAllById(any())).thenReturn(List.of(
                 IpoListingEntity.builder().id("ipo-1").companyName("Acme Corp").build()));
 
         List<MyIpoDto> result = service.listMine(USER_ID);

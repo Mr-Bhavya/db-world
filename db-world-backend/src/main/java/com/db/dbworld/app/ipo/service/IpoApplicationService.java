@@ -3,6 +3,7 @@ package com.db.dbworld.app.ipo.service;
 import com.db.dbworld.app.ipo.dto.IpoApplicationDto;
 import com.db.dbworld.app.ipo.dto.MyIpoDto;
 import com.db.dbworld.app.ipo.dto.SaveApplicationRequest;
+import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoUserApplicationEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
@@ -14,7 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Applicant-level "My IPOs": each user's own saved application details for an IPO (application
@@ -73,10 +77,17 @@ public class IpoApplicationService {
     /** Every saved application for this user, joined with its IPO's summary; orphaned ipoIds (IPO since removed) are skipped. */
     public List<MyIpoDto> listMine(Long userId) {
         List<IpoUserApplicationEntity> applications = applicationRepository.findByUserId(userId);
+
+        List<String> ipoIds = applications.stream().map(IpoUserApplicationEntity::getIpoId).toList();
+        Map<String, IpoListingEntity> ipoById = listingRepository.findAllById(ipoIds).stream()
+                .collect(Collectors.toMap(IpoListingEntity::getId, Function.identity()));
+
         List<MyIpoDto> result = new ArrayList<>(applications.size());
         for (IpoUserApplicationEntity application : applications) {
-            listingRepository.findById(application.getIpoId())
-                    .ifPresent(ipo -> result.add(mapper.toMyIpoDto(application, ipo)));
+            IpoListingEntity ipo = ipoById.get(application.getIpoId());
+            if (ipo != null) {
+                result.add(mapper.toMyIpoDto(application, ipo));
+            }
         }
         return result;
     }

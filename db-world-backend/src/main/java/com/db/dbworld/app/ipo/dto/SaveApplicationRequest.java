@@ -12,4 +12,18 @@ public record SaveApplicationRequest(
         String dpClientId,
         String pan,
         String allotmentResult
-) {}
+) {
+    /**
+     * Redacts {@code pan} so a stray {@code log.debug(..., req)} (this package logs at DEBUG)
+     * can never write a full PAN to disk. All other fields are printed as-is.
+     */
+    @Override
+    public String toString() {
+        return "SaveApplicationRequest[applicantName=" + applicantName
+                + ", applicationNo=" + applicationNo
+                + ", dpClientId=" + dpClientId
+                + ", pan=***"
+                + ", allotmentResult=" + allotmentResult
+                + ']';
+    }
+}
