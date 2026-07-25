@@ -16,6 +16,7 @@ import { applicationSchema, APPLICATION_DEFAULT_VALUES, ALLOTMENT_RESULT_OPTIONS
 import { formatStageDate, allotmentResultMeta } from '../utils/format';
 import SectionCard from './SectionCard';
 import GuidedCheckButton from './GuidedCheckButton';
+import AllotmentGuide from './AllotmentGuide';
 
 /**
  * Registrar-reported allotment status (Awaited/Finalized/etc, from the IPO itself — not the
@@ -159,8 +160,10 @@ function MyApplicationForm({ ipoId }) {
 
   return (
     <SectionCard title="My application" icon={<AssignmentIndOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-      <Typography sx={{ fontSize: 12, color: T.textMuted, mb: 1.5 }}>
-        Save your application details here so they&rsquo;re ready when allotment is out.
+      <Typography sx={{ fontSize: 12, color: T.textMuted, mb: 1.5, lineHeight: 1.6 }}>
+        Save your application details here for your records. We can&rsquo;t auto-check
+        allotment &mdash; the registrar requires a CAPTCHA &mdash; so use &ldquo;Check
+        allotment status&rdquo; to check on the official site, then record your result here.
       </Typography>
 
       {application && <SavedSummary application={application} />}
@@ -240,15 +243,16 @@ function MyApplicationForm({ ipoId }) {
 }
 
 /**
- * Allotment tab — the registrar's reported status + guided allotment check, and the applicant's
- * own "My application" record for this IPO. Uses `ipo.id` (not a separate prop) so
- * `IpoDetailPage` never needs to change to accommodate this — see the historical placeholder
- * comment this replaced.
+ * Allotment tab — the registrar's reported status + guided allotment check, a step-by-step
+ * "how to check" guide, and the applicant's own "My application" record for this IPO. Uses
+ * `ipo.id` (not a separate prop) so `IpoDetailPage` never needs to change to accommodate
+ * this — see the historical placeholder comment this replaced.
  */
 export default function AllotmentTab({ ipo }) {
   return (
     <Box>
       <AllotmentStatusCard ipo={ipo} />
+      <AllotmentGuide />
       <MyApplicationForm ipoId={ipo.id} />
     </Box>
   );
