@@ -7,7 +7,7 @@ vi.mock('@shared/components/ui/utils/AxiosInstants', () => ({
 }));
 
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
-import { getIpos, getIpo, getGmpHistory, getSubscriptionHistory } from './ipoApi';
+import { getIpos, getIpo, getGmpHistory, getSubscriptionHistory, getFinancials } from './ipoApi';
 
 const BASE = '/api/ipo';
 
@@ -78,5 +78,15 @@ describe('ipoApi', () => {
 
     expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/42/subscription-history`);
     expect(result).toEqual(points);
+  });
+
+  it('getFinancials calls GET /api/ipo/{id}/financials and unwraps the envelope', async () => {
+    const rows = [{ fiscalYear: 'FY23', revenue: 2640.0, pat: 245.0 }];
+    axiosInstance.get.mockResolvedValueOnce({ data: { data: rows } });
+
+    const result = await getFinancials(42);
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/42/financials`);
+    expect(result).toEqual(rows);
   });
 });

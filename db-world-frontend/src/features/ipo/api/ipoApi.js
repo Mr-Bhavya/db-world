@@ -24,3 +24,8 @@ export const getGmpHistory = (id) =>
 
 export const getSubscriptionHistory = (id) =>
   axiosInstance.get(`${BASE}/${id}/subscription-history`).then(unwrap);
+
+/** P&L series (ascending by fiscal year), ₹ crore. Heavy/optional detail — fetched
+ * on demand by the detail page's financials section, not with the rest of the detail. */
+export const getFinancials = (id) =>
+  axiosInstance.get(`${BASE}/${id}/financials`).then(unwrap);

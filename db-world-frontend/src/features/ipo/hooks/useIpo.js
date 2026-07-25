@@ -5,6 +5,10 @@ import * as api from '../api/ipoApi';
 // staleness avoids refetch storms on tab-focus while still feeling "live enough".
 const STALE_TIME = 3 * 60 * 1000;
 
+// Filed financials (P&L) essentially never change intra-day — cache generously so
+// re-opening the on-demand section doesn't re-fetch every time.
+const FINANCIALS_STALE_TIME = 15 * 60 * 1000;
+
 export function useIpos({ status = '', type = 'all', sort = 'date' } = {}) {
   return useQuery({
     queryKey: ['ipo', 'list', { status, type, sort }],
@@ -37,5 +41,16 @@ export function useSubscriptionHistory(id) {
     queryFn: () => api.getSubscriptionHistory(id),
     enabled: !!id,
     staleTime: STALE_TIME,
+  });
+}
+
+/** On-demand P&L query for the detail page's financials section — deliberately separate
+ * from useIpo() so the rest of the detail page never blocks on it. */
+export function useFinancials(id) {
+  return useQuery({
+    queryKey: ['ipo', 'financials', id],
+    queryFn: () => api.getFinancials(id),
+    enabled: !!id,
+    staleTime: FINANCIALS_STALE_TIME,
   });
 }
