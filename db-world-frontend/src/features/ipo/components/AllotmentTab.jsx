@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useConfirm } from 'material-ui-confirm';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
+import DomainOutlinedIcon from '@mui/icons-material/DomainOutlined';
 import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -43,9 +44,12 @@ function AllotmentStatusCard({ ipo }) {
             </Box>
           )}
           {ipo.registrar && (
-            <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.5 }}>
-              Registrar: {ipo.registrar}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.5 }}>
+              <DomainOutlinedIcon sx={{ fontSize: 13, color: T.textFaint, flexShrink: 0 }} />
+              <Typography sx={{ fontSize: 12, color: T.textMuted }}>
+                Registrar: {ipo.registrar}
+              </Typography>
+            </Box>
           )}
         </Box>
         <GuidedCheckButton registrarUrl={ipo.registrarUrl} emphasize={finalized} />
