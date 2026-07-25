@@ -2,11 +2,13 @@ package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
 import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.dto.SubscriptionPointDto;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
+import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
@@ -20,41 +22,65 @@ import java.util.List;
 
 /**
  * Read-only queries behind the IPO tracker's user-facing endpoints: the list view (each row plus
- * a "last updated" stamp sourced from {@link IpoSourcePollService}), the detail page, and the
- * GMP / subscription history series that feed the frontend's charts.
+ * a "last updated" stamp sourced from {@link IpoSourcePollService}), the detail page, the
+ * financials (P&amp;L) series, and the GMP / subscription history series that feed the
+ * frontend's charts.
  */
 @Service
 public class IpoQueryService {
 
+    private static final String TYPE_ALL = "all";
+    private static final String SORT_GMP = "gmp";
+    private static final String SORT_SUBSCRIPTION = "subscription";
+
     /** Newest open date first; IPOs with no open date yet (not announced) sort to the end. */
-    private static final Comparator<IpoListingEntity> LIST_ORDER =
+    private static final Comparator<IpoListingEntity> SORT_DATE =
             Comparator.comparing(IpoListingEntity::getOpenDate, Comparator.nullsLast(Comparator.reverseOrder()));
+
+    /** Highest GMP% first; IPOs with no GMP reading yet sort to the end. */
+    private static final Comparator<IpoListingEntity> SORT_GMP_DESC =
+            Comparator.comparing(IpoListingEntity::getGmpPct, Comparator.nullsLast(Comparator.reverseOrder()));
+
+    /** Highest subscription total first; IPOs with no subscription reading yet sort to the end. */
+    private static final Comparator<IpoListingEntity> SORT_SUBSCRIPTION_DESC =
+            Comparator.comparing(IpoListingEntity::getSubTotal, Comparator.nullsLast(Comparator.reverseOrder()));
 
     private final IpoListingRepository listingRepository;
     private final IpoGmpHistoryRepository gmpHistoryRepository;
     private final IpoSubscriptionHistoryRepository subscriptionHistoryRepository;
+    private final IpoFinancialRepository financialRepository;
     private final IpoSourcePollService pollService;
     private final IpoMapper mapper;
 
     public IpoQueryService(IpoListingRepository listingRepository,
                             IpoGmpHistoryRepository gmpHistoryRepository,
                             IpoSubscriptionHistoryRepository subscriptionHistoryRepository,
+                            IpoFinancialRepository financialRepository,
                             IpoSourcePollService pollService,
                             IpoMapper mapper) {
         this.listingRepository = listingRepository;
         this.gmpHistoryRepository = gmpHistoryRepository;
         this.subscriptionHistoryRepository = subscriptionHistoryRepository;
+        this.financialRepository = financialRepository;
         this.pollService = pollService;
         this.mapper = mapper;
     }
 
-    /** All IPOs (optionally filtered by {@code status}), newest open date first. */
-    public IpoListResponse list(String status) {
-        List<IpoListingEntity> entities = StringUtils.hasText(status)
-                ? listingRepository.findByStatus(status)
+    /**
+     * All IPOs, optionally filtered by {@code status} (canonicalized so any of a source's raw
+     * wordings still matches) and {@code type} ({@code mainboard}|{@code sme}; blank/{@code all}
+     * = no filter), sorted per {@code sort} ({@code date} default, {@code gmp}, or
+     * {@code subscription} — each descending, nulls last).
+     */
+    public IpoListResponse list(String status, String type, String sort) {
+        String canonicalStatus = IpoStatusCanonicalizer.canonical(status);
+        List<IpoListingEntity> entities = canonicalStatus != null
+                ? listingRepository.findByStatus(canonicalStatus)
                 : listingRepository.findAll();
+
         List<IpoSummaryDto> ipos = entities.stream()
-                .sorted(LIST_ORDER)
+                .filter(e -> matchesType(e, type))
+                .sorted(sortComparator(sort))
                 .map(mapper::toSummary)
                 .toList();
         return new IpoListResponse(ipos, pollService.lastSuccessAcrossSources().orElse(null));
@@ -64,6 +90,13 @@ public class IpoQueryService {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
         return mapper.toDetail(entity);
+    }
+
+    /** Fiscal-year revenue/PAT series for the detail page's P&amp;L section; empty (not 404) if none captured. */
+    public List<IpoFinancialDto> financials(String id) {
+        return financialRepository.findByIpoIdOrderByFiscalYearAsc(id).stream()
+                .map(mapper::toFinancial)
+                .toList();
     }
 
     /** Chronological GMP series for the chart; empty (not 404) if the IPO has no history yet. */
@@ -78,5 +111,23 @@ public class IpoQueryService {
         return subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc(id).stream()
                 .map(mapper::toSubscriptionPoint)
                 .toList();
+    }
+
+    /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */
+    private static boolean matchesType(IpoListingEntity entity, String type) {
+        if (!StringUtils.hasText(type) || TYPE_ALL.equalsIgnoreCase(type.trim())) {
+            return true;
+        }
+        return type.trim().equalsIgnoreCase(entity.getIpoType());
+    }
+
+    private static Comparator<IpoListingEntity> sortComparator(String sort) {
+        if (SORT_GMP.equalsIgnoreCase(sort)) {
+            return SORT_GMP_DESC;
+        }
+        if (SORT_SUBSCRIPTION.equalsIgnoreCase(sort)) {
+            return SORT_SUBSCRIPTION_DESC;
+        }
+        return SORT_DATE;
     }
 }

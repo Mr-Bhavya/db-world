@@ -2,13 +2,16 @@ package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
 import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.dto.SubscriptionPointDto;
+import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
+import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
@@ -16,6 +19,7 @@ import com.db.dbworld.core.exception.DbWorldException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +40,7 @@ class IpoQueryServiceTest {
     IpoListingRepository listingRepository;
     IpoGmpHistoryRepository gmpHistoryRepository;
     IpoSubscriptionHistoryRepository subscriptionHistoryRepository;
+    IpoFinancialRepository financialRepository;
     IpoSourcePollService pollService;
     IpoQueryService service;
 
@@ -44,19 +49,27 @@ class IpoQueryServiceTest {
         listingRepository = mock(IpoListingRepository.class);
         gmpHistoryRepository = mock(IpoGmpHistoryRepository.class);
         subscriptionHistoryRepository = mock(IpoSubscriptionHistoryRepository.class);
+        financialRepository = mock(IpoFinancialRepository.class);
         pollService = mock(IpoSourcePollService.class);
         service = new IpoQueryService(listingRepository, gmpHistoryRepository, subscriptionHistoryRepository,
-                pollService, new IpoMapper());
+                financialRepository, pollService, new IpoMapper());
     }
 
     private IpoListingEntity entity(String id, String status, LocalDate openDate) {
+        return entity(id, status, "mainboard", openDate, null, null);
+    }
+
+    private IpoListingEntity entity(String id, String status, String ipoType, LocalDate openDate,
+                                     BigDecimal gmpPct, BigDecimal subTotal) {
         return IpoListingEntity.builder()
                 .id(id)
                 .matchKey(id + "-key")
                 .companyName("Company " + id)
-                .ipoType("mainboard")
+                .ipoType(ipoType)
                 .status(status)
                 .openDate(openDate)
+                .gmpPct(gmpPct)
+                .subTotal(subTotal)
                 .build();
     }
 
@@ -65,7 +78,7 @@ class IpoQueryServiceTest {
         when(listingRepository.findAll()).thenReturn(List.of(entity("1", "open", LocalDate.of(2026, 7, 20))));
         when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.of(LAST_SUCCESS));
 
-        IpoListResponse response = service.list(null);
+        IpoListResponse response = service.list(null, null, null);
 
         verify(listingRepository).findAll();
         verify(listingRepository, never()).findByStatus(any());
@@ -78,7 +91,7 @@ class IpoQueryServiceTest {
         when(listingRepository.findAll()).thenReturn(List.of());
         when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
 
-        service.list("   ");
+        service.list("   ", null, null);
 
         verify(listingRepository).findAll();
         verify(listingRepository, never()).findByStatus(any());
@@ -89,7 +102,7 @@ class IpoQueryServiceTest {
         when(listingRepository.findByStatus("open")).thenReturn(List.of(entity("1", "open", LocalDate.of(2026, 7, 20))));
         when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.of(LAST_SUCCESS));
 
-        IpoListResponse response = service.list("open");
+        IpoListResponse response = service.list("open", null, null);
 
         verify(listingRepository).findByStatus("open");
         verify(listingRepository, never()).findAll();
@@ -98,11 +111,24 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void list_statusFilterIsCanonicalized_rawSourceCasingStillMatches() {
+        // The stored status is always canonical ("open"); a filter value of "Active" (NSE-style
+        // raw casing) must canonicalize to "open" before hitting the repository.
+        when(listingRepository.findByStatus("open")).thenReturn(List.of(entity("1", "open", LocalDate.of(2026, 7, 20))));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list("Active", null, null);
+
+        verify(listingRepository).findByStatus("open");
+        assertThat(response.ipos()).hasSize(1);
+    }
+
+    @Test
     void list_noSuccessfulPollEver_lastUpdatedIsNull() {
         when(listingRepository.findAll()).thenReturn(List.of());
         when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
 
-        IpoListResponse response = service.list(null);
+        IpoListResponse response = service.list(null, null, null);
 
         assertThat(response.lastUpdated()).isNull();
     }
@@ -115,10 +141,83 @@ class IpoQueryServiceTest {
         when(listingRepository.findAll()).thenReturn(List.of(older, noOpenDate, newer));
         when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
 
-        IpoListResponse response = service.list(null);
+        IpoListResponse response = service.list(null, null, null);
 
         assertThat(response.ipos()).extracting(IpoSummaryDto::id)
                 .containsExactly("newer", "older", "no-date");
+    }
+
+    @Test
+    void list_typeMainboard_filtersOutSme() {
+        IpoListingEntity mainboard = entity("mb", "open", "mainboard", LocalDate.of(2026, 7, 20), null, null);
+        IpoListingEntity sme = entity("sme", "open", "sme", LocalDate.of(2026, 7, 21), null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(mainboard, sme));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, "mainboard", null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("mb");
+    }
+
+    @Test
+    void list_typeIsCaseInsensitive() {
+        IpoListingEntity sme = entity("sme", "open", "SME", LocalDate.of(2026, 7, 20), null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(sme));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, "sme", null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("sme");
+    }
+
+    @Test
+    void list_typeBlankOrAll_noFilterApplied() {
+        IpoListingEntity mainboard = entity("mb", "open", "mainboard", LocalDate.of(2026, 7, 20), null, null);
+        IpoListingEntity sme = entity("sme", "open", "sme", LocalDate.of(2026, 7, 21), null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(mainboard, sme));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        assertThat(service.list(null, "", null).ipos()).hasSize(2);
+        assertThat(service.list(null, "all", null).ipos()).hasSize(2);
+        assertThat(service.list(null, "ALL", null).ipos()).hasSize(2);
+    }
+
+    @Test
+    void list_sortGmp_ordersByGmpPctDescendingWithNullsLast() {
+        IpoListingEntity high = entity("high", "open", "mainboard", null, new BigDecimal("40.00"), null);
+        IpoListingEntity low = entity("low", "open", "mainboard", null, new BigDecimal("10.00"), null);
+        IpoListingEntity noGmp = entity("no-gmp", "open", "mainboard", null, null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(low, noGmp, high));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, "gmp");
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("high", "low", "no-gmp");
+    }
+
+    @Test
+    void list_sortSubscription_ordersBySubTotalDescendingWithNullsLast() {
+        IpoListingEntity high = entity("high", "open", "mainboard", null, null, new BigDecimal("50.00"));
+        IpoListingEntity low = entity("low", "open", "mainboard", null, null, new BigDecimal("5.00"));
+        IpoListingEntity noSub = entity("no-sub", "open", "mainboard", null, null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(low, noSub, high));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, "subscription");
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("high", "low", "no-sub");
+    }
+
+    @Test
+    void list_unrecognizedSort_fallsBackToDateOrder() {
+        IpoListingEntity older = entity("older", "open", LocalDate.of(2026, 6, 1));
+        IpoListingEntity newer = entity("newer", "open", LocalDate.of(2026, 7, 20));
+        when(listingRepository.findAll()).thenReturn(List.of(older, newer));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, "bogus");
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("newer", "older");
     }
 
     @Test
@@ -140,6 +239,26 @@ class IpoQueryServiceTest {
                 .isInstanceOf(DbWorldException.class)
                 .satisfies(ex -> assertThat(((DbWorldException) ex).getHttpStatus())
                         .isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void financials_mapsInFiscalYearAscendingOrder() {
+        IpoFinancialEntity fy23 = IpoFinancialEntity.builder()
+                .ipoId("1").fiscalYear("FY23").revenue(new BigDecimal("400.00")).pat(new BigDecimal("30.00")).build();
+        IpoFinancialEntity fy24 = IpoFinancialEntity.builder()
+                .ipoId("1").fiscalYear("FY24").revenue(new BigDecimal("500.00")).pat(new BigDecimal("50.00")).build();
+        when(financialRepository.findByIpoIdOrderByFiscalYearAsc("1")).thenReturn(List.of(fy23, fy24));
+
+        List<IpoFinancialDto> result = service.financials("1");
+
+        assertThat(result).extracting(IpoFinancialDto::fiscalYear).containsExactly("FY23", "FY24");
+    }
+
+    @Test
+    void financials_empty_returnsEmptyListNotError() {
+        when(financialRepository.findByIpoIdOrderByFiscalYearAsc("1")).thenReturn(List.of());
+
+        assertThat(service.financials("1")).isEmpty();
     }
 
     @Test

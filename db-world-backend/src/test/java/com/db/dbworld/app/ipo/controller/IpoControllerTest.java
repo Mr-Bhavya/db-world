@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.controller;
 
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
 import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.dto.SubscriptionPointDto;
@@ -32,28 +33,28 @@ class IpoControllerTest {
     }
 
     @Test
-    void list_delegatesStatusAndReturnsServiceResult() {
+    void list_delegatesStatusTypeSortAndReturnsServiceResult() {
         IpoSummaryDto summary = new IpoSummaryDto("1", "Acme Corp", "mainboard", "open",
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), null,
                 new BigDecimal("100.00"), new BigDecimal("110.00"), new BigDecimal("20.00"),
                 new BigDecimal("18.00"), null, null, "awaited", null);
         IpoListResponse expected = new IpoListResponse(List.of(summary), Instant.parse("2026-07-24T09:00:00Z"));
-        when(queryService.list("open")).thenReturn(expected);
+        when(queryService.list("open", "mainboard", "gmp")).thenReturn(expected);
 
-        ApiResponse<IpoListResponse> response = controller.list("open");
+        ApiResponse<IpoListResponse> response = controller.list("open", "mainboard", "gmp");
 
-        verify(queryService).list("open");
+        verify(queryService).list("open", "mainboard", "gmp");
         assertThat(response.getData()).isSameAs(expected);
     }
 
     @Test
-    void list_nullStatus_passedThrough() {
+    void list_nullParams_passedThrough() {
         IpoListResponse expected = new IpoListResponse(List.of(), null);
-        when(queryService.list(null)).thenReturn(expected);
+        when(queryService.list(null, null, null)).thenReturn(expected);
 
-        ApiResponse<IpoListResponse> response = controller.list(null);
+        ApiResponse<IpoListResponse> response = controller.list(null, null, null);
 
-        verify(queryService).list(null);
+        verify(queryService).list(null, null, null);
         assertThat(response.getData()).isSameAs(expected);
     }
 
@@ -70,6 +71,26 @@ class IpoControllerTest {
 
         verify(queryService).detail("1");
         assertThat(response.getData()).isSameAs(expected);
+    }
+
+    @Test
+    void financials_delegatesIdAndReturnsServiceResult() {
+        List<IpoFinancialDto> expected = List.of(new IpoFinancialDto("FY24", new BigDecimal("500.00"), new BigDecimal("50.00")));
+        when(queryService.financials("1")).thenReturn(expected);
+
+        ApiResponse<List<IpoFinancialDto>> response = controller.financials("1");
+
+        verify(queryService).financials("1");
+        assertThat(response.getData()).isSameAs(expected);
+    }
+
+    @Test
+    void financials_empty_returnsEmptyListWrapped() {
+        when(queryService.financials("1")).thenReturn(List.of());
+
+        ApiResponse<List<IpoFinancialDto>> response = controller.financials("1");
+
+        assertThat(response.getData()).isEmpty();
     }
 
     @Test
