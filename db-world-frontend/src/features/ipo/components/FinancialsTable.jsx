@@ -89,7 +89,7 @@ function FinancialsSkeleton() {
       <ScrollableTable minWidth={TABLE_MIN_WIDTH}>
         {[0, 1, 2].map((i) => (
           <Box key={i} sx={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: 1, py: 0.85 }}>
-            <Skeleton variant="text" width={48} height={16} sx={{ bgcolor: T.glassHover, ...stickyColumnSx(T, GAP_PX) }} />
+            <Skeleton variant="text" width={48} height={16} sx={{ ...stickyColumnSx(T, GAP_PX), bgcolor: T.glassHover }} />
             <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />
             <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />
             <Skeleton variant="text" width={64} height={16} sx={{ bgcolor: T.glassHover, ml: 'auto' }} />

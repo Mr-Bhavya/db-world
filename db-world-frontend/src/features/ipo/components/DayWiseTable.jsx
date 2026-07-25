@@ -43,8 +43,9 @@ export default function DayWiseTable({ columns, rows, loading, emptyLabel = 'No 
                 width={ci === 0 ? 64 : 40}
                 height={16}
                 sx={{
-                  bgcolor: T.glassHover, ml: c.align === 'right' ? 'auto' : 0,
+                  ml: c.align === 'right' ? 'auto' : 0,
                   ...(ci === 0 ? stickyColumnSx(T, GAP_PX) : {}),
+                  bgcolor: T.glassHover,
                 }}
               />
             ))}

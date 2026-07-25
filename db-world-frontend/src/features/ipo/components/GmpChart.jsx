@@ -80,7 +80,11 @@ function GmpJourneyHeader({ latest, sinceLabel, change }) {
 function GmpJourneyFooter({ latest }) {
   const T = useT();
   if (!latest) return null;
-  const pct = formatPct(latest.gmpPct);
+  const gmpPct = latest.gmpPct ?? null;
+  const pct = formatPct(gmpPct);
+  // Null-safe, matching `changeColor` above: an unknown value reads as neutral
+  // (`T.textFaint`) rather than falling through `null >= 0` and rendering green.
+  const pctColor = gmpPct == null ? T.textFaint : gmpPct >= 0 ? T.success : T.error;
   return (
     <Box sx={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap',
@@ -92,7 +96,7 @@ function GmpJourneyFooter({ latest }) {
       <Typography sx={{ fontSize: 11.5, color: T.textMuted, fontWeight: 700 }}>
         GMP {formatCurrency(latest.gmp) ?? '—'}
         {pct != null && (
-          <Box component="span" sx={{ color: latest.gmp >= 0 ? T.success : T.error, ml: 0.5 }}>
+          <Box component="span" sx={{ color: pctColor, ml: 0.5 }}>
             {pct}
           </Box>
         )}
