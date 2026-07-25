@@ -12,7 +12,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useT } from '@shared/theme';
-import { formatPriceBand, formatCurrency, formatPct, formatMultiplier, buildTimelineStages } from '../utils/format';
+import { formatPriceBand, formatCurrency, formatPct, formatMultiplier } from '../utils/format';
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
 import FinancialsTable from './FinancialsTable';
@@ -81,14 +81,11 @@ function ListingGainFactTile({ gainPct }) {
  */
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
-  const hasTimeline = buildTimelineStages(ipo).length > 0;
   return (
     <Box>
-      {hasTimeline && (
-        <SectionCard title="Timeline">
-          <IpoTimeline ipo={ipo} />
-        </SectionCard>
-      )}
+      <SectionCard title="Timeline">
+        <IpoTimeline ipo={ipo} />
+      </SectionCard>
 
       <SectionCard title="Key facts" icon={<ListAltOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
         <Box sx={{

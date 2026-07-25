@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
-  formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta,
+  formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -183,16 +183,25 @@ describe('buildTimelineStages', () => {
     expect(buildTimelineStages(undefined)).toEqual([]);
   });
 
-  it('drops stages with no date rather than rendering them broken', () => {
+  it('always returns all 6 stages, in order, even when most dates are unknown', () => {
     const stages = buildTimelineStages({
-      openDate: '2026-07-10', closeDate: '2026-07-14',
-      allotmentDate: null, refundDate: null, dematDate: null,
-      listingDate: '2026-07-22',
+      openDate: '2026-08-01', closeDate: null,
+      allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
     });
-    expect(stages.map((s) => s.key)).toEqual(['open', 'close', 'listing']);
+    expect(stages.map((s) => s.key)).toEqual(['open', 'close', 'allotment', 'refund', 'demat', 'listing']);
   });
 
-  it('marks past dates done, the nearest upcoming/today date current, and the rest upcoming', () => {
+  it('shows a null date as TBA/pending rather than dropping the stage', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-10', closeDate: '2026-07-14',
+      allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
+    });
+    const allotment = stages.find((s) => s.key === 'allotment');
+    expect(allotment.date).toBeNull();
+    expect(allotment.status).not.toBe('done');
+  });
+
+  it('marks past dates done, the nearest upcoming/today date current, and the rest upcoming — an open IPO', () => {
     const stages = buildTimelineStages({
       openDate: '2026-07-10',       // past → done
       closeDate: '2026-07-14',      // past → done
@@ -211,17 +220,59 @@ describe('buildTimelineStages', () => {
     ]);
   });
 
-  it('marks every stage upcoming when nothing has started yet', () => {
-    const stages = buildTimelineStages({ openDate: '2026-08-01', closeDate: '2026-08-05' });
-    expect(stages.map((s) => s.status)).toEqual(['current', 'upcoming']);
+  it('marks the first stage current and every later stage upcoming/TBA — an upcoming IPO with nothing started yet', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-08-01', closeDate: '2026-08-05',
+      allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
+    });
+    expect(stages.map((s) => s.status)).toEqual([
+      'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming',
+    ]);
+    // The still-unknown stages carry a null date so the UI renders "TBA" for them.
+    expect(stages.find((s) => s.key === 'listing').date).toBeNull();
   });
 
-  it('marks every stage done once fully listed', () => {
+  it('reaches an unknown-date stage as "current" once every earlier dated stage is done', () => {
+    const stages = buildTimelineStages({
+      openDate: '2026-07-10', closeDate: '2026-07-14', // both past → done
+      allotmentDate: null, refundDate: null, dematDate: null, listingDate: null,
+    });
+    expect(stages.map((s) => [s.key, s.status])).toEqual([
+      ['open', 'done'],
+      ['close', 'done'],
+      ['allotment', 'current'],
+      ['refund', 'upcoming'],
+      ['demat', 'upcoming'],
+      ['listing', 'upcoming'],
+    ]);
+  });
+
+  it('promotes the final stage to "current" once fully listed, so there is always exactly one', () => {
     const stages = buildTimelineStages({
       openDate: '2026-07-01', closeDate: '2026-07-05',
-      allotmentDate: '2026-07-10', listingDate: '2026-07-15',
+      allotmentDate: '2026-07-10', refundDate: '2026-07-12',
+      dematDate: '2026-07-13', listingDate: '2026-07-15', // all past
     });
-    expect(stages.map((s) => s.status)).toEqual(['done', 'done', 'done', 'done']);
+    expect(stages.map((s) => s.status)).toEqual([
+      'done', 'done', 'done', 'done', 'done', 'current',
+    ]);
+    expect(stages.filter((s) => s.status === 'current')).toHaveLength(1);
+  });
+});
+
+describe('formatExchange', () => {
+  it('maps BOTH to the two real exchange names', () => {
+    expect(formatExchange('BOTH')).toBe('BSE, NSE');
+  });
+
+  it('passes NSE/BSE through unchanged', () => {
+    expect(formatExchange('NSE')).toBe('NSE');
+    expect(formatExchange('BSE')).toBe('BSE');
+  });
+
+  it('renders an em dash for a missing exchange rather than a blank value', () => {
+    expect(formatExchange(null)).toBe('—');
+    expect(formatExchange(undefined)).toBe('—');
   });
 });
 

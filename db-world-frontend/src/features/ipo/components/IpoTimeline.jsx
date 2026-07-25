@@ -54,7 +54,7 @@ function StageNode({ stage }) {
         {stage.label}
       </Typography>
       <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: dateColor, whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-        {dateInfo?.dayMonth ?? '—'}
+        {dateInfo?.dayMonth ?? 'TBA'}
       </Typography>
       {dateInfo?.year && (
         <Typography sx={{ fontSize: 9, color: T.textFaint, whiteSpace: 'nowrap', lineHeight: 1.2 }}>
@@ -79,11 +79,13 @@ function Connector({ filled }) {
 }
 
 /**
- * Horizontal stepper across the six IPO lifecycle stages (Open → Close → Allotment →
- * Refund → Demat → Listing), each shown as an icon node + label + date, joined by
- * connector lines whose fill reflects overall progress. Any stage whose date is null is
- * dropped by `buildTimelineStages` rather than rendered broken (renders nothing at all
- * if the IPO has no dates whatsoever).
+ * Horizontal stepper across all six IPO lifecycle stages (Open → Close → Allotment →
+ * Refund → Demat → Listing) — `buildTimelineStages` always returns all six, in order,
+ * even when some dates aren't known yet (those render with a muted "TBA" date and an
+ * upcoming/pending treatment), so an open or upcoming IPO's timeline always shows the
+ * full journey ahead rather than stopping at whatever's already happened. Each stage is
+ * shown as an icon node + label + date, joined by connector lines whose fill reflects
+ * overall progress (filled up to the current stage, muted after).
  *
  * Responsive: the row scrolls horizontally past ~5 visible nodes instead of wrapping or
  * shrinking illegibly — this stays clean and readable even at a 360px viewport, unlike the

@@ -31,6 +31,15 @@ export const formatPct = (n) =>
 export const formatMultiplier = (n) =>
   (n == null ? null : `${Number(n).toFixed(2)}x`);
 
+/** `listingExchange` ("NSE"|"BSE"|"BOTH"|null) → display text. `BOTH` reads as
+ * "BSE, NSE" (both real exchanges named, not the internal enum value); NSE/BSE pass
+ * through unchanged; null renders as an em dash rather than a blank tile. */
+export const formatExchange = (exchange) => {
+  if (exchange == null) return '—';
+  if (exchange === 'BOTH') return 'BSE, NSE';
+  return exchange;
+};
+
 export const IPO_TYPE_LABEL = {
   mainboard: 'Mainboard',
   sme: 'SME',
@@ -198,28 +207,33 @@ const TIMELINE_STAGE_DEFS = (ipo) => [
 ];
 
 /**
- * Builds the ordered list of timeline stages for `IpoTimeline`, one entry per
- * Open/Close/Allotment/Refund/Demat/Listing date the IPO actually has (any stage whose
- * date is null/undefined is dropped entirely rather than rendered broken). Each surviving
- * stage is tagged with a `status`:
- *   'done'    — date is in the past
- *   'current' — the first stage (in chronological order) that's today or in the future
- *   'upcoming'— every later stage after the current one
+ * Builds the ordered list of timeline stages for `IpoTimeline` — ALWAYS all six
+ * Open/Close/Allotment/Refund/Demat/Listing stages, in order, never dropped just because
+ * a date isn't known yet (a future/TBA stage is still a real stage the user should see
+ * coming, per the reference design — dropping it made an upcoming/open IPO's timeline
+ * look like it only had 2-3 stages total). Each stage is tagged with a `status`:
+ *   'done'    — date is known and in the past
+ *   'current' — the active stage: the earliest stage that isn't 'done' yet, whether
+ *               because its date is today/future or because its date isn't known at all
+ *               (a still-TBA stage reached once every earlier dated stage is done). If
+ *               every stage already has a past date (fully listed), the last stage
+ *               (Listing) is promoted to 'current' so there's always exactly one.
+ *   'upcoming'— every stage after the current one, including further TBA stages
  * Returns [] for a falsy ipo.
  */
 export const buildTimelineStages = (ipo) => {
   if (!ipo) return [];
-  const present = TIMELINE_STAGE_DEFS(ipo).filter((d) => d.date != null);
-  let currentAssigned = false;
-  return present.map((d) => {
-    const n = daysUntil(d.date);
-    let status;
-    if (n == null)            { status = 'upcoming'; }
-    else if (n < 0)           { status = 'done'; }
-    else if (!currentAssigned) { status = 'current'; currentAssigned = true; }
-    else                      { status = 'upcoming'; }
-    return { ...d, status };
+  const defs = TIMELINE_STAGE_DEFS(ipo);
+  const isPending = defs.map((d) => {
+    const n = d.date != null ? daysUntil(d.date) : null;
+    return n == null || n >= 0; // unknown date, or today/future → not done yet
   });
+  let currentIndex = isPending.indexOf(true);
+  if (currentIndex === -1) currentIndex = defs.length - 1; // all done → last stage is "current"
+  return defs.map((d, i) => ({
+    ...d,
+    status: i < currentIndex ? 'done' : i === currentIndex ? 'current' : 'upcoming',
+  }));
 };
 
 /**
