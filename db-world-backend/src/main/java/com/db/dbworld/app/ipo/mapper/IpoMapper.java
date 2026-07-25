@@ -4,6 +4,9 @@ import com.db.dbworld.app.ipo.dto.*;
 import com.db.dbworld.app.ipo.entity.*;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.List;
+
 @Component
 public class IpoMapper {
 
@@ -20,7 +23,20 @@ public class IpoMapper {
                 e.getPriceMin(), e.getPriceMax(), e.getListingPrice(), e.getListingGainPct(),
                 e.getGmp(), e.getGmpPct(), e.getSubTotal(), e.getLotSize(), e.getIssueSize(),
                 e.getListingExchange(), e.getAllotmentStatus(), e.getRegistrar(), e.getRegistrarUrl(),
-                e.getLogoUrl(), e.getAbout(), e.getRefundDate(), e.getDematDate());
+                e.getLogoUrl(), e.getAbout(), e.getRefundDate(), e.getDematDate(),
+                e.getFaceValue(), e.getFreshIssue(), e.getOfferForSale(), e.getTickerSymbol(),
+                splitLines(e.getStrengths()), splitLines(e.getRisks()));
+    }
+
+    /** Splits newline-delimited TEXT (as stored on the entity) into trimmed, non-blank lines; null/blank → empty list. */
+    private static List<String> splitLines(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split("\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     public IpoFinancialDto toFinancial(IpoFinancialEntity e) {
@@ -86,6 +102,12 @@ public class IpoMapper {
                 .about(dto.about())
                 .refundDate(dto.refundDate())
                 .dematDate(dto.dematDate())
+                .faceValue(dto.faceValue())
+                .freshIssue(dto.freshIssue())
+                .offerForSale(dto.offerForSale())
+                .tickerSymbol(dto.tickerSymbol())
+                .strengths(dto.strengths())
+                .risks(dto.risks())
                 .build();
     }
 
@@ -120,5 +142,11 @@ public class IpoMapper {
         if (dto.about() != null) entity.setAbout(dto.about());
         if (dto.refundDate() != null) entity.setRefundDate(dto.refundDate());
         if (dto.dematDate() != null) entity.setDematDate(dto.dematDate());
+        if (dto.faceValue() != null) entity.setFaceValue(dto.faceValue());
+        if (dto.freshIssue() != null) entity.setFreshIssue(dto.freshIssue());
+        if (dto.offerForSale() != null) entity.setOfferForSale(dto.offerForSale());
+        if (dto.tickerSymbol() != null) entity.setTickerSymbol(dto.tickerSymbol());
+        if (dto.strengths() != null) entity.setStrengths(dto.strengths());
+        if (dto.risks() != null) entity.setRisks(dto.risks());
     }
 }

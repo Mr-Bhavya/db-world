@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /** Full merged view of one IPO, for the detail page. */
 public record IpoDetailDto(
@@ -29,5 +30,11 @@ public record IpoDetailDto(
         String logoUrl,
         String about,
         LocalDate refundDate,
-        LocalDate dematDate
+        LocalDate dematDate,
+        BigDecimal faceValue,
+        BigDecimal freshIssue,
+        BigDecimal offerForSale,
+        String tickerSymbol,
+        List<String> strengths,
+        List<String> risks
 ) {}

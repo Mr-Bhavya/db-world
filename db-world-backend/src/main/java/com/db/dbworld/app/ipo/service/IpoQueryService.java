@@ -136,7 +136,9 @@ public class IpoQueryService {
                 dto.priceMin(), dto.priceMax(), dto.listingPrice(), dto.listingGainPct(),
                 dto.gmp(), dto.gmpPct(), dto.subTotal(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(),
-                dto.logoUrl(), dto.about(), refundDate, dematDate);
+                dto.logoUrl(), dto.about(), refundDate, dematDate,
+                dto.faceValue(), dto.freshIssue(), dto.offerForSale(), dto.tickerSymbol(),
+                dto.strengths(), dto.risks());
     }
 
     /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */

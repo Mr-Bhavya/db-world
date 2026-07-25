@@ -124,7 +124,9 @@ public class ChittorgarhSource implements IpoSource {
                     null,                                               // allotmentStatus
                     null, null,                                         // registrar, registrarUrl
                     null, null,                                         // logoUrl, about — not on this page
-                    null, null                                          // refundDate, dematDate — not on this page
+                    null, null,                                         // refundDate, dematDate — not on this page
+                    null, null, null,                                   // faceValue, freshIssue, offerForSale — not on this page
+                    null, null, null                                    // tickerSymbol, strengths, risks — not on this page
             ));
         }
         return result;

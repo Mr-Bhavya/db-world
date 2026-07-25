@@ -48,6 +48,12 @@ class IpoMapperTest {
                 .registrarUrl("https://linkintime.co.in/acme")
                 .logoUrl("https://ui-avatars.com/api/?name=Acme+Corp")
                 .about("Acme Corp is a leading widget manufacturer.")
+                .faceValue(new BigDecimal("10.00"))
+                .freshIssue(new BigDecimal("120.00"))
+                .offerForSale(new BigDecimal("80.00"))
+                .tickerSymbol("ACME")
+                .strengths("Strength one\nStrength two\n\nStrength three  ")
+                .risks("Risk one\nRisk two")
                 .firstSeenAt(Instant.parse("2026-07-01T00:00:00Z"))
                 .lastSeenAt(Instant.parse("2026-07-24T00:00:00Z"))
                 .build();
@@ -104,6 +110,24 @@ class IpoMapperTest {
         assertThat(dto.about()).isEqualTo("Acme Corp is a leading widget manufacturer.");
         assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
         assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(dto.faceValue()).isEqualByComparingTo("10.00");
+        assertThat(dto.freshIssue()).isEqualByComparingTo("120.00");
+        assertThat(dto.offerForSale()).isEqualByComparingTo("80.00");
+        assertThat(dto.tickerSymbol()).isEqualTo("ACME");
+        assertThat(dto.strengths()).containsExactly("Strength one", "Strength two", "Strength three");
+        assertThat(dto.risks()).containsExactly("Risk one", "Risk two");
+    }
+
+    @Test
+    void toDetail_nullStrengthsAndRisks_mapToEmptyLists() {
+        IpoListingEntity entity = fullListing();
+        entity.setStrengths(null);
+        entity.setRisks("   ");
+
+        IpoDetailDto dto = mapper.toDetail(entity);
+
+        assertThat(dto.strengths()).isEmpty();
+        assertThat(dto.risks()).isEmpty();
     }
 
     @Test
@@ -211,7 +235,9 @@ class IpoMapperTest {
                 new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("15.50"),
                 "finalized", "Link Intime", "https://linkintime.co.in/acme",
                 "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.",
-                LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1));
+                LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
+                new BigDecimal("10.00"), new BigDecimal("120.00"), new BigDecimal("80.00"),
+                "ACME", "Strength one\nStrength two", "Risk one\nRisk two");
     }
 
     @Test
@@ -244,6 +270,12 @@ class IpoMapperTest {
         assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
         assertThat(entity.getRefundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
         assertThat(entity.getDematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(entity.getFaceValue()).isEqualByComparingTo("10.00");
+        assertThat(entity.getFreshIssue()).isEqualByComparingTo("120.00");
+        assertThat(entity.getOfferForSale()).isEqualByComparingTo("80.00");
+        assertThat(entity.getTickerSymbol()).isEqualTo("ACME");
+        assertThat(entity.getStrengths()).isEqualTo("Strength one\nStrength two");
+        assertThat(entity.getRisks()).isEqualTo("Risk one\nRisk two");
         // firstSeenAt/lastSeenAt are the ingest service's responsibility, not the mapper's.
         assertThat(entity.getFirstSeenAt()).isNull();
         assertThat(entity.getLastSeenAt()).isNull();
@@ -258,7 +290,8 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null,
                 null, null, null, null, null, null,
-                "finalized", null, null, null, null, null, null);
+                "finalized", null, null, null, null, null, null,
+                null, null, null, null, null, null);
 
         mapper.applyUpdatable(partial, entity);
 
@@ -276,6 +309,35 @@ class IpoMapperTest {
         assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
         assertThat(entity.getRefundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
         assertThat(entity.getDematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(entity.getFaceValue()).isEqualByComparingTo("10.00");
+        assertThat(entity.getFreshIssue()).isEqualByComparingTo("120.00");
+        assertThat(entity.getOfferForSale()).isEqualByComparingTo("80.00");
+        assertThat(entity.getTickerSymbol()).isEqualTo("ACME");
+        assertThat(entity.getStrengths()).isEqualTo("Strength one\nStrength two\n\nStrength three  ");
+        assertThat(entity.getRisks()).isEqualTo("Risk one\nRisk two");
+    }
+
+    @Test
+    void applyUpdatable_overwritesNewFieldsWhenProvided() {
+        IpoListingEntity entity = fullListing();
+
+        IpoDto withNewValues = new IpoDto("chittorgarh", "acme-corp|2026-07-20", null, null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null,
+                null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
+                new BigDecimal("5.00"), new BigDecimal("200.00"), new BigDecimal("50.00"),
+                "NEWTICK", "New strength", "New risk");
+
+        mapper.applyUpdatable(withNewValues, entity);
+
+        assertThat(entity.getFaceValue()).isEqualByComparingTo("5.00");
+        assertThat(entity.getFreshIssue()).isEqualByComparingTo("200.00");
+        assertThat(entity.getOfferForSale()).isEqualByComparingTo("50.00");
+        assertThat(entity.getTickerSymbol()).isEqualTo("NEWTICK");
+        assertThat(entity.getStrengths()).isEqualTo("New strength");
+        assertThat(entity.getRisks()).isEqualTo("New risk");
     }
 
     @Test
@@ -288,7 +350,8 @@ class IpoMapperTest {
                 null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3));
+                LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3),
+                null, null, null, null, null, null);
 
         mapper.applyUpdatable(withNewDates, entity);
 

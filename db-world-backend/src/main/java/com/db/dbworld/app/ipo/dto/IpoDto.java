@@ -36,5 +36,11 @@ public record IpoDto(
         String logoUrl,
         String about,
         LocalDate refundDate,
-        LocalDate dematDate
+        LocalDate dematDate,
+        BigDecimal faceValue,
+        BigDecimal freshIssue,
+        BigDecimal offerForSale,
+        String tickerSymbol,
+        String strengths,
+        String risks
 ) {}

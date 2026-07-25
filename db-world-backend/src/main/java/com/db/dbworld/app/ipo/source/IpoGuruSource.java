@@ -164,7 +164,9 @@ public class IpoGuruSource implements IpoSource {
                 null,                                                  // registrarUrl — not documented for this source
                 null,                                                   // logoUrl — not documented for this source
                 null,                                                    // about — not documented for this source
-                null, null                                               // refundDate, dematDate — not documented for this source
+                null, null,                                              // refundDate, dematDate — not documented for this source
+                null, null, null,                                        // faceValue, freshIssue, offerForSale — not documented for this source
+                null, null, null                                        // tickerSymbol, strengths, risks — not documented for this source
         );
     }
 }

@@ -79,6 +79,30 @@ public class IpoListingEntity {
     @Column(columnDefinition = "TEXT")
     private String about;
 
+    /** ₹/share. Nullable — a real source may not report it. */
+    @Column(name = "face_value", precision = 10, scale = 2)
+    private BigDecimal faceValue;
+
+    /** ₹ crore. Nullable — a real source may not report it. */
+    @Column(name = "fresh_issue", precision = 12, scale = 2)
+    private BigDecimal freshIssue;
+
+    /** ₹ crore. Nullable — a real source may not report it. */
+    @Column(name = "offer_for_sale", precision = 12, scale = 2)
+    private BigDecimal offerForSale;
+
+    /** NSE/BSE symbol, set once the IPO actually lists. Nullable until then. */
+    @Column(name = "ticker_symbol", length = 20)
+    private String tickerSymbol;
+
+    /** Newline-delimited bullets; split into a {@code List<String>} on the detail DTO. */
+    @Column(columnDefinition = "TEXT")
+    private String strengths;
+
+    /** Newline-delimited bullets; split into a {@code List<String>} on the detail DTO. */
+    @Column(columnDefinition = "TEXT")
+    private String risks;
+
     @Column(name = "first_seen_at", nullable = false)
     private Instant firstSeenAt;
 

@@ -206,7 +206,8 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         IpoDto probe = new IpoDto(null, null, companyName, null, null, openDate, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
         return normalizer.matchKey(probe);
     }
 
