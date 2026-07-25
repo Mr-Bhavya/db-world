@@ -179,11 +179,7 @@ export default function SubscriptionTab({ ipo, points, loading }) {
       </Box>
 
       <SectionCard title="Day-wise subscription" icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-        <Box sx={{ overflowX: 'auto' }}>
-          <Box sx={{ minWidth: columns.length > 4 ? 480 : 0 }}>
-            <DayWiseTable columns={columns} rows={rows} loading={loading} emptyLabel="No subscription data yet." />
-          </Box>
-        </Box>
+        <DayWiseTable columns={columns} rows={rows} loading={loading} emptyLabel="No subscription data yet." />
       </SectionCard>
     </Box>
   );
