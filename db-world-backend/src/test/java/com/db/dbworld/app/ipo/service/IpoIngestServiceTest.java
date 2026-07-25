@@ -291,6 +291,45 @@ class IpoIngestServiceTest {
     }
 
     @Test
+    void ingest_sourceReportsActive_storesCanonicalOpenStatus() {
+        stubNoExisting();
+        IpoDto dto = dto("Active", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("open");
+    }
+
+    @Test
+    void ingest_sourceReportsListedRawCasing_canonicalizesAndTriggersListingTransition() {
+        IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", null, null, null);
+        stubExisting(existing);
+        // Source reports "Listed" (NSE-style casing) rather than the already-canonical "listed".
+        IpoDto dto = dto("Listed", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "finalized", "NSE", new BigDecimal("22.73"), new BigDecimal("135.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoChangeEventEntity> eventCaptor = ArgumentCaptor.forClass(IpoChangeEventEntity.class);
+        verify(changeEventRepo, times(2)).save(eventCaptor.capture()); // STATUS (open->listed) + LISTING
+        List<IpoChangeEventEntity> events = eventCaptor.getAllValues();
+        assertThat(events).extracting(IpoChangeEventEntity::getEventType).containsExactlyInAnyOrder("STATUS", "LISTING");
+
+        IpoChangeEventEntity statusEvent = events.stream()
+                .filter(e -> "STATUS".equals(e.getEventType())).findFirst().orElseThrow();
+        assertThat(statusEvent.getOldValue()).isEqualTo("open");
+        assertThat(statusEvent.getNewValue()).isEqualTo("listed"); // canonicalized, not raw "Listed"
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("listed");
+    }
+
+    @Test
     void ingest_nullGmpInDto_doesNotEmitEventOrWipeExistingGmp() {
         IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
                 new BigDecimal("1.50"), "awaited", null, null, null);

@@ -69,7 +69,13 @@ public class IpoIngestService {
         }
     }
 
-    private void ingestOne(IpoDto dto) {
+    private void ingestOne(IpoDto rawDto) {
+        // Canonicalize status once, up front, so every downstream read of dto.status() — the
+        // change-detection compare below, mapper.toNewEntity, and mapper.applyUpdatable — sees
+        // (and stores) the same canonical lowercase value regardless of a source's own wording
+        // (e.g. NSE's "Active"/"Listed"). This is what makes the "listed" LISTING-transition
+        // check and the status filter reliable across sources.
+        IpoDto dto = withCanonicalStatus(rawDto);
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -186,5 +192,19 @@ public class IpoIngestService {
 
     private static String toPlainString(BigDecimal value) {
         return value == null ? null : value.toPlainString();
+    }
+
+    /** Returns {@code dto} unchanged if its status is already canonical, else a copy with it swapped in. */
+    private static IpoDto withCanonicalStatus(IpoDto dto) {
+        String canonicalStatus = IpoStatusCanonicalizer.canonical(dto.status());
+        if (Objects.equals(canonicalStatus, dto.status())) {
+            return dto;
+        }
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), canonicalStatus,
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subQib(), dto.subNii(), dto.subRetail(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about());
     }
 }
