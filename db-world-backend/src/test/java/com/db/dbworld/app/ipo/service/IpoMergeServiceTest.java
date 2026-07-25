@@ -23,6 +23,18 @@ class IpoMergeServiceTest {
 
     /** Builds a fully-populated dto for a given source so precedence/fallback is easy to assert on. */
     private IpoDto full(String source) {
+        // freshIssue/offerForSale vary by source (unlike most other numeric fields here) so the
+        // precedence-winning source can actually be discriminated by value.
+        BigDecimal freshIssue = switch (source) {
+            case "nse" -> new BigDecimal("500.00");
+            case "ipoguru" -> new BigDecimal("600.00");
+            default -> new BigDecimal("700.00");
+        };
+        BigDecimal offerForSale = switch (source) {
+            case "nse" -> new BigDecimal("200.00");
+            case "ipoguru" -> new BigDecimal("300.00");
+            default -> new BigDecimal("400.00");
+        };
         return new IpoDto(source, null, "Acme Corp Ltd", "mainboard", "open-" + source,
                 OPEN, LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr-" + source,
@@ -32,7 +44,7 @@ class IpoMergeServiceTest {
                 "finalized-" + source, "Link Intime-" + source, "https://registrar/" + source,
                 "https://logo/" + source, "About " + source,
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
-                new BigDecimal("10.00"), new BigDecimal("500.00"), new BigDecimal("200.00"),
+                new BigDecimal("10.00"), freshIssue, offerForSale,
                 "TICK-" + source, "Strength " + source, "Risk " + source);
     }
 
@@ -69,6 +81,8 @@ class IpoMergeServiceTest {
 
         // primary group -> nse wins (new fields follow the same precedence as the rest of the group)
         assertThat(m.faceValue()).isEqualByComparingTo("10.00");
+        assertThat(m.freshIssue()).isEqualByComparingTo("500.00");
+        assertThat(m.offerForSale()).isEqualByComparingTo("200.00");
         assertThat(m.tickerSymbol()).isEqualTo("TICK-nse");
         assertThat(m.strengths()).isEqualTo("Strength nse");
         assertThat(m.risks()).isEqualTo("Risk nse");

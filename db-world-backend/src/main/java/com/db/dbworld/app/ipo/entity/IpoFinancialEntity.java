@@ -20,7 +20,7 @@ public class IpoFinancialEntity {
     @Column(name = "ipo_id", nullable = false, length = 36)
     private String ipoId;
 
-    @Column(name = "fiscal_year", length = 10)
+    @Column(name = "fiscal_year", length = 32)
     private String fiscalYear;
 
     @Column(precision = 14, scale = 2)
