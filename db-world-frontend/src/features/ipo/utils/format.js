@@ -76,6 +76,24 @@ export const ipoTypeMeta = (ipoType, T) => {
   return { label, color: T.teal, bg: T.tealBg };
 };
 
+/** The user's own self-recorded "My IPOs" allotment result (`unknown|allotted|not_allotted` —
+ * see `IpoUserApplicationEntity`), themed against the live tokens. Distinct from `statusMeta`
+ * (the IPO's overall lifecycle) and from `ipo.allotmentStatus` (the registrar's own
+ * Awaited/Finalized status) — this is what *this* applicant recorded for themselves. Defaults
+ * to the neutral "Unknown" treatment for a missing/unrecognized value. */
+export const ALLOTMENT_RESULT_LABEL = {
+  unknown: 'Unknown',
+  allotted: 'Allotted',
+  not_allotted: 'Not allotted',
+};
+
+export const allotmentResultMeta = (result, T) => {
+  const label = ALLOTMENT_RESULT_LABEL[result] ?? ALLOTMENT_RESULT_LABEL.unknown;
+  if (result === 'allotted') return { label, color: T.success, bg: T.successBg };
+  if (result === 'not_allotted') return { label, color: T.error, bg: T.errorBg };
+  return { label, color: T.textFaint, bg: T.glassHover };
+};
+
 const MS_PER_DAY = 86_400_000;
 
 /**
