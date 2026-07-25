@@ -275,3 +275,28 @@ export const dayOverDayDelta = (current, previous) => {
   const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
   return { delta, direction };
 };
+
+/**
+ * Quick-stats for the list-page hero — how many IPOs in the *currently loaded* list
+ * (whatever type/status filter is active) are open right now / still upcoming, plus
+ * whichever single IPO has the highest gmpPct. Pure and null-safe: an empty/missing
+ * list yields zero counts and a null topGmp rather than throwing, so the hero can
+ * decide to hide the stats row without a guard at the call site. On a tie for the
+ * highest gmpPct, the first one encountered wins (list order, typically by sort). An
+ * IPO with a null/undefined gmpPct is never considered for topGmp (never wins by
+ * being treated as 0).
+ */
+export const computeQuickStats = (ipos) => {
+  const list = ipos ?? [];
+  let openCount = 0;
+  let upcomingCount = 0;
+  let topGmp = null;
+  for (const ipo of list) {
+    if (ipo.status === 'open') openCount += 1;
+    else if (ipo.status === 'upcoming') upcomingCount += 1;
+    if (ipo.gmpPct != null && (topGmp == null || ipo.gmpPct > topGmp.gmpPct)) {
+      topGmp = { companyName: ipo.companyName, gmpPct: ipo.gmpPct };
+    }
+  }
+  return { openCount, upcomingCount, topGmp };
+};

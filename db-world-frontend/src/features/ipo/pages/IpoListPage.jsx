@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
-import BookmarkAddedOutlinedIcon from '@mui/icons-material/BookmarkAddedOutlined';
 import { useT } from '@shared/theme';
-import Constants from '@shared/constants';
 import { useIpos } from '../hooks/useIpo';
 import { formatIstTime } from '../utils/format';
+import IpoHero from '../components/IpoHero';
 import IpoFilterBar from '../components/IpoFilterBar';
 import IpoCard from '../components/IpoCard';
 import IpoCardSkeleton from '../components/IpoCardSkeleton';
@@ -17,7 +14,6 @@ const SKELETON_COUNT = 8;
 
 export default function IpoListPage() {
   const T = useT();
-  const navigate = useNavigate();
   const [type, setType] = useState('mainboard');
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState('date');
@@ -48,43 +44,7 @@ export default function IpoListPage() {
 
   return (
     <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.9 }}>
-            <RocketLaunchRoundedIcon sx={{ fontSize: 24, color: T.teal }} />
-            <Typography sx={{ fontSize: 22, fontWeight: 800 }}>IPO Tracker</Typography>
-          </Box>
-          <Typography sx={{ fontSize: 13, color: T.textMuted, mt: 0.25 }}>
-            Mainboard &amp; SME IPOs — dates, GMP and subscription at a glance.
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {lastUpdated && (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.6,
-              borderRadius: 999, bgcolor: T.glass, border: `1px solid ${T.border}`,
-            }}>
-              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.success, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 11.5, color: T.textMuted, whiteSpace: 'nowrap' }}>
-                Last updated {lastUpdated} IST
-              </Typography>
-            </Box>
-          )}
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<BookmarkAddedOutlinedIcon sx={{ fontSize: 16 }} />}
-            onClick={() => navigate(Constants.DB_IPO_MY_ROUTE)}
-            sx={{
-              borderColor: T.border, color: T.textPrimary, fontSize: 12.5, fontWeight: 700,
-              whiteSpace: 'nowrap', bgcolor: T.glass,
-              '&:hover': { borderColor: T.teal, bgcolor: T.tealBg, color: T.teal },
-            }}
-          >
-            My IPOs
-          </Button>
-        </Box>
-      </Box>
+      <IpoHero ipos={ipos} isLoading={isLoading} lastUpdated={lastUpdated} />
 
       <IpoFilterBar type={type} status={status} sort={sort} onChange={handleFilterChange} />
 

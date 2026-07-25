@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
-  averageSubscription,
+  averageSubscription, computeQuickStats,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -381,6 +381,45 @@ describe('expectedListingPrice', () => {
 
   it('is null when priceMax is zero (can\'t derive a %)', () => {
     expect(expectedListingPrice(0, 20)).toBeNull();
+  });
+});
+
+describe('computeQuickStats', () => {
+  it('is all-zero/null for an empty or missing list', () => {
+    expect(computeQuickStats([])).toEqual({ openCount: 0, upcomingCount: 0, topGmp: null });
+    expect(computeQuickStats(null)).toEqual({ openCount: 0, upcomingCount: 0, topGmp: null });
+    expect(computeQuickStats(undefined)).toEqual({ openCount: 0, upcomingCount: 0, topGmp: null });
+  });
+
+  it('counts open and upcoming separately, ignoring closed/listed', () => {
+    const stats = computeQuickStats([
+      { status: 'open' }, { status: 'open' }, { status: 'upcoming' },
+      { status: 'closed' }, { status: 'listed' },
+    ]);
+    expect(stats.openCount).toBe(2);
+    expect(stats.upcomingCount).toBe(1);
+  });
+
+  it('picks the IPO with the single highest gmpPct', () => {
+    const stats = computeQuickStats([
+      { status: 'open', companyName: 'Alpha', gmpPct: 12 },
+      { status: 'open', companyName: 'Beta', gmpPct: 40 },
+      { status: 'closed', companyName: 'Gamma', gmpPct: 25 },
+    ]);
+    expect(stats.topGmp).toEqual({ companyName: 'Beta', gmpPct: 40 });
+  });
+
+  it('never lets a null/undefined gmpPct win by being treated as 0', () => {
+    const stats = computeQuickStats([
+      { status: 'open', companyName: 'Alpha', gmpPct: null },
+      { status: 'open', companyName: 'Beta', gmpPct: -5 },
+    ]);
+    expect(stats.topGmp).toEqual({ companyName: 'Beta', gmpPct: -5 });
+  });
+
+  it('is null when nothing in the list has a known gmpPct', () => {
+    const stats = computeQuickStats([{ status: 'open', gmpPct: null }, { status: 'upcoming' }]);
+    expect(stats.topGmp).toBeNull();
   });
 });
 
