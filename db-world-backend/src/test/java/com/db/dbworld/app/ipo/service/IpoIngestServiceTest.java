@@ -70,7 +70,18 @@ class IpoIngestServiceTest {
                 new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
                 listingExchange, listingPrice, listingGainPct,
                 gmp, gmpPct, new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), subTotal,
-                allotmentStatus, "Link Intime", "https://registrar", null, null);
+                allotmentStatus, "Link Intime", "https://registrar", null, null, null, null);
+    }
+
+    /** A minimal dto with just {@code ipoType} varied, for the type-canonicalization tests. */
+    private IpoDto dtoWithType(String ipoType) {
+        return new IpoDto("ipoguru", MATCH_KEY, "Acme Corp", ipoType, "open",
+                LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
+                new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr",
+                null, null, null,
+                new BigDecimal("20.00"), new BigDecimal("18.00"), new BigDecimal("5.00"), new BigDecimal("10.00"),
+                new BigDecimal("2.50"), new BigDecimal("1.50"),
+                "awaited", "Link Intime", "https://registrar", null, null, null, null);
     }
 
     /** The DB row that mirrors a prior ingest of {@code dto(...)} with the same field values. */
@@ -345,5 +356,29 @@ class IpoIngestServiceTest {
         ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
         verify(listingRepo, times(1)).save(listingCaptor.capture());
         assertThat(listingCaptor.getValue().getGmp()).isEqualByComparingTo("20.00"); // not wiped
+    }
+
+    @Test
+    void ingest_sourceReportsMainBoardVariant_storesCanonicalMainboardType() {
+        stubNoExisting();
+        IpoDto dto = dtoWithType("Main Board");
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getIpoType()).isEqualTo("mainboard");
+    }
+
+    @Test
+    void ingest_sourceReportsNseEmergeVariant_storesCanonicalSmeType() {
+        stubNoExisting();
+        IpoDto dto = dtoWithType("NSE Emerge");
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getIpoType()).isEqualTo("sme");
     }
 }

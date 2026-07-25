@@ -34,5 +34,7 @@ public record IpoDto(
         String registrar,
         String registrarUrl,
         String logoUrl,
-        String about
+        String about,
+        LocalDate refundDate,
+        LocalDate dematDate
 ) {}

@@ -16,7 +16,7 @@ class IpoNormalizerTest {
                 openDate, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     @Test

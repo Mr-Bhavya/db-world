@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 
@@ -89,7 +90,7 @@ public class IpoQueryService {
     public IpoDetailDto detail(String id) {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
-        return mapper.toDetail(entity);
+        return withDerivedTimelineDates(mapper.toDetail(entity));
     }
 
     /** Fiscal-year revenue/PAT series for the detail page's P&amp;L section; empty (not 404) if none captured. */
@@ -111,6 +112,31 @@ public class IpoQueryService {
         return subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc(id).stream()
                 .map(mapper::toSubscriptionPoint)
                 .toList();
+    }
+
+    /**
+     * Fills {@code refundDate}/{@code dematDate} on the DTO returned for the detail page's 6-stage
+     * timeline when the source hasn't reported them yet: both conventionally land the day after
+     * allotment finalizes, so each null one is derived as {@code allotmentDate.plusDays(1)}.
+     * Leaves both null if {@code allotmentDate} itself isn't known yet. Never touches the stored
+     * entity — this only affects the DTO built for this read.
+     */
+    private static IpoDetailDto withDerivedTimelineDates(IpoDetailDto dto) {
+        if (dto.allotmentDate() == null) {
+            return dto;
+        }
+        if (dto.refundDate() != null && dto.dematDate() != null) {
+            return dto;
+        }
+        LocalDate derived = dto.allotmentDate().plusDays(1);
+        LocalDate refundDate = dto.refundDate() != null ? dto.refundDate() : derived;
+        LocalDate dematDate = dto.dematDate() != null ? dto.dematDate() : derived;
+        return new IpoDetailDto(dto.id(), dto.companyName(), dto.ipoType(), dto.status(),
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subTotal(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(),
+                dto.logoUrl(), dto.about(), refundDate, dematDate);
     }
 
     /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */

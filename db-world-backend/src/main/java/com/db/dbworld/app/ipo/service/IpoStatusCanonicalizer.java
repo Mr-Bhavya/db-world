@@ -8,8 +8,27 @@ import java.util.Map;
  * {@code upcoming|open|closed|listed} — so downstream status filtering and the ingest service's
  * LISTING-transition detection (which compares against the literal {@code "listed"}) both work
  * regardless of which source's wording produced the value.
+ *
+ * <p>Also collapses the {@code ipoType} vocabulary ({@link #canonicalType(String)}) onto
+ * {@code mainboard|sme} for the same reason — so the type filter matches regardless of a
+ * source's own wording.
  */
 public final class IpoStatusCanonicalizer {
+
+    private static final Map<String, String> TYPE_ALIASES = Map.ofEntries(
+            Map.entry("mainboard", "mainboard"),
+            Map.entry("main board", "mainboard"),
+            Map.entry("main-board", "mainboard"),
+            Map.entry("mainline", "mainboard"),
+            Map.entry("mb", "mainboard"),
+            Map.entry("mainboard ipo", "mainboard"),
+
+            Map.entry("sme", "sme"),
+            Map.entry("sme ipo", "sme"),
+            Map.entry("sme platform", "sme"),
+            Map.entry("nse emerge", "sme"),
+            Map.entry("bse sme", "sme")
+    );
 
     private static final Map<String, String> ALIASES = Map.ofEntries(
             Map.entry("open", "open"),
@@ -46,5 +65,18 @@ public final class IpoStatusCanonicalizer {
         }
         String normalized = raw.toLowerCase().trim();
         return ALIASES.getOrDefault(normalized, normalized);
+    }
+
+    /**
+     * @return {@code null} for null/blank input; otherwise the canonical type ({@code mainboard}
+     * or {@code sme}) for a known alias, or the lowercased/trimmed raw value unchanged if it
+     * isn't recognised (never dropped).
+     */
+    public static String canonicalType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.toLowerCase().trim();
+        return TYPE_ALIASES.getOrDefault(normalized, normalized);
     }
 }

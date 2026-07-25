@@ -163,7 +163,8 @@ public class IpoGuruSource implements IpoSource {
                 text(n, F_REGISTRAR),                                 // registrar
                 null,                                                  // registrarUrl — not documented for this source
                 null,                                                   // logoUrl — not documented for this source
-                null                                                     // about — not documented for this source
+                null,                                                    // about — not documented for this source
+                null, null                                               // refundDate, dematDate — not documented for this source
         );
     }
 }

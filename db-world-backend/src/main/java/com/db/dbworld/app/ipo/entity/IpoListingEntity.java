@@ -42,6 +42,12 @@ public class IpoListingEntity {
     private LocalDate allotmentDate;
     private LocalDate listingDate;
 
+    /** Nullable — a real source may fill this later; until then the detail read derives it from {@code allotmentDate}. */
+    private LocalDate refundDate;
+
+    /** Nullable — a real source may fill this later; until then the detail read derives it from {@code allotmentDate}. */
+    private LocalDate dematDate;
+
     @Column(precision = 10, scale = 2) private BigDecimal priceMin;
     @Column(precision = 10, scale = 2) private BigDecimal priceMax;
     @Column(precision = 10, scale = 2) private BigDecimal listingPrice;

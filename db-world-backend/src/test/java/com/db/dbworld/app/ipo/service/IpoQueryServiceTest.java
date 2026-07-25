@@ -242,6 +242,62 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void detail_allotmentDatePresentRefundAndDematNull_derivesBothAsAllotmentPlusOneDay() {
+        IpoListingEntity entity = IpoListingEntity.builder()
+                .id("1").matchKey("1-key").companyName("Company 1").status("closed")
+                .allotmentDate(LocalDate.of(2026, 7, 28))
+                .build();
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+        assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+    }
+
+    @Test
+    void detail_allotmentDateNull_leavesRefundAndDematNull() {
+        IpoListingEntity entity = entity("1", "upcoming", LocalDate.of(2026, 7, 20)); // no allotmentDate yet
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.refundDate()).isNull();
+        assertThat(dto.dematDate()).isNull();
+    }
+
+    @Test
+    void detail_refundDateAlreadyStored_isPreserved_dematStillDerived() {
+        IpoListingEntity entity = IpoListingEntity.builder()
+                .id("1").matchKey("1-key").companyName("Company 1").status("closed")
+                .allotmentDate(LocalDate.of(2026, 7, 28))
+                .refundDate(LocalDate.of(2026, 7, 30)) // source-reported, differs from the derived value
+                .build();
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 30)); // preserved, not overwritten
+        assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 7, 29)); // derived
+    }
+
+    @Test
+    void detail_bothTimelineDatesAlreadyStored_derivationSkippedEntirely() {
+        IpoListingEntity entity = IpoListingEntity.builder()
+                .id("1").matchKey("1-key").companyName("Company 1").status("listed")
+                .allotmentDate(LocalDate.of(2026, 7, 28))
+                .refundDate(LocalDate.of(2026, 7, 30))
+                .dematDate(LocalDate.of(2026, 7, 31))
+                .build();
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 30));
+        assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 7, 31));
+    }
+
+    @Test
     void financials_mapsInFiscalYearAscendingOrder() {
         IpoFinancialEntity fy23 = IpoFinancialEntity.builder()
                 .ipoId("1").fiscalYear("FY23").revenue(new BigDecimal("400.00")).pat(new BigDecimal("30.00")).build();

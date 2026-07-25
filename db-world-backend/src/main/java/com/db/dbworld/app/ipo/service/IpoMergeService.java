@@ -66,6 +66,8 @@ public class IpoMergeService {
         Picked<LocalDate> closeDate = pick(group, PRECEDENCE_PRIMARY, IpoDto::closeDate, "closeDate");
         Picked<LocalDate> allotmentDate = pick(group, PRECEDENCE_PRIMARY, IpoDto::allotmentDate, "allotmentDate");
         Picked<LocalDate> listingDate = pick(group, PRECEDENCE_PRIMARY, IpoDto::listingDate, "listingDate");
+        Picked<LocalDate> refundDate = pick(group, PRECEDENCE_PRIMARY, IpoDto::refundDate, "refundDate");
+        Picked<LocalDate> dematDate = pick(group, PRECEDENCE_PRIMARY, IpoDto::dematDate, "dematDate");
         Picked<BigDecimal> priceMin = pick(group, PRECEDENCE_PRIMARY, IpoDto::priceMin, "priceMin");
         Picked<BigDecimal> priceMax = pick(group, PRECEDENCE_PRIMARY, IpoDto::priceMax, "priceMax");
         Picked<Integer> lotSize = pick(group, PRECEDENCE_PRIMARY, IpoDto::lotSize, "lotSize");
@@ -98,7 +100,8 @@ public class IpoMergeService {
                 priceMin.value(), priceMax.value(), lotSize.value(), issueSize.value(),
                 listingExchange.value(), listingPrice.value(), listingGainPct.value(),
                 gmp.value(), gmpPct.value(), subQib.value(), subNii.value(), subRetail.value(), subTotal.value(),
-                allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value());
+                allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value(),
+                refundDate.value(), dematDate.value());
     }
 
     @SafeVarargs

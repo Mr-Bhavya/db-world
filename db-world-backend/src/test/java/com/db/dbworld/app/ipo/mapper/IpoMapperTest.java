@@ -31,6 +31,8 @@ class IpoMapperTest {
                 .closeDate(LocalDate.of(2026, 7, 24))
                 .allotmentDate(LocalDate.of(2026, 7, 28))
                 .listingDate(LocalDate.of(2026, 7, 30))
+                .refundDate(LocalDate.of(2026, 7, 29))
+                .dematDate(LocalDate.of(2026, 8, 1))
                 .priceMin(new BigDecimal("100.00"))
                 .priceMax(new BigDecimal("110.00"))
                 .listingPrice(new BigDecimal("135.00"))
@@ -66,6 +68,7 @@ class IpoMapperTest {
         assertThat(dto.priceMax()).isEqualByComparingTo("110.00");
         assertThat(dto.gmp()).isEqualByComparingTo("25.00");
         assertThat(dto.gmpPct()).isEqualByComparingTo("22.73");
+        assertThat(dto.subTotal()).isEqualByComparingTo("15.50");
         assertThat(dto.listingExchange()).isEqualTo("NSE");
         assertThat(dto.listingGainPct()).isEqualByComparingTo("22.73");
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
@@ -99,6 +102,8 @@ class IpoMapperTest {
         assertThat(dto.registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
         assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
         assertThat(dto.about()).isEqualTo("Acme Corp is a leading widget manufacturer.");
+        assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+        assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
     }
 
     @Test
@@ -205,7 +210,8 @@ class IpoMapperTest {
                 new BigDecimal("25.00"), new BigDecimal("22.73"),
                 new BigDecimal("5.00"), new BigDecimal("10.00"), new BigDecimal("2.50"), new BigDecimal("15.50"),
                 "finalized", "Link Intime", "https://linkintime.co.in/acme",
-                "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.");
+                "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.",
+                LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1));
     }
 
     @Test
@@ -236,6 +242,8 @@ class IpoMapperTest {
         assertThat(entity.getRegistrarUrl()).isEqualTo("https://linkintime.co.in/acme");
         assertThat(entity.getLogoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
         assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
+        assertThat(entity.getRefundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+        assertThat(entity.getDematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         // firstSeenAt/lastSeenAt are the ingest service's responsibility, not the mapper's.
         assertThat(entity.getFirstSeenAt()).isNull();
         assertThat(entity.getLastSeenAt()).isNull();
@@ -250,7 +258,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null,
                 null, null, null, null, null, null,
-                "finalized", null, null, null, null);
+                "finalized", null, null, null, null, null, null);
 
         mapper.applyUpdatable(partial, entity);
 
@@ -266,6 +274,26 @@ class IpoMapperTest {
         assertThat(entity.getListingExchange()).isEqualTo("NSE");
         assertThat(entity.getLogoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
         assertThat(entity.getAbout()).isEqualTo("Acme Corp is a leading widget manufacturer.");
+        assertThat(entity.getRefundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+        assertThat(entity.getDematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+    }
+
+    @Test
+    void applyUpdatable_updatesTimelineDatesWhenProvided() {
+        IpoListingEntity entity = fullListing();
+
+        IpoDto withNewDates = new IpoDto("chittorgarh", "acme-corp|2026-07-20", null, null, null,
+                null, null, null, null,
+                null, null, null, null,
+                null, null, null,
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3));
+
+        mapper.applyUpdatable(withNewDates, entity);
+
+        assertThat(entity.getRefundDate()).isEqualTo(LocalDate.of(2026, 7, 31));
+        assertThat(entity.getDematDate()).isEqualTo(LocalDate.of(2026, 8, 3));
     }
 
     @Test

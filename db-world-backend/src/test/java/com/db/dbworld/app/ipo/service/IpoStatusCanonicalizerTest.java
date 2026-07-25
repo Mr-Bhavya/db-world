@@ -57,4 +57,41 @@ class IpoStatusCanonicalizerTest {
         assertThat(IpoStatusCanonicalizer.canonical("closed")).isEqualTo("closed");
         assertThat(IpoStatusCanonicalizer.canonical("listed")).isEqualTo("listed");
     }
+
+    @Test
+    void canonicalType_nullOrBlank_returnsNull() {
+        assertThat(IpoStatusCanonicalizer.canonicalType(null)).isNull();
+        assertThat(IpoStatusCanonicalizer.canonicalType("")).isNull();
+        assertThat(IpoStatusCanonicalizer.canonicalType("   ")).isNull();
+    }
+
+    @Test
+    void canonicalType_mainboardAliases_mapToMainboard() {
+        assertThat(IpoStatusCanonicalizer.canonicalType("mainboard")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("Main Board")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("Main-Board")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("Mainline")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("MB")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("Mainboard IPO")).isEqualTo("mainboard");
+    }
+
+    @Test
+    void canonicalType_smeAliases_mapToSme() {
+        assertThat(IpoStatusCanonicalizer.canonicalType("sme")).isEqualTo("sme");
+        assertThat(IpoStatusCanonicalizer.canonicalType("SME IPO")).isEqualTo("sme");
+        assertThat(IpoStatusCanonicalizer.canonicalType("SME Platform")).isEqualTo("sme");
+        assertThat(IpoStatusCanonicalizer.canonicalType("NSE Emerge")).isEqualTo("sme");
+        assertThat(IpoStatusCanonicalizer.canonicalType("BSE SME")).isEqualTo("sme");
+    }
+
+    @Test
+    void canonicalType_unrecognizedType_returnsLowercasedTrimmedRawInsteadOfDropping() {
+        assertThat(IpoStatusCanonicalizer.canonicalType("  Some Weird Type  ")).isEqualTo("some weird type");
+    }
+
+    @Test
+    void canonicalType_alreadyCanonical_isIdempotent() {
+        assertThat(IpoStatusCanonicalizer.canonicalType("mainboard")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("sme")).isEqualTo("sme");
+    }
 }

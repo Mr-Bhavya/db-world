@@ -10,8 +10,8 @@ public class IpoMapper {
     public IpoSummaryDto toSummary(IpoListingEntity e) {
         return new IpoSummaryDto(e.getId(), e.getCompanyName(), e.getIpoType(), e.getStatus(),
                 e.getOpenDate(), e.getCloseDate(), e.getListingDate(), e.getPriceMin(), e.getPriceMax(),
-                e.getGmp(), e.getGmpPct(), e.getListingExchange(), e.getListingGainPct(), e.getAllotmentStatus(),
-                e.getLogoUrl());
+                e.getGmp(), e.getGmpPct(), e.getSubTotal(), e.getListingExchange(), e.getListingGainPct(),
+                e.getAllotmentStatus(), e.getLogoUrl());
     }
 
     public IpoDetailDto toDetail(IpoListingEntity e) {
@@ -20,7 +20,7 @@ public class IpoMapper {
                 e.getPriceMin(), e.getPriceMax(), e.getListingPrice(), e.getListingGainPct(),
                 e.getGmp(), e.getGmpPct(), e.getSubTotal(), e.getLotSize(), e.getIssueSize(),
                 e.getListingExchange(), e.getAllotmentStatus(), e.getRegistrar(), e.getRegistrarUrl(),
-                e.getLogoUrl(), e.getAbout());
+                e.getLogoUrl(), e.getAbout(), e.getRefundDate(), e.getDematDate());
     }
 
     public IpoFinancialDto toFinancial(IpoFinancialEntity e) {
@@ -74,6 +74,8 @@ public class IpoMapper {
                 .registrarUrl(dto.registrarUrl())
                 .logoUrl(dto.logoUrl())
                 .about(dto.about())
+                .refundDate(dto.refundDate())
+                .dematDate(dto.dematDate())
                 .build();
     }
 
@@ -106,5 +108,7 @@ public class IpoMapper {
         if (dto.registrarUrl() != null) entity.setRegistrarUrl(dto.registrarUrl());
         if (dto.logoUrl() != null) entity.setLogoUrl(dto.logoUrl());
         if (dto.about() != null) entity.setAbout(dto.about());
+        if (dto.refundDate() != null) entity.setRefundDate(dto.refundDate());
+        if (dto.dematDate() != null) entity.setDematDate(dto.dematDate());
     }
 }
