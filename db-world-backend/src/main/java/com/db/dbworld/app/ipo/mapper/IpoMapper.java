@@ -44,6 +44,16 @@ public class IpoMapper {
                 e.getLastStatus(), e.getConsecutiveFailures());
     }
 
+    public IpoApplicationDto toApplicationDto(IpoUserApplicationEntity e) {
+        return new IpoApplicationDto(e.getIpoId(), e.getApplicantName(), e.getApplicationNo(),
+                e.getDpClientId(), e.getPanLast4(), e.getAllotmentResult());
+    }
+
+    /** Joins a saved application with a light summary of the IPO it's for, for the "My IPOs" list. */
+    public MyIpoDto toMyIpoDto(IpoUserApplicationEntity application, IpoListingEntity ipo) {
+        return new MyIpoDto(toApplicationDto(application), toSummary(ipo));
+    }
+
     /**
      * Builds a brand-new entity from a merged dto. Does not set {@code id}, {@code firstSeenAt},
      * {@code lastSeenAt} or {@code updatedAt} — those are the ingest service's responsibility
