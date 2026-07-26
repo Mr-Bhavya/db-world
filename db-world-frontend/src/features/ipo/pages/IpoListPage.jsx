@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -15,11 +16,20 @@ import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
 
+const DEFAULT_TYPE = 'mainboard';
+const DEFAULT_SORT = 'date';
+
 export default function IpoListPage() {
   const T = useT();
-  const [type, setType] = useState('mainboard');
-  const [status, setStatus] = useState('');
-  const [sort, setSort] = useState('date');
+
+  // Filter/sort live in the URL query string (not local state) so that leaving for an IPO's
+  // detail page and coming back — via the detail page's history "back" — lands on the SAME
+  // filtered/sorted list, instead of resetting to defaults on remount. Also makes a filtered
+  // view shareable/bookmarkable and survive a refresh. Absent params fall back to the defaults.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const type = searchParams.get('type') || DEFAULT_TYPE;
+  const status = searchParams.get('status') || '';
+  const sort = searchParams.get('sort') || DEFAULT_SORT;
 
   const { data, isLoading } = useIpos({ status, type, sort });
   const ipos = data?.ipos ?? [];
@@ -60,10 +70,15 @@ export default function IpoListPage() {
     xl: 'repeat(4, minmax(0, 1fr))',
   };
 
+  // Only non-default values are written to the URL, so it stays clean (no `?type=mainboard&status=`
+  // noise) at the default view. `replace: true` — a filter tweak shouldn't push a history entry you
+  // then have to "back" through.
   const handleFilterChange = ({ status: nextStatus, type: nextType, sort: nextSort }) => {
-    setStatus(nextStatus);
-    setType(nextType);
-    setSort(nextSort);
+    const next = {};
+    if (nextType && nextType !== DEFAULT_TYPE) next.type = nextType;
+    if (nextStatus) next.status = nextStatus;
+    if (nextSort && nextSort !== DEFAULT_SORT) next.sort = nextSort;
+    setSearchParams(next, { replace: true });
   };
 
   return (

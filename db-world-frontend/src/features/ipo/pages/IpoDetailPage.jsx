@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Box, Typography, Chip, Button, IconButton, Tabs, Tab } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -55,11 +55,20 @@ export default function IpoDetailPage() {
   const T = useT();
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   // Flag this as a genuine in-app "back to the list" so `IpoListPage` restores its saved
-  // scroll position instead of resetting to the top (see `listScrollRestore.js`).
+  // scroll position instead of resetting to the top (see `listScrollRestore.js`). When this
+  // detail was reached by navigating within the app (location.key !== the initial 'default'),
+  // pop history so the list's URL — its filter/sort query string AND scroll — is restored
+  // as-is; only fall back to a fresh push to the bare list route for a deep-link/first load
+  // where there's no list entry to pop back to.
   const backToList = () => {
     markListRestoreOnBack();
-    navigate(Constants.DB_IPO_ROUTE);
+    if (location.key && location.key !== 'default') {
+      navigate(-1);
+    } else {
+      navigate(Constants.DB_IPO_ROUTE);
+    }
   };
   // `tab` + `direction` travel together: `direction` (+1/-1, or 0 for "no change") records
   // which way the *last* switch moved so the AnimatePresence slide below always animates
