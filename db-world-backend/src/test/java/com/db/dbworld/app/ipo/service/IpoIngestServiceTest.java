@@ -1,12 +1,15 @@
 package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.entity.IpoChangeEventEntity;
+import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
+import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
@@ -41,6 +44,7 @@ class IpoIngestServiceTest {
     IpoGmpHistoryRepository gmpHistoryRepo;
     IpoSubscriptionHistoryRepository subHistoryRepo;
     IpoChangeEventRepository changeEventRepo;
+    IpoFinancialRepository financialRepo;
     IpoIngestService service;
 
     @BeforeEach
@@ -49,8 +53,10 @@ class IpoIngestServiceTest {
         gmpHistoryRepo = mock(IpoGmpHistoryRepository.class);
         subHistoryRepo = mock(IpoSubscriptionHistoryRepository.class);
         changeEventRepo = mock(IpoChangeEventRepository.class);
+        financialRepo = mock(IpoFinancialRepository.class);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        service = new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, new IpoMapper(), clock);
+        service = new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
+                financialRepo, new IpoMapper(), clock);
 
         when(listingRepo.save(any())).thenAnswer(inv -> {
             IpoListingEntity e = inv.getArgument(0);
@@ -62,6 +68,8 @@ class IpoIngestServiceTest {
         when(changeEventRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(gmpHistoryRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(subHistoryRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(financialRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(financialRepo.findByIpoIdAndFiscalYear(any(), any())).thenReturn(Optional.empty());
     }
 
     /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
@@ -83,6 +91,18 @@ class IpoIngestServiceTest {
                 gmp, gmpPct, subscriptionCategories(), subTotal,
                 allotmentStatus, "Link Intime", "https://registrar", null, null, null, null,
                 null, null, null, null, null, null, null);
+    }
+
+    /** Returns a copy of {@code dto} with {@code financials} swapped in — mirrors {@code IpoNormalizer.withMatchKey}. */
+    private static IpoDto withFinancials(IpoDto dto, List<IpoFinancialRowDto> financials) {
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), financials);
     }
 
     /** A minimal dto with just {@code ipoType} varied, for the type-canonicalization tests. */
@@ -395,6 +415,90 @@ class IpoIngestServiceTest {
         ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
         verify(listingRepo, times(1)).save(listingCaptor.capture());
         assertThat(listingCaptor.getValue().getIpoType()).isEqualTo("mainboard");
+    }
+
+    // ── Financials UPSERT (Unit 3) ──────────────────────────────────────────────────────────────
+
+    @Test
+    void ingest_newIpoWithFinancials_insertsARowPerFiscalYear() {
+        stubNoExisting();
+        IpoDto dto = withFinancials(
+                dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                        new BigDecimal("1.50"), "awaited", null, null, null),
+                List.of(
+                        new IpoFinancialRowDto("FY 2023-24", LocalDate.of(2024, 3, 31),
+                                new BigDecimal("100.00"), new BigDecimal("10.00"), new BigDecimal("500.00")),
+                        new IpoFinancialRowDto("FY 2024-25", LocalDate.of(2025, 3, 31),
+                                new BigDecimal("150.00"), new BigDecimal("20.00"), new BigDecimal("600.00"))));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoFinancialEntity> captor = ArgumentCaptor.forClass(IpoFinancialEntity.class);
+        verify(financialRepo, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(IpoFinancialEntity::getFiscalYear)
+                .containsExactlyInAnyOrder("FY 2023-24", "FY 2024-25");
+        assertThat(captor.getAllValues()).allSatisfy(e -> assertThat(e.getIpoId()).isEqualTo("ipo-1"));
+    }
+
+    @Test
+    void ingest_reingestIdenticalFinancials_isANoOp() {
+        IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+        stubExisting(existing);
+        IpoFinancialEntity existingFinancial = IpoFinancialEntity.builder()
+                .id("fin-1").ipoId("ipo-1").fiscalYear("FY 2023-24")
+                .revenue(new BigDecimal("100.00")).pat(new BigDecimal("10.00")).totalAssets(new BigDecimal("500.00"))
+                .periodEnd(LocalDate.of(2024, 3, 31))
+                .build();
+        when(financialRepo.findByIpoIdAndFiscalYear("ipo-1", "FY 2023-24")).thenReturn(Optional.of(existingFinancial));
+
+        IpoDto dto = withFinancials(
+                dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                        new BigDecimal("1.50"), "awaited", null, null, null),
+                List.of(new IpoFinancialRowDto("FY 2023-24", LocalDate.of(2024, 3, 31),
+                        new BigDecimal("100.00"), new BigDecimal("10.00"), new BigDecimal("500.00"))));
+
+        service.ingest(List.of(dto));
+
+        verify(financialRepo, never()).save(any());
+    }
+
+    @Test
+    void ingest_existingFinancialRowWithChangedFigure_updatesInPlaceRatherThanInserting() {
+        IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+        stubExisting(existing);
+        IpoFinancialEntity existingFinancial = IpoFinancialEntity.builder()
+                .id("fin-1").ipoId("ipo-1").fiscalYear("FY 2023-24")
+                .revenue(new BigDecimal("100.00")).pat(new BigDecimal("10.00")).totalAssets(new BigDecimal("500.00"))
+                .periodEnd(LocalDate.of(2024, 3, 31))
+                .build();
+        when(financialRepo.findByIpoIdAndFiscalYear("ipo-1", "FY 2023-24")).thenReturn(Optional.of(existingFinancial));
+
+        IpoDto dto = withFinancials(
+                dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                        new BigDecimal("1.50"), "awaited", null, null, null),
+                List.of(new IpoFinancialRowDto("FY 2023-24", LocalDate.of(2024, 3, 31),
+                        new BigDecimal("120.00"), new BigDecimal("10.00"), new BigDecimal("500.00"))));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoFinancialEntity> captor = ArgumentCaptor.forClass(IpoFinancialEntity.class);
+        verify(financialRepo, times(1)).save(captor.capture());
+        assertThat(captor.getValue().getId()).isEqualTo("fin-1"); // updated in place, not re-inserted
+        assertThat(captor.getValue().getRevenue()).isEqualByComparingTo("120.00");
+    }
+
+    @Test
+    void ingest_dtoWithNoFinancials_neverTouchesFinancialRepo() {
+        stubNoExisting();
+        IpoDto dto = dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null); // financials null by default
+
+        service.ingest(List.of(dto));
+
+        verify(financialRepo, never()).findByIpoIdAndFiscalYear(any(), any());
+        verify(financialRepo, never()).save(any());
     }
 
     @Test

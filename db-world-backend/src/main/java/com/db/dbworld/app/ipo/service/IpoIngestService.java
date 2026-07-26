@@ -1,12 +1,15 @@
 package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.entity.IpoChangeEventEntity;
+import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
+import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
@@ -40,24 +43,26 @@ public class IpoIngestService {
     private final IpoGmpHistoryRepository gmpHistoryRepo;
     private final IpoSubscriptionHistoryRepository subHistoryRepo;
     private final IpoChangeEventRepository changeEventRepo;
+    private final IpoFinancialRepository financialRepo;
     private final IpoMapper mapper;
     private final Clock clock;
 
     @Autowired
     public IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                              IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                             IpoMapper mapper) {
-        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, mapper, Clock.systemUTC());
+                             IpoFinancialRepository financialRepo, IpoMapper mapper) {
+        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, financialRepo, mapper, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                       IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                      IpoMapper mapper, Clock clock) {
+                      IpoFinancialRepository financialRepo, IpoMapper mapper, Clock clock) {
         this.listingRepo = listingRepo;
         this.gmpHistoryRepo = gmpHistoryRepo;
         this.subHistoryRepo = subHistoryRepo;
         this.changeEventRepo = changeEventRepo;
+        this.financialRepo = financialRepo;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -87,6 +92,7 @@ public class IpoIngestService {
             IpoListingEntity saved = listingRepo.save(entity);
             changeEventRepo.save(event(saved.getId(), "NEW", null, dto.companyName(), now));
             appendHistory(saved.getId(), dto, now);
+            upsertFinancials(saved.getId(), dto.financials());
             return;
         }
 
@@ -96,6 +102,51 @@ public class IpoIngestService {
         listingRepo.save(existing);
         events.forEach(changeEventRepo::save);
         appendHistory(existing.getId(), dto, now);
+        upsertFinancials(existing.getId(), dto.financials());
+    }
+
+    /**
+     * UPSERTs one fiscal year's figures per row of {@code rows} (keyed by {@code (ipoId,
+     * fiscalYear)} via {@link IpoFinancialRepository#findByIpoIdAndFiscalYear}): inserts a new
+     * {@link IpoFinancialEntity} row if none exists yet for that fiscal year, otherwise updates it
+     * IN PLACE only when a value actually differs — so re-ingesting identical financials is a
+     * true no-op (no save call at all), matching the append-on-change idempotency the rest of
+     * this service already guarantees for GMP/subscription. Never deletes a stale row (a fiscal
+     * year dropping out of a later scrape is rare, and simplicity wins here per the brief).
+     */
+    private void upsertFinancials(String ipoId, List<IpoFinancialRowDto> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        for (IpoFinancialRowDto row : rows) {
+            if (row.fiscalYear() == null) {
+                continue; // no usable natural key for this row
+            }
+            IpoFinancialEntity entity = financialRepo.findByIpoIdAndFiscalYear(ipoId, row.fiscalYear()).orElse(null);
+            if (entity == null) {
+                financialRepo.save(IpoFinancialEntity.builder()
+                        .ipoId(ipoId)
+                        .fiscalYear(row.fiscalYear())
+                        .revenue(row.revenue())
+                        .pat(row.pat())
+                        .totalAssets(row.totalAssets())
+                        .periodEnd(row.periodEnd())
+                        .build());
+            } else if (financialRowChanged(entity, row)) {
+                entity.setRevenue(row.revenue());
+                entity.setPat(row.pat());
+                entity.setTotalAssets(row.totalAssets());
+                entity.setPeriodEnd(row.periodEnd());
+                financialRepo.save(entity);
+            }
+        }
+    }
+
+    private static boolean financialRowChanged(IpoFinancialEntity entity, IpoFinancialRowDto row) {
+        return bigDecimalDiffers(entity.getRevenue(), row.revenue())
+                || bigDecimalDiffers(entity.getPat(), row.pat())
+                || bigDecimalDiffers(entity.getTotalAssets(), row.totalAssets())
+                || !Objects.equals(entity.getPeriodEnd(), row.periodEnd());
     }
 
     /** Compares {@code dto} against {@code entity}'s pre-update state — must run before {@code applyUpdatable}. */
