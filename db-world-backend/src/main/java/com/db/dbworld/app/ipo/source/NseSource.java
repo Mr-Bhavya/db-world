@@ -31,10 +31,10 @@ import static com.db.dbworld.app.ipo.source.support.IpoJsonUtil.text;
  *
  * <p>We cannot fetch a live NSE session from this environment (server-side requests are blocked),
  * so the endpoint URLs and field names below are best-effort, mapped to NSE's community-documented
- * IPO JSON shape — see the {@code TODO(verify)} markers. Two endpoints are targeted: the
- * "all upcoming issues" listing and its "current issues" (i.e. currently open for subscription)
- * equivalent; each is fetched and mapped independently, so a failure/shape-change on one endpoint
- * doesn't lose the rows the other endpoint still reports.
+ * IPO JSON shape — see the {@code TODO(verify)} markers. Only the "all upcoming issues" endpoint is
+ * targeted: a live run confirmed {@code all-current-issues?category=ipo} 404s (that path does not
+ * exist on NSE) and it was dropped; {@code all-upcoming-issues?category=ipo} is confirmed working
+ * (it returns rows).
  */
 @Log4j2
 @Component
@@ -42,21 +42,23 @@ public class NseSource implements IpoSource {
 
     private static final String KEY = "nse";
 
-    // ── Endpoint assumptions — TODO(verify): confirm both URLs against a real NSE session ───────
+    // ── Endpoint assumptions ──────────────────────────────────────────────────────────────────
     private static final String HOME_URL = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo";
-    /** Upcoming (not-yet-open) IPOs. */
+    /** Upcoming (not-yet-open) IPOs. Confirmed working against a live NSE session — returns rows. */
     private static final String UPCOMING_URL = "https://www.nseindia.com/api/all-upcoming-issues?category=ipo";
-    /** TODO(verify): the "current issues" (open-for-subscription) equivalent — exact path/name unconfirmed. */
-    private static final String CURRENT_URL = "https://www.nseindia.com/api/all-current-issues?category=ipo";
+    // NOTE: "all-current-issues?category=ipo" was tried for currently-OPEN issues and confirmed
+    // to 404 (path does not exist on NSE) — removed. TODO(verify from browser DevTools Network
+    // tab): find the real endpoint for currently-open-for-subscription issues, if NSE exposes
+    // one, before adding it back. Do not guess another URL.
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private static final String ACCEPT = "application/json, text/plain, */*";
 
-    /** Every IPO in this feed lists on NSE by definition of the endpoints scraped. */
+    /** Every IPO in this feed lists on NSE by definition of the endpoint scraped. */
     private static final String LISTING_EXCHANGE = "NSE";
 
-    // ── Field-name assumptions — TODO(verify): confirm against a real response for BOTH endpoints ──
+    // ── Field-name assumptions — TODO(verify): confirm against a real response for the endpoint ──
     private static final String F_DATA = "data";              // in case an endpoint wraps the array
     private static final String F_COMPANY_NAME = "companyName";
     private static final String F_SYMBOL = "symbol";
@@ -95,10 +97,7 @@ public class NseSource implements IpoSource {
             Map<String, String> dataHeaders = browserHeaders(HOME_URL);
             dataHeaders.put(HttpHeaders.COOKIE, cookie);
 
-            List<IpoDto> result = new ArrayList<>();
-            result.addAll(fetchAndMap(UPCOMING_URL, dataHeaders));
-            result.addAll(fetchAndMap(CURRENT_URL, dataHeaders));
-            return result;
+            return fetchAndMap(UPCOMING_URL, dataHeaders);
         } catch (Exception e) {
             // Anti-bot block, cookie/session failure, or a hard failure while bootstrapping — all
             // non-fatal by design. Never propagate; the scheduler just sees an empty result.
@@ -108,10 +107,8 @@ public class NseSource implements IpoSource {
     }
 
     /**
-     * Fetches and maps a single data endpoint. Any failure here (anti-bot block on just this
-     * endpoint, shape change, malformed payload) is logged and yields {@code []} for THIS
-     * endpoint only — the sibling endpoint's rows (if it succeeded) are still returned by the
-     * caller.
+     * Fetches and maps the data endpoint. Any failure here (anti-bot block, shape change,
+     * malformed payload) is logged and yields {@code []} — never propagated to the caller.
      */
     private List<IpoDto> fetchAndMap(String url, Map<String, String> headers) {
         try {
@@ -171,7 +168,7 @@ public class NseSource implements IpoSource {
         return pair.isEmpty() ? null : pair;
     }
 
-    /** TODO(verify): confirm whether either endpoint returns a bare JSON array or {@code {data:[...]}}. */
+    /** TODO(verify): confirm whether the endpoint returns a bare JSON array or {@code {data:[...]}}. */
     private static JsonNode resolveArray(JsonNode root) {
         if (root.isArray()) {
             return root;

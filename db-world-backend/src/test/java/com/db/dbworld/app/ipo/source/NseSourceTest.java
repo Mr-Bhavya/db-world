@@ -29,7 +29,6 @@ class NseSourceTest {
 
     private static final String HOME_URL = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo";
     private static final String UPCOMING_URL = "https://www.nseindia.com/api/all-upcoming-issues?category=ipo";
-    private static final String CURRENT_URL = "https://www.nseindia.com/api/all-current-issues?category=ipo";
 
     // Synthesized fixture matching the documented (provisional) top-level-array shape for the
     // "upcoming issues" endpoint.
@@ -57,22 +56,6 @@ class NseSourceTest {
             ]
             """;
 
-    // Synthesized fixture matching the documented (provisional) shape for the "current issues"
-    // (i.e. currently open for subscription) endpoint.
-    private static final String FIXTURE_CURRENT = """
-            [
-              {
-                "companyName": "Zeta Foods Ltd",
-                "symbol": "ZETAFOODS",
-                "series": "SME",
-                "status": "Active",
-                "issueStartDate": "10-Jul-2026",
-                "issueEndDate": "12-Jul-2026",
-                "issuePrice": "210"
-              }
-            ]
-            """;
-
     private static final String EMPTY_ARRAY = "[]";
 
     private NseSource newSource() {
@@ -87,14 +70,13 @@ class NseSourceTest {
     }
 
     @Test
-    void fetchAll_bootstrapsCookieThenMapsBothEndpoints() {
+    void fetchAll_bootstrapsCookieThenMapsUpcomingEndpoint() {
         stubHomeWithCookie();
         when(httpClient.get(eq(UPCOMING_URL), any())).thenReturn(new IpoHttpResponse(FIXTURE_UPCOMING, new HttpHeaders()));
-        when(httpClient.get(eq(CURRENT_URL), any())).thenReturn(new IpoHttpResponse(FIXTURE_CURRENT, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
-        assertThat(result).hasSize(3);
+        assertThat(result).hasSize(2);
 
         IpoDto gamma = result.get(0);
         assertThat(gamma.source()).isEqualTo("nse");
@@ -115,21 +97,11 @@ class NseSourceTest {
         assertThat(delta.listingDate()).isEqualTo(LocalDate.of(2026, 6, 8));
         assertThat(delta.listingPrice()).isEqualByComparingTo("212.50");
 
-        IpoDto zeta = result.get(2);
-        assertThat(zeta.companyName()).isEqualTo("Zeta Foods Ltd");
-        assertThat(zeta.ipoType()).isEqualTo("SME");
-        assertThat(zeta.priceMin()).isEqualByComparingTo("210");
-
-        // The cookie captured from the bootstrap response must be forwarded on BOTH data calls.
+        // The cookie captured from the bootstrap response must be forwarded on the data call.
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> upcomingHeaders = ArgumentCaptor.forClass(Map.class);
         verify(httpClient).get(eq(UPCOMING_URL), upcomingHeaders.capture());
         assertThat(upcomingHeaders.getValue().get(HttpHeaders.COOKIE)).contains("nsit=abc123").contains("nseappid=xyz789");
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> currentHeaders = ArgumentCaptor.forClass(Map.class);
-        verify(httpClient).get(eq(CURRENT_URL), currentHeaders.capture());
-        assertThat(currentHeaders.getValue().get(HttpHeaders.COOKIE)).contains("nsit=abc123").contains("nseappid=xyz789");
     }
 
     @Test
@@ -138,7 +110,6 @@ class NseSourceTest {
         when(httpClient.get(eq(UPCOMING_URL), any())).thenReturn(new IpoHttpResponse("""
                 [ { "symbol": "EPSILON", "status": "Active" } ]
                 """, new HttpHeaders()));
-        when(httpClient.get(eq(CURRENT_URL), any())).thenReturn(new IpoHttpResponse(EMPTY_ARRAY, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
@@ -147,18 +118,17 @@ class NseSourceTest {
     }
 
     @Test
-    void fetchAll_bootstrapFails_returnsEmptyListWithoutCallingEitherDataEndpoint() {
+    void fetchAll_bootstrapFails_returnsEmptyListWithoutCallingDataEndpoint() {
         when(httpClient.get(eq(HOME_URL), any())).thenThrow(new SourceFetchException("blocked"));
 
         List<IpoDto> result = newSource().fetchAll();
 
         assertThat(result).isEmpty();
         verify(httpClient, never()).get(eq(UPCOMING_URL), any());
-        verify(httpClient, never()).get(eq(CURRENT_URL), any());
     }
 
     @Test
-    void fetchAll_noCookiesReturned_returnsEmptyListWithoutCallingEitherDataEndpoint() {
+    void fetchAll_noCookiesReturned_returnsEmptyListWithoutCallingDataEndpoint() {
         when(httpClient.get(eq(HOME_URL), any()))
                 .thenReturn(new IpoHttpResponse("<html></html>", new HttpHeaders()));
 
@@ -166,39 +136,22 @@ class NseSourceTest {
 
         assertThat(result).isEmpty();
         verify(httpClient, never()).get(eq(UPCOMING_URL), any());
-        verify(httpClient, never()).get(eq(CURRENT_URL), any());
     }
 
     @Test
-    void fetchAll_upcomingEndpointFails_stillReturnsRowsFromCurrentEndpoint() {
+    void fetchAll_upcomingEndpointFails_returnsEmptyList() {
         stubHomeWithCookie();
         when(httpClient.get(eq(UPCOMING_URL), any())).thenThrow(new SourceFetchException("403"));
-        when(httpClient.get(eq(CURRENT_URL), any())).thenReturn(new IpoHttpResponse(FIXTURE_CURRENT, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).companyName()).isEqualTo("Zeta Foods Ltd");
+        assertThat(result).isEmpty();
     }
 
     @Test
-    void fetchAll_currentEndpointFails_stillReturnsRowsFromUpcomingEndpoint() {
+    void fetchAll_emptyUpcomingEndpoint_returnsEmptyList() {
         stubHomeWithCookie();
-        when(httpClient.get(eq(UPCOMING_URL), any())).thenReturn(new IpoHttpResponse(FIXTURE_UPCOMING, new HttpHeaders()));
-        when(httpClient.get(eq(CURRENT_URL), any())).thenThrow(new SourceFetchException("403"));
-
-        List<IpoDto> result = newSource().fetchAll();
-
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(IpoDto::companyName)
-                .containsExactly("Gamma Pharma Ltd", "Delta Logistics Ltd");
-    }
-
-    @Test
-    void fetchAll_bothDataEndpointsFail_returnsEmptyList() {
-        stubHomeWithCookie();
-        when(httpClient.get(eq(UPCOMING_URL), any())).thenThrow(new SourceFetchException("403"));
-        when(httpClient.get(eq(CURRENT_URL), any())).thenThrow(new SourceFetchException("403"));
+        when(httpClient.get(eq(UPCOMING_URL), any())).thenReturn(new IpoHttpResponse(EMPTY_ARRAY, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
