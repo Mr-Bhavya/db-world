@@ -50,6 +50,7 @@ class IpoMapperTest {
                 .registrar("Link Intime")
                 .registrarUrl("https://linkintime.co.in/acme")
                 .logoUrl("https://ui-avatars.com/api/?name=Acme+Corp")
+                .logoDomain("acmecorp.example")
                 .about("Acme Corp is a leading widget manufacturer.")
                 .faceValue(new BigDecimal("10.00"))
                 .freshIssue(new BigDecimal("120.00"))
@@ -89,6 +90,7 @@ class IpoMapperTest {
         assertThat(dto.listingGainPct()).isEqualByComparingTo("22.73");
         assertThat(dto.allotmentStatus()).isEqualTo("finalized");
         assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(dto.logoDomain()).isEqualTo("acmecorp.example");
         assertThat(dto.registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
     }
 
@@ -118,6 +120,7 @@ class IpoMapperTest {
         assertThat(dto.registrar()).isEqualTo("Link Intime");
         assertThat(dto.registrarUrl()).isEqualTo("https://linkintime.co.in/acme");
         assertThat(dto.logoUrl()).isEqualTo("https://ui-avatars.com/api/?name=Acme+Corp");
+        assertThat(dto.logoDomain()).isEqualTo("acmecorp.example");
         assertThat(dto.about()).isEqualTo("Acme Corp is a leading widget manufacturer.");
         assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
         assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
@@ -384,6 +387,8 @@ class IpoMapperTest {
         // firstSeenAt/lastSeenAt are the ingest service's responsibility, not the mapper's.
         assertThat(entity.getFirstSeenAt()).isNull();
         assertThat(entity.getLastSeenAt()).isNull();
+        // logoDomain isn't part of IpoDto — seeder/enrichment-only, never set by a live poll.
+        assertThat(entity.getLogoDomain()).isNull();
     }
 
     @Test
@@ -420,6 +425,8 @@ class IpoMapperTest {
         assertThat(entity.getTickerSymbol()).isEqualTo("ACME");
         assertThat(entity.getStrengths()).isEqualTo("Strength one\nStrength two\n\nStrength three  ");
         assertThat(entity.getRisks()).isEqualTo("Risk one\nRisk two");
+        // logoDomain isn't part of IpoDto — never touched by a live poll's applyUpdatable.
+        assertThat(entity.getLogoDomain()).isEqualTo("acmecorp.example");
     }
 
     @Test

@@ -22,5 +22,6 @@ public record IpoSummaryDto(
         BigDecimal listingGainPct,
         String allotmentStatus,
         String logoUrl,
+        String logoDomain,
         String registrarUrl
 ) {}

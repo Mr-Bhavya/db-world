@@ -138,6 +138,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .registrar(spec.getRegistrar())
                 .registrarUrl(spec.getRegistrarUrl())
                 .logoUrl(logoUrlFor(spec.getDomain()))
+                .logoDomain(spec.getDomain())
                 .about(spec.getAbout())
                 .faceValue(spec.getFaceValue())
                 .freshIssue(spec.getFreshIssue())
@@ -564,7 +565,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
     @Builder
     private static class SampleIpo {
         private String companyName;
-        /** Domain used to build the Clearbit logo URL (e.g. {@code "zomato.com"}). */
+        /** Bare domain (e.g. {@code "zomato.com"}) — used both for the Clearbit {@code logoUrl} and stored verbatim as {@code logoDomain} for the frontend's Logo.dev lookup. */
         private String domain;
         private String ipoType;
         private String status;

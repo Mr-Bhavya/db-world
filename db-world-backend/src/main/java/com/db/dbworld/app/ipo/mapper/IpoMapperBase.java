@@ -59,8 +59,9 @@ public abstract class IpoMapperBase {
      * {@code lastSeenAt} or {@code updatedAt} — those are the ingest service's responsibility (id
      * is DB-generated; the timestamps depend on ingest's clock, not the mapper's) — nor the
      * company "About" fields ({@code foundedYear}/{@code managingDirector}/{@code parentCompany}/
-     * {@code sector}/{@code headquarters}/{@code website}), which aren't part of {@link IpoDto}
-     * and are deliberately excluded from ingest so a live poll can never touch them.
+     * {@code sector}/{@code headquarters}/{@code website}) or {@code logoDomain}, none of which
+     * are part of {@link IpoDto} and are deliberately excluded from ingest so a live poll can
+     * never touch them.
      */
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "firstSeenAt", ignore = true)
@@ -72,6 +73,7 @@ public abstract class IpoMapperBase {
     @Mapping(target = "sector", ignore = true)
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
+    @Mapping(target = "logoDomain", ignore = true)
     public abstract IpoListingEntity toNewEntity(IpoDto dto);
 
     /**
@@ -80,8 +82,8 @@ public abstract class IpoMapperBase {
      * previously-good data. {@code nullValuePropertyMappingStrategy = IGNORE} (set on the
      * {@code @Mapper} above) is what makes this a per-field no-op instead of an unconditional
      * overwrite. Never touches {@code id}, {@code matchKey}, or the seen/updated timestamps, nor
-     * the company "About" fields; those are ingest's (or the seeder's) responsibility, never a
-     * live poll's.
+     * the company "About" fields or {@code logoDomain}; those are ingest's (or the seeder's)
+     * responsibility, never a live poll's.
      */
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "matchKey", ignore = true)
@@ -94,6 +96,7 @@ public abstract class IpoMapperBase {
     @Mapping(target = "sector", ignore = true)
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
+    @Mapping(target = "logoDomain", ignore = true)
     public abstract void applyUpdatable(IpoDto dto, @MappingTarget IpoListingEntity entity);
 
     /** Joins a saved application with a light summary of the IPO it's for, for the "My IPOs" list. */

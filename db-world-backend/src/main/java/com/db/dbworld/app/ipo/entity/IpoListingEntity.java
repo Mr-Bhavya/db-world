@@ -76,6 +76,14 @@ public class IpoListingEntity {
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
 
+    /**
+     * Bare domain (e.g. {@code "swiggy.com"}) used for a Logo.dev logo lookup on the frontend.
+     * Nullable — seeder/enrichment-only, like the "About" facts below; never part of {@link
+     * com.db.dbworld.app.ipo.dto.IpoDto}, so a live source poll can never touch it.
+     */
+    @Column(name = "logo_domain", length = 255)
+    private String logoDomain;
+
     @Column(columnDefinition = "TEXT")
     private String about;
 

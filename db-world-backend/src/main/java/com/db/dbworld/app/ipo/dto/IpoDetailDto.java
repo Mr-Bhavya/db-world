@@ -28,6 +28,7 @@ public record IpoDetailDto(
         String registrar,
         String registrarUrl,
         String logoUrl,
+        String logoDomain,
         String about,
         LocalDate refundDate,
         LocalDate dematDate,

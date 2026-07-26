@@ -132,6 +132,8 @@ class IpoSampleDataSeederTest {
         assertThat(saved).allSatisfy(e -> {
             assertThat(e.getMatchKey()).isNotBlank();
             assertThat(e.getLogoUrl()).startsWith("https://logo.clearbit.com/");
+            assertThat(e.getLogoDomain()).isNotBlank();
+            assertThat(e.getLogoUrl()).endsWith(e.getLogoDomain());
             assertThat(e.getFirstSeenAt()).isEqualTo(NOW);
             assertThat(e.getLastSeenAt()).isEqualTo(NOW);
         });
@@ -140,6 +142,31 @@ class IpoSampleDataSeederTest {
                 .containsExactlyInAnyOrder("upcoming", "upcoming", "open", "open",
                         "closed", "listed", "listed", "listed");
         assertThat(saved).extracting(IpoListingEntity::getIpoType).contains("mainboard", "sme");
+    }
+
+    @Test
+    void run_enabledAndTableEmpty_logoDomainMatchesEachCompanysRealDomain() {
+        // logoDomain feeds the frontend's Logo.dev lookup (next group) — every sample company must
+        // carry its real public domain, not a placeholder.
+        when(listingRepository.count()).thenReturn(0L);
+        stubSaveAssignsId();
+
+        seeder(true).run(null);
+
+        ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepository, times(8)).save(captor.capture());
+        Map<String, String> domainByCompany = captor.getAllValues().stream()
+                .collect(Collectors.toMap(IpoListingEntity::getCompanyName, IpoListingEntity::getLogoDomain));
+
+        assertThat(domainByCompany)
+                .containsEntry("Zomato Ltd", "zomato.com")
+                .containsEntry("FSN E-Commerce Ventures Ltd", "nykaa.com")
+                .containsEntry("Life Insurance Corporation of India Ltd", "licindia.in")
+                .containsEntry("Ola Electric Mobility Ltd", "olaelectric.com")
+                .containsEntry("Swiggy Ltd", "swiggy.com")
+                .containsEntry("Nazara Technologies Ltd", "nazara.com")
+                .containsEntry("Honasa Consumer Ltd", "mamaearth.in")
+                .containsEntry("One97 Communications Ltd", "paytm.com");
     }
 
     @Test
