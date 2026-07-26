@@ -20,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -85,6 +86,11 @@ public class ChittorgarhSource implements IpoSource {
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+    // This is an India-context site (list contents are keyed to the Indian IPO calendar), so the
+    // list URL's ?year= must roll over at IST midnight, not UTC midnight — same reasoning as the
+    // ipo-poll cron already being pinned to Asia/Kolkata.
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     /**
      * Hard cap on the number of detail-page HTTP fetches per {@link #fetchAll()} call, on top of
@@ -158,9 +164,14 @@ public class ChittorgarhSource implements IpoSource {
         return KEY;
     }
 
-    /** The list URL for the CURRENT calendar year, e.g. {@code .../82/all/?year=2026}. */
+    /**
+     * The list URL for the CURRENT calendar year, e.g. {@code .../82/all/?year=2026}. The year is
+     * computed in IST (not the injected clock's own zone, which defaults to UTC) since this is an
+     * India-context site — otherwise the ~5.5h UTC/IST offset would roll the year over too early
+     * and request the previous year's page for that window after IST midnight on Jan 1.
+     */
     private String listUrl() {
-        return LIST_URL_TEMPLATE.formatted(Year.now(clock).getValue());
+        return LIST_URL_TEMPLATE.formatted(Year.now(clock.withZone(IST)).getValue());
     }
 
     @Override
