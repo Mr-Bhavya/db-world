@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
 import com.db.dbworld.app.ipo.service.IpoMergeService;
 import com.db.dbworld.app.ipo.service.IpoSourcePollService;
@@ -46,22 +47,25 @@ public class IpoPollScheduler {
     private final IpoMergeService mergeService;
     private final IpoIngestService ingestService;
     private final IpoSourcePollService pollService;
+    private final InvestorgainGmpService gmpService;
     private final Supplier<Instant> now;
 
     @Autowired
     public IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
-                             IpoIngestService ingestService, IpoSourcePollService pollService) {
-        this(registry, mergeService, ingestService, pollService, Instant::now);
+                             IpoIngestService ingestService, IpoSourcePollService pollService,
+                             InvestorgainGmpService gmpService) {
+        this(registry, mergeService, ingestService, pollService, gmpService, Instant::now);
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
                       IpoIngestService ingestService, IpoSourcePollService pollService,
-                      Supplier<Instant> now) {
+                      InvestorgainGmpService gmpService, Supplier<Instant> now) {
         this.registry = registry;
         this.mergeService = mergeService;
         this.ingestService = ingestService;
         this.pollService = pollService;
+        this.gmpService = gmpService;
         this.now = now;
     }
 
@@ -90,6 +94,11 @@ public class IpoPollScheduler {
 
         List<IpoDto> merged = mergeService.merge(allDtos);
         ingestService.ingest(merged);
+
+        // GMP is a day-wise time series from investorgain (not part of the source→merge→ingest
+        // snapshot pipeline), backfilled AFTER ingest so the listings it matches against already
+        // exist. Best-effort — refreshGmp never throws, so a GMP hiccup can't fail the poll.
+        gmpService.refreshGmp();
 
         log.info("IPO poll complete: sourcesPolled={} sourcesFailed={} rawCount={} ipoCount={}",
                 sources.size(), sourcesFailed, allDtos.size(), merged.size());

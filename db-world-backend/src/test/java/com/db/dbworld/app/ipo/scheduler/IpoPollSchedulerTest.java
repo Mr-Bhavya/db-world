@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler.IpoPollResult;
+import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
 import com.db.dbworld.app.ipo.service.IpoMergeService;
 import com.db.dbworld.app.ipo.service.IpoSourcePollService;
@@ -37,12 +38,13 @@ class IpoPollSchedulerTest {
     @Mock IpoMergeService mergeService;
     @Mock IpoIngestService ingestService;
     @Mock IpoSourcePollService pollService;
+    @Mock InvestorgainGmpService gmpService;
 
     private IpoPollScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new IpoPollScheduler(registry, mergeService, ingestService, pollService, () -> NOW);
+        scheduler = new IpoPollScheduler(registry, mergeService, ingestService, pollService, gmpService, () -> NOW);
     }
 
     private static IpoSource fakeSuccess(String key, List<IpoDto> dtos) {
@@ -90,6 +92,7 @@ class IpoPollSchedulerTest {
         verify(mergeService).merge(captor.capture());
         assertThat(captor.getValue()).containsExactlyInAnyOrder(d1, d2, d3);
         verify(ingestService).ingest(mergedResult);
+        verify(gmpService).refreshGmp(); // GMP backfill runs after ingest
 
         verify(pollService).recordSuccess("ipoguru", NOW);
         verify(pollService).recordSuccess("nse", NOW);

@@ -3,6 +3,7 @@ package com.db.dbworld.app.ipo.service;
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -25,15 +26,23 @@ public class IpoNormalizer {
      * no usable company name (uningestable — nothing to key on).
      */
     public String matchKey(IpoDto dto) {
-        if (dto == null || dto.companyName() == null || dto.companyName().isBlank()) {
+        return dto == null ? null : matchKey(dto.companyName(), dto.openDate());
+    }
+
+    /**
+     * Same dedup key from a raw company name + open date — lets a non-{@link IpoDto} caller (e.g.
+     * the investorgain GMP refresh) look an already-ingested listing up by {@code matchKey} without
+     * having to build a throwaway dto. {@code null} if the name normalises to empty.
+     */
+    public String matchKey(String companyName, LocalDate openDate) {
+        if (companyName == null || companyName.isBlank()) {
             return null;
         }
-        String name = normalize(dto.companyName());
+        String name = normalize(companyName);
         if (name.isEmpty()) {
             return null;
         }
-        String openDate = dto.openDate() == null ? "" : dto.openDate().toString();
-        return name + "|" + openDate;
+        return name + "|" + (openDate == null ? "" : openDate.toString());
     }
 
     /** Returns a copy of {@code dto} with {@code matchKey} set (or cleared to {@code null}). */
