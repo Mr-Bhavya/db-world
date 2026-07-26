@@ -317,4 +317,133 @@ class ChittorgarhSourceTest {
         assertThat(acme.about()).isNull();
         assertThat(acme.financials()).isNull();
     }
+
+    // ── Regression: an empty/spacer data row must never shift detail URLs onto the wrong company ──
+
+    private static final String DETAIL_URL_A = "https://www.chittorgarh.com/ipo/company-a/1/";
+    private static final String DETAIL_URL_B = "https://www.chittorgarh.com/ipo/company-b/2/";
+    private static final String DETAIL_URL_C = "https://www.chittorgarh.com/ipo/company-c/3/";
+
+    // A spacer/ad row with ZERO <td> cells (only a <th>) sits between Company A and Company B.
+    // parseTable's `if (cells.isEmpty()) continue;` skips it when building `listed`; the detail-url
+    // resolution must skip it identically so the two never drift out of alignment.
+    private static final String FIXTURE_HTML_WITH_SPACER_ROW = """
+            <html><body>
+            <table>
+              <thead>
+                <tr>
+                  <th>IPO Name</th><th>Open Date</th><th>Close Date</th><th>Allotment Date</th>
+                  <th>Listing Date</th><th>Price Band</th><th>Lot Size</th><th>Issue Size</th><th>Listing Gain</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><a href="/ipo/company-a/1/">Company A Ltd</a></td>
+                  <td>01-Jul-2026</td><td>03-Jul-2026</td><td>04-Jul-2026</td><td>08-Jul-2026</td>
+                  <td>100-110</td><td>100</td><td>200 Cr</td><td>10%</td>
+                </tr>
+                <tr><th colspan="9">-- Advertisement --</th></tr>
+                <tr>
+                  <td><a href="/ipo/company-b/2/">Company B Ltd</a></td>
+                  <td>11-Jul-2026</td><td>13-Jul-2026</td><td>14-Jul-2026</td><td>18-Jul-2026</td>
+                  <td>200-210</td><td>50</td><td>300 Cr</td><td>20%</td>
+                </tr>
+                <tr>
+                  <td><a href="/ipo/company-c/3/">Company C Ltd</a></td>
+                  <td>21-Jul-2026</td><td>23-Jul-2026</td><td>24-Jul-2026</td><td>28-Jul-2026</td>
+                  <td>300-310</td><td>25</td><td>400 Cr</td><td>30%</td>
+                </tr>
+              </tbody>
+            </table>
+            </body></html>
+            """;
+
+    private static String detailFixtureFor(String companyLabel) {
+        return "<html><body><h2>About " + companyLabel + "</h2><p>" + companyLabel
+                + " own description, unique to this company.</p></body></html>";
+    }
+
+    @Test
+    void fetchAll_emptySpacerRowBetweenCompanies_doesNotMisattributeDetailData() {
+        when(httpClient.get(eq(LIST_URL), any()))
+                .thenReturn(new IpoHttpResponse(FIXTURE_HTML_WITH_SPACER_ROW, new HttpHeaders()));
+        when(httpClient.get(eq(DETAIL_URL_A), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company A Ltd"), new HttpHeaders()));
+        when(httpClient.get(eq(DETAIL_URL_B), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company B Ltd"), new HttpHeaders()));
+        when(httpClient.get(eq(DETAIL_URL_C), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company C Ltd"), new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        // The spacer row (zero <td> cells) must be skipped, not counted as a company.
+        assertThat(result).hasSize(3);
+
+        IpoDto a = result.get(0);
+        IpoDto b = result.get(1);
+        IpoDto c = result.get(2);
+        assertThat(a.companyName()).isEqualTo("Company A Ltd");
+        assertThat(b.companyName()).isEqualTo("Company B Ltd");
+        assertThat(c.companyName()).isEqualTo("Company C Ltd");
+
+        // Each company must be enriched from its OWN detail page — never a neighbour's.
+        assertThat(a.about()).contains("Company A Ltd own description");
+        assertThat(b.about()).contains("Company B Ltd own description");
+        assertThat(c.about()).contains("Company C Ltd own description");
+
+        // The specific regression: with the spacer row shifting a stale index, Company C would
+        // previously receive Company B's detail-page data instead of its own.
+        assertThat(c.about()).isNotEqualTo(b.about());
+        assertThat(c.about()).doesNotContain("Company B");
+    }
+
+    // ── Strengths/Risks heading collision: a combined "Strengths and Risks" heading matches both
+    // STRENGTHS_HEADING and RISKS_HEADING patterns and must not yield duplicate content for both ──
+
+    private static final String DETAIL_FIXTURE_COMBINED_STRENGTHS_RISKS_HEADING_HTML = """
+            <html><body>
+            <h2>About Gamma Textiles Ltd</h2>
+            <p>Gamma Textiles manufactures synthetic yarns.</p>
+
+            <h2>Strengths and Risks</h2>
+            <ul>
+              <li>Strong brand recognition</li>
+              <li>Established supplier network</li>
+            </ul>
+            </body></html>
+            """;
+
+    @Test
+    void parseDetail_combinedStrengthsAndRisksHeading_doesNotDuplicateContentIntoRisks() {
+        Document doc = Jsoup.parse(DETAIL_FIXTURE_COMBINED_STRENGTHS_RISKS_HEADING_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.strengths())
+                .isEqualTo("Strong brand recognition\nEstablished supplier network");
+        // The combined heading is claimed by strengths; risks must not duplicate it.
+        assertThat(enrichment.risks()).isNotEqualTo(enrichment.strengths());
+        assertThat(enrichment.risks()).isNull();
+    }
+
+    // ── About robustness: an About paragraph wrapped in an intermediate <div> (rather than being a
+    // direct sibling of the heading) should still be found, mirroring extractBullets/extractFinancials ──
+
+    private static final String DETAIL_FIXTURE_ABOUT_WRAPPED_IN_DIV_HTML = """
+            <html><body>
+            <h2>About Delta Robotics Ltd</h2>
+            <div class="content-wrapper">
+            <p>Delta Robotics builds automation solutions for warehouses.</p>
+            </div>
+            </body></html>
+            """;
+
+    @Test
+    void parseDetail_aboutParagraphWrappedInDiv_stillExtracted() {
+        Document doc = Jsoup.parse(DETAIL_FIXTURE_ABOUT_WRAPPED_IN_DIV_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.about()).isEqualTo("Delta Robotics builds automation solutions for warehouses.");
+    }
 }

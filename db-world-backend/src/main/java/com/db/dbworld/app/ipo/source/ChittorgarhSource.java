@@ -45,14 +45,18 @@ import java.util.regex.Pattern;
  *
  * <p><b>Detail-page enrichment</b>: each list row's company-name cell is assumed to carry an
  * anchor linking to that IPO's own Chittorgarh detail page ({@code TODO(verify)} — confirmed only
- * against a synthetic fixture, never a live page). {@link #fetchAll()} resolves that link, fetches
- * the detail page (one extra HTTP round-trip per IPO — acceptable given the mainboard list is
- * only ever ~10-20 active IPOs and this whole adapter runs on a periodic poll, not per-request),
- * and parses the About paragraph(s), Strengths/Risks bullet lists, and the "Company Financials"
- * table via {@link #parseDetail(Document)} (unit-testable the same way as {@link #parseTable}).
- * Every step is best-effort: a missing section yields {@code null}/empty for just that field, and
- * ANY failure fetching/parsing one IPO's detail page (network, anti-bot block, shape change)
- * leaves that IPO's core list-row data untouched and never propagates out of {@link #fetchAll()}.
+ * against a synthetic fixture, never a live page). That detail-page URL is resolved from the SAME
+ * row element used to build the row's {@link IpoDto} — see {@code parseRows(Document)} — so an
+ * empty/spacer row (e.g. an ad or divider row with no {@code <td>} cells) is skipped identically
+ * for both and can never desynchronise a dto from a different row's detail URL. {@link
+ * #fetchAll()} then fetches the detail page (one extra HTTP round-trip per IPO — acceptable given
+ * the mainboard list is only ever ~10-20 active IPOs and this whole adapter runs on a periodic
+ * poll, not per-request), and parses the About paragraph(s), Strengths/Risks bullet lists, and the
+ * "Company Financials" table via {@link #parseDetail(Document)} (unit-testable the same way as
+ * {@link #parseTable}). Every step is best-effort: a missing section yields {@code null}/empty for
+ * just that field, and ANY failure fetching/parsing one IPO's detail page (network, anti-bot
+ * block, shape change) leaves that IPO's core list-row data untouched and never propagates out of
+ * {@link #fetchAll()}.
  */
 @Log4j2
 @Component
@@ -123,13 +127,11 @@ public class ChittorgarhSource implements IpoSource {
                     HttpHeaders.ACCEPT, "text/html"
             ));
             Document doc = Jsoup.parse(response.body(), LIST_URL);
-            List<IpoDto> listed = parseTable(doc);
-            List<String> detailUrls = resolveDetailUrls(doc);
+            List<RowWithDetailUrl> rows = parseRows(doc);
 
-            List<IpoDto> result = new ArrayList<>(listed.size());
-            for (int i = 0; i < listed.size(); i++) {
-                String detailUrl = i < detailUrls.size() ? detailUrls.get(i) : null;
-                result.add(enrichFromDetailPage(listed.get(i), detailUrl));
+            List<IpoDto> result = new ArrayList<>(rows.size());
+            for (RowWithDetailUrl row : rows) {
+                result.add(enrichFromDetailPage(row.dto(), row.detailUrl()));
             }
             return result;
         } catch (Exception e) {
@@ -138,8 +140,34 @@ public class ChittorgarhSource implements IpoSource {
         }
     }
 
+    /**
+     * One data row's parsed {@link IpoDto} paired, in the SAME pass, with that same row's
+     * detail-page URL — so an empty/spacer row (no {@code <td>} cells, e.g. an ad or divider row)
+     * is skipped identically for both, and a dto can never end up zipped against a different row's
+     * detail URL (see {@link #parseRows(Document)}).
+     */
+    private record RowWithDetailUrl(IpoDto dto, String detailUrl) {}
+
     /** Extracted for unit testing without HTTP — parses a page already fetched into a Document. */
     List<IpoDto> parseTable(Document doc) {
+        List<RowWithDetailUrl> rows = parseRows(doc);
+        List<IpoDto> result = new ArrayList<>(rows.size());
+        for (RowWithDetailUrl row : rows) {
+            result.add(row.dto());
+        }
+        return result;
+    }
+
+    /**
+     * Parses the mainboard list table into one {@link RowWithDetailUrl} per data row, in a single
+     * pass. Building the dto and resolving its detail-page URL from the SAME {@code row} element —
+     * rather than in two separate passes zipped together by index afterwards — means the empty-row
+     * skip ({@code if (cells.isEmpty()) continue;}) applies identically to both: there is no way for
+     * a spacer/ad row to desynchronise a dto from a different row's detail URL, which is exactly
+     * what happened when {@code parseTable} and a separate {@code resolveDetailUrls} pass (each with
+     * their own row-skipping rules) were zipped together by index.
+     */
+    private List<RowWithDetailUrl> parseRows(Document doc) {
         Element table = doc.selectFirst("table");
         if (table == null) {
             log.warn("Chittorgarh: no <table> found on the page");
@@ -157,14 +185,14 @@ public class ChittorgarhSource implements IpoSource {
         int idxIssueSize = findColumn(headers, H_ISSUE_SIZE);
         int idxGain = findColumn(headers, H_GAIN);
 
-        List<IpoDto> result = new ArrayList<>();
+        List<RowWithDetailUrl> result = new ArrayList<>();
         for (Element row : resolveDataRows(table)) {
             Elements cells = row.select("td");
             if (cells.isEmpty()) {
                 continue;
             }
             BigDecimal[] priceBand = parsePriceBand(cellText(cells, idxPriceBand));
-            result.add(new IpoDto(
+            IpoDto dto = new IpoDto(
                     KEY,                                  // source
                     null,                                 // matchKey — assigned later by the normaliser
                     cellText(cells, idxName),               // companyName
@@ -190,31 +218,23 @@ public class ChittorgarhSource implements IpoSource {
                     null, null, null,                                   // faceValue, freshIssue, offerForSale — not on this page
                     null, null, null,                                   // tickerSymbol, strengths, risks — filled in later by detail-page enrichment
                     null                                                // financials — filled in later by detail-page enrichment
-            ));
+            );
+            result.add(new RowWithDetailUrl(dto, resolveDetailUrl(row)));
         }
         return result;
     }
 
     /**
-     * Resolves each data row's detail-page URL from its first anchor's {@code href}, resolved to
-     * absolute against the list page's base URI, parallel-indexed to {@link #parseTable(Document)}'s
-     * output (same row iteration order). {@code TODO(verify)}: confirmed only against a synthetic
-     * fixture — on the live page confirm the company-name cell is indeed the one carrying the
-     * detail-page anchor. A row without any anchor yields {@code null} at that index, so its
-     * enrichment is simply skipped (the core list row for it is unaffected).
+     * Resolves one data row's detail-page URL from its first anchor's {@code href}, resolved to
+     * absolute against the list page's base URI. {@code TODO(verify)}: confirmed only against a
+     * synthetic fixture — on the live page confirm the company-name cell is indeed the one carrying
+     * the detail-page anchor. A row without any anchor yields {@code null}, so its enrichment is
+     * simply skipped (the core list row for it is unaffected).
      */
-    private static List<String> resolveDetailUrls(Document doc) {
-        Element table = doc.selectFirst("table");
-        if (table == null) {
-            return List.of();
-        }
-        List<String> urls = new ArrayList<>();
-        for (Element row : resolveDataRows(table)) {
-            Element anchor = row.selectFirst("a[href]");
-            String url = anchor == null ? null : anchor.absUrl("href");
-            urls.add(url == null || url.isBlank() ? null : url);
-        }
-        return urls;
+    private static String resolveDetailUrl(Element row) {
+        Element anchor = row.selectFirst("a[href]");
+        String url = anchor == null ? null : anchor.absUrl("href");
+        return url == null || url.isBlank() ? null : url;
     }
 
     /**
@@ -242,12 +262,25 @@ public class ChittorgarhSource implements IpoSource {
         }
     }
 
-    /** Extracted for unit testing without HTTP — parses a detail page already fetched into a Document. */
+    /**
+     * Extracted for unit testing without HTTP — parses a detail page already fetched into a
+     * Document.
+     *
+     * <p>Strengths and risks headings are resolved separately, on purpose: a combined heading such
+     * as "Strengths and Risks" matches BOTH {@link #STRENGTHS_HEADING} and {@link #RISKS_HEADING}
+     * (they're independent substring-ish patterns), so naively looking each up via {@code
+     * findHeading(doc, pattern)} would return the SAME element for both and duplicate its bullet
+     * list into both fields. Instead the strengths heading is resolved first, then the risks
+     * heading is looked up while excluding that exact element — if no OTHER heading matches
+     * {@link #RISKS_HEADING}, risks is left {@code null} rather than duplicating strengths.
+     */
     DetailEnrichment parseDetail(Document doc) {
+        Element strengthsHeading = findHeading(doc, STRENGTHS_HEADING, null);
+        Element risksHeading = findHeading(doc, RISKS_HEADING, strengthsHeading);
         return new DetailEnrichment(
                 extractAbout(doc),
-                extractBullets(doc, STRENGTHS_HEADING),
-                extractBullets(doc, RISKS_HEADING),
+                extractBullets(strengthsHeading),
+                extractBullets(risksHeading),
                 extractFinancials(doc)
         );
     }
@@ -267,18 +300,26 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     /**
-     * The "About {Company}" description: the run of {@code <p>} elements immediately following the
-     * heading whose text starts with "About" (case-insensitive) — stops at the first non-{@code <p>}
-     * sibling (e.g. the next section's heading). {@code null} if no such heading, or it has no
-     * paragraph siblings.
+     * The "About {Company}" description: the run of {@code <p>} elements starting at the first
+     * {@code <p>} found within {@value #MAX_SIBLING_HOPS} sibling hops of the heading whose text
+     * starts with "About" (case-insensitive) — via the same wrapper-tolerant {@link #findFollowing}
+     * traversal used by {@link #extractBullets}/{@link #extractFinancials}, so an About paragraph
+     * wrapped in an intermediate {@code <div>} (rather than being a direct sibling of the heading)
+     * isn't silently missed. Collection stops at the first non-{@code <p>} sibling of that first
+     * paragraph (e.g. the next section's heading). {@code null} if no such heading, or no paragraph
+     * is found.
      */
     private static String extractAbout(Document doc) {
-        Element heading = findHeading(doc, ABOUT_HEADING);
+        Element heading = findHeading(doc, ABOUT_HEADING, null);
         if (heading == null) {
             return null;
         }
+        Element firstParagraph = findFollowing(heading, "p");
+        if (firstParagraph == null) {
+            return null;
+        }
         List<String> paragraphs = new ArrayList<>();
-        Element sibling = heading.nextElementSibling();
+        Element sibling = firstParagraph;
         while (sibling != null && "p".equalsIgnoreCase(sibling.tagName())) {
             String text = sibling.text().trim();
             if (!text.isEmpty()) {
@@ -291,12 +332,11 @@ public class ChittorgarhSource implements IpoSource {
 
     /**
      * A bullet list (newline-delimited, matching how the entity stores strengths/risks) found
-     * after the first heading whose text matches {@code headingPattern} — e.g. "Strengths" or
-     * "Risks"/"Weaknesses". {@code null} if no matching heading, or no {@code <ul>}/{@code <ol>}
-     * is found within {@value #MAX_SIBLING_HOPS} sibling hops of it.
+     * after the given heading element — e.g. the "Strengths" or "Risks"/"Weaknesses" heading
+     * already resolved by {@link #parseDetail}. {@code null} if {@code heading} is {@code null}, or
+     * no {@code <ul>}/{@code <ol>} is found within {@value #MAX_SIBLING_HOPS} sibling hops of it.
      */
-    private static String extractBullets(Document doc, Pattern headingPattern) {
-        Element heading = findHeading(doc, headingPattern);
+    private static String extractBullets(Element heading) {
         if (heading == null) {
             return null;
         }
@@ -314,7 +354,7 @@ public class ChittorgarhSource implements IpoSource {
      * within {@value #MAX_SIBLING_HOPS} sibling hops of it.
      */
     private static List<IpoFinancialRowDto> extractFinancials(Document doc) {
-        Element heading = findHeading(doc, FINANCIALS_HEADING);
+        Element heading = findHeading(doc, FINANCIALS_HEADING, null);
         if (heading == null) {
             return List.of();
         }
@@ -352,13 +392,22 @@ public class ChittorgarhSource implements IpoSource {
 
     /**
      * First element matching {@code heading}, {@code strong}, or {@code b} whose own text matches
-     * {@code pattern} (case-insensitive), in document order. Chittorgarh's detail-page markup
-     * carries no stable semantic classes/ids for these sections, so text-based heading matching is
-     * the least brittle option available (mirrors the header-text column matching in
-     * {@link #findColumn}).
+     * {@code pattern} (case-insensitive), in document order — skipping {@code exclude} if given.
+     * Chittorgarh's detail-page markup carries no stable semantic classes/ids for these sections,
+     * so text-based heading matching is the least brittle option available (mirrors the
+     * header-text column matching in {@link #findColumn}).
+     *
+     * <p>{@code exclude} lets a caller rule out a heading element already claimed by a different
+     * field — e.g. a combined "Strengths and Risks" heading matches both {@link #STRENGTHS_HEADING}
+     * and {@link #RISKS_HEADING}; once it's been claimed as the strengths heading, looking up risks
+     * with {@code exclude} set to that element ensures risks isn't resolved to the very same
+     * element (and so doesn't duplicate its bullet list).
      */
-    private static Element findHeading(Document doc, Pattern pattern) {
+    private static Element findHeading(Document doc, Pattern pattern, Element exclude) {
         for (Element el : doc.select(HEADING_SELECTOR)) {
+            if (el.equals(exclude)) {
+                continue;
+            }
             String text = el.text();
             if (text != null && pattern.matcher(text.trim()).matches()) {
                 return el;
