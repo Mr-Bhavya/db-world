@@ -19,10 +19,10 @@ function StatChip({ icon, color, value, label }) {
   return (
     <Box sx={{
       display: 'flex', alignItems: 'center', gap: 0.9, minWidth: 0,
-      px: 1.25, py: 0.75, borderRadius: 2.5, bgcolor: T.glass, border: `1px solid ${T.border}`,
+      px: { xs: 1, sm: 1.25 }, py: { xs: 0.6, sm: 0.75 }, borderRadius: 2.5, bgcolor: T.glass, border: `1px solid ${T.border}`,
     }}>
       <Box sx={{
-        width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+        width: { xs: 26, sm: 30 }, height: { xs: 26, sm: 30 }, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}1f`,
       }}>
         {icon}
@@ -87,31 +87,31 @@ export default function IpoHero({ lastUpdated }) {
   const GmpIcon = gmpPositive ? TrendingUpRoundedIcon : gmpNegative ? TrendingDownRoundedIcon : TrendingFlatRoundedIcon;
 
   return (
-    <Box sx={{ mb: 2.5 }}>
+    <Box sx={{ mb: { xs: 1.75, sm: 2.5 } }}>
       <Box sx={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        gap: 1.5, flexWrap: 'wrap', mb: 1.5,
+        gap: { xs: 1, sm: 1.5 }, flexWrap: 'wrap', mb: { xs: 1, sm: 1.5 },
       }}>
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.9 }}>
-            <RocketLaunchRoundedIcon sx={{ fontSize: 26, color: T.teal }} />
-            <Typography sx={{ fontSize: { xs: 22, sm: 25 }, fontWeight: 800, letterSpacing: -0.3 }}>
+            <RocketLaunchRoundedIcon sx={{ fontSize: { xs: 21, sm: 26 }, color: T.teal }} />
+            <Typography sx={{ fontSize: { xs: 18, sm: 25 }, fontWeight: 800, letterSpacing: -0.3 }}>
               IPO Radar
             </Typography>
           </Box>
-          <Typography sx={{ fontSize: 13, color: T.textMuted, mt: 0.25, maxWidth: 480, lineHeight: 1.5 }}>
+          <Typography sx={{ fontSize: { xs: 12, sm: 13 }, color: T.textMuted, mt: 0.25, maxWidth: 480, lineHeight: 1.5 }}>
             Track every Indian IPO — latest GMP, subscription &amp; allotment, all in one place.
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1 }, flexWrap: 'wrap', flexShrink: 0 }}>
           {lastUpdated && (
             <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.6,
+              display: 'flex', alignItems: 'center', gap: 0.6, px: { xs: 1, sm: 1.25 }, py: { xs: 0.4, sm: 0.6 },
               borderRadius: 999, bgcolor: T.glass, border: `1px solid ${T.border}`,
             }}>
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.success, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 11.5, color: T.textMuted, whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: { xs: 10.5, sm: 11.5 }, color: T.textMuted, whiteSpace: 'nowrap' }}>
                 Last updated {lastUpdated} IST
               </Typography>
             </Box>
@@ -123,7 +123,7 @@ export default function IpoHero({ lastUpdated }) {
             onClick={() => navigate(Constants.DB_IPO_MY_ROUTE)}
             sx={{
               borderColor: T.border, color: T.textPrimary, fontSize: 12.5, fontWeight: 700,
-              whiteSpace: 'nowrap', bgcolor: T.glass,
+              whiteSpace: 'nowrap', bgcolor: T.glass, py: { xs: 0.4, sm: 0.5 }, px: { xs: 1.25, sm: 1.75 },
               '&:hover': { borderColor: T.teal, bgcolor: T.tealBg, color: T.teal },
             }}
           >

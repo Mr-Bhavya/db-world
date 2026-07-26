@@ -34,12 +34,12 @@ export default function IpoFilterBar({ type, status, sort, onChange }) {
 
   const segmentedSx = {
     '& .MuiToggleButton-root': {
-      fontSize: 11.5,
+      fontSize: { xs: 11, sm: 11.5 },
       fontWeight: 700,
       color: T.textMuted,
       border: `1px solid ${T.border}`,
-      px: 1.1,
-      py: 0.45,
+      px: { xs: 0.85, sm: 1.1 },
+      py: { xs: 0.35, sm: 0.45 },
       textTransform: 'none',
       whiteSpace: 'nowrap',
       lineHeight: 1,
@@ -54,15 +54,15 @@ export default function IpoFilterBar({ type, status, sort, onChange }) {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 1,
-        mb: 2.5,
-        p: 1.25,
+        gap: { xs: 0.75, sm: 1 },
+        mb: { xs: 2, sm: 2.5 },
+        p: { xs: 1, sm: 1.25 },
         borderRadius: 3,
         bgcolor: T.glass,
         border: `1px solid ${T.border}`,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: { xs: 0.75, sm: 1 }, flexWrap: 'wrap' }}>
         <ToggleButtonGroup
           value={type}
           exclusive
@@ -87,10 +87,10 @@ export default function IpoFilterBar({ type, status, sort, onChange }) {
             fontSize: 12.5,
             fontWeight: 700,
             color: T.textPrimary,
-            minWidth: 132,
+            minWidth: { xs: 108, sm: 132 },
             bgcolor: T.inputBg,
             borderRadius: 1.5,
-            '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0.55 },
+            '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: { xs: 0.4, sm: 0.55 } },
             '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
             '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.borderHover },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
