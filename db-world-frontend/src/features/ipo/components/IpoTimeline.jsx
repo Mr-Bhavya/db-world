@@ -118,7 +118,10 @@ function Connector({ filled, desktop }) {
  *     to fill the gaps between them, plus a short descriptor line under each stage's date.
  *     No horizontal scroll — everything fits the row.
  *   - Mobile/tablet: unchanged from before — a compact, fixed-width, horizontally-scrolling
- *     strip past ~5 visible nodes, no descriptor line (no room for it).
+ *     strip past ~5 visible nodes, no descriptor line (no room for it). Carries
+ *     `data-swipe-ignore` so the detail page's tab-swipe handler (`IpoDetailPage`) treats a
+ *     touch drag starting here as this strip's own horizontal scroll, not a request to
+ *     switch tabs — see the swipe-ignore selector there (same convention as `ScrollableTable`).
  */
 export default function IpoTimeline({ ipo }) {
   const T = useT();
@@ -141,12 +144,15 @@ export default function IpoTimeline({ ipo }) {
   }
 
   return (
-    <Box sx={{
-      overflowX: 'auto', overflowY: 'hidden', pb: 0.5, pt: 0.25,
-      scrollSnapType: 'x proximity',
-      '&::-webkit-scrollbar': { height: 5 },
-      '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 999 },
-    }}>
+    <Box
+      data-swipe-ignore
+      sx={{
+        overflowX: 'auto', overflowY: 'hidden', pb: 0.5, pt: 0.25,
+        scrollSnapType: 'x proximity',
+        '&::-webkit-scrollbar': { height: 5 },
+        '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 999 },
+      }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', minWidth: 'max-content', px: 0.5 }}>
         {stages.map((stage, i) => (
           <Box key={stage.key} sx={{ display: 'flex', alignItems: 'flex-start', scrollSnapAlign: 'start' }}>
