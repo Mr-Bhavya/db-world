@@ -131,9 +131,10 @@ class IpoSampleDataSeederTest {
 
         assertThat(saved).allSatisfy(e -> {
             assertThat(e.getMatchKey()).isNotBlank();
-            assertThat(e.getLogoUrl()).startsWith("https://logo.clearbit.com/");
+            // Clearbit's logo endpoint is dead; the seeder must not fabricate a logoUrl from it —
+            // the FE resolves logos via Logo.dev straight off logoDomain instead.
+            assertThat(e.getLogoUrl()).isNull();
             assertThat(e.getLogoDomain()).isNotBlank();
-            assertThat(e.getLogoUrl()).endsWith(e.getLogoDomain());
             assertThat(e.getFirstSeenAt()).isEqualTo(NOW);
             assertThat(e.getLastSeenAt()).isEqualTo(NOW);
         });

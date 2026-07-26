@@ -40,8 +40,10 @@ import java.util.Map;
  * and demo against without waiting on live source polling.
  *
  * <p>Samples are modelled on real, well-known Indian companies (Zomato, Nykaa, LIC, ...) so their
- * Clearbit-logo lookups actually resolve — but every date, price, GMP, subscription and financial
- * figure here is illustrative demo data, not a live feed. See {@link #buildSampleIpoSpecs}.
+ * real domain (stored as {@code logoDomain}) resolves a real logo via the frontend's Logo.dev
+ * lookup — {@code logoUrl} itself is left {@code null} (Clearbit's free logo endpoint is dead) —
+ * but every date, price, GMP, subscription and financial figure here is illustrative demo data,
+ * not a live feed. See {@link #buildSampleIpoSpecs}.
  *
  * <p><b>Prod-safe by construction</b>: gated by {@code dbworld.ipo.sample-data.enabled}
  * (default {@code false}) AND only ever runs when {@code ipo_listing} is completely empty — so
@@ -137,7 +139,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 .allotmentStatus(spec.getAllotmentStatus())
                 .registrar(spec.getRegistrar())
                 .registrarUrl(spec.getRegistrarUrl())
-                .logoUrl(logoUrlFor(spec.getDomain()))
+                .logoUrl(null)
                 .logoDomain(spec.getDomain())
                 .about(spec.getAbout())
                 .faceValue(spec.getFaceValue())
@@ -260,11 +262,6 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
         return date.atStartOfDay(ZoneOffset.UTC).toInstant();
     }
 
-    /** Clearbit resolves a company's logo straight from its domain; the FE falls back to initials on a 404. */
-    private static String logoUrlFor(String domain) {
-        return "https://logo.clearbit.com/" + domain;
-    }
-
     /** Builds a minimal probe dto (only company name + open date matter) to reuse the real matchKey algorithm. */
     private String matchKeyFor(String companyName, LocalDate openDate) {
         IpoDto probe = new IpoDto(null, null, companyName, null, null, openDate, null, null, null,
@@ -299,8 +296,9 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
     }
 
     // =====================================================================================
-    // The sample matrix — 8 IPOs modelled on real, well-known Indian companies (so Clearbit
-    // logos resolve), spread across every status and mostly mainboard with a couple SME.
+    // The sample matrix — 8 IPOs modelled on real, well-known Indian companies (so their
+    // logoDomain resolves a real logo via the frontend's Logo.dev lookup), spread across every
+    // status and mostly mainboard with a couple SME.
     // Dates are computed relative to `today` so the data always looks "live"; every other
     // figure (price, GMP, subscription, financials) is illustrative demo data, not a live feed.
     // Add/edit entries here to extend the sample set; nothing else needs to change.
@@ -565,7 +563,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
     @Builder
     private static class SampleIpo {
         private String companyName;
-        /** Bare domain (e.g. {@code "zomato.com"}) — used both for the Clearbit {@code logoUrl} and stored verbatim as {@code logoDomain} for the frontend's Logo.dev lookup. */
+        /** Bare domain (e.g. {@code "zomato.com"}) — stored verbatim as {@code logoDomain} for the frontend's Logo.dev lookup; {@code logoUrl} itself is left {@code null} (Clearbit's free logo endpoint is dead). */
         private String domain;
         private String ipoType;
         private String status;
