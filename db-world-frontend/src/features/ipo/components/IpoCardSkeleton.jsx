@@ -30,24 +30,26 @@ export default function IpoCardSkeleton() {
         <Skeleton variant="rounded" width={54} height={19} sx={{ borderRadius: 999, bgcolor: T.glassHover, flexShrink: 0 }} />
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+      {/* Mirrors IpoCard's 2-column stat grid 1:1: row 1 = price band/lot size, row 2 =
+          GMP/subscription (the subscription cell's mini-bar+multiple placeholder is a
+          single rounded block, matching that cell's fixed-width bar + "×" value shape). */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
         <Box>
           <Skeleton variant="text" width={56} height={12} sx={{ bgcolor: T.glassHover }} />
           <Skeleton variant="text" width={70} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
         </Box>
         <Box>
+          <Skeleton variant="text" width={44} height={12} sx={{ bgcolor: T.glassHover }} />
+          <Skeleton variant="text" width={32} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
+        </Box>
+        <Box>
           <Skeleton variant="text" width={32} height={12} sx={{ bgcolor: T.glassHover }} />
           <Skeleton variant="text" width={64} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
         </Box>
-      </Box>
-
-      {/* Placeholder for the open/closed subscription mini-bar row — most cards in a
-          typical list are open/closed, so the skeleton reserves its space to avoid a
-          layout jump once real data (and the real row) lands. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-        <Skeleton variant="text" width={70} height={12} sx={{ bgcolor: T.glassHover }} />
-        <Skeleton variant="rounded" width={56} height={5} sx={{ borderRadius: 999, bgcolor: T.glassHover }} />
-        <Skeleton variant="text" width={28} height={14} sx={{ bgcolor: T.glassHover }} />
+        <Box>
+          <Skeleton variant="text" width={70} height={12} sx={{ bgcolor: T.glassHover }} />
+          <Skeleton variant="rounded" width={64} height={18} sx={{ mt: 0.25, borderRadius: 1, bgcolor: T.glassHover }} />
+        </Box>
       </Box>
 
       <Box sx={{

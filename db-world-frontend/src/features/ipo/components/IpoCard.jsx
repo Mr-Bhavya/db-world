@@ -97,33 +97,30 @@ function DaysLeftPill({ ipo }) {
 }
 
 /**
- * Compact inline subscription indicator — a single stat-row line (uppercase label + a
- * short fixed-width mini progress bar + the "3.6×" multiple), styled to match the
- * card's other compact stats rather than the old heavy full-width bar+label block.
+ * Compact inline subscription indicator — a short fixed-width mini progress bar + the
+ * "3.6×" multiple — for the Subscription cell of the card's 2-column stat grid (the
+ * cell's own `Stat` wrapper supplies the "SUBSCRIPTION" label, so this renders value-only).
  * Fill is capped at 100% (past 1× the bar just stays full; the multiple itself is what
  * carries "oversubscribed" — no ever-growing bar past full), color-tiered via
  * `subscriptionMeta` so a 15× "hot" issue reads as unmistakably different from a 1.2×
- * scrape-by. Open/closed IPOs only, and only once `subTotal` is known — hidden for
- * upcoming/listed via the caller's condition, not in here, so the "nothing at all"
- * case never even mounts this.
+ * scrape-by. Callers only render this once `subTotal` is known for an open/closed IPO —
+ * the neutral "—" placeholder for every other case (upcoming/listed, or not-yet-known)
+ * lives at the call site so the Subscription cell is never a broken empty gap.
  */
 function SubscriptionMiniBar({ subTotal }) {
   const T = useT();
   const meta = subscriptionMeta(subTotal, T);
-  if (!meta) return null;
+  if (!meta) return <Typography sx={{ fontSize: 13, color: T.textFaint }}>—</Typography>;
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-      <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700, flexShrink: 0 }}>
-        Subscription
-      </Typography>
-      <Box sx={{ width: 56, height: 5, borderRadius: 999, bgcolor: T.glassHover, overflow: 'hidden', flexShrink: 0 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+      <Box sx={{ width: 40, height: 5, borderRadius: 999, bgcolor: T.glassHover, overflow: 'hidden', flexShrink: 0 }}>
         <Box sx={{
           height: '100%', width: `${meta.fillPct}%`, borderRadius: 999, bgcolor: meta.color,
           boxShadow: meta.hot ? `0 0 6px ${meta.color}` : 'none',
           transition: 'width 0.3s ease',
         }} />
       </Box>
-      <Typography sx={{ fontSize: 12, fontWeight: 800, color: meta.color, flexShrink: 0 }} noWrap>
+      <Typography sx={{ fontSize: 13, fontWeight: 800, color: meta.color, flexShrink: 0 }} noWrap>
         {Number(subTotal).toFixed(1)}×
       </Typography>
     </Box>
@@ -131,9 +128,10 @@ function SubscriptionMiniBar({ subTotal }) {
 }
 
 /**
- * Minimal IPO card: logo + name + type chip, status badge, price band, GMP, and one key
- * date — heavier detail lives on the detail page. A left accent strip (via `statusMeta`)
- * gives an at-a-glance read on where the IPO is in its lifecycle.
+ * Minimal IPO card: logo + name + type chip, status badge, a 2-column stat grid (price
+ * band/lot size, GMP/subscription) and one key date — heavier detail lives on the detail
+ * page. A left accent strip (via `statusMeta`) gives an at-a-glance read on where the IPO
+ * is in its lifecycle.
  */
 export default function IpoCard({ ipo, index = 0 }) {
   const T = useT();
@@ -219,25 +217,31 @@ export default function IpoCard({ ipo, index = 0 }) {
           <StatusBadge status={ipo.status} />
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 1 }}>
+        {/* 2-column stat grid — Price band/Lot size on row 1, GMP/Subscription on row 2, so
+            the card fills its width edge-to-edge instead of the subscription bar leaving a
+            big empty gap on the right. `repeat(2, minmax(0,1fr))` (not bare `1fr`) keeps
+            each column shrinkable so a long price-band string never forces the card wider
+            than its grid track at 360px (same reasoning as the list page's own card grid). */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
           <Stat label="Price band">
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }} noWrap>
               {formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}
-              {ipo.lotSize != null && (
-                <Box component="span" sx={{ fontWeight: 600, color: T.textMuted, fontSize: 11.5 }}>
-                  {' '}&middot; Lot {ipo.lotSize}
-                </Box>
-              )}
+            </Typography>
+          </Stat>
+          <Stat label="Lot size">
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }} noWrap>
+              {ipo.lotSize != null ? ipo.lotSize : '—'}
             </Typography>
           </Stat>
           <Stat label="GMP">
             <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
           </Stat>
+          <Stat label="Subscription">
+            {(ipo.status === 'open' || ipo.status === 'closed') && ipo.subTotal != null
+              ? <SubscriptionMiniBar subTotal={ipo.subTotal} />
+              : <Typography sx={{ fontSize: 13, color: T.textFaint }}>—</Typography>}
+          </Stat>
         </Box>
-
-        {(ipo.status === 'open' || ipo.status === 'closed') && ipo.subTotal != null && (
-          <SubscriptionMiniBar subTotal={ipo.subTotal} />
-        )}
 
         <Box sx={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 0.75,
