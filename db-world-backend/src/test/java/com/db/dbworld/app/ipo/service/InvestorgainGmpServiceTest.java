@@ -36,18 +36,17 @@ class InvestorgainGmpServiceTest {
     @Mock IpoGmpHistoryRepository gmpHistoryRepo;
     @Mock IpoSourcePollService pollService;
 
-    private static final String LIST_MAINBOARD = "https://webnodejs.investorgain.com/cloud/v2/ipodashboard/iposubscription-read/IPO";
-    private static final String LIST_SME = "https://webnodejs.investorgain.com/cloud/v2/ipodashboard/iposubscription-read/SME";
+    // FY report list URL for the fixed test clock (26-Jul-2026 IST → FY 2026-27).
+    private static final String LIST_URL = "https://webnodejs.investorgain.com/cloud/v2/report/data-read/394/1/7/2026/2026-27/0/all";
     private static final String GMP_URL_XTRANET = "https://webnodejs.investorgain.com/cloud/v2/ipo/ipo-gmp-read/1951/true";
 
-    // Real investorgain shapes (trimmed): dashboard list + day-wise GMP for one IPO.
+    // Real investorgain shapes (trimmed): FY report list (one row) + day-wise GMP for one IPO.
     private static final String LIST_JSON = """
-            {"msg":1,"ipoList":[
-              {"id":1951,"company_short_name":"Xtranet Technologies","issue_size":"&#8377;166.80 Cr",
-               "Issue_open_dt":"2026-07-23T00:00:00.000Z","listing_at":"BSE, NSE","ipo_status":"Open","Total":"1.96x"}
-            ]}
+            {"msg":1,"reportTableData":[
+              {"~id":1951,"IPO":"Xtranet Technologies","~Srt_Open":"2026-07-23","IPO Price":"₹ 127","Lot":110,
+               "Status":"<span>Open</span>","IPO Size":"&#8377;166.80 Cr"}
+            ],"totalRecords":1,"totalPages":1}
             """;
-    private static final String EMPTY_LIST_JSON = "{\"msg\":1,\"ipoList\":[]}";
     private static final String GMP_JSON = """
             {"msg":1,"ipoGmpData":[
               {"gmp_date":"26-07-2026","gmp":"9","max_ipo_price":"127.00","gmp_active_record_flag":1},
@@ -147,7 +146,6 @@ class InvestorgainGmpServiceTest {
     }
 
     private void stubLists() {
-        when(httpClient.get(eq(LIST_MAINBOARD), any())).thenReturn(ok(LIST_JSON));
-        when(httpClient.get(eq(LIST_SME), any())).thenReturn(ok(EMPTY_LIST_JSON));
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON));
     }
 }

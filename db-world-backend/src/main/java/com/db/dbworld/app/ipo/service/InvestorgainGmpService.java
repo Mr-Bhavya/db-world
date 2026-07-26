@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +20,9 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -59,22 +62,30 @@ public class InvestorgainGmpService {
     private static final String SOURCE = "investorgain";
 
     // ── Endpoints (confirmed from a live DevTools capture) ──────────────────────────────────────
-    private static final String LIST_MAINBOARD = "https://webnodejs.investorgain.com/cloud/v2/ipodashboard/iposubscription-read/IPO";
-    private static final String LIST_SME = "https://webnodejs.investorgain.com/cloud/v2/ipodashboard/iposubscription-read/SME";
+    // The "report/data-read/394" list is the whole IPO calendar for the financial year (mainboard +
+    // SME + REIT/InvIT, upcoming through recently-listed), each row carrying investorgain's own
+    // ~id — so GMP can be resolved for UPCOMING issues too, not just the live-subscription
+    // dashboard. Same FY-keyed shape as Chittorgarh's list: report-id(394)/page/7/fyStart/fy/0/all.
+    private static final String LIST_URL_TEMPLATE =
+            "https://webnodejs.investorgain.com/cloud/v2/report/data-read/394/%d/7/%d/%s/0/all";
     private static final String GMP_URL_TEMPLATE = "https://webnodejs.investorgain.com/cloud/v2/ipo/ipo-gmp-read/%s/true";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private static final String INVESTORGAIN_ORIGIN = "https://www.investorgain.com";
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
+    /** Cap on list pages walked per refresh (the report returns 500/page, so realistically one). */
+    private static final int MAX_PAGES = 10;
     /** Cap on per-IPO GMP fetches per refresh — only spent on IPOs that matched a tracked listing. */
     private static final int MAX_GMP_FETCHES = 30;
 
-    // ── List (dashboard) field names ────────────────────────────────────────────────────────────
-    private static final String F_IPO_LIST = "ipoList";
-    private static final String F_ID = "id";
-    private static final String F_COMPANY_SHORT_NAME = "company_short_name";
-    private static final String F_ISSUE_OPEN_DT = "Issue_open_dt";       // ISO, e.g. "2026-07-23T00:00:00.000Z"
+    // ── List (report) field names ─────────────────────────────────────────────────────────────
+    private static final String F_REPORT_DATA = "reportTableData";
+    private static final String F_TOTAL_PAGES = "totalPages";
+    private static final String F_ID = "~id";
+    private static final String F_IPO = "IPO";                            // short company name
+    private static final String F_SRT_OPEN = "~Srt_Open";                 // ISO date, e.g. "2026-07-23"
 
     // ── GMP-read field names ──────────────────────────────────────────────────────────────────
     private static final String F_GMP_DATA = "ipoGmpData";
@@ -92,6 +103,7 @@ public class InvestorgainGmpService {
     private final IpoSourcePollService pollService;
     private final Clock clock;
 
+    @Autowired
     public InvestorgainGmpService(IpoHttpClient httpClient, IpoListingRepository listingRepo,
                                   IpoGmpHistoryRepository gmpHistoryRepo, IpoNormalizer normalizer,
                                   IpoSourcePollService pollService) {
@@ -119,9 +131,7 @@ public class InvestorgainGmpService {
     public int refreshGmp() {
         Instant now = clock.instant();
         try {
-            List<Listing> listings = new ArrayList<>();
-            listings.addAll(fetchListings(LIST_MAINBOARD));
-            listings.addAll(fetchListings(LIST_SME));
+            List<Listing> listings = fetchListings();
 
             int updated = 0;
             int budget = MAX_GMP_FETCHES;
@@ -164,28 +174,46 @@ public class InvestorgainGmpService {
     /** One day's GMP reading. */
     record GmpPoint(LocalDate date, BigDecimal gmp, BigDecimal gmpPct) {}
 
-    private List<Listing> fetchListings(String url) {
+    /** Walks the FY report list (bounded by {@link #MAX_PAGES}), accumulating every IPO's id/name/open date. */
+    private List<Listing> fetchListings() {
+        List<Listing> all = new ArrayList<>();
         try {
-            IpoHttpResponse response = httpClient.get(url, jsonHeaders());
-            return parseListings(response.body());
+            int page = 1;
+            while (page <= MAX_PAGES) {
+                IpoHttpResponse response = httpClient.get(listUrl(page), jsonHeaders());
+                all.addAll(parseListings(response.body()));
+                int totalPages = MAPPER.readTree(response.body()).path(F_TOTAL_PAGES).asInt(1);
+                if (page >= totalPages) {
+                    break;
+                }
+                page++;
+            }
         } catch (Exception e) {
-            log.warn("investorgain: list fetch failed for {}: {}", url, e.toString());
-            return List.of();
+            log.warn("investorgain: list fetch failed: {}", e.toString());
         }
+        return all;
     }
 
-    /** Extracted for unit testing without HTTP. */
+    /** The report URL for a given page of the current Indian financial year (computed in IST). */
+    String listUrl(int page) {
+        ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
+        int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
+        String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
+        return LIST_URL_TEMPLATE.formatted(page, fyStart, fyLabel);
+    }
+
+    /** Extracted for unit testing without HTTP — parses a report-list body into id/name/open-date rows. */
     List<Listing> parseListings(String body) {
         List<Listing> result = new ArrayList<>();
         try {
-            JsonNode array = MAPPER.readTree(body).path(F_IPO_LIST);
+            JsonNode array = MAPPER.readTree(body).path(F_REPORT_DATA);
             if (!array.isArray()) {
                 return result;
             }
             for (JsonNode node : array) {
                 String id = text(node, F_ID);
-                String company = text(node, F_COMPANY_SHORT_NAME);
-                LocalDate openDate = parseIsoDate(text(node, F_ISSUE_OPEN_DT));
+                String company = text(node, F_IPO);
+                LocalDate openDate = parseIsoDate(text(node, F_SRT_OPEN));
                 if (id != null && company != null) {
                     result.add(new Listing(id, company, openDate));
                 }
