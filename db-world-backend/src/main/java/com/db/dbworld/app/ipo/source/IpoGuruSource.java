@@ -200,7 +200,8 @@ public class IpoGuruSource implements IpoSource {
                 decimal(n, F_FACE_VALUE), null, null,                       // faceValue; freshIssue/offerForSale — not documented
                 null, null, null,                                          // tickerSymbol, strengths, risks — not documented
                 null,                                                      // financials — not documented for this source
-                null, null                                                 // kpis, issueObjects — Chittorgarh-only
+                null, null,                                                // kpis, issueObjects — Chittorgarh-only
+                null                                                       // leadManagers — Chittorgarh-only
         );
     }
 

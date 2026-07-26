@@ -47,7 +47,7 @@ class IpoMergeServiceTest {
                 "https://logo/" + source, "About " + source,
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
                 new BigDecimal("10.00"), freshIssue, offerForSale,
-                "TICK-" + source, "Strength " + source, "Risk " + source, List.of(), null, null);
+                "TICK-" + source, "Strength " + source, "Risk " + source, List.of(), null, null, null);
     }
 
     /** Minimal dto (like the fallback-precedence helpers below) varying only source + financials. */
@@ -57,7 +57,7 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, financials, null, null);
+                null, null, null, null, null, null, financials, null, null, null);
     }
 
     private static IpoFinancialRowDto row(String fiscalYear) {
@@ -137,19 +137,19 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 "finalized-manual-only", null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, manual));
 
@@ -165,7 +165,7 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(acme, other));
 
@@ -181,7 +181,7 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         IpoDto valid = full("ipoguru");
 
         List<IpoDto> merged = mergeService.merge(List.of(uningestable, valid));

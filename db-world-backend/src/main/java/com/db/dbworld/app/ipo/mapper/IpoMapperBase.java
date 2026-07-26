@@ -42,6 +42,7 @@ public abstract class IpoMapperBase {
 
     @Mapping(target = "strengths", source = "strengths", qualifiedByName = "splitLines")
     @Mapping(target = "risks", source = "risks", qualifiedByName = "splitLines")
+    @Mapping(target = "leadManagers", source = "leadManagers", qualifiedByName = "splitLines")
     @Mapping(target = "kpis", source = "kpisJson", qualifiedByName = "kpisFromJson")
     @Mapping(target = "issueObjects", source = "issueObjectsJson", qualifiedByName = "issueObjectsFromJson")
     public abstract IpoDetailDto toDetail(IpoListingEntity e);

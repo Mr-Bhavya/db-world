@@ -119,6 +119,10 @@ public class IpoListingEntity {
     @Column(name = "issue_objects_json", columnDefinition = "TEXT")
     private String issueObjectsJson;
 
+    /** Newline-delimited book-running lead manager(s); split into a {@code List<String>} on the detail DTO. */
+    @Column(name = "lead_managers", columnDefinition = "TEXT")
+    private String leadManagers;
+
     // ── Company "About" profile facts ────────────────────────────────────────────────────────
     // Seeder-populated for now (a live adapter can fill these via a separate path later). Not
     // part of IpoDto/ingest — deliberately excluded from applyUpdatable/toNewEntity so ingest

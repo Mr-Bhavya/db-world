@@ -269,7 +269,7 @@ public class IpoSampleDataSeeder implements ApplicationRunner {
                 null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         return normalizer.matchKey(probe);
     }
 

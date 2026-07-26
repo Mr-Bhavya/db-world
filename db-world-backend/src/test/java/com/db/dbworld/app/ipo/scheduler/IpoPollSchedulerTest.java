@@ -69,7 +69,7 @@ class IpoPollSchedulerTest {
                 null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test

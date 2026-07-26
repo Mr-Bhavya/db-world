@@ -146,7 +146,7 @@ public class IpoQueryService {
                 dto.strengths(), dto.risks(),
                 dto.foundedYear(), dto.managingDirector(), dto.parentCompany(),
                 dto.sector(), dto.headquarters(), dto.website(),
-                dto.kpis(), dto.issueObjects());
+                dto.kpis(), dto.issueObjects(), dto.leadManagers());
     }
 
     /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */

@@ -131,6 +131,7 @@ public class ChittorgarhSource implements IpoSource {
     // section on the detail page (only competitive strengths), so risks is left null. ───────────
     private static final Pattern ABOUT_HEADING = Pattern.compile("^about\\b.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern FINANCIALS_HEADING = Pattern.compile(".*financials?.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LEAD_MANAGER_HEADING = Pattern.compile(".*lead manager.*", Pattern.CASE_INSENSITIVE);
     private static final String HEADING_SELECTOR = "h1,h2,h3,h4,h5,strong,b";
     /** Financials metric-row labels (first cell of each transposed data row), matched case-insensitively. */
     private static final List<String> FIN_REVENUE = List.of("total income", "revenue");
@@ -319,7 +320,8 @@ public class ChittorgarhSource implements IpoSource {
                     tickerSymbol(node),                               // tickerSymbol ← ~nse_symbol / ~bse_script_code
                     null, null,                                       // strengths, risks — filled by detail-page enrichment
                     null,                                             // financials — filled by detail-page enrichment
-                    null, null                                        // kpis, issueObjects — filled by detail-page enrichment
+                    null, null,                                       // kpis, issueObjects — filled by detail-page enrichment
+                    null                                              // leadManagers — filled by detail-page enrichment
             );
             rows.add(new RowWithDetailUrl(dto, company.detailUrl()));
         }
@@ -406,12 +408,12 @@ public class ChittorgarhSource implements IpoSource {
     DetailEnrichment parseDetail(Document doc) {
         AboutAndStrengths as = extractAboutAndStrengths(doc);
         return new DetailEnrichment(as.about(), as.strengths(), null,
-                extractFinancials(doc), extractKpis(doc), extractIssueObjects(doc));
+                extractFinancials(doc), extractKpis(doc), extractIssueObjects(doc), extractLeadManagers(doc));
     }
 
     /** One detail page's scraped enrichment fields, merged onto the list-row dto by {@link #withDetailEnrichment}. */
     record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials,
-                            List<IpoKpiDto> kpis, List<IpoIssueObjectDto> issueObjects) {}
+                            List<IpoKpiDto> kpis, List<IpoIssueObjectDto> issueObjects, String leadManagers) {}
 
     /** The company "About" narrative and the competitive-strengths bullets, split out of {@code #ipoSummary}. */
     private record AboutAndStrengths(String about, String strengths) {}
@@ -425,7 +427,7 @@ public class ChittorgarhSource implements IpoSource {
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), enrichment.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
                 dto.tickerSymbol(), enrichment.strengths(), enrichment.risks(), enrichment.financials(),
-                enrichment.kpis(), enrichment.issueObjects());
+                enrichment.kpis(), enrichment.issueObjects(), enrichment.leadManagers());
     }
 
     /**
@@ -661,6 +663,33 @@ public class ChittorgarhSource implements IpoSource {
             return null;
         }
         return "₹" + raw.trim() + " Cr";
+    }
+
+    /**
+     * The book-running lead manager(s) from the "IPO Lead Manager(s)" section — the first heading
+     * matching {@link #LEAD_MANAGER_HEADING}, then each {@code <li>} of the following list. Each
+     * item's leading anchor is the manager name (the row also links "Past IPO Performance"), so the
+     * first anchor's text is used, falling back to the whole {@code <li>} text. Newline-delimited
+     * (same convention as strengths/risks); {@code null} if the section/list is absent.
+     */
+    private static String extractLeadManagers(Document doc) {
+        Element heading = findHeading(doc, LEAD_MANAGER_HEADING, null);
+        if (heading == null) {
+            return null;
+        }
+        Element list = findFollowing(heading, "ol,ul");
+        if (list == null) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (Element li : list.select("li")) {
+            Element anchor = li.selectFirst("a");
+            String name = (anchor != null ? anchor.text() : li.text()).trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return names.isEmpty() ? null : String.join("\n", names);
     }
 
     /**

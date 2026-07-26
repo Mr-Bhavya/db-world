@@ -328,6 +328,14 @@ class ChittorgarhSourceTest {
                 </table>
               </div>
             </div>
+            <div class="col-12 col-sm-6 mb-3">
+              <div class="card">
+                <h2 class="section-title">IPO Lead Manager(s)</h2>
+                <ol>
+                  <li><a href="/x">Share India Capital Services Pvt.Ltd.</a> (<a href="/y">Past IPO Performance</a>)</li>
+                </ol>
+              </div>
+            </div>
             </body></html>
             """;
 
@@ -391,6 +399,17 @@ class ChittorgarhSourceTest {
         assertThat(enrichment.issueObjects().get(1).amount()).isEqualTo("₹102.00 Cr");
         assertThat(enrichment.issueObjects().get(2).purpose()).isEqualTo("General corporate purposes");
         assertThat(enrichment.issueObjects().get(2).amount()).isNull();
+    }
+
+    @Test
+    void parseDetail_extractsLeadManagers() {
+        Document doc = Jsoup.parse(DETAIL_FIXTURE_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        // Each <li> links the manager name then a "Past IPO Performance" link — only the manager
+        // name (first anchor) is kept, not the trailing "(Past IPO Performance)".
+        assertThat(enrichment.leadManagers()).isEqualTo("Share India Capital Services Pvt.Ltd.");
     }
 
     @Test

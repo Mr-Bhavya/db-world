@@ -71,5 +71,12 @@ public record IpoDto(
          * from the detail page — {@code null}/empty except for {@code chittorgarh}. Merged
          * chittorgarh-first; persisted as a JSON array ({@code issue_objects_json}).
          */
-        List<IpoIssueObjectDto> issueObjects
+        List<IpoIssueObjectDto> issueObjects,
+        /**
+         * Book-running lead manager(s), newline-delimited (same storage convention as
+         * {@code strengths}/{@code risks}) — scraped from the detail page's "IPO Lead Manager(s)"
+         * section, {@code null} for every other source. Split into a {@code List<String>} on the
+         * detail DTO.
+         */
+        String leadManagers
 ) {}
