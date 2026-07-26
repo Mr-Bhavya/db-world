@@ -239,7 +239,10 @@ class ChittorgarhSourceTest {
         verify(httpClient).get(eq(LIST_URL_PAGE2), any());
     }
 
-    // ── Detail-page enrichment (About/Strengths/Risks/Financials) — still HTML, unchanged ─────────
+    // ── Detail-page enrichment (About/Strengths/Financials) — parsed from the detail page's REAL
+    // server-rendered DOM (captured live, Xtranet 2688): About + Competitive-Strengths live under
+    // the stable #ipoSummary id, and the "Company Financials" table (#financialTable) is TRANSPOSED
+    // — metrics down the first column, fiscal periods across the header. No risks section exists. ─
 
     private static final String DETAIL_URL = "https://www.chittorgarh.com/ipo/acme-robotics/123/";
 
@@ -251,76 +254,83 @@ class ChittorgarhSourceTest {
             ],"totalPages":1}
             """;
 
-    // Synthesized detail-page fixture: About paragraphs, Strengths/Risks bullet lists, and the
-    // "Company Financials" table, matched by heading TEXT (Chittorgarh's detail markup carries no
-    // stable semantic classes/ids for these sections) — TODO(verify) against a live page.
+    // Detail-page fixture mirroring the real DOM: #ipoSummary (intro paragraphs → about, the
+    // "Competitive Strengths" <ul> → strengths) and the transposed #financialTable.
     private static final String DETAIL_FIXTURE_HTML = """
             <html><body>
-            <h2>About Acme Robotics Ltd</h2>
-            <p>Acme Robotics designs and manufactures industrial robotics for the automotive sector.</p>
-            <p>It has a pan-India distribution network.</p>
-
-            <h2>Acme Robotics Strengths</h2>
-            <ul>
-              <li>Strong industrial robotics portfolio</li>
-              <li>Established automotive OEM relationships</li>
-            </ul>
-
-            <h2>Risks</h2>
-            <ul>
-              <li>Reliant on automotive sector capex cycles</li>
-              <li>Customer concentration risk</li>
-            </ul>
-
-            <h2>Company Financials</h2>
-            <table>
-              <thead>
-                <tr><th>Period</th><th>Revenue</th><th>Profit After Tax</th><th>Total Assets</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>FY 2022-23</td><td>4192.40</td><td>(971.00)</td><td>6800.00</td></tr>
-                <tr><td>FY 2023-24</td><td>7079.60</td><td>175.00</td><td>9600.00</td></tr>
-                <tr><td>Mar 2025</td><td>3200.00</td><td>50.00</td><td>4000.00</td></tr>
-              </tbody>
-            </table>
+            <div id="about-company-section" class="row">
+              <div class="col-md-12 ipo-summary">
+                <h2 class="section-title">About Acme Robotics Ltd.</h2>
+                <div id="ipoSummary" class="collapse">
+                  <p>Incorporated in 2002, Acme Robotics designs and manufactures industrial robotics for the automotive sector.</p>
+                  <p>It has a pan-India distribution network.</p>
+                  <p><strong>Competitive Strengths</strong></p>
+                  <ul>
+                    <li>Strong industrial robotics portfolio</li>
+                    <li>Established automotive OEM relationships</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <h2 itemProp="about">Company Financials (Restated Consolidated)</h2>
+              <div class="table-responsive">
+                <table id="financialTable">
+                  <thead>
+                    <tr><th>Period Ended</th><th class="text-end">31 Mar 2026</th><th class="text-end">31 Mar 2025</th><th class="text-end">31 Mar 2024</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Assets</td><td class="text-end">341.97</td><td class="text-end">321.79</td><td class="text-end">202.94</td></tr>
+                    <tr><td>Total Income</td><td class="text-end">366.01</td><td class="text-end">276.53</td><td class="text-end">233.26</td></tr>
+                    <tr><td>Profit After Tax</td><td class="text-end">40.73</td><td class="text-end">30.03</td><td class="text-end">10.94</td></tr>
+                    <tr><td>EBITDA</td><td class="text-end">63.18</td><td class="text-end">47.20</td><td class="text-end">18.86</td></tr>
+                    <tr><td>NET Worth</td><td class="text-end">136.01</td><td class="text-end">95.49</td><td class="text-end">38.78</td></tr>
+                    <tr><td>Total Borrowing</td><td class="text-end">85.45</td><td class="text-end">39.24</td><td class="text-end">41.19</td></tr>
+                  </tbody>
+                  <tfoot><tr><td colspan="4">Amount in ₹Crore</td></tr></tfoot>
+                </table>
+              </div>
+            </div>
             </body></html>
             """;
 
     @Test
-    void parseDetail_extractsAboutStrengthsRisksAndFinancials() {
+    void parseDetail_extractsAboutStrengthsAndTransposedFinancials() {
         Document doc = Jsoup.parse(DETAIL_FIXTURE_HTML, DETAIL_URL);
 
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
 
-        assertThat(enrichment.about()).isEqualTo(
-                "Acme Robotics designs and manufactures industrial robotics for the automotive sector. "
-                        + "It has a pan-India distribution network.");
-        assertThat(enrichment.strengths()).isEqualTo(
-                "Strong industrial robotics portfolio\nEstablished automotive OEM relationships");
-        assertThat(enrichment.risks()).isEqualTo(
-                "Reliant on automotive sector capex cycles\nCustomer concentration risk");
+        assertThat(enrichment.about())
+                .contains("Incorporated in 2002")
+                .contains("pan-India distribution network")
+                .doesNotContain("Competitive Strengths")     // strengths label + list excluded from about
+                .doesNotContain("Strong industrial robotics portfolio");
+        assertThat(enrichment.strengths())
+                .isEqualTo("Strong industrial robotics portfolio\nEstablished automotive OEM relationships");
+        assertThat(enrichment.risks()).isNull();              // no risks section on the detail page
 
+        // Transposed table → one row per fiscal period, Total Income→revenue, PAT→pat, Assets→totalAssets.
         assertThat(enrichment.financials()).hasSize(3);
-        IpoFinancialRowDto fy23 = enrichment.financials().get(0);
-        assertThat(fy23.fiscalYear()).isEqualTo("FY 2022-23");
-        assertThat(fy23.periodEnd()).isEqualTo(LocalDate.of(2023, 3, 31));
-        assertThat(fy23.revenue()).isEqualByComparingTo("4192.40");
-        assertThat(fy23.pat()).isEqualByComparingTo("-971.00"); // parenthesis notation → negative
-        assertThat(fy23.totalAssets()).isEqualByComparingTo("6800.00");
+        IpoFinancialRowDto fy26 = enrichment.financials().get(0);
+        assertThat(fy26.fiscalYear()).isEqualTo("31 Mar 2026");
+        assertThat(fy26.periodEnd()).isEqualTo(LocalDate.of(2026, 3, 31)); // "d MMM yyyy"
+        assertThat(fy26.revenue()).isEqualByComparingTo("366.01");
+        assertThat(fy26.pat()).isEqualByComparingTo("40.73");
+        assertThat(fy26.totalAssets()).isEqualByComparingTo("341.97");
 
-        IpoFinancialRowDto fy24 = enrichment.financials().get(1);
-        assertThat(fy24.fiscalYear()).isEqualTo("FY 2023-24");
-        assertThat(fy24.periodEnd()).isEqualTo(LocalDate.of(2024, 3, 31));
-        assertThat(fy24.pat()).isEqualByComparingTo("175.00");
+        IpoFinancialRowDto fy25 = enrichment.financials().get(1);
+        assertThat(fy25.fiscalYear()).isEqualTo("31 Mar 2025");
+        assertThat(fy25.revenue()).isEqualByComparingTo("276.53");
+        assertThat(fy25.pat()).isEqualByComparingTo("30.03");
+        assertThat(fy25.totalAssets()).isEqualByComparingTo("321.79");
 
-        IpoFinancialRowDto interim = enrichment.financials().get(2);
-        assertThat(interim.fiscalYear()).isEqualTo("Mar 2025");
-        assertThat(interim.periodEnd()).isEqualTo(LocalDate.of(2025, 3, 31)); // "Mon yyyy" → end of month
-        assertThat(interim.revenue()).isEqualByComparingTo("3200.00");
+        IpoFinancialRowDto fy24 = enrichment.financials().get(2);
+        assertThat(fy24.fiscalYear()).isEqualTo("31 Mar 2024");
+        assertThat(fy24.revenue()).isEqualByComparingTo("233.26");
     }
 
     @Test
-    void parseDetail_noMatchingSections_returnsNullsAndEmptyFinancials() {
+    void parseDetail_noSummaryOrFinancialTable_returnsNullsAndEmpty() {
         Document doc = Jsoup.parse("<html><body><p>Nothing relevant here.</p></body></html>", DETAIL_URL);
 
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
@@ -332,11 +342,21 @@ class ChittorgarhSourceTest {
     }
 
     @Test
-    void parseDetail_headingWithNoFollowingBulletList_returnsNull() {
-        Document doc = Jsoup.parse("<html><body><h2>Strengths</h2><p>Not a list.</p></body></html>", DETAIL_URL);
+    void parseDetail_ipoSummaryAbsent_fallsBackToAboutHeadingParagraphs() {
+        // No #ipoSummary id → the heading-based fallback picks up the About paragraphs.
+        String html = """
+                <html><body>
+                <h2>About Delta Robotics Ltd</h2>
+                <div class="content-wrapper">
+                <p>Delta Robotics builds automation solutions for warehouses.</p>
+                </div>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
 
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
 
+        assertThat(enrichment.about()).isEqualTo("Delta Robotics builds automation solutions for warehouses.");
         assertThat(enrichment.strengths()).isNull();
     }
 
@@ -352,9 +372,9 @@ class ChittorgarhSourceTest {
         assertThat(result).hasSize(1);
         IpoDto acme = result.get(0);
         assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd"); // core list data untouched
-        assertThat(acme.about()).startsWith("Acme Robotics designs and manufactures");
+        assertThat(acme.about()).contains("Incorporated in 2002");
         assertThat(acme.strengths()).contains("Strong industrial robotics portfolio");
-        assertThat(acme.risks()).contains("Reliant on automotive sector capex cycles");
+        assertThat(acme.risks()).isNull();
         assertThat(acme.financials()).hasSize(3);
     }
 
@@ -371,47 +391,6 @@ class ChittorgarhSourceTest {
         assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd");
         assertThat(acme.about()).isNull();
         assertThat(acme.financials()).isNull();
-    }
-
-    @Test
-    void parseDetail_combinedStrengthsAndRisksHeading_doesNotDuplicateContentIntoRisks() {
-        String html = """
-                <html><body>
-                <h2>About Gamma Textiles Ltd</h2>
-                <p>Gamma Textiles manufactures synthetic yarns.</p>
-
-                <h2>Strengths and Risks</h2>
-                <ul>
-                  <li>Strong brand recognition</li>
-                  <li>Established supplier network</li>
-                </ul>
-                </body></html>
-                """;
-        Document doc = Jsoup.parse(html, DETAIL_URL);
-
-        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
-
-        assertThat(enrichment.strengths())
-                .isEqualTo("Strong brand recognition\nEstablished supplier network");
-        assertThat(enrichment.risks()).isNotEqualTo(enrichment.strengths());
-        assertThat(enrichment.risks()).isNull();
-    }
-
-    @Test
-    void parseDetail_aboutParagraphWrappedInDiv_stillExtracted() {
-        String html = """
-                <html><body>
-                <h2>About Delta Robotics Ltd</h2>
-                <div class="content-wrapper">
-                <p>Delta Robotics builds automation solutions for warehouses.</p>
-                </div>
-                </body></html>
-                """;
-        Document doc = Jsoup.parse(html, DETAIL_URL);
-
-        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
-
-        assertThat(enrichment.about()).isEqualTo("Delta Robotics builds automation solutions for warehouses.");
     }
 
     // ── Unit 2: bound the per-IPO detail-page fetch to a relevant, capped subset ───────────────

@@ -26,6 +26,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -120,24 +121,27 @@ public class ChittorgarhSource implements IpoSource {
     private static final String F_NSE_SYMBOL = "~nse_symbol";                 // ticker once listed on NSE
     private static final String F_BSE_CODE = "~bse_script_code";              // scrip code once listed on BSE
 
-    // ── Detail-page "Company Financials" column aliases — TODO(verify) against a live page ───
-    private static final List<String> H_FIN_PERIOD = List.of("period", "year", "fy");
-    private static final List<String> H_FIN_REVENUE = List.of("revenue", "total income");
-    private static final List<String> H_FIN_PAT = List.of("profit after tax", "pat", "net profit");
-    private static final List<String> H_FIN_ASSETS = List.of("total assets", "net worth");
-
-    // ── Detail-page section headings — matched by text, not markup, since Chittorgarh's detail
-    // pages carry no stable semantic classes/ids either — TODO(verify) against a live page ─────
+    // ── Detail-page extraction. The detail page is a Next.js SSR page that exposes the "About"
+    // block and the financials table under STABLE ids (#ipoSummary, #financialTable) — used
+    // directly below (confirmed against a live capture, Xtranet 2688) — with heading-text matching
+    // kept only as a fallback. The financials table is TRANSPOSED: metrics run down the first
+    // column, fiscal periods across the header row. There is no dedicated risks/weaknesses
+    // section on the detail page (only competitive strengths), so risks is left null. ───────────
     private static final Pattern ABOUT_HEADING = Pattern.compile("^about\\b.*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern STRENGTHS_HEADING = Pattern.compile(".*strengths?.*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern RISKS_HEADING = Pattern.compile(".*(risks?|weakness(es)?).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern FINANCIALS_HEADING = Pattern.compile(".*financials?.*", Pattern.CASE_INSENSITIVE);
     private static final String HEADING_SELECTOR = "h1,h2,h3,h4,h5,strong,b";
+    /** Financials metric-row labels (first cell of each transposed data row), matched case-insensitively. */
+    private static final List<String> FIN_REVENUE = List.of("total income", "revenue");
+    private static final List<String> FIN_PAT = List.of("profit after tax", "net profit", "pat");
+    private static final List<String> FIN_ASSETS = List.of("total assets", "assets");
+    /** A short line (≤ this many chars) mentioning "strength" marks the start of the strengths bullet list. */
+    private static final int STRENGTHS_LABEL_MAX_LEN = 40;
     /** Bails out of the heading→content sibling walk after this many hops so a shape mismatch can't loop indefinitely. */
     private static final int MAX_SIBLING_HOPS = 6;
 
     private static final Pattern FY_RANGE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\s*[-/]\\s*(\\d{2,4})", Pattern.CASE_INSENSITIVE);
     private static final Pattern FY_SINGLE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\b", Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter DAY_MONTH_YEAR = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter MONTH_YEAR_SHORT = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter MONTH_YEAR_FULL = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
@@ -392,29 +396,20 @@ public class ChittorgarhSource implements IpoSource {
 
     /**
      * Extracted for unit testing without HTTP — parses a detail page already fetched into a
-     * Document.
-     *
-     * <p>Strengths and risks headings are resolved separately, on purpose: a combined heading such
-     * as "Strengths and Risks" matches BOTH {@link #STRENGTHS_HEADING} and {@link #RISKS_HEADING}
-     * (they're independent substring-ish patterns), so naively looking each up via {@code
-     * findHeading(doc, pattern)} would return the SAME element for both and duplicate its bullet
-     * list into both fields. Instead the strengths heading is resolved first, then the risks
-     * heading is looked up while excluding that exact element — if no OTHER heading matches
-     * {@link #RISKS_HEADING}, risks is left {@code null} rather than duplicating strengths.
+     * Document. About + competitive strengths come from the {@code #ipoSummary} block; financials
+     * from the transposed {@code #financialTable}; risks is always {@code null} (the detail page
+     * has no dedicated risks/weaknesses section).
      */
     DetailEnrichment parseDetail(Document doc) {
-        Element strengthsHeading = findHeading(doc, STRENGTHS_HEADING, null);
-        Element risksHeading = findHeading(doc, RISKS_HEADING, strengthsHeading);
-        return new DetailEnrichment(
-                extractAbout(doc),
-                extractBullets(strengthsHeading),
-                extractBullets(risksHeading),
-                extractFinancials(doc)
-        );
+        AboutAndStrengths as = extractAboutAndStrengths(doc);
+        return new DetailEnrichment(as.about(), as.strengths(), null, extractFinancials(doc));
     }
 
     /** One detail page's scraped enrichment fields, merged onto the list-row dto by {@link #withDetailEnrichment}. */
     record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials) {}
+
+    /** The company "About" narrative and the competitive-strengths bullets, split out of {@code #ipoSummary}. */
+    private record AboutAndStrengths(String about, String strengths) {}
 
     private static IpoDto withDetailEnrichment(IpoDto dto, DetailEnrichment enrichment) {
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
@@ -428,16 +423,60 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     /**
-     * The "About {Company}" description: the run of {@code <p>} elements starting at the first
-     * {@code <p>} found within {@value #MAX_SIBLING_HOPS} sibling hops of the heading whose text
-     * starts with "About" (case-insensitive) — via the same wrapper-tolerant {@link #findFollowing}
-     * traversal used by {@link #extractBullets}/{@link #extractFinancials}, so an About paragraph
-     * wrapped in an intermediate {@code <div>} (rather than being a direct sibling of the heading)
-     * isn't silently missed. Collection stops at the first non-{@code <p>} sibling of that first
-     * paragraph (e.g. the next section's heading). {@code null} if no such heading, or no paragraph
-     * is found.
+     * Extracts the company "About" narrative and the "Competitive Strengths" bullets from the
+     * detail page's {@code #ipoSummary} block (a stable id — far less brittle than heading-text
+     * matching). Everything up to the "Competitive Strengths" label becomes the about text (intro
+     * paragraphs + the "Business Offerings" list); the {@code <ul>} right after that label becomes
+     * strengths. Falls back to a heading-based paragraph walk if the id is absent.
      */
-    private static String extractAbout(Document doc) {
+    private static AboutAndStrengths extractAboutAndStrengths(Document doc) {
+        Element summary = doc.getElementById("ipoSummary");
+        if (summary == null) {
+            return new AboutAndStrengths(extractAboutFallback(doc), null);
+        }
+        List<String> aboutParts = new ArrayList<>();
+        String strengths = null;
+        boolean inStrengths = false;
+        for (Element el : summary.children()) {
+            String text = el.text().trim();
+            if (!inStrengths && isStrengthsLabel(text)) {
+                inStrengths = true;
+                continue;
+            }
+            if (inStrengths) {
+                if (el.is("ul,ol")) {
+                    List<String> items = el.select("li").eachText();
+                    if (!items.isEmpty()) {
+                        strengths = String.join("\n", items);
+                    }
+                    break;
+                }
+                continue;
+            }
+            if (el.is("ul,ol")) {
+                for (String li : el.select("li").eachText()) {
+                    if (!li.isBlank()) {
+                        aboutParts.add(li.trim());
+                    }
+                }
+            } else if (!text.isEmpty()) {
+                aboutParts.add(text);
+            }
+        }
+        return new AboutAndStrengths(aboutParts.isEmpty() ? null : String.join(" ", aboutParts), strengths);
+    }
+
+    /** A short bold-ish line mentioning "strength" (e.g. "Competitive Strengths") marks the strengths list. */
+    private static boolean isStrengthsLabel(String text) {
+        return text.length() <= STRENGTHS_LABEL_MAX_LEN && text.toLowerCase(Locale.ROOT).contains("strength");
+    }
+
+    /**
+     * Fallback used only when {@code #ipoSummary} is absent: the run of {@code <p>} elements
+     * following the first heading whose text starts with "About" (case-insensitive), via the
+     * wrapper-tolerant {@link #findFollowing} traversal. {@code null} if no such heading/paragraph.
+     */
+    private static String extractAboutFallback(Document doc) {
         Element heading = findHeading(doc, ABOUT_HEADING, null);
         if (heading == null) {
             return null;
@@ -459,63 +498,81 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     /**
-     * A bullet list (newline-delimited, matching how the entity stores strengths/risks) found
-     * after the given heading element — e.g. the "Strengths" or "Risks"/"Weaknesses" heading
-     * already resolved by {@link #parseDetail}. {@code null} if {@code heading} is {@code null}, or
-     * no {@code <ul>}/{@code <ol>} is found within {@value #MAX_SIBLING_HOPS} sibling hops of it.
-     */
-    private static String extractBullets(Element heading) {
-        if (heading == null) {
-            return null;
-        }
-        Element list = findFollowing(heading, "ul,ol");
-        if (list == null) {
-            return null;
-        }
-        List<String> items = list.select("li").eachText();
-        return items.isEmpty() ? null : String.join("\n", items);
-    }
-
-    /**
-     * The "Company Financials" table found after the first heading whose text matches
-     * {@link #FINANCIALS_HEADING}; empty if no matching heading, or no {@code <table>} is found
-     * within {@value #MAX_SIBLING_HOPS} sibling hops of it.
+     * The "Company Financials" table, found by its stable {@code #financialTable} id (falling back
+     * to the first table after a "Financials" heading). Empty if neither locates a table.
      */
     private static List<IpoFinancialRowDto> extractFinancials(Document doc) {
-        Element heading = findHeading(doc, FINANCIALS_HEADING, null);
-        if (heading == null) {
-            return List.of();
+        Element table = doc.getElementById("financialTable");
+        if (table == null) {
+            Element heading = findHeading(doc, FINANCIALS_HEADING, null);
+            table = heading == null ? null : findFollowing(heading, "table");
         }
-        Element table = findFollowing(heading, "table");
         return table == null ? List.of() : parseFinancialsTable(table);
     }
 
+    /**
+     * Parses Chittorgarh's TRANSPOSED financials table — metrics down the first column, fiscal
+     * periods across the header row ({@code Period Ended | 31 Mar 2026 | 31 Mar 2025 | ...}) — into
+     * one {@link IpoFinancialRowDto} per period column: Total Income → revenue, Profit After Tax →
+     * pat, Assets → totalAssets. Metric/period lookups are null-safe; an absent metric row leaves
+     * that figure {@code null} rather than dropping the whole period.
+     */
     private static List<IpoFinancialRowDto> parseFinancialsTable(Element table) {
         List<String> headers = resolveHeaders(table);
-        int idxPeriod = findColumn(headers, H_FIN_PERIOD);
-        int idxRevenue = findColumn(headers, H_FIN_REVENUE);
-        int idxPat = findColumn(headers, H_FIN_PAT);
-        int idxAssets = findColumn(headers, H_FIN_ASSETS);
+        if (headers.size() < 2) {
+            return List.of();
+        }
+        List<String> periods = headers.subList(1, headers.size());
 
-        List<IpoFinancialRowDto> rows = new ArrayList<>();
-        for (Element row : resolveDataRows(table)) {
+        Map<String, List<String>> byMetric = new LinkedHashMap<>();
+        for (Element row : table.select("tbody tr")) {
             Elements cells = row.select("td");
-            if (cells.isEmpty()) {
+            if (cells.size() < 2) {
                 continue;
             }
-            String fiscalYear = cellText(cells, idxPeriod);
-            if (fiscalYear == null) {
-                continue; // no usable period label for this row
+            String metric = cells.get(0).text().trim().toLowerCase(Locale.ROOT);
+            List<String> values = new ArrayList<>();
+            for (int i = 1; i < cells.size(); i++) {
+                values.add(cells.get(i).text());
+            }
+            byMetric.putIfAbsent(metric, values);
+        }
+
+        List<String> revenueRow = findMetricRow(byMetric, FIN_REVENUE);
+        List<String> patRow = findMetricRow(byMetric, FIN_PAT);
+        List<String> assetsRow = findMetricRow(byMetric, FIN_ASSETS);
+
+        List<IpoFinancialRowDto> rows = new ArrayList<>();
+        for (int i = 0; i < periods.size(); i++) {
+            String fiscalYear = periods.get(i) == null ? null : periods.get(i).trim();
+            if (fiscalYear == null || fiscalYear.isEmpty()) {
+                continue;
             }
             rows.add(new IpoFinancialRowDto(
                     fiscalYear,
                     derivePeriodEnd(fiscalYear),
-                    toFinancialDecimal(cellText(cells, idxRevenue)),
-                    toFinancialDecimal(cellText(cells, idxPat)),
-                    toFinancialDecimal(cellText(cells, idxAssets))
+                    toFinancialDecimal(valueAt(revenueRow, i)),
+                    toFinancialDecimal(valueAt(patRow, i)),
+                    toFinancialDecimal(valueAt(assetsRow, i))
             ));
         }
         return rows;
+    }
+
+    /** First metric row whose first-cell label equals or contains one of {@code aliases} (in order). */
+    private static List<String> findMetricRow(Map<String, List<String>> byMetric, List<String> aliases) {
+        for (String alias : aliases) {
+            for (Map.Entry<String, List<String>> e : byMetric.entrySet()) {
+                if (e.getKey().equals(alias) || e.getKey().contains(alias)) {
+                    return e.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String valueAt(List<String> row, int index) {
+        return row != null && index < row.size() ? row.get(index) : null;
     }
 
     /**
@@ -597,6 +654,11 @@ public class ChittorgarhSource implements IpoSource {
             }
         }
         try {
+            return LocalDate.parse(trimmed, DAY_MONTH_YEAR); // "31 Mar 2026" (Chittorgarh's period-end format)
+        } catch (DateTimeParseException ignored) {
+            // fall through
+        }
+        try {
             return YearMonth.parse(trimmed, MONTH_YEAR_SHORT).atEndOfMonth();
         } catch (DateTimeParseException ignored) {
             // fall through
@@ -629,36 +691,6 @@ public class ChittorgarhSource implements IpoSource {
         }
         Element firstRow = table.selectFirst("tr");
         return firstRow != null ? firstRow.select("th,td").eachText() : List.of();
-    }
-
-    private static Elements resolveDataRows(Element table) {
-        Elements bodyRows = table.select("tbody tr");
-        if (!bodyRows.isEmpty()) {
-            return bodyRows;
-        }
-        // No <thead>/<tbody> split — assume the first row is the header and skip it.
-        Elements allRows = table.select("tr");
-        return allRows.isEmpty() ? allRows : new Elements(allRows.subList(1, allRows.size()));
-    }
-
-    private static int findColumn(List<String> headers, List<String> aliases) {
-        for (int i = 0; i < headers.size(); i++) {
-            String header = headers.get(i).toLowerCase(Locale.ROOT).trim();
-            for (String alias : aliases) {
-                if (header.contains(alias)) {
-                    return i;
-                }
-            }
-        }
-        return -1;
-    }
-
-    private static String cellText(Elements cells, int index) {
-        if (index < 0 || index >= cells.size()) {
-            return null;
-        }
-        String text = cells.get(index).text();
-        return text == null || text.isBlank() ? null : text.trim();
     }
 
     private static LocalDate parseDate(String raw) {
