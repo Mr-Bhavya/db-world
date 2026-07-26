@@ -116,6 +116,25 @@ class IpoIngestServiceTest {
                 null, null, null, null, null, null, null);
     }
 
+    @Test
+    void ingest_derivesStatusFromDatesWhenSourceReportsNone() {
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        // A Chittorgarh-style dto: dates but no status. Today (fixed clock) is 2026-07-24 IST,
+        // inside the 20–28 Jul window → should be derived as "open" rather than left null.
+        IpoDto noStatus = new IpoDto("chittorgarh", MATCH_KEY, "Acme Corp", "mainboard", null,
+                LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 28), null, LocalDate.of(2026, 7, 30),
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+
+        service.ingest(List.of(noStatus));
+
+        ArgumentCaptor<IpoListingEntity> captor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("open");
+    }
+
     /** The DB row that mirrors a prior ingest of {@code dto(...)} with the same field values. */
     private IpoListingEntity existingEntity(String status, BigDecimal gmp, BigDecimal gmpPct, BigDecimal subTotal,
                                              String allotmentStatus, String listingExchange, BigDecimal listingGainPct,

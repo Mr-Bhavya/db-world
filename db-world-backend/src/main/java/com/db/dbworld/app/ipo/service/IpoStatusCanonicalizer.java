@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.service;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -80,5 +81,39 @@ public final class IpoStatusCanonicalizer {
         }
         String normalized = raw.toLowerCase().trim();
         return TYPE_ALIASES.getOrDefault(normalized, normalized);
+    }
+
+    /**
+     * Derives a canonical status purely from an IPO's dates — a fallback for sources that don't
+     * report a status of their own (e.g. Chittorgarh's list JSON has open/close/listing dates but
+     * no status field, so those IPOs would otherwise show as "Unknown"/unfilterable). Follows the
+     * lifecycle in order: {@code listed} (listing date reached) → {@code closed} (past close but
+     * not yet listed) → {@code open} (within the subscription window) → {@code upcoming} (before
+     * open, or only a future listing date is known). {@code null} when no date lets us decide.
+     *
+     * <p>{@code today} should be "now" in IST (the Indian IPO calendar's zone) so the boundaries
+     * flip at IST midnight — the caller supplies it rather than reading a clock here so this stays
+     * a pure, testable function.
+     */
+    public static String deriveStatus(LocalDate open, LocalDate close, LocalDate listing, LocalDate today) {
+        if (today == null) {
+            return null;
+        }
+        if (listing != null && !listing.isAfter(today)) {
+            return "listed";
+        }
+        if (close != null && today.isAfter(close)) {
+            return "closed";
+        }
+        if (open != null && !today.isBefore(open) && (close == null || !today.isAfter(close))) {
+            return "open";
+        }
+        if (open != null && today.isBefore(open)) {
+            return "upcoming";
+        }
+        if (listing != null && listing.isAfter(today)) {
+            return "upcoming";
+        }
+        return null;
     }
 }

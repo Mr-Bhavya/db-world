@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +40,9 @@ import java.util.Objects;
 public class IpoIngestService {
 
     private static final String STATUS_LISTED = "listed";
+
+    /** Indian IPO calendar zone — status boundaries (open/close/listing) flip at IST midnight. */
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private final IpoListingRepository listingRepo;
     private final IpoGmpHistoryRepository gmpHistoryRepo;
@@ -81,7 +86,7 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withCanonicalType(withCanonicalStatus(rawDto));
+        IpoDto dto = withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)));
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -251,6 +256,30 @@ public class IpoIngestService {
             return dto;
         }
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), canonicalStatus,
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials());
+    }
+
+    /**
+     * Fills in a date-derived status when NO source reported one (e.g. a Chittorgarh-only IPO,
+     * whose list JSON has dates but no status) — so it isn't stored as "Unknown"/unfilterable.
+     * Returns {@code dto} unchanged when it already has a status or no date lets us decide.
+     */
+    private IpoDto withDerivedStatus(IpoDto dto) {
+        if (dto.status() != null) {
+            return dto;
+        }
+        String derived = IpoStatusCanonicalizer.deriveStatus(
+                dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDate.now(clock.withZone(IST)));
+        if (derived == null) {
+            return dto;
+        }
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), derived,
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),

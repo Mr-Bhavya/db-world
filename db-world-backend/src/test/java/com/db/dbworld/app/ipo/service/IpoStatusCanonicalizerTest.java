@@ -2,9 +2,57 @@ package com.db.dbworld.app.ipo.service;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class IpoStatusCanonicalizerTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 7, 26);
+
+    @Test
+    void deriveStatus_beforeOpen_isUpcoming() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 30), LocalDate.of(2026, 8, 3), null, TODAY)).isEqualTo("upcoming");
+    }
+
+    @Test
+    void deriveStatus_withinWindow_isOpen() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 23), LocalDate.of(2026, 7, 27), null, TODAY)).isEqualTo("open");
+        // Boundary days (open == today, close == today) are inclusive.
+        assertThat(IpoStatusCanonicalizer.deriveStatus(TODAY, TODAY, null, TODAY)).isEqualTo("open");
+    }
+
+    @Test
+    void deriveStatus_pastCloseNotYetListed_isClosed() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 29), TODAY)).isEqualTo("closed");
+        // No listing date announced yet either → still closed.
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), null, TODAY)).isEqualTo("closed");
+    }
+
+    @Test
+    void deriveStatus_listingDateReached_isListed() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 18), TODAY)).isEqualTo("listed");
+        // Listing today counts as listed.
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), TODAY, TODAY)).isEqualTo("listed");
+    }
+
+    @Test
+    void deriveStatus_onlyFutureListingDate_isUpcoming() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                null, null, LocalDate.of(2026, 8, 5), TODAY)).isEqualTo("upcoming");
+    }
+
+    @Test
+    void deriveStatus_noDates_returnsNull() {
+        assertThat(IpoStatusCanonicalizer.deriveStatus(null, null, null, TODAY)).isNull();
+        assertThat(IpoStatusCanonicalizer.deriveStatus(LocalDate.of(2026, 7, 20), null, null, null)).isNull();
+    }
 
     @Test
     void nullOrBlank_returnsNull() {
