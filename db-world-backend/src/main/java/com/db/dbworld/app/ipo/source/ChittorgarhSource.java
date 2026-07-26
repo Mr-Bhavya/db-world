@@ -56,8 +56,10 @@ public class ChittorgarhSource implements IpoSource {
     private static final List<String> H_OPEN = List.of("open date", "open");
     private static final List<String> H_CLOSE = List.of("close date", "close");
     private static final List<String> H_ALLOTMENT = List.of("allotment date", "allotment");
-    private static final List<String> H_LISTING = List.of("listing date", "est listing", "listing");
-    private static final List<String> H_PRICE_BAND = List.of("price band", "issue price", "price");
+    // NOTE: no bare "listing" alias — it's a substring of "listing price"/"listing gain" and would mismatch those columns.
+    private static final List<String> H_LISTING = List.of("listing date", "est listing");
+    // NOTE: no bare "price" alias — it's a substring of "listing price" and would mismatch that column.
+    private static final List<String> H_PRICE_BAND = List.of("price band", "price range", "issue price", "price (rs)");
     // NOTE: no bare "lot" alias — it's a substring of "allotment (date)" and would mismatch that column.
     private static final List<String> H_LOT_SIZE = List.of("lot size");
     private static final List<String> H_ISSUE_SIZE = List.of("issue size");

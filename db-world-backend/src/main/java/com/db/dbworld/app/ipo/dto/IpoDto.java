@@ -31,7 +31,9 @@ public record IpoDto(
          * Category → multiple map (e.g. {@code {"QIB":2.10,"NII":5.30,"Retail":8.00}}) —
          * insertion order matters (source ordering, preserved via LinkedHashMap by producers) and
          * is carried through to {@code categoriesJson}. {@code null} when a source hasn't reported
-         * a breakdown (adapters currently set this to {@code null}; see the TODO in each adapter).
+         * a breakdown — {@code IpoGuruSource} populates this from its {@code subscription} object
+         * (QIB/NII/Retail), while NSE and Chittorgarh currently leave it {@code null}
+         * ({@code TODO(verify)} once those adapters are mapped against live responses).
          */
         Map<String, BigDecimal> subscriptionCategories,
         BigDecimal subTotal,
