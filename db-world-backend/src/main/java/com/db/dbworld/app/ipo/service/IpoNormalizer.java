@@ -45,7 +45,8 @@ public class IpoNormalizer {
                 dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials());
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
+                dto.kpis(), dto.issueObjects());
     }
 
     private String normalize(String companyName) {

@@ -345,7 +345,7 @@ class IpoMapperTest {
                 "https://ui-avatars.com/api/?name=Acme+Corp", "Acme Corp is a leading widget manufacturer.",
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
                 new BigDecimal("10.00"), new BigDecimal("120.00"), new BigDecimal("80.00"),
-                "ACME", "Strength one\nStrength two", "Risk one\nRisk two", null);
+                "ACME", "Strength one\nStrength two", "Risk one\nRisk two", null, null, null);
     }
 
     @Test
@@ -401,7 +401,7 @@ class IpoMapperTest {
                 null, null, null,
                 null, null, null, null,
                 "finalized", null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
 
         mapper.applyUpdatable(partial, entity);
 
@@ -440,7 +440,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null, null, null, null, null,
                 new BigDecimal("5.00"), new BigDecimal("200.00"), new BigDecimal("50.00"),
-                "NEWTICK", "New strength", "New risk", null);
+                "NEWTICK", "New strength", "New risk", null, null, null);
 
         mapper.applyUpdatable(withNewValues, entity);
 
@@ -463,7 +463,7 @@ class IpoMapperTest {
                 null, null, null, null,
                 null, null, null, null, null,
                 LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3),
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
 
         mapper.applyUpdatable(withNewDates, entity);
 

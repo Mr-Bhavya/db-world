@@ -111,6 +111,14 @@ public class IpoListingEntity {
     @Column(columnDefinition = "TEXT")
     private String risks;
 
+    /** JSON array of {@code {label,value}} KPI rows (scrape-sourced); parsed to a list on the detail DTO. */
+    @Column(name = "kpis_json", columnDefinition = "TEXT")
+    private String kpisJson;
+
+    /** JSON array of {@code {purpose,amount}} "Objects of the Issue" rows; parsed to a list on the detail DTO. */
+    @Column(name = "issue_objects_json", columnDefinition = "TEXT")
+    private String issueObjectsJson;
+
     // ── Company "About" profile facts ────────────────────────────────────────────────────────
     // Seeder-populated for now (a live adapter can fill these via a separate path later). Not
     // part of IpoDto/ingest — deliberately excluded from applyUpdatable/toNewEntity so ingest

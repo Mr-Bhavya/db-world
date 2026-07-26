@@ -20,6 +20,8 @@ import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
+import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
+import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import { useT } from '@shared/theme';
 import {
   formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange, websiteDomain,
@@ -153,6 +155,65 @@ const hasAboutFacts = (ipo) =>
   || !!ipo.sector || !!ipo.headquarters || !!ipo.website;
 
 /**
+ * Key metrics (KPI) grid — label/value pairs (ROE, P/E, EPS, Market Cap, …) as reported by the
+ * source, values kept verbatim (%, ₹, ratios). Icon-less compact cells since the metrics are
+ * heterogeneous; same faint-uppercase-label / bold-value type scale as `FactTile`.
+ */
+function KpiGrid({ kpis }) {
+  const T = useT();
+  return (
+    <Box sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(4,1fr)' },
+      gap: 2,
+    }}>
+      {kpis.map((kpi) => (
+        <Box key={kpi.label} sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }} noWrap>
+            {kpi.label}
+          </Typography>
+          <Typography sx={{ fontSize: 14, fontWeight: 800, color: T.textPrimary, mt: 0.15 }} noWrap>
+            {kpi.value ?? '—'}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/**
+ * "Objects of the Issue" — a numbered list of what the net proceeds fund, with the estimated
+ * ₹-crore amount right-aligned per row (omitted for rows with no figure, e.g. "General corporate
+ * purposes"). Divider between rows, none after the last.
+ */
+function ObjectsList({ objects }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      {objects.map((obj, i) => (
+        <Box
+          key={i}
+          sx={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5,
+            py: 1, borderBottom: i < objects.length - 1 ? `1px solid ${T.border}` : 'none',
+          }}
+        >
+          <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 800, color: T.teal, flexShrink: 0 }}>{i + 1}.</Typography>
+            <Typography sx={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5 }}>{obj.purpose}</Typography>
+          </Box>
+          {obj.amount && (
+            <Typography sx={{ fontSize: 13, fontWeight: 800, color: T.textPrimary, flexShrink: 0, whiteSpace: 'nowrap' }}>
+              {obj.amount}
+            </Typography>
+          )}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/**
  * Overview tab — the at-a-glance summary: timeline stepper, a compact "key facts" grid,
  * About (only when there's a blurb and/or any expanded company fact to show), and a
  * financials snapshot. The full GMP/subscription charts live on their own tabs now —
@@ -210,6 +271,18 @@ export default function OverviewTab({ ipo, id }) {
       <StrengthsRisks ipo={ipo} />
 
       <FinancialsTable id={id} />
+
+      {ipo.kpis?.length > 0 && (
+        <SectionCard title="Key metrics" icon={<QueryStatsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          <KpiGrid kpis={ipo.kpis} />
+        </SectionCard>
+      )}
+
+      {ipo.issueObjects?.length > 0 && (
+        <SectionCard title="Objects of the issue" icon={<FlagOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          <ObjectsList objects={ipo.issueObjects} />
+        </SectionCard>
+      )}
     </Box>
   );
 }

@@ -2,6 +2,8 @@ package com.db.dbworld.app.ipo.source;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
+import com.db.dbworld.app.ipo.dto.IpoIssueObjectDto;
+import com.db.dbworld.app.ipo.dto.IpoKpiDto;
 import com.db.dbworld.app.ipo.source.support.IpoDateParser;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
@@ -316,7 +318,8 @@ public class ChittorgarhSource implements IpoSource {
                     toDecimal(text(node, F_OFFER_FOR_SALE)),          // offerForSale
                     tickerSymbol(node),                               // tickerSymbol ← ~nse_symbol / ~bse_script_code
                     null, null,                                       // strengths, risks — filled by detail-page enrichment
-                    null                                              // financials — filled by detail-page enrichment
+                    null,                                             // financials — filled by detail-page enrichment
+                    null, null                                        // kpis, issueObjects — filled by detail-page enrichment
             );
             rows.add(new RowWithDetailUrl(dto, company.detailUrl()));
         }
@@ -402,11 +405,13 @@ public class ChittorgarhSource implements IpoSource {
      */
     DetailEnrichment parseDetail(Document doc) {
         AboutAndStrengths as = extractAboutAndStrengths(doc);
-        return new DetailEnrichment(as.about(), as.strengths(), null, extractFinancials(doc));
+        return new DetailEnrichment(as.about(), as.strengths(), null,
+                extractFinancials(doc), extractKpis(doc), extractIssueObjects(doc));
     }
 
     /** One detail page's scraped enrichment fields, merged onto the list-row dto by {@link #withDetailEnrichment}. */
-    record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials) {}
+    record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials,
+                            List<IpoKpiDto> kpis, List<IpoIssueObjectDto> issueObjects) {}
 
     /** The company "About" narrative and the competitive-strengths bullets, split out of {@code #ipoSummary}. */
     private record AboutAndStrengths(String about, String strengths) {}
@@ -419,7 +424,8 @@ public class ChittorgarhSource implements IpoSource {
                 dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), enrichment.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), enrichment.strengths(), enrichment.risks(), enrichment.financials());
+                dto.tickerSymbol(), enrichment.strengths(), enrichment.risks(), enrichment.financials(),
+                enrichment.kpis(), enrichment.issueObjects());
     }
 
     /**
@@ -573,6 +579,88 @@ public class ChittorgarhSource implements IpoSource {
 
     private static String valueAt(List<String> row, int index) {
         return row != null && index < row.size() ? row.get(index) : null;
+    }
+
+    // ── KPIs (Key Performance Indicator tables) + Objects of the Issue ─────────────────────────
+
+    /**
+     * Scrapes the "Key Performance Indicator" section into label/value rows. Both KPI tables — the
+     * ratio table (header "KPI | <period> | <period>") and the Pre/Post table ("| Pre IPO | Post
+     * IPO") — put the value we want in the LAST cell of each data row (the latest fiscal period,
+     * the post-IPO figure, or the sole value for a single-value row like Market Cap), so a uniform
+     * "first cell = label, last cell = value" read works for both. Values are kept verbatim (%, ₹,
+     * ratios). Empty if no KPI table is present.
+     */
+    private static List<IpoKpiDto> extractKpis(Document doc) {
+        List<IpoKpiDto> kpis = new ArrayList<>();
+        for (Element table : doc.select("table")) {
+            if (!isKpiTable(table)) {
+                continue;
+            }
+            for (Element row : table.select("tbody tr")) {
+                Elements cells = row.select("td");
+                if (cells.size() < 2) {
+                    continue;
+                }
+                String label = cells.first().text().trim();
+                String value = cells.last().text().trim();
+                if (!label.isEmpty() && !value.isEmpty()) {
+                    kpis.add(new IpoKpiDto(label, value));
+                }
+            }
+        }
+        return kpis;
+    }
+
+    /** A KPI table is the ratio table (first header cell "KPI") or the Pre/Post table (a "Pre IPO" header). */
+    private static boolean isKpiTable(Element table) {
+        List<String> headers = resolveHeaders(table);
+        if (headers.isEmpty()) {
+            return false;
+        }
+        if ("kpi".equals(headers.get(0).toLowerCase(Locale.ROOT).trim())) {
+            return true;
+        }
+        for (String header : headers) {
+            if (header.toLowerCase(Locale.ROOT).contains("pre ipo")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Scrapes the "Objects of the Issue" table ({@code #ObjectiveIssue}: {@code # | Issue Objects |
+     * Est Amt (₹ Cr.)}) into {@code (purpose, amount)} rows. The amount cell is blank for some rows
+     * (e.g. "General corporate purposes") → {@code null} amount. Empty if the table is absent.
+     */
+    private static List<IpoIssueObjectDto> extractIssueObjects(Document doc) {
+        Element table = doc.getElementById("ObjectiveIssue");
+        if (table == null) {
+            return List.of();
+        }
+        List<IpoIssueObjectDto> objects = new ArrayList<>();
+        for (Element row : table.select("tbody tr")) {
+            Elements cells = row.select("td");
+            if (cells.size() < 2) {
+                continue;
+            }
+            String purpose = cells.get(1).text().trim();
+            if (purpose.isEmpty()) {
+                continue;
+            }
+            String amount = cells.size() >= 3 ? crore(cells.get(2).text()) : null;
+            objects.add(new IpoIssueObjectDto(purpose, amount));
+        }
+        return objects;
+    }
+
+    /** "21.99" → "₹21.99 Cr"; blank/non-numeric → {@code null}. */
+    private static String crore(String raw) {
+        if (raw == null || raw.isBlank() || toDecimal(raw) == null) {
+            return null;
+        }
+        return "₹" + raw.trim() + " Cr";
     }
 
     /**

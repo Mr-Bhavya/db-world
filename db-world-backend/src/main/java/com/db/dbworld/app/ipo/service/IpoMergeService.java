@@ -2,6 +2,8 @@ package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
+import com.db.dbworld.app.ipo.dto.IpoIssueObjectDto;
+import com.db.dbworld.app.ipo.dto.IpoKpiDto;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 
@@ -109,6 +111,13 @@ public class IpoMergeService {
         Picked<List<IpoFinancialRowDto>> financials = pick(group, PRECEDENCE_REGISTRAR,
                 d -> isEmpty(d.financials()) ? null : d.financials(), "financials");
 
+        // KPIs and Objects-of-the-Issue are Chittorgarh-only (its detail scrape), so reuse the
+        // chittorgarh-first precedence; an empty list counts as "not reported" (same as financials).
+        Picked<List<IpoKpiDto>> kpis = pick(group, PRECEDENCE_REGISTRAR,
+                d -> isEmpty(d.kpis()) ? null : d.kpis(), "kpis");
+        Picked<List<IpoIssueObjectDto>> issueObjects = pick(group, PRECEDENCE_REGISTRAR,
+                d -> isEmpty(d.issueObjects()) ? null : d.issueObjects(), "issueObjects");
+
         // The merged dto carries a single `source`, but its fields came from up to three sources.
         // Downstream (IpoIngestService) only reads dto.source() to stamp GMP/subscription history
         // rows, so we attribute it to whichever source actually supplied the GMP value (falling
@@ -122,7 +131,8 @@ public class IpoMergeService {
                 gmp.value(), gmpPct.value(), subscriptionCategories.value(), subTotal.value(),
                 allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value(),
                 refundDate.value(), dematDate.value(), faceValue.value(), freshIssue.value(), offerForSale.value(),
-                tickerSymbol.value(), strengths.value(), risks.value(), financials.value());
+                tickerSymbol.value(), strengths.value(), risks.value(), financials.value(),
+                kpis.value(), issueObjects.value());
     }
 
     private static boolean isEmpty(List<?> list) {

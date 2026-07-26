@@ -245,7 +245,8 @@ public class NseSource implements IpoSource {
                 null, null,                   // freshIssue, offerForSale — not this source's strength
                 text(n, F_SYMBOL),            // tickerSymbol — NSE trading symbol
                 null, null,                   // strengths, risks
-                null                          // financials
+                null,                         // financials
+                null, null                    // kpis, issueObjects — Chittorgarh-only
         );
     }
 
@@ -324,7 +325,8 @@ public class NseSource implements IpoSource {
                 dto.gmp(), dto.gmpPct(), categories, subTotal,
                 dto.allotmentStatus(), registrar, dto.registrarUrl(), dto.logoUrl(), dto.about(),
                 dto.refundDate(), dto.dematDate(), faceValue, dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials());
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
+                dto.kpis(), dto.issueObjects());
     }
 
     private static void putIfPresent(Map<String, BigDecimal> map, String category, BigDecimal value) {

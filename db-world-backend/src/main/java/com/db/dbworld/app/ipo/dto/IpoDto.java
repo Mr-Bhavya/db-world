@@ -59,5 +59,17 @@ public record IpoDto(
          * com.db.dbworld.app.ipo.service.IpoMergeService}; persisted by {@code IpoIngestService}
          * as an UPSERT into {@code IpoFinancialEntity}, separate from the listing entity itself.
          */
-        List<IpoFinancialRowDto> financials
+        List<IpoFinancialRowDto> financials,
+        /**
+         * Key-performance-indicator rows (ROE/ROCE/P/E/EPS/Market Cap/…) scraped from the detail
+         * page — {@code null}/empty for every source except {@code chittorgarh}. Merged
+         * chittorgarh-first; persisted as a JSON array on the listing entity ({@code kpis_json}).
+         */
+        List<IpoKpiDto> kpis,
+        /**
+         * "Objects of the Issue" rows (what the net proceeds fund + estimated amounts) scraped
+         * from the detail page — {@code null}/empty except for {@code chittorgarh}. Merged
+         * chittorgarh-first; persisted as a JSON array ({@code issue_objects_json}).
+         */
+        List<IpoIssueObjectDto> issueObjects
 ) {}

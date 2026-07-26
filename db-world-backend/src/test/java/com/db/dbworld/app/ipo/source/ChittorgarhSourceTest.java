@@ -291,6 +291,43 @@ class ChittorgarhSourceTest {
                 </table>
               </div>
             </div>
+            <div class="card">
+              <div class="row">
+                <div class="col-12"><h2 class="section-title">Key Performance Indicator (KPI)</h2></div>
+                <div class="col-12 col-md-6">
+                  <table>
+                    <thead><tr><th>KPI</th><th>Mar 31, 2025</th><th>Mar 31, 2026</th></tr></thead>
+                    <tbody>
+                      <tr><td>ROE</td><td>44.31%</td><td>34.78%</td></tr>
+                      <tr><td>Debt/Equity</td><td>0.41</td><td>0.63</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="col-12 col-md-6">
+                  <table>
+                    <thead><tr><th></th><th>Pre IPO</th><th>Post IPO</th></tr></thead>
+                    <tbody>
+                      <tr><td>EPS (₹)</td><td>10.40</td><td>7.79</td></tr>
+                      <tr><td>P/E (x)</td><td>12.21</td><td>16.3</td></tr>
+                      <tr><td>Market Cap</td><td>₹664.03 Cr.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <h2 class="section-title">IPO Objects of the Issue</h2>
+              <div id="ipo-objectives-section">
+                <table id="ObjectiveIssue">
+                  <thead><tr><th>#</th><th>Issue Objects</th><th>Est Amt (₹ Cr.)</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>Repayment of borrowings</td><td class="text-end">21.99</td></tr>
+                    <tr><td>2</td><td>To Meet Working Capital Requirements</td><td class="text-end">102.00</td></tr>
+                    <tr><td>3</td><td>General corporate purposes</td><td class="text-end"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
             </body></html>
             """;
 
@@ -327,6 +364,33 @@ class ChittorgarhSourceTest {
         IpoFinancialRowDto fy24 = enrichment.financials().get(2);
         assertThat(fy24.fiscalYear()).isEqualTo("31 Mar 2024");
         assertThat(fy24.revenue()).isEqualByComparingTo("233.26");
+    }
+
+    @Test
+    void parseDetail_extractsKpisAndIssueObjects() {
+        Document doc = Jsoup.parse(DETAIL_FIXTURE_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        // KPIs: ratio table first (latest-period value), then the Pre/Post table (post-IPO value,
+        // or the sole value for a single-value row like Market Cap).
+        assertThat(enrichment.kpis()).hasSize(5);
+        assertThat(enrichment.kpis().get(0).label()).isEqualTo("ROE");
+        assertThat(enrichment.kpis().get(0).value()).isEqualTo("34.78%");     // Mar 2026 (latest), not Mar 2025
+        assertThat(enrichment.kpis().get(1).label()).isEqualTo("Debt/Equity");
+        assertThat(enrichment.kpis().get(1).value()).isEqualTo("0.63");
+        assertThat(enrichment.kpis().get(2).label()).isEqualTo("EPS (₹)");
+        assertThat(enrichment.kpis().get(2).value()).isEqualTo("7.79");       // Post IPO, not Pre
+        assertThat(enrichment.kpis().get(4).label()).isEqualTo("Market Cap");
+        assertThat(enrichment.kpis().get(4).value()).isEqualTo("₹664.03 Cr."); // single-value row
+
+        // Objects of the Issue: purpose + ₹-crore amount; blank amount cell → null.
+        assertThat(enrichment.issueObjects()).hasSize(3);
+        assertThat(enrichment.issueObjects().get(0).purpose()).isEqualTo("Repayment of borrowings");
+        assertThat(enrichment.issueObjects().get(0).amount()).isEqualTo("₹21.99 Cr");
+        assertThat(enrichment.issueObjects().get(1).amount()).isEqualTo("₹102.00 Cr");
+        assertThat(enrichment.issueObjects().get(2).purpose()).isEqualTo("General corporate purposes");
+        assertThat(enrichment.issueObjects().get(2).amount()).isNull();
     }
 
     @Test

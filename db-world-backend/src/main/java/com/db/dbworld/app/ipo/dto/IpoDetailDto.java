@@ -43,5 +43,7 @@ public record IpoDetailDto(
         String parentCompany,
         String sector,
         String headquarters,
-        String website
+        String website,
+        List<IpoKpiDto> kpis,
+        List<IpoIssueObjectDto> issueObjects
 ) {}

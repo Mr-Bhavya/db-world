@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.mapper;
 
 import com.db.dbworld.app.ipo.dto.*;
 import com.db.dbworld.app.ipo.entity.*;
+import com.db.dbworld.app.ipo.service.IpoDetailJson;
 import com.db.dbworld.app.ipo.service.IpoSubscriptionJson;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -41,6 +42,8 @@ public abstract class IpoMapperBase {
 
     @Mapping(target = "strengths", source = "strengths", qualifiedByName = "splitLines")
     @Mapping(target = "risks", source = "risks", qualifiedByName = "splitLines")
+    @Mapping(target = "kpis", source = "kpisJson", qualifiedByName = "kpisFromJson")
+    @Mapping(target = "issueObjects", source = "issueObjectsJson", qualifiedByName = "issueObjectsFromJson")
     public abstract IpoDetailDto toDetail(IpoListingEntity e);
 
     public abstract IpoFinancialDto toFinancial(IpoFinancialEntity e);
@@ -74,6 +77,8 @@ public abstract class IpoMapperBase {
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
     @Mapping(target = "logoDomain", ignore = true)
+    @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
+    @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
     public abstract IpoListingEntity toNewEntity(IpoDto dto);
 
     /**
@@ -97,6 +102,8 @@ public abstract class IpoMapperBase {
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
     @Mapping(target = "logoDomain", ignore = true)
+    @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
+    @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
     public abstract void applyUpdatable(IpoDto dto, @MappingTarget IpoListingEntity entity);
 
     /** Joins a saved application with a light summary of the IPO it's for, for the "My IPOs" list. */
@@ -136,5 +143,26 @@ public abstract class IpoMapperBase {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
+    }
+
+    // ── KPI / Objects-of-the-Issue JSON <-> list converters (delegated to IpoDetailJson) ────────
+    @Named("kpisToJson")
+    protected static String kpisToJson(List<IpoKpiDto> kpis) {
+        return IpoDetailJson.kpisToJson(kpis);
+    }
+
+    @Named("kpisFromJson")
+    protected static List<IpoKpiDto> kpisFromJson(String json) {
+        return IpoDetailJson.kpisFromJson(json);
+    }
+
+    @Named("issueObjectsToJson")
+    protected static String issueObjectsToJson(List<IpoIssueObjectDto> objects) {
+        return IpoDetailJson.issueObjectsToJson(objects);
+    }
+
+    @Named("issueObjectsFromJson")
+    protected static List<IpoIssueObjectDto> issueObjectsFromJson(String json) {
+        return IpoDetailJson.issueObjectsFromJson(json);
     }
 }
