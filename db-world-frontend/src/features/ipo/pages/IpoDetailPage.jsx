@@ -157,7 +157,7 @@ export default function IpoDetailPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <Box sx={{ ...PAGE_SX, color: T.textPrimary, maxWidth: 1100, mx: 'auto' }}>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: { xs: 1.5, sm: 2 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 1.5, sm: 2 } }}>
           <IconButton
             onClick={backToList}
             aria-label="Back to IPO Tracker"
