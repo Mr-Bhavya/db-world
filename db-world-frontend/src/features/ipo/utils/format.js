@@ -285,6 +285,9 @@ export const shortFinancialLabel = (fiscalYear) => {
   }
   const shortMatch = fiscalYear.match(/^FY\s*(\d{2})$/i);
   if (shortMatch) return `20${shortMatch[1]}`;
+  // "31 Mar 2026" / "Mar 2026" (Chittorgarh period-end labels) → just the year for a tidy axis.
+  const trailingYear = fiscalYear.match(/(\d{4})\s*$/);
+  if (trailingYear) return trailingYear[1];
   return fiscalYear;
 };
 

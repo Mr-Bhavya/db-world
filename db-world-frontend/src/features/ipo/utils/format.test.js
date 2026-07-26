@@ -443,8 +443,9 @@ describe('shortFinancialLabel', () => {
     expect(shortFinancialLabel('FY 26')).toBe('2026');
   });
 
-  it('passes through a month label unchanged', () => {
-    expect(shortFinancialLabel('Mar 2026')).toBe('Mar 2026');
+  it('extracts the year from a "Mon yyyy" / "d Mon yyyy" period-end label', () => {
+    expect(shortFinancialLabel('Mar 2026')).toBe('2026');
+    expect(shortFinancialLabel('31 Mar 2026')).toBe('2026');
   });
 
   it('passes through anything it does not recognize unchanged', () => {
