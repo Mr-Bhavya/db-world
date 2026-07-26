@@ -73,6 +73,8 @@ class IpoStatusCanonicalizerTest {
         assertThat(IpoStatusCanonicalizer.canonicalType("Mainline")).isEqualTo("mainboard");
         assertThat(IpoStatusCanonicalizer.canonicalType("MB")).isEqualTo("mainboard");
         assertThat(IpoStatusCanonicalizer.canonicalType("Mainboard IPO")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("EQ")).isEqualTo("mainboard");
+        assertThat(IpoStatusCanonicalizer.canonicalType("Equity")).isEqualTo("mainboard");
     }
 
     @Test

@@ -22,6 +22,8 @@ public final class IpoStatusCanonicalizer {
             Map.entry("mainline", "mainboard"),
             Map.entry("mb", "mainboard"),
             Map.entry("mainboard ipo", "mainboard"),
+            Map.entry("eq", "mainboard"),
+            Map.entry("equity", "mainboard"),
 
             Map.entry("sme", "sme"),
             Map.entry("sme ipo", "sme"),
