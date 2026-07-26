@@ -11,7 +11,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
   formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel,
-  subscriptionLabel, subscriptionMeta,
+  subscriptionMeta,
 } from '../utils/format';
 import { saveListScrollForBack } from '../utils/listScrollRestore';
 import CompanyLogo from './CompanyLogo';
@@ -97,34 +97,35 @@ function DaysLeftPill({ ipo }) {
 }
 
 /**
- * Slim subscription progress bar — open/closed IPOs only, and only once `subTotal` is
- * known. Fill is capped at 100% (past 1× the bar just stays full; the multiple itself
- * is what carries "oversubscribed" — no ever-growing bar past full), color-tiered via
+ * Compact inline subscription indicator — a single stat-row line (uppercase label + a
+ * short fixed-width mini progress bar + the "3.6×" multiple), styled to match the
+ * card's other compact stats rather than the old heavy full-width bar+label block.
+ * Fill is capped at 100% (past 1× the bar just stays full; the multiple itself is what
+ * carries "oversubscribed" — no ever-growing bar past full), color-tiered via
  * `subscriptionMeta` so a 15× "hot" issue reads as unmistakably different from a 1.2×
- * scrape-by. Hidden for upcoming/listed via the caller's condition, not in here, so the
- * "no bar at all" case never even mounts this.
+ * scrape-by. Open/closed IPOs only, and only once `subTotal` is known — hidden for
+ * upcoming/listed via the caller's condition, not in here, so the "nothing at all"
+ * case never even mounts this.
  */
-function SubscriptionBar({ subTotal }) {
+function SubscriptionMiniBar({ subTotal }) {
   const T = useT();
   const meta = subscriptionMeta(subTotal, T);
   if (!meta) return null;
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.4 }}>
-        <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
-          Subscription
-        </Typography>
-        <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color }} noWrap>
-          {subscriptionLabel(subTotal)}
-        </Typography>
-      </Box>
-      <Box sx={{ height: 5, borderRadius: 999, bgcolor: T.glassHover, overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+      <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700, flexShrink: 0 }}>
+        Subscription
+      </Typography>
+      <Box sx={{ width: 56, height: 5, borderRadius: 999, bgcolor: T.glassHover, overflow: 'hidden', flexShrink: 0 }}>
         <Box sx={{
           height: '100%', width: `${meta.fillPct}%`, borderRadius: 999, bgcolor: meta.color,
           boxShadow: meta.hot ? `0 0 6px ${meta.color}` : 'none',
           transition: 'width 0.3s ease',
         }} />
       </Box>
+      <Typography sx={{ fontSize: 12, fontWeight: 800, color: meta.color, flexShrink: 0 }} noWrap>
+        {Number(subTotal).toFixed(1)}×
+      </Typography>
     </Box>
   );
 }
@@ -235,7 +236,7 @@ export default function IpoCard({ ipo, index = 0 }) {
         </Box>
 
         {(ipo.status === 'open' || ipo.status === 'closed') && ipo.subTotal != null && (
-          <SubscriptionBar subTotal={ipo.subTotal} />
+          <SubscriptionMiniBar subTotal={ipo.subTotal} />
         )}
 
         <Box sx={{

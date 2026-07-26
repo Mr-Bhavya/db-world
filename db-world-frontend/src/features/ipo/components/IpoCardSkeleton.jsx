@@ -41,12 +41,13 @@ export default function IpoCardSkeleton() {
         </Box>
       </Box>
 
-      {/* Placeholder for the open/closed subscription bar — most cards in a typical
-          list are open/closed, so the skeleton reserves its space to avoid a layout
-          jump once real data (and the real bar) lands. */}
-      <Box>
-        <Skeleton variant="text" width={90} height={12} sx={{ bgcolor: T.glassHover }} />
-        <Skeleton variant="rounded" width="100%" height={5} sx={{ mt: 0.6, borderRadius: 999, bgcolor: T.glassHover }} />
+      {/* Placeholder for the open/closed subscription mini-bar row — most cards in a
+          typical list are open/closed, so the skeleton reserves its space to avoid a
+          layout jump once real data (and the real row) lands. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <Skeleton variant="text" width={70} height={12} sx={{ bgcolor: T.glassHover }} />
+        <Skeleton variant="rounded" width={56} height={5} sx={{ borderRadius: 999, bgcolor: T.glassHover }} />
+        <Skeleton variant="text" width={28} height={14} sx={{ bgcolor: T.glassHover }} />
       </Box>
 
       <Box sx={{
