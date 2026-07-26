@@ -172,9 +172,12 @@ export default function IpoDetailPage() {
             size={{ xs: 36, sm: 44 }}
           />
           {/* Name-block + chip-group live in ONE flex row that only wraps BETWEEN the two
-              of them (`flexWrap: 'wrap'` here) — the chip-group itself is `flexWrap: 'nowrap'`
-              so the status badge, ticker and type chip always stay on the same line as each
-              other, never each dropping to their own row. A long company name clamps to 2
+              of them (`flexWrap: 'wrap'` here). The chip-group itself also wraps
+              (`flexWrap: 'wrap'`), but its status+type pairing is pinned together in a
+              strict `nowrap` sub-group (always short, must never split mid-pair); the
+              ticker/exchange chip is a separate sibling item that's free to drop to its
+              own line when there isn't room, so a long ticker (e.g. "BSE, NSE: ADANIENSOL")
+              wraps instead of overflowing the header. A long company name clamps to 2
               lines (`-webkit-line-clamp`) instead of forcing the chips down further. */}
           <Box sx={{
             minWidth: 0, flex: 1, display: 'flex', flexWrap: 'wrap',
@@ -188,23 +191,28 @@ export default function IpoDetailPage() {
             }}>
               {ipo.companyName}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, flexWrap: 'nowrap' }}>
-              <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: meta.bg, border: `1px solid ${meta.color}55`, flexShrink: 0 }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color, whiteSpace: 'nowrap' }}>{meta.label}</Typography>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 0.75,
+              flexWrap: 'wrap', maxWidth: '100%', minWidth: 0,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, flexWrap: 'nowrap' }}>
+                <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: meta.bg, border: `1px solid ${meta.color}55`, flexShrink: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color, whiteSpace: 'nowrap' }}>{meta.label}</Typography>
+                </Box>
+                <Chip
+                  label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 20, fontSize: 11, borderColor: T.border, color: T.textMuted, flexShrink: 0 }}
+                />
               </Box>
               {ipo.tickerSymbol && (
-                <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: T.tealBg, border: `1px solid ${T.teal}55`, flexShrink: 0 }}>
+                <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: T.tealBg, border: `1px solid ${T.teal}55`, flexShrink: 0, maxWidth: '100%' }}>
                   <Typography sx={{ fontSize: 11, fontWeight: 800, color: T.teal, whiteSpace: 'nowrap' }}>
                     {formatExchange(ipo.listingExchange)}: {ipo.tickerSymbol}
                   </Typography>
                 </Box>
               )}
-              <Chip
-                label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
-                size="small"
-                variant="outlined"
-                sx={{ height: 20, fontSize: 11, borderColor: T.border, color: T.textMuted, flexShrink: 0 }}
-              />
             </Box>
           </Box>
         </Box>
