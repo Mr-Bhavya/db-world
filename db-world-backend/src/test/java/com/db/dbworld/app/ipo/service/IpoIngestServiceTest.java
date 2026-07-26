@@ -82,7 +82,7 @@ class IpoIngestServiceTest {
                 listingExchange, listingPrice, listingGainPct,
                 gmp, gmpPct, subscriptionCategories(), subTotal,
                 allotmentStatus, "Link Intime", "https://registrar", null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     /** A minimal dto with just {@code ipoType} varied, for the type-canonicalization tests. */
@@ -93,7 +93,7 @@ class IpoIngestServiceTest {
                 null, null, null,
                 new BigDecimal("20.00"), new BigDecimal("18.00"), subscriptionCategories(), new BigDecimal("1.50"),
                 "awaited", "Link Intime", "https://registrar", null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     /** The DB row that mirrors a prior ingest of {@code dto(...)} with the same field values. */

@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,7 +47,21 @@ class IpoMergeServiceTest {
                 "https://logo/" + source, "About " + source,
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
                 new BigDecimal("10.00"), freshIssue, offerForSale,
-                "TICK-" + source, "Strength " + source, "Risk " + source);
+                "TICK-" + source, "Strength " + source, "Risk " + source, List.of());
+    }
+
+    /** Minimal dto (like the fallback-precedence helpers below) varying only source + financials. */
+    private IpoDto dtoWithFinancials(String source, List<IpoFinancialRowDto> financials) {
+        return new IpoDto(source, null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, financials);
+    }
+
+    private static IpoFinancialRowDto row(String fiscalYear) {
+        return new IpoFinancialRowDto(fiscalYear, null, null, null, null);
     }
 
     @Test
@@ -119,19 +134,19 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
                 OPEN, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 "finalized-manual-only", null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, manual));
 
@@ -147,7 +162,7 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         List<IpoDto> merged = mergeService.merge(List.of(acme, other));
 
@@ -163,7 +178,7 @@ class IpoMergeServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         IpoDto valid = full("ipoguru");
 
         List<IpoDto> merged = mergeService.merge(List.of(uningestable, valid));
@@ -179,5 +194,37 @@ class IpoMergeServiceTest {
         List<IpoDto> merged = mergeService.merge(List.of(nse));
 
         assertThat(merged.get(0).matchKey()).isEqualTo(new IpoNormalizer().matchKey(nse));
+    }
+
+    @Test
+    void merge_financials_chittorgarhWinsOverAnotherNonEmptyList() {
+        IpoDto ipoguru = dtoWithFinancials("ipoguru", List.of(row("FY23-ipoguru")));
+        IpoDto chittorgarh = dtoWithFinancials("chittorgarh", List.of(row("FY23-chittorgarh")));
+
+        List<IpoDto> merged = mergeService.merge(List.of(ipoguru, chittorgarh));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).financials()).extracting(IpoFinancialRowDto::fiscalYear)
+                .containsExactly("FY23-chittorgarh");
+    }
+
+    @Test
+    void merge_financials_chittorgarhEmpty_fallsBackToNextPrecedenceSource() {
+        IpoDto ipoguru = dtoWithFinancials("ipoguru", List.of(row("FY23-ipoguru")));
+        IpoDto chittorgarh = dtoWithFinancials("chittorgarh", List.of());
+
+        List<IpoDto> merged = mergeService.merge(List.of(ipoguru, chittorgarh));
+
+        assertThat(merged.get(0).financials()).extracting(IpoFinancialRowDto::fiscalYear)
+                .containsExactly("FY23-ipoguru");
+    }
+
+    @Test
+    void merge_financials_noSourceReportsAny_mergedFieldIsNull() {
+        IpoDto nse = full("nse");
+
+        List<IpoDto> merged = mergeService.merge(List.of(nse));
+
+        assertThat(merged.get(0).financials()).isNull();
     }
 }

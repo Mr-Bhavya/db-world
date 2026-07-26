@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,5 +50,14 @@ public record IpoDto(
         BigDecimal offerForSale,
         String tickerSymbol,
         String strengths,
-        String risks
+        String risks,
+        /**
+         * Fiscal-year revenue/PAT/total-assets rows scraped from the detail page's "Company
+         * Financials" section — {@code null}/empty for every source except {@code chittorgarh}
+         * (the only adapter with a detail-page scrape; {@code TODO(verify)} once mapped against a
+         * live response). Merged chittorgarh-first (it's the only source) by {@link
+         * com.db.dbworld.app.ipo.service.IpoMergeService}; persisted by {@code IpoIngestService}
+         * as an UPSERT into {@code IpoFinancialEntity}, separate from the listing entity itself.
+         */
+        List<IpoFinancialRowDto> financials
 ) {}

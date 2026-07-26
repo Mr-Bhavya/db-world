@@ -214,7 +214,8 @@ public class NseSource implements IpoSource {
                 null,                                               // about — ditto
                 null, null,                                          // refundDate, dematDate — not this source's strength
                 null, null, null,                                    // faceValue, freshIssue, offerForSale — not this source's strength
-                null, null, null                                     // tickerSymbol, strengths, risks — not this source's strength
+                null, null, null,                                    // tickerSymbol, strengths, risks — not this source's strength
+                null                                                 // financials — not this source's strength
         );
     }
 }

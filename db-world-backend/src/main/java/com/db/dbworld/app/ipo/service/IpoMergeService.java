@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 
@@ -94,6 +95,13 @@ public class IpoMergeService {
         Picked<String> registrar = pick(group, PRECEDENCE_REGISTRAR, IpoDto::registrar, "registrar");
         Picked<String> registrarUrl = pick(group, PRECEDENCE_REGISTRAR, IpoDto::registrarUrl, "registrarUrl");
 
+        // Chittorgarh is the only source that populates this (its detail-page scrape), so
+        // PRECEDENCE_REGISTRAR (chittorgarh-first) is reused rather than a dedicated list; the
+        // getter treats a null OR empty list as "not reported" so a source that hasn't scraped
+        // financials never shadows one that has.
+        Picked<List<IpoFinancialRowDto>> financials = pick(group, PRECEDENCE_REGISTRAR,
+                d -> isEmpty(d.financials()) ? null : d.financials(), "financials");
+
         // The merged dto carries a single `source`, but its fields came from up to three sources.
         // Downstream (IpoIngestService) only reads dto.source() to stamp GMP/subscription history
         // rows, so we attribute it to whichever source actually supplied the GMP value (falling
@@ -107,7 +115,11 @@ public class IpoMergeService {
                 gmp.value(), gmpPct.value(), subscriptionCategories.value(), subTotal.value(),
                 allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value(),
                 refundDate.value(), dematDate.value(), faceValue.value(), freshIssue.value(), offerForSale.value(),
-                tickerSymbol.value(), strengths.value(), risks.value());
+                tickerSymbol.value(), strengths.value(), risks.value(), financials.value());
+    }
+
+    private static boolean isEmpty(List<?> list) {
+        return list == null || list.isEmpty();
     }
 
     @SafeVarargs
