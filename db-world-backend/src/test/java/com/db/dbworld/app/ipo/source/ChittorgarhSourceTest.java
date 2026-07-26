@@ -13,7 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Year;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,48 +31,79 @@ class ChittorgarhSourceTest {
     @Mock
     IpoHttpClient httpClient;
 
-    private static final String LIST_URL = "https://www.chittorgarh.com/report/mainboard-ipo-list-in-india-bse-nse/83/";
+    // Fixed "now" so the dynamic-year list URL and the recent-listing enrichment gate are
+    // deterministic in tests: 24-Jul-2026, same reference date used elsewhere in the IPO test suite.
+    private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    // Synthesized fixture matching the documented mainboard-list table shape, including the
-    // price band / lot size / issue size columns this adapter now also maps.
+    private static final String LIST_URL =
+            "https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/all/?year="
+                    + Year.now(CLOCK).getValue();
+
+    private ChittorgarhSource newSource() {
+        return new ChittorgarhSource(httpClient, CLOCK);
+    }
+
+    // Synthesized fixture matching the REAL list-page column set (from the live-page screenshot):
+    // Company | Issue Category | Pricing Method | Opening Date | Closing Date | Listing Date |
+    // Issue Price (Rs.) | Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.) | Fresh Capital
+    // (Rs.Cr.) | Offer For Sale (Rs.Cr.) | Issue Amount (Rs.Cr.) | Listing At | Left Lead Manager |
+    // Compare. "Pricing Method", "Issue Amount (Rs.Cr.)", "Left Lead Manager" and "Compare" are
+    // deliberately NOT mapped (see class javadoc) but are still present in the fixture so the
+    // column-matching is exercised against the real shape, not a pre-trimmed one.
     private static final String FIXTURE_HTML = """
             <html><body>
             <table>
               <thead>
                 <tr>
-                  <th>IPO Name</th>
-                  <th>Open Date</th>
-                  <th>Close Date</th>
-                  <th>Allotment Date</th>
+                  <th>Company</th>
+                  <th>Issue Category</th>
+                  <th>Pricing Method</th>
+                  <th>Opening Date</th>
+                  <th>Closing Date</th>
                   <th>Listing Date</th>
-                  <th>Price Band</th>
-                  <th>Lot Size</th>
-                  <th>Issue Size</th>
-                  <th>Listing Gain</th>
+                  <th>Issue Price (Rs.)</th>
+                  <th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>
+                  <th>Fresh Capital (Rs.Cr.)</th>
+                  <th>Offer For Sale (Rs.Cr.)</th>
+                  <th>Issue Amount (Rs.Cr.)</th>
+                  <th>Listing At</th>
+                  <th>Left Lead Manager</th>
+                  <th>Compare</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td><a href="/ipo/acme-robotics/123/">Acme Robotics Ltd</a></td>
-                  <td>21-Jul-2026</td>
-                  <td>23-Jul-2026</td>
-                  <td>24-Jul-2026</td>
-                  <td>28-Jul-2026</td>
-                  <td>115-120</td>
-                  <td>125</td>
-                  <td>500 Cr</td>
-                  <td>15.50%</td>
+                  <td>SME</td>
+                  <td>Book Building</td>
+                  <td>31-Jul-2026</td>
+                  <td>04-Aug-2026</td>
+                  <td></td>
+                  <td>151.00 to 159.00</td>
+                  <td>39.04</td>
+                  <td>29.67</td>
+                  <td>7.41</td>
+                  <td>39.04</td>
+                  <td>BSE SME</td>
+                  <td>Some Lead Manager Pvt Ltd</td>
+                  <td><input type="checkbox"/></td>
                 </tr>
                 <tr>
                   <td>Beta Textiles Ltd</td>
+                  <td>Mainboard</td>
+                  <td>Book Building</td>
                   <td>05-Aug-2026</td>
                   <td>07-Aug-2026</td>
-                  <td>08-Aug-2026</td>
+                  <td></td>
+                  <td></td>
+                  <td>1,800.00</td>
                   <td></td>
                   <td></td>
                   <td></td>
+                  <td>BSE, NSE</td>
                   <td></td>
-                  <td>&#8212;</td>
+                  <td></td>
                 </tr>
               </tbody>
             </table>
@@ -112,10 +147,6 @@ class ChittorgarhSourceTest {
             </body></html>
             """;
 
-    private ChittorgarhSource newSource() {
-        return new ChittorgarhSource(httpClient);
-    }
-
     @Test
     void parseTable_mapsDocumentedColumns() {
         Document doc = Jsoup.parse(FIXTURE_HTML, LIST_URL);
@@ -128,68 +159,91 @@ class ChittorgarhSourceTest {
         assertThat(acme.source()).isEqualTo("chittorgarh");
         assertThat(acme.matchKey()).isNull();
         assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd");
-        assertThat(acme.ipoType()).isEqualTo("mainboard");
-        assertThat(acme.openDate()).isEqualTo(LocalDate.of(2026, 7, 21));
-        assertThat(acme.closeDate()).isEqualTo(LocalDate.of(2026, 7, 23));
-        assertThat(acme.allotmentDate()).isEqualTo(LocalDate.of(2026, 7, 24));
-        assertThat(acme.listingDate()).isEqualTo(LocalDate.of(2026, 7, 28));
-        assertThat(acme.priceMin()).isEqualByComparingTo("115");
-        assertThat(acme.priceMax()).isEqualByComparingTo("120");
-        assertThat(acme.lotSize()).isEqualTo(125);
-        assertThat(acme.issueSize()).isEqualTo("500 Cr");
-        assertThat(acme.listingGainPct()).isEqualByComparingTo("15.50");
+        assertThat(acme.ipoType()).isEqualTo("SME"); // raw "Issue Category" text; ingest canonicalizes
+        assertThat(acme.openDate()).isEqualTo(LocalDate.of(2026, 7, 31));
+        assertThat(acme.closeDate()).isEqualTo(LocalDate.of(2026, 8, 4));
+        assertThat(acme.allotmentDate()).isNull();      // no "Allotment Date" column on the real page
+        assertThat(acme.listingDate()).isNull();        // blank cell
+        assertThat(acme.priceMin()).isEqualByComparingTo("151.00");
+        assertThat(acme.priceMax()).isEqualByComparingTo("159.00");
+        assertThat(acme.lotSize()).isNull();            // no "Lot Size" column on the real page
+        assertThat(acme.issueSize()).isEqualTo("₹39.04 Cr");
+        assertThat(acme.freshIssue()).isEqualByComparingTo("29.67");
+        assertThat(acme.offerForSale()).isEqualByComparingTo("7.41");
+        assertThat(acme.listingExchange()).isEqualTo("BSE"); // "BSE SME" -> BSE, SME suffix ignored
+        assertThat(acme.registrar()).isNull();          // "Left Lead Manager" is NOT the registrar
+        assertThat(acme.registrarUrl()).isNull();
+        assertThat(acme.listingGainPct()).isNull();     // no "Listing Gain" column on the real page
     }
 
     @Test
-    void parseTable_tolerablesMissingGainAndAnchorlessName() {
+    void parseTable_mainboardRowWithBlankPriceBandAndBothExchanges() {
         Document doc = Jsoup.parse(FIXTURE_HTML, LIST_URL);
 
         List<IpoDto> result = newSource().parseTable(doc);
 
         IpoDto beta = result.get(1);
         assertThat(beta.companyName()).isEqualTo("Beta Textiles Ltd");
+        assertThat(beta.ipoType()).isEqualTo("Mainboard");
         assertThat(beta.openDate()).isEqualTo(LocalDate.of(2026, 8, 5));
         assertThat(beta.closeDate()).isEqualTo(LocalDate.of(2026, 8, 7));
-        assertThat(beta.allotmentDate()).isEqualTo(LocalDate.of(2026, 8, 8));
-        assertThat(beta.listingDate()).isNull();     // blank cell
-        assertThat(beta.priceMin()).isNull();        // blank cell
+        assertThat(beta.listingDate()).isNull();        // blank cell
+        assertThat(beta.priceMin()).isNull();           // blank "Issue Price" cell
         assertThat(beta.priceMax()).isNull();
-        assertThat(beta.lotSize()).isNull();
-        assertThat(beta.issueSize()).isNull();
-        assertThat(beta.listingGainPct()).isNull();  // "—" placeholder, not yet listed
+        assertThat(beta.issueSize()).isEqualTo("₹1,800.00 Cr"); // comma thousands kept in the label
+        assertThat(beta.freshIssue()).isNull();         // blank cell
+        assertThat(beta.offerForSale()).isNull();       // blank cell
+        assertThat(beta.listingExchange()).isEqualTo("BOTH"); // "BSE, NSE" -> BOTH
     }
 
     @Test
-    void parseTable_singlePriceBandValue_bothBoundsEqual() {
+    void parseTable_issuePriceSingleValueWithoutTo_yieldsNullBand() {
         Document doc = Jsoup.parse("""
                 <html><body>
                 <table>
-                  <thead><tr><th>IPO Name</th><th>Price Band</th></tr></thead>
-                  <tbody><tr><td>Fixed Price Co</td><td>172</td></tr></tbody>
+                  <thead><tr><th>Company</th><th>Issue Price (Rs.)</th></tr></thead>
+                  <tbody><tr><td>Fixed Price Co</td><td>172.00</td></tr></tbody>
                 </table>
                 </body></html>
                 """, LIST_URL);
 
         List<IpoDto> result = newSource().parseTable(doc);
 
-        assertThat(result.get(0).priceMin()).isEqualByComparingTo("172");
-        assertThat(result.get(0).priceMax()).isEqualByComparingTo("172");
+        assertThat(result.get(0).priceMin()).isNull();
+        assertThat(result.get(0).priceMax()).isNull();
     }
 
     @Test
-    void parseTable_lotSizeWithNonDigitSuffix_stripsToDigitsOnly() {
+    void parseTable_issuePriceZeroZeroPlaceholder_yieldsNullBand() {
         Document doc = Jsoup.parse("""
                 <html><body>
                 <table>
-                  <thead><tr><th>IPO Name</th><th>Lot Size</th></tr></thead>
-                  <tbody><tr><td>Shares Co</td><td>1,600 Shares</td></tr></tbody>
+                  <thead><tr><th>Company</th><th>Issue Price (Rs.)</th></tr></thead>
+                  <tbody><tr><td>Not Yet Priced Co</td><td>0.00 to 0.00</td></tr></tbody>
                 </table>
                 </body></html>
                 """, LIST_URL);
 
         List<IpoDto> result = newSource().parseTable(doc);
 
-        assertThat(result.get(0).lotSize()).isEqualTo(1600);
+        assertThat(result.get(0).priceMin()).isNull();
+        assertThat(result.get(0).priceMax()).isNull();
+    }
+
+    @Test
+    void parseTable_totalIssueAmountBlank_yieldsNullIssueSize() {
+        Document doc = Jsoup.parse("""
+                <html><body>
+                <table>
+                  <thead><tr><th>Company</th><th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th></tr></thead>
+                  <tbody><tr><td>No Amount Co</td><td></td></tr></tbody>
+                </table>
+                </body></html>
+                """, LIST_URL);
+
+        List<IpoDto> result = newSource().parseTable(doc);
+
+        assertThat(result.get(0).issueSize()).isNull();
     }
 
     @Test
@@ -326,32 +380,36 @@ class ChittorgarhSourceTest {
 
     // A spacer/ad row with ZERO <td> cells (only a <th>) sits between Company A and Company B.
     // parseTable's `if (cells.isEmpty()) continue;` skips it when building `listed`; the detail-url
-    // resolution must skip it identically so the two never drift out of alignment.
+    // resolution must skip it identically so the two never drift out of alignment. Listing dates
+    // are all within the ±30-day enrichment-gate window (TODAY = 2026-07-24) so this fixture
+    // exercises ONLY the spacer-row regression, not the gate/cap from Unit 2.
     private static final String FIXTURE_HTML_WITH_SPACER_ROW = """
             <html><body>
             <table>
               <thead>
                 <tr>
-                  <th>IPO Name</th><th>Open Date</th><th>Close Date</th><th>Allotment Date</th>
-                  <th>Listing Date</th><th>Price Band</th><th>Lot Size</th><th>Issue Size</th><th>Listing Gain</th>
+                  <th>Company</th><th>Issue Category</th><th>Opening Date</th><th>Closing Date</th>
+                  <th>Listing Date</th><th>Issue Price (Rs.)</th>
+                  <th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>
+                  <th>Fresh Capital (Rs.Cr.)</th><th>Offer For Sale (Rs.Cr.)</th><th>Listing At</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td><a href="/ipo/company-a/1/">Company A Ltd</a></td>
-                  <td>01-Jul-2026</td><td>03-Jul-2026</td><td>04-Jul-2026</td><td>08-Jul-2026</td>
-                  <td>100-110</td><td>100</td><td>200 Cr</td><td>10%</td>
+                  <td>Mainboard</td><td>01-Jul-2026</td><td>03-Jul-2026</td><td>08-Jul-2026</td>
+                  <td>100.00 to 110.00</td><td>200.00</td><td>150.00</td><td>50.00</td><td>BSE, NSE</td>
                 </tr>
-                <tr><th colspan="9">-- Advertisement --</th></tr>
+                <tr><th colspan="10">-- Advertisement --</th></tr>
                 <tr>
                   <td><a href="/ipo/company-b/2/">Company B Ltd</a></td>
-                  <td>11-Jul-2026</td><td>13-Jul-2026</td><td>14-Jul-2026</td><td>18-Jul-2026</td>
-                  <td>200-210</td><td>50</td><td>300 Cr</td><td>20%</td>
+                  <td>Mainboard</td><td>11-Jul-2026</td><td>13-Jul-2026</td><td>18-Jul-2026</td>
+                  <td>200.00 to 210.00</td><td>300.00</td><td>200.00</td><td>100.00</td><td>NSE</td>
                 </tr>
                 <tr>
                   <td><a href="/ipo/company-c/3/">Company C Ltd</a></td>
-                  <td>21-Jul-2026</td><td>23-Jul-2026</td><td>24-Jul-2026</td><td>28-Jul-2026</td>
-                  <td>300-310</td><td>25</td><td>400 Cr</td><td>30%</td>
+                  <td>SME</td><td>21-Jul-2026</td><td>23-Jul-2026</td><td>28-Jul-2026</td>
+                  <td>300.00 to 310.00</td><td>400.00</td><td>250.00</td><td>150.00</td><td>BSE SME</td>
                 </tr>
               </tbody>
             </table>

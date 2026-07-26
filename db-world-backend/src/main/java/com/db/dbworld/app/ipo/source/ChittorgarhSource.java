@@ -11,11 +11,14 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -27,13 +30,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Fallback / gap-fill source: scrapes Chittorgarh's mainboard IPO list page with Jsoup, then
- * (best-effort) each listed IPO's own detail page for its About/Strengths/Risks/Financials.
+ * Fallback / gap-fill source: scrapes Chittorgarh's IPO list page (Mainboard + SME, the
+ * {@code /all/} tab) with Jsoup, then (best-effort) each listed IPO's own detail page for its
+ * About/Strengths/Risks/Financials.
  *
- * <p>We cannot fetch a live Chittorgarh page from this environment (server-side requests are
- * blocked), so this adapter maps to the best-known public structure of the mainboard list table —
- * company name, open/close/allotment/listing dates, price band, lot size, issue size and the
- * realised listing gain — see the {@code TODO(verify)} markers on the page URL and header aliases.
+ * <p>The list URL and its column set below ARE confirmed against a live-page screenshot (unlike
+ * this adapter's earlier revision, which mapped a stale, 301-redirecting URL never actually seen
+ * live) — see {@link #listUrl()}: {@code
+ * https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/all/?year=<current-year>}.
+ * This adapter still can't fetch a live page from this environment (server-side requests are
+ * blocked) to confirm the DETAIL page's own structure — that half remains {@code TODO(verify)}.
  * We fetch the HTML through the shared {@link IpoHttpClient} (same retry policy as the other
  * sources) and hand the body to Jsoup purely for DOM parsing/selection, not networking.
  *
@@ -41,7 +47,11 @@ import java.util.regex.Pattern;
  * can be unit tested against a synthesized HTML fixture without any HTTP involved. Column
  * matching is done by header text (case-insensitive, tolerant of reordering) rather than fixed
  * indices or generated CSS classes/ids — Chittorgarh's markup carries no stable semantic
- * classes/ids per cell, so header-text matching is the least brittle option available.
+ * classes/ids per cell, so header-text matching is the least brittle option available. Three of
+ * the real page's columns are deliberately NOT mapped: "Pricing Method" and "Issue Amount
+ * (Rs.Cr.)" (redundant with "Total Issue Amount") have no dedicated {@link IpoDto} field, and
+ * "Left Lead Manager" is the lead manager — NOT the registrar — so it is never written to {@link
+ * IpoDto#registrar()}.
  *
  * <p><b>Detail-page enrichment</b>: each list row's company-name cell is assumed to carry an
  * anchor linking to that IPO's own Chittorgarh detail page ({@code TODO(verify)} — confirmed only
@@ -49,14 +59,12 @@ import java.util.regex.Pattern;
  * row element used to build the row's {@link IpoDto} — see {@code parseRows(Document)} — so an
  * empty/spacer row (e.g. an ad or divider row with no {@code <td>} cells) is skipped identically
  * for both and can never desynchronise a dto from a different row's detail URL. {@link
- * #fetchAll()} then fetches the detail page (one extra HTTP round-trip per IPO — acceptable given
- * the mainboard list is only ever ~10-20 active IPOs and this whole adapter runs on a periodic
- * poll, not per-request), and parses the About paragraph(s), Strengths/Risks bullet lists, and the
- * "Company Financials" table via {@link #parseDetail(Document)} (unit-testable the same way as
- * {@link #parseTable}). Every step is best-effort: a missing section yields {@code null}/empty for
- * just that field, and ANY failure fetching/parsing one IPO's detail page (network, anti-bot
- * block, shape change) leaves that IPO's core list-row data untouched and never propagates out of
- * {@link #fetchAll()}.
+ * #fetchAll()} then fetches the detail page (one extra HTTP round-trip per IPO), and parses the
+ * About paragraph(s), Strengths/Risks bullet lists, and the "Company Financials" table via
+ * {@link #parseDetail(Document)} (unit-testable the same way as {@link #parseTable}). Every step
+ * is best-effort: a missing section yields {@code null}/empty for just that field, and ANY
+ * failure fetching/parsing one IPO's detail page (network, anti-bot block, shape change) leaves
+ * that IPO's core list-row data untouched and never propagates out of {@link #fetchAll()}.
  */
 @Log4j2
 @Component
@@ -64,28 +72,29 @@ public class ChittorgarhSource implements IpoSource {
 
     private static final String KEY = "chittorgarh";
 
-    // ── Page assumption — TODO(verify): confirm this URL still serves the mainboard table ────
-    private static final String LIST_URL = "https://www.chittorgarh.com/report/mainboard-ipo-list-in-india-bse-nse/83/";
+    // ── Page confirmed live (screenshot) — TODO(verify): only the DETAIL page below is unconfirmed ──
+    private static final String LIST_URL_TEMPLATE =
+            "https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/all/?year=%d";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-    /** This adapter only ever scrapes the mainboard list page, so every row is a mainboard IPO. */
-    private static final String IPO_TYPE = "mainboard";
-
-    // ── Column header aliases — TODO(verify): confirm exact header text on the live page ─────
-    private static final List<String> H_NAME = List.of("ipo name", "ipo", "company");
-    private static final List<String> H_OPEN = List.of("open date", "open");
-    private static final List<String> H_CLOSE = List.of("close date", "close");
-    private static final List<String> H_ALLOTMENT = List.of("allotment date", "allotment");
-    // NOTE: no bare "listing" alias — it's a substring of "listing price"/"listing gain" and would mismatch those columns.
-    private static final List<String> H_LISTING = List.of("listing date", "est listing");
+    // ── Column header aliases, mapped to the REAL list-page columns (live-page screenshot):
+    // Company | Issue Category | Pricing Method | Opening Date | Closing Date | Listing Date |
+    // Issue Price (Rs.) | Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.) | Fresh Capital
+    // (Rs.Cr.) | Offer For Sale (Rs.Cr.) | Issue Amount (Rs.Cr.) | Listing At | Left Lead Manager |
+    // Compare ────────────────────────────────────────────────────────────────────────────────
+    private static final List<String> H_NAME = List.of("company", "ipo name", "ipo");
+    private static final List<String> H_ISSUE_CATEGORY = List.of("issue category");
+    private static final List<String> H_OPEN = List.of("opening date", "open date", "open");
+    private static final List<String> H_CLOSE = List.of("closing date", "close date", "close");
+    private static final List<String> H_LISTING_DATE = List.of("listing date");
     // NOTE: no bare "price" alias — it's a substring of "listing price" and would mismatch that column.
-    private static final List<String> H_PRICE_BAND = List.of("price band", "price range", "issue price", "price (rs)");
-    // NOTE: no bare "lot" alias — it's a substring of "allotment (date)" and would mismatch that column.
-    private static final List<String> H_LOT_SIZE = List.of("lot size");
-    private static final List<String> H_ISSUE_SIZE = List.of("issue size");
-    private static final List<String> H_GAIN = List.of("listing gain", "gain");
+    private static final List<String> H_ISSUE_PRICE = List.of("issue price", "price band", "price range", "price (rs)");
+    private static final List<String> H_TOTAL_ISSUE_AMOUNT = List.of("total issue amount", "issue size");
+    private static final List<String> H_FRESH_CAPITAL = List.of("fresh capital");
+    private static final List<String> H_OFFER_FOR_SALE = List.of("offer for sale");
+    private static final List<String> H_LISTING_AT = List.of("listing at");
 
     // ── Detail-page "Company Financials" column aliases — TODO(verify) against a live page ───
     private static final List<String> H_FIN_PERIOD = List.of("period", "year", "fy");
@@ -109,9 +118,17 @@ public class ChittorgarhSource implements IpoSource {
     private static final DateTimeFormatter MONTH_YEAR_FULL = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
     private final IpoHttpClient httpClient;
+    private final Clock clock;
 
+    @Autowired
     public ChittorgarhSource(IpoHttpClient httpClient) {
+        this(httpClient, Clock.systemUTC());
+    }
+
+    /** Test-friendly constructor with an injectable clock for deterministic year/gate tests. */
+    ChittorgarhSource(IpoHttpClient httpClient, Clock clock) {
         this.httpClient = httpClient;
+        this.clock = clock;
     }
 
     @Override
@@ -119,14 +136,20 @@ public class ChittorgarhSource implements IpoSource {
         return KEY;
     }
 
+    /** The list URL for the CURRENT calendar year, e.g. {@code .../82/all/?year=2026}. */
+    private String listUrl() {
+        return LIST_URL_TEMPLATE.formatted(Year.now(clock).getValue());
+    }
+
     @Override
     public List<IpoDto> fetchAll() {
+        String listUrl = listUrl();
         try {
-            IpoHttpResponse response = httpClient.get(LIST_URL, Map.of(
+            IpoHttpResponse response = httpClient.get(listUrl, Map.of(
                     HttpHeaders.USER_AGENT, USER_AGENT,
                     HttpHeaders.ACCEPT, "text/html"
             ));
-            Document doc = Jsoup.parse(response.body(), LIST_URL);
+            Document doc = Jsoup.parse(response.body(), listUrl);
             List<RowWithDetailUrl> rows = parseRows(doc);
 
             List<IpoDto> result = new ArrayList<>(rows.size());
@@ -159,8 +182,9 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     /**
-     * Parses the mainboard list table into one {@link RowWithDetailUrl} per data row, in a single
-     * pass. Building the dto and resolving its detail-page URL from the SAME {@code row} element —
+     * Parses the mainboard+SME list table into one {@link RowWithDetailUrl} per data row, in a
+     * single pass. Building the dto and resolving its detail-page URL from the SAME {@code row}
+     * element —
      * rather than in two separate passes zipped together by index afterwards — means the empty-row
      * skip ({@code if (cells.isEmpty()) continue;}) applies identically to both: there is no way for
      * a spacer/ad row to desynchronise a dto from a different row's detail URL, which is exactly
@@ -176,14 +200,18 @@ public class ChittorgarhSource implements IpoSource {
 
         List<String> headers = resolveHeaders(table);
         int idxName = findColumn(headers, H_NAME);
+        int idxCategory = findColumn(headers, H_ISSUE_CATEGORY);
         int idxOpen = findColumn(headers, H_OPEN);
         int idxClose = findColumn(headers, H_CLOSE);
-        int idxAllotment = findColumn(headers, H_ALLOTMENT);
-        int idxListing = findColumn(headers, H_LISTING);
-        int idxPriceBand = findColumn(headers, H_PRICE_BAND);
-        int idxLotSize = findColumn(headers, H_LOT_SIZE);
-        int idxIssueSize = findColumn(headers, H_ISSUE_SIZE);
-        int idxGain = findColumn(headers, H_GAIN);
+        int idxListing = findColumn(headers, H_LISTING_DATE);
+        int idxIssuePrice = findColumn(headers, H_ISSUE_PRICE);
+        int idxTotalIssueAmount = findColumn(headers, H_TOTAL_ISSUE_AMOUNT);
+        int idxFreshCapital = findColumn(headers, H_FRESH_CAPITAL);
+        int idxOfferForSale = findColumn(headers, H_OFFER_FOR_SALE);
+        int idxListingAt = findColumn(headers, H_LISTING_AT);
+        // "Pricing Method", "Issue Amount (Rs.Cr.)", "Left Lead Manager" and "Compare" are real
+        // columns on this page but have no dedicated IpoDto field (or, for Left Lead Manager, are
+        // NOT the registrar) — see class javadoc — so no index is resolved for them.
 
         List<RowWithDetailUrl> result = new ArrayList<>();
         for (Element row : resolveDataRows(table)) {
@@ -191,32 +219,35 @@ public class ChittorgarhSource implements IpoSource {
             if (cells.isEmpty()) {
                 continue;
             }
-            BigDecimal[] priceBand = parsePriceBand(cellText(cells, idxPriceBand));
+            BigDecimal[] priceBand = parseIssuePriceBand(cellText(cells, idxIssuePrice));
             IpoDto dto = new IpoDto(
                     KEY,                                  // source
                     null,                                 // matchKey — assigned later by the normaliser
                     cellText(cells, idxName),               // companyName
-                    IPO_TYPE,                                // ipoType — this page is mainboard-only
+                    cellText(cells, idxCategory),            // ipoType — raw "Mainboard"/"SME"; ingest canonicalizes
                     null,                                     // status — not derivable from this table
                     parseDate(cellText(cells, idxOpen)),        // openDate
                     parseDate(cellText(cells, idxClose)),        // closeDate
-                    parseDate(cellText(cells, idxAllotment)),     // allotmentDate
+                    null,                                          // allotmentDate — no such column on this page
                     parseDate(cellText(cells, idxListing)),        // listingDate
                     priceBand[0],                                   // priceMin
                     priceBand[1],                                    // priceMax
-                    parseLotSize(cellText(cells, idxLotSize)),        // lotSize
-                    cellText(cells, idxIssueSize),                     // issueSize — kept verbatim
-                    null,                                               // listingExchange — not derivable from this table
+                    null,                                             // lotSize — no such column on this page
+                    parseIssueSizeLabel(cellText(cells, idxTotalIssueAmount)), // issueSize, e.g. "₹39.04 Cr"
+                    parseListingExchange(cellText(cells, idxListingAt)),        // listingExchange: BOTH/NSE/BSE
                     null,                                               // listingPrice
-                    parsePercent(cellText(cells, idxGain)),            // listingGainPct
+                    null,                                               // listingGainPct — no such column on this page
                     null, null,                                        // gmp, gmpPct
                     null, null,                                        // subscriptionCategories, subTotal
                     null,                                               // allotmentStatus
-                    null, null,                                         // registrar, registrarUrl
+                    null, null,                                         // registrar, registrarUrl — "Left Lead Manager" is NOT the registrar
                     null, null,                                         // logoUrl, about — filled in later by detail-page enrichment
                     null, null,                                        // refundDate, dematDate — not on this page
-                    null, null, null,                                   // faceValue, freshIssue, offerForSale — not on this page
-                    null, null, null,                                   // tickerSymbol, strengths, risks — filled in later by detail-page enrichment
+                    null,                                              // faceValue — not on this page
+                    toDecimal(cellText(cells, idxFreshCapital)),       // freshIssue
+                    toDecimal(cellText(cells, idxOfferForSale)),       // offerForSale
+                    null,                                              // tickerSymbol
+                    null, null,                                        // strengths, risks — filled in later by detail-page enrichment
                     null                                                // financials — filled in later by detail-page enrichment
             );
             result.add(new RowWithDetailUrl(dto, resolveDetailUrl(row)));
@@ -239,11 +270,9 @@ public class ChittorgarhSource implements IpoSource {
 
     /**
      * Fetches and parses one IPO's detail page for About/Strengths/Risks/Financials — a SEPARATE
-     * HTTP round-trip per IPO on top of the single list-page fetch. Acceptable cost: the mainboard
-     * list is only ever ~10-20 active IPOs, and this adapter runs on a periodic background poll,
-     * never per-request. ANY failure here (network, anti-bot block, unexpected shape) is logged
-     * and swallowed — returns {@code dto} unchanged so the IPO keeps its core list data and the
-     * failure never propagates out of {@link #fetchAll()}.
+     * HTTP round-trip per IPO on top of the single list-page fetch. ANY failure here (network,
+     * anti-bot block, unexpected shape) is logged and swallowed — returns {@code dto} unchanged so
+     * the IPO keeps its core list data and the failure never propagates out of {@link #fetchAll()}.
      */
     private IpoDto enrichFromDetailPage(IpoDto dto, String detailUrl) {
         if (detailUrl == null || detailUrl.isBlank()) {
@@ -538,27 +567,68 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     /**
-     * Splits a "163-172"-style price-band cell into {@code [min, max]}; a single value (no
-     * separator) yields equal bounds; blank/unparseable yields {@code [null, null]}.
+     * Splits a "151.00 to 159.00"-style "Issue Price (Rs.)" cell into {@code [min, max]}. Per the
+     * confirmed live-page format, ONLY a proper two-sided "X to Y" band yields a real result — a
+     * single value with no "to" separator, a "0.00 to 0.00" not-yet-priced placeholder, or a blank
+     * cell all yield {@code [null, null]} rather than a fabricated equal-bounds band.
      */
-    private static BigDecimal[] parsePriceBand(String raw) {
+    private static BigDecimal[] parseIssuePriceBand(String raw) {
         if (raw == null || raw.isBlank()) {
             return new BigDecimal[] {null, null};
         }
-        String[] parts = raw.trim().split("[-–]");
-        if (parts.length == 2) {
-            BigDecimal min = toDecimal(parts[0]);
-            BigDecimal max = toDecimal(parts[1]);
-            if (min != null && max != null) {
-                return new BigDecimal[] {min, max};
-            }
-        } else if (parts.length == 1) {
-            BigDecimal single = toDecimal(parts[0]);
-            if (single != null) {
-                return new BigDecimal[] {single, single};
-            }
+        String[] parts = raw.trim().split("(?i)\\s+to\\s+");
+        if (parts.length != 2) {
+            return new BigDecimal[] {null, null};
         }
-        return new BigDecimal[] {null, null};
+        BigDecimal min = toDecimal(parts[0]);
+        BigDecimal max = toDecimal(parts[1]);
+        if (min == null || max == null || min.signum() == 0 || max.signum() == 0) {
+            return new BigDecimal[] {null, null};
+        }
+        return new BigDecimal[] {min, max};
+    }
+
+    /**
+     * Builds a readable issue-size label such as {@code "₹39.04 Cr"} / {@code "₹1,800.00 Cr"} from
+     * the "Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)" cell — kept verbatim, comma
+     * thousands and all, for display; {@link #toDecimal} (which already strips commas) is only
+     * used here to confirm the cell actually holds a number. {@code null} for a blank/unparseable
+     * cell.
+     */
+    private static String parseIssueSizeLabel(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (toDecimal(trimmed) == null) {
+            return null;
+        }
+        return "₹" + trimmed + " Cr";
+    }
+
+    /**
+     * Normalizes the "Listing At" cell ("BSE, NSE" / "BSE SME" / "NSE SME") to {@code BOTH} /
+     * {@code NSE} / {@code BSE} — the "SME" suffix is irrelevant to which exchange(s) list the
+     * IPO, so it's ignored (a plain substring check for "NSE"/"BSE" is unaffected by it either
+     * way). {@code null} for a blank/unrecognised cell.
+     */
+    private static String parseListingExchange(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String upper = raw.toUpperCase(Locale.ROOT);
+        boolean hasNse = upper.contains("NSE");
+        boolean hasBse = upper.contains("BSE");
+        if (hasNse && hasBse) {
+            return "BOTH";
+        }
+        if (hasNse) {
+            return "NSE";
+        }
+        if (hasBse) {
+            return "BSE";
+        }
+        return null;
     }
 
     private static BigDecimal toDecimal(String raw) {
@@ -603,32 +673,4 @@ public class ChittorgarhSource implements IpoSource {
         }
     }
 
-    /** Strips non-digit characters (e.g. a "800 Shares" cell) and parses the remainder; null-safe. */
-    private static Integer parseLotSize(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String digitsOnly = raw.replaceAll("[^0-9]", "");
-        if (digitsOnly.isEmpty()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(digitsOnly);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /** Strips a trailing "%" (and stray whitespace/dashes) and parses the remainder; null-safe. */
-    private static BigDecimal parsePercent(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String cleaned = raw.replace("%", "").trim();
-        try {
-            return new BigDecimal(cleaned);
-        } catch (NumberFormatException e) {
-            return null; // e.g. an em-dash placeholder for "not yet listed"
-        }
-    }
 }
