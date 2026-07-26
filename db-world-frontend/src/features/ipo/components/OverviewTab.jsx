@@ -1,5 +1,9 @@
+import { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -214,10 +218,62 @@ function ObjectsList({ objects }) {
 }
 
 /**
- * Overview tab — the at-a-glance summary: timeline stepper, a compact "key facts" grid,
- * About (only when there's a blurb and/or any expanded company fact to show), and a
- * financials snapshot. The full GMP/subscription charts live on their own tabs now —
- * this reads as a summary, not a data dump.
+ * The About narrative — clamped to a few lines with a "Read more / Read less" toggle when it's
+ * long (Chittorgarh's company descriptions can run many paragraphs), shown in full when short so
+ * the toggle never appears pointlessly. Line-clamped via `-webkit-line-clamp` while collapsed.
+ */
+function AboutBlurb({ text, mb }) {
+  const T = useT();
+  const [open, setOpen] = useState(false);
+  const isLong = text.length > 280;
+  return (
+    <Box sx={{ mb }}>
+      <Typography sx={{
+        fontSize: 13, color: T.textMuted, lineHeight: 1.7,
+        ...(isLong && !open
+          ? { display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+          : {}),
+      }}>
+        {text}
+      </Typography>
+      {isLong && (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          sx={{
+            mt: 0.75, p: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: 0.25, color: T.teal, fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          {open ? 'Read less' : 'Read more'}
+          {open ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Book-running lead manager(s) as a simple bulleted list. */
+function LeadManagers({ managers }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {managers.map((manager, i) => (
+        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.teal, flexShrink: 0 }} />
+          <Typography sx={{ fontSize: 13, color: T.textPrimary }}>{manager}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/**
+ * Overview tab — the at-a-glance summary, ordered by decision-usefulness: timeline stepper, the
+ * compact "key facts" grid, the financials snapshot + key metrics (the numbers), then the
+ * narrative/party details (About, Strengths, Lead managers, Objects of the issue). The full
+ * GMP/subscription charts live on their own tabs.
  */
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
@@ -257,24 +313,26 @@ export default function OverviewTab({ ipo, id }) {
         </Box>
       </SectionCard>
 
+      <FinancialsTable id={id} />
+
+      {ipo.kpis?.length > 0 && (
+        <SectionCard title="Key metrics" icon={<QueryStatsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          <KpiGrid kpis={ipo.kpis} />
+        </SectionCard>
+      )}
+
       {showAbout && (
         <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          {ipo.about && (
-            <Typography sx={{ fontSize: 13, color: T.textMuted, lineHeight: 1.7, mb: hasAboutFacts(ipo) ? 2 : 0 }}>
-              {ipo.about}
-            </Typography>
-          )}
+          {ipo.about && <AboutBlurb text={ipo.about} mb={hasAboutFacts(ipo) ? 2 : 0} />}
           {hasAboutFacts(ipo) && <AboutFacts ipo={ipo} />}
         </SectionCard>
       )}
 
       <StrengthsRisks ipo={ipo} />
 
-      <FinancialsTable id={id} />
-
-      {ipo.kpis?.length > 0 && (
-        <SectionCard title="Key metrics" icon={<QueryStatsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <KpiGrid kpis={ipo.kpis} />
+      {ipo.leadManagers?.length > 0 && (
+        <SectionCard title="Lead manager(s)" icon={<GroupsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          <LeadManagers managers={ipo.leadManagers} />
         </SectionCard>
       )}
 

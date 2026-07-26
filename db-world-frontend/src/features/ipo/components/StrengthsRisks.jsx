@@ -68,9 +68,12 @@ export default function StrengthsRisks({ ipo }) {
   const hasRisks = risks.length > 0;
   if (!hasStrengths && !hasRisks) return null;
   const bothPresent = hasStrengths && hasRisks;
+  // Title reflects what's actually present, so a source that only lists strengths (e.g.
+  // Chittorgarh, which has no risks section) doesn't show a "& Risks" that never appears.
+  const title = bothPresent ? 'Strengths & Risks' : hasStrengths ? 'Strengths' : 'Risks';
 
   return (
-    <SectionCard title="Strengths & Risks" icon={<BalanceOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+    <SectionCard title={title} icon={<BalanceOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
       <Box sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: bothPresent ? '1fr 1fr' : '1fr' },

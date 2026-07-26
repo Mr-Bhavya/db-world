@@ -245,7 +245,15 @@ export default function GmpChart({ points = [], loading }) {
             <Box sx={{ width: '100%', minWidth: 0 }}>
               <LineChart
                 height={240}
-                xAxis={[{ data: xData, scaleType: 'time', valueFormatter: (v) => format(v, 'dd MMM') }]}
+                xAxis={[{
+                  data: xData,
+                  scaleType: 'time',
+                  valueFormatter: (v) => format(v, 'dd MMM'),
+                  // A time axis otherwise auto-ticks at sub-day intervals for a short daily series,
+                  // repeating the same "dd MMM" label; cap the tick count so each day shows once.
+                  tickNumber: isMobile ? 4 : Math.min(xData.length, 7),
+                  tickLabelStyle: { fontSize: 10 },
+                }]}
                 yAxis={[{
                   id: Y_AXIS_ID,
                   scaleType: 'linear',
