@@ -12,11 +12,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Year;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -35,90 +33,227 @@ class ChittorgarhSourceTest {
     @Mock
     IpoHttpClient httpClient;
 
-    // Fixed "now" so the dynamic-year list URL and the recent-listing enrichment gate are
-    // deterministic in tests: 24-Jul-2026, same reference date used elsewhere in the IPO test suite.
+    // Fixed "now" so the FY-based list URL and the recent-listing enrichment gate are deterministic:
+    // 24-Jul-2026 (IST) → financial year 2026-27, same reference date used elsewhere in the suite.
     private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final String LIST_URL =
-            "https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/all/?year="
-                    + Year.now(CLOCK).getValue();
+    private static final String LIST_URL_PAGE1 =
+            "https://webnodejs.chittorgarh.com/cloud/report/data-read/82/1/7/2026/2026-27/0/all";
+    private static final String LIST_URL_PAGE2 =
+            "https://webnodejs.chittorgarh.com/cloud/report/data-read/82/2/7/2026/2026-27/0/all";
 
     private ChittorgarhSource newSource() {
         return new ChittorgarhSource(httpClient, CLOCK);
     }
 
-    // Synthesized fixture matching the REAL list-page column set (from the live-page screenshot):
-    // Company | Issue Category | Pricing Method | Opening Date | Closing Date | Listing Date |
-    // Issue Price (Rs.) | Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.) | Fresh Capital
-    // (Rs.Cr.) | Offer For Sale (Rs.Cr.) | Issue Amount (Rs.Cr.) | Listing At | Left Lead Manager |
-    // Compare. "Pricing Method", "Issue Amount (Rs.Cr.)", "Left Lead Manager" and "Compare" are
-    // deliberately NOT mapped (see class javadoc) but are still present in the fixture so the
-    // column-matching is exercised against the real shape, not a pre-trimmed one.
-    private static final String FIXTURE_HTML = """
-            <html><body>
-            <table>
-              <thead>
-                <tr>
-                  <th>Company</th>
-                  <th>Issue Category</th>
-                  <th>Pricing Method</th>
-                  <th>Opening Date</th>
-                  <th>Closing Date</th>
-                  <th>Listing Date</th>
-                  <th>Issue Price (Rs.)</th>
-                  <th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>
-                  <th>Fresh Capital (Rs.Cr.)</th>
-                  <th>Offer For Sale (Rs.Cr.)</th>
-                  <th>Issue Amount (Rs.Cr.)</th>
-                  <th>Listing At</th>
-                  <th>Left Lead Manager</th>
-                  <th>Compare</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><a href="/ipo/acme-robotics/123/">Acme Robotics Ltd</a></td>
-                  <td>SME</td>
-                  <td>Book Building</td>
-                  <td>31-Jul-2026</td>
-                  <td>04-Aug-2026</td>
-                  <td></td>
-                  <td>151.00 to 159.00</td>
-                  <td>39.04</td>
-                  <td>29.67</td>
-                  <td>7.41</td>
-                  <td>39.04</td>
-                  <td>BSE SME</td>
-                  <td>Some Lead Manager Pvt Ltd</td>
-                  <td><input type="checkbox"/></td>
-                </tr>
-                <tr>
-                  <td>Beta Textiles Ltd</td>
-                  <td>Mainboard</td>
-                  <td>Book Building</td>
-                  <td>05-Aug-2026</td>
-                  <td>07-Aug-2026</td>
-                  <td></td>
-                  <td></td>
-                  <td>1,800.00</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td>BSE, NSE</td>
-                  <td></td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-            </body></html>
+    // Synthesized list-JSON fixture matching the REAL webnodejs response shape (captured from the
+    // browser DevTools Network tab): the "Company" cell is an HTML anchor (name + absolute detail
+    // href), dates are "dd-MMM-yyyy", weird JSON key casing verbatim ("...reservations) (Rs.cr.)",
+    // "Offer for sale (Rs.cr.)", "Listing at"), plus the ~-prefixed fields (~compare_image logo,
+    // ~nse_symbol / ~bse_script_code ticker). Row 1 = a real SME fixed-price row; row 2 = a real SME
+    // row with an NSE symbol; row 3 = a synthesized mainboard band row listing on both exchanges.
+    private static final String FIXTURE_JSON = """
+            {
+              "reportTableData": [
+                {
+                  "Company": "<a href=\\"https://www.chittorgarh.com/ipo/modern-diagnostic-ipo/2276/\\" title=\\"Modern Diagnostic IPO Details\\">Modern Diagnostic & Research Centre Ltd.</a> ",
+                  "Issue Category": "SME",
+                  "Pricing Method": "Bookbuilding",
+                  "Opening Date": "31-Dec-2025",
+                  "Closing Date": "02-Jan-2026",
+                  "Listing Date": "07-Jan-2026",
+                  "Issue Price (Rs.)": "90.00",
+                  "Total Issue Amount (Incl.Firm reservations) (Rs.cr.)": "36.89",
+                  "Fresh Capital (Rs.cr.)": "35.04",
+                  "Offer for sale (Rs.cr.)": "",
+                  "Listing at": "BSE SME",
+                  "~compare_image": "https://www.chittorgarh.net/images/ipo/modern-diagnostic-ipo-logo.jpg",
+                  "~nse_symbol": "",
+                  "~bse_script_code": 544673
+                },
+                {
+                  "Company": "<a href=\\"https://www.chittorgarh.com/ipo/e-to-e-transportation-infrastructure-ipo/2720/\\">E to E Transportation Infrastructure Ltd.</a> ",
+                  "Issue Category": "SME",
+                  "Opening Date": "26-Dec-2025",
+                  "Closing Date": "30-Dec-2025",
+                  "Listing Date": "02-Jan-2026",
+                  "Issue Price (Rs.)": "174.00",
+                  "Total Issue Amount (Incl.Firm reservations) (Rs.cr.)": "84.22",
+                  "Fresh Capital (Rs.cr.)": "79.97",
+                  "Offer for sale (Rs.cr.)": "",
+                  "Listing at": "NSE SME",
+                  "~compare_image": "https://www.chittorgarh.net/images/ipo/e-to-e-transportation-logo.png",
+                  "~nse_symbol": "E2ERAIL",
+                  "~bse_script_code": ""
+                },
+                {
+                  "Company": "<a href=\\"https://www.chittorgarh.com/ipo/beta-textiles-ipo/999/\\">Beta Textiles Ltd</a>",
+                  "Issue Category": "Mainboard",
+                  "Opening Date": "05-Aug-2026",
+                  "Closing Date": "07-Aug-2026",
+                  "Listing Date": "",
+                  "Issue Price (Rs.)": "120.00 to 127.00",
+                  "Total Issue Amount (Incl.Firm reservations) (Rs.cr.)": "1,800.00",
+                  "Fresh Capital (Rs.cr.)": "",
+                  "Offer for sale (Rs.cr.)": "",
+                  "Listing at": "BSE, NSE",
+                  "~compare_image": "",
+                  "~nse_symbol": "",
+                  "~bse_script_code": ""
+                }
+              ],
+              "totalRecords": 3,
+              "totalPages": 1
+            }
             """;
+
+    private static final String BETA_DETAIL_URL = "https://www.chittorgarh.com/ipo/beta-textiles-ipo/999/";
+
+    @Test
+    void parseList_mapsSmeFixedPriceRow() {
+        List<IpoDto> result = newSource().parseList(FIXTURE_JSON);
+
+        assertThat(result).hasSize(3);
+
+        IpoDto modern = result.get(0);
+        assertThat(modern.source()).isEqualTo("chittorgarh");
+        assertThat(modern.matchKey()).isNull();
+        assertThat(modern.companyName()).isEqualTo("Modern Diagnostic & Research Centre Ltd."); // anchor text, entity-decoded
+        assertThat(modern.ipoType()).isEqualTo("SME"); // raw "Issue Category"; ingest canonicalizes
+        assertThat(modern.status()).isNull();          // not in the list JSON
+        assertThat(modern.openDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+        assertThat(modern.closeDate()).isEqualTo(LocalDate.of(2026, 1, 2));
+        assertThat(modern.listingDate()).isEqualTo(LocalDate.of(2026, 1, 7));
+        assertThat(modern.priceMin()).isEqualByComparingTo("90.00"); // single value → fixed-price band
+        assertThat(modern.priceMax()).isEqualByComparingTo("90.00");
+        assertThat(modern.issueSize()).isEqualTo("₹36.89 Cr");
+        assertThat(modern.freshIssue()).isEqualByComparingTo("35.04");
+        assertThat(modern.offerForSale()).isNull();    // blank cell
+        assertThat(modern.listingExchange()).isEqualTo("BSE"); // "BSE SME" → BSE, SME suffix ignored
+        assertThat(modern.logoUrl()).isEqualTo("https://www.chittorgarh.net/images/ipo/modern-diagnostic-ipo-logo.jpg");
+        assertThat(modern.tickerSymbol()).isEqualTo("544673"); // no NSE symbol → BSE scrip code
+        assertThat(modern.registrar()).isNull();       // "Left Lead Manager" is NOT the registrar (and not mapped)
+    }
+
+    @Test
+    void parseList_mapsNseSymbolAsTicker() {
+        IpoDto eToE = newSource().parseList(FIXTURE_JSON).get(1);
+
+        assertThat(eToE.companyName()).isEqualTo("E to E Transportation Infrastructure Ltd.");
+        assertThat(eToE.priceMin()).isEqualByComparingTo("174.00"); // single value → fixed-price band
+        assertThat(eToE.priceMax()).isEqualByComparingTo("174.00");
+        assertThat(eToE.listingExchange()).isEqualTo("NSE"); // "NSE SME" → NSE
+        assertThat(eToE.tickerSymbol()).isEqualTo("E2ERAIL"); // NSE symbol wins over BSE code
+    }
+
+    @Test
+    void parseList_mapsMainboardBandRow() {
+        IpoDto beta = newSource().parseList(FIXTURE_JSON).get(2);
+
+        assertThat(beta.companyName()).isEqualTo("Beta Textiles Ltd");
+        assertThat(beta.ipoType()).isEqualTo("Mainboard");
+        assertThat(beta.openDate()).isEqualTo(LocalDate.of(2026, 8, 5));
+        assertThat(beta.closeDate()).isEqualTo(LocalDate.of(2026, 8, 7));
+        assertThat(beta.listingDate()).isNull();        // blank cell
+        assertThat(beta.priceMin()).isEqualByComparingTo("120.00");
+        assertThat(beta.priceMax()).isEqualByComparingTo("127.00");
+        assertThat(beta.issueSize()).isEqualTo("₹1,800.00 Cr"); // comma thousands kept in the label
+        assertThat(beta.freshIssue()).isNull();         // blank cell
+        assertThat(beta.offerForSale()).isNull();       // blank cell
+        assertThat(beta.listingExchange()).isEqualTo("BOTH"); // "BSE, NSE" → BOTH
+        assertThat(beta.logoUrl()).isNull();            // blank ~compare_image
+        assertThat(beta.tickerSymbol()).isNull();       // both ticker fields blank (still upcoming)
+    }
+
+    @Test
+    void parseList_zeroPricePlaceholder_yieldsNullBand() {
+        String json = """
+                {"reportTableData":[
+                  {"Company":"<a href=\\"https://x/ipo/z/1/\\">Not Yet Priced Co</a>","Issue Price (Rs.)":"0.00 to 0.00"}
+                ],"totalPages":1}
+                """;
+
+        IpoDto dto = newSource().parseList(json).get(0);
+
+        assertThat(dto.priceMin()).isNull();
+        assertThat(dto.priceMax()).isNull();
+    }
+
+    @Test
+    void parseList_noReportDataArray_returnsEmptyList() {
+        assertThat(newSource().parseList("{\"msg\":1}")).isEmpty();
+    }
+
+    @Test
+    void parseList_malformedJson_returnsEmptyList() {
+        assertThat(newSource().parseList("not json")).isEmpty();
+    }
+
+    @Test
+    void fetchAll_delegatesToJsonEndpointAndParsesResult() {
+        when(httpClient.get(eq(LIST_URL_PAGE1), any()))
+                .thenReturn(new IpoHttpResponse(FIXTURE_JSON, new HttpHeaders()));
+        // Beta (no listing date) is enrichment-eligible; stub its detail page as section-less HTML
+        // so enrichment is a clean no-op. Modern/E-to-E listed in Jan 2026 → gated out (old).
+        when(httpClient.get(eq(BETA_DETAIL_URL), any()))
+                .thenReturn(new IpoHttpResponse("<html><body></body></html>", new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).companyName()).isEqualTo("Modern Diagnostic & Research Centre Ltd.");
+        verify(httpClient, never()).get(eq(LIST_URL_PAGE2), any()); // totalPages=1 → no second page
+    }
+
+    @Test
+    void fetchAll_httpClientThrows_returnsEmptyList() {
+        when(httpClient.get(eq(LIST_URL_PAGE1), any())).thenThrow(new SourceFetchException("blocked"));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void fetchAll_walksMultiplePagesWhenTotalPagesGreaterThanOne() {
+        String page1 = """
+                {"reportTableData":[
+                  {"Company":"<a href=\\"https://x/ipo/a/1/\\">Page One Co</a>","Issue Category":"Mainboard","Listing Date":"01-Jan-2026"}
+                ],"totalPages":2}
+                """;
+        String page2 = """
+                {"reportTableData":[
+                  {"Company":"<a href=\\"https://x/ipo/b/2/\\">Page Two Co</a>","Issue Category":"Mainboard","Listing Date":"01-Jan-2026"}
+                ],"totalPages":2}
+                """;
+        when(httpClient.get(eq(LIST_URL_PAGE1), any())).thenReturn(new IpoHttpResponse(page1, new HttpHeaders()));
+        when(httpClient.get(eq(LIST_URL_PAGE2), any())).thenReturn(new IpoHttpResponse(page2, new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).companyName()).isEqualTo("Page One Co");
+        assertThat(result.get(1).companyName()).isEqualTo("Page Two Co");
+        verify(httpClient).get(eq(LIST_URL_PAGE1), any());
+        verify(httpClient).get(eq(LIST_URL_PAGE2), any());
+    }
+
+    // ── Detail-page enrichment (About/Strengths/Risks/Financials) — still HTML, unchanged ─────────
 
     private static final String DETAIL_URL = "https://www.chittorgarh.com/ipo/acme-robotics/123/";
 
+    // A one-row list JSON whose anchor points at DETAIL_URL and has no listing date (enrichment-eligible).
+    private static final String ACME_LIST_JSON = """
+            {"reportTableData":[
+              {"Company":"<a href=\\"https://www.chittorgarh.com/ipo/acme-robotics/123/\\">Acme Robotics Ltd</a>",
+               "Issue Category":"SME","Opening Date":"31-Jul-2026","Closing Date":"04-Aug-2026","Listing Date":""}
+            ],"totalPages":1}
+            """;
+
     // Synthesized detail-page fixture: About paragraphs, Strengths/Risks bullet lists, and the
     // "Company Financials" table, matched by heading TEXT (Chittorgarh's detail markup carries no
-    // stable semantic classes/ids for these sections either) — TODO(verify) against a live page.
+    // stable semantic classes/ids for these sections) — TODO(verify) against a live page.
     private static final String DETAIL_FIXTURE_HTML = """
             <html><body>
             <h2>About Acme Robotics Ltd</h2>
@@ -152,136 +287,6 @@ class ChittorgarhSourceTest {
             """;
 
     @Test
-    void parseTable_mapsDocumentedColumns() {
-        Document doc = Jsoup.parse(FIXTURE_HTML, LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        assertThat(result).hasSize(2);
-
-        IpoDto acme = result.get(0);
-        assertThat(acme.source()).isEqualTo("chittorgarh");
-        assertThat(acme.matchKey()).isNull();
-        assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd");
-        assertThat(acme.ipoType()).isEqualTo("SME"); // raw "Issue Category" text; ingest canonicalizes
-        assertThat(acme.openDate()).isEqualTo(LocalDate.of(2026, 7, 31));
-        assertThat(acme.closeDate()).isEqualTo(LocalDate.of(2026, 8, 4));
-        assertThat(acme.allotmentDate()).isNull();      // no "Allotment Date" column on the real page
-        assertThat(acme.listingDate()).isNull();        // blank cell
-        assertThat(acme.priceMin()).isEqualByComparingTo("151.00");
-        assertThat(acme.priceMax()).isEqualByComparingTo("159.00");
-        assertThat(acme.lotSize()).isNull();            // no "Lot Size" column on the real page
-        assertThat(acme.issueSize()).isEqualTo("₹39.04 Cr");
-        assertThat(acme.freshIssue()).isEqualByComparingTo("29.67");
-        assertThat(acme.offerForSale()).isEqualByComparingTo("7.41");
-        assertThat(acme.listingExchange()).isEqualTo("BSE"); // "BSE SME" -> BSE, SME suffix ignored
-        assertThat(acme.registrar()).isNull();          // "Left Lead Manager" is NOT the registrar
-        assertThat(acme.registrarUrl()).isNull();
-        assertThat(acme.listingGainPct()).isNull();     // no "Listing Gain" column on the real page
-    }
-
-    @Test
-    void parseTable_mainboardRowWithBlankPriceBandAndBothExchanges() {
-        Document doc = Jsoup.parse(FIXTURE_HTML, LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        IpoDto beta = result.get(1);
-        assertThat(beta.companyName()).isEqualTo("Beta Textiles Ltd");
-        assertThat(beta.ipoType()).isEqualTo("Mainboard");
-        assertThat(beta.openDate()).isEqualTo(LocalDate.of(2026, 8, 5));
-        assertThat(beta.closeDate()).isEqualTo(LocalDate.of(2026, 8, 7));
-        assertThat(beta.listingDate()).isNull();        // blank cell
-        assertThat(beta.priceMin()).isNull();           // blank "Issue Price" cell
-        assertThat(beta.priceMax()).isNull();
-        assertThat(beta.issueSize()).isEqualTo("₹1,800.00 Cr"); // comma thousands kept in the label
-        assertThat(beta.freshIssue()).isNull();         // blank cell
-        assertThat(beta.offerForSale()).isNull();       // blank cell
-        assertThat(beta.listingExchange()).isEqualTo("BOTH"); // "BSE, NSE" -> BOTH
-    }
-
-    @Test
-    void parseTable_issuePriceSingleValueWithoutTo_yieldsNullBand() {
-        Document doc = Jsoup.parse("""
-                <html><body>
-                <table>
-                  <thead><tr><th>Company</th><th>Issue Price (Rs.)</th></tr></thead>
-                  <tbody><tr><td>Fixed Price Co</td><td>172.00</td></tr></tbody>
-                </table>
-                </body></html>
-                """, LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        assertThat(result.get(0).priceMin()).isNull();
-        assertThat(result.get(0).priceMax()).isNull();
-    }
-
-    @Test
-    void parseTable_issuePriceZeroZeroPlaceholder_yieldsNullBand() {
-        Document doc = Jsoup.parse("""
-                <html><body>
-                <table>
-                  <thead><tr><th>Company</th><th>Issue Price (Rs.)</th></tr></thead>
-                  <tbody><tr><td>Not Yet Priced Co</td><td>0.00 to 0.00</td></tr></tbody>
-                </table>
-                </body></html>
-                """, LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        assertThat(result.get(0).priceMin()).isNull();
-        assertThat(result.get(0).priceMax()).isNull();
-    }
-
-    @Test
-    void parseTable_totalIssueAmountBlank_yieldsNullIssueSize() {
-        Document doc = Jsoup.parse("""
-                <html><body>
-                <table>
-                  <thead><tr><th>Company</th><th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th></tr></thead>
-                  <tbody><tr><td>No Amount Co</td><td></td></tr></tbody>
-                </table>
-                </body></html>
-                """, LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        assertThat(result.get(0).issueSize()).isNull();
-    }
-
-    @Test
-    void parseTable_noTableOnPage_returnsEmptyList() {
-        Document doc = Jsoup.parse("<html><body><p>no data</p></body></html>", LIST_URL);
-
-        List<IpoDto> result = newSource().parseTable(doc);
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    void fetchAll_delegatesToHttpClientAndParsesResult() {
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
-
-        List<IpoDto> result = newSource().fetchAll();
-
-        assertThat(result).hasSize(2);
-        assertThat(result.get(0).companyName()).isEqualTo("Acme Robotics Ltd");
-    }
-
-    @Test
-    void fetchAll_httpClientThrows_returnsEmptyList() {
-        when(httpClient.get(eq(LIST_URL), any())).thenThrow(new SourceFetchException("blocked"));
-
-        List<IpoDto> result = newSource().fetchAll();
-
-        assertThat(result).isEmpty();
-    }
-
-    // ── Detail-page enrichment (About/Strengths/Risks/Financials) ──────────────────────────────
-
-    @Test
     void parseDetail_extractsAboutStrengthsRisksAndFinancials() {
         Document doc = Jsoup.parse(DETAIL_FIXTURE_HTML, DETAIL_URL);
 
@@ -300,7 +305,7 @@ class ChittorgarhSourceTest {
         assertThat(fy23.fiscalYear()).isEqualTo("FY 2022-23");
         assertThat(fy23.periodEnd()).isEqualTo(LocalDate.of(2023, 3, 31));
         assertThat(fy23.revenue()).isEqualByComparingTo("4192.40");
-        assertThat(fy23.pat()).isEqualByComparingTo("-971.00"); // parenthesis notation -> negative
+        assertThat(fy23.pat()).isEqualByComparingTo("-971.00"); // parenthesis notation → negative
         assertThat(fy23.totalAssets()).isEqualByComparingTo("6800.00");
 
         IpoFinancialRowDto fy24 = enrichment.financials().get(1);
@@ -310,7 +315,7 @@ class ChittorgarhSourceTest {
 
         IpoFinancialRowDto interim = enrichment.financials().get(2);
         assertThat(interim.fiscalYear()).isEqualTo("Mar 2025");
-        assertThat(interim.periodEnd()).isEqualTo(LocalDate.of(2025, 3, 31)); // "Mon yyyy" -> end of month
+        assertThat(interim.periodEnd()).isEqualTo(LocalDate.of(2025, 3, 31)); // "Mon yyyy" → end of month
         assertThat(interim.revenue()).isEqualByComparingTo("3200.00");
     }
 
@@ -337,172 +342,72 @@ class ChittorgarhSourceTest {
 
     @Test
     void fetchAll_enrichesRowWithDetailPageDataViaItsRowAnchor() {
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
+        when(httpClient.get(eq(LIST_URL_PAGE1), any()))
+                .thenReturn(new IpoHttpResponse(ACME_LIST_JSON, new HttpHeaders()));
         when(httpClient.get(eq(DETAIL_URL), any()))
                 .thenReturn(new IpoHttpResponse(DETAIL_FIXTURE_HTML, new HttpHeaders()));
 
         List<IpoDto> result = newSource().fetchAll();
 
-        assertThat(result).hasSize(2);
+        assertThat(result).hasSize(1);
         IpoDto acme = result.get(0);
         assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd"); // core list data untouched
         assertThat(acme.about()).startsWith("Acme Robotics designs and manufactures");
         assertThat(acme.strengths()).contains("Strong industrial robotics portfolio");
         assertThat(acme.risks()).contains("Reliant on automotive sector capex cycles");
         assertThat(acme.financials()).hasSize(3);
-
-        // Beta Textiles' row has no anchor in the fixture -> no detail URL -> no enrichment attempted.
-        IpoDto beta = result.get(1);
-        assertThat(beta.companyName()).isEqualTo("Beta Textiles Ltd");
-        assertThat(beta.about()).isNull();
-        assertThat(beta.strengths()).isNull();
-        assertThat(beta.risks()).isNull();
-        assertThat(beta.financials()).isNull();
     }
 
     @Test
     void fetchAll_detailPageFetchThrows_skipsEnrichmentButKeepsCoreListData() {
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
+        when(httpClient.get(eq(LIST_URL_PAGE1), any()))
+                .thenReturn(new IpoHttpResponse(ACME_LIST_JSON, new HttpHeaders()));
         when(httpClient.get(eq(DETAIL_URL), any())).thenThrow(new SourceFetchException("blocked"));
 
         List<IpoDto> result = newSource().fetchAll();
 
-        assertThat(result).hasSize(2); // whole fetchAll still succeeds
+        assertThat(result).hasSize(1); // whole fetchAll still succeeds
         IpoDto acme = result.get(0);
         assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd");
         assertThat(acme.about()).isNull();
         assertThat(acme.financials()).isNull();
     }
 
-    // ── Regression: an empty/spacer data row must never shift detail URLs onto the wrong company ──
-
-    private static final String DETAIL_URL_A = "https://www.chittorgarh.com/ipo/company-a/1/";
-    private static final String DETAIL_URL_B = "https://www.chittorgarh.com/ipo/company-b/2/";
-    private static final String DETAIL_URL_C = "https://www.chittorgarh.com/ipo/company-c/3/";
-
-    // A spacer/ad row with ZERO <td> cells (only a <th>) sits between Company A and Company B.
-    // parseTable's `if (cells.isEmpty()) continue;` skips it when building `listed`; the detail-url
-    // resolution must skip it identically so the two never drift out of alignment. Listing dates
-    // are all within the ±30-day enrichment-gate window (TODAY = 2026-07-24) so this fixture
-    // exercises ONLY the spacer-row regression, not the gate/cap from Unit 2.
-    private static final String FIXTURE_HTML_WITH_SPACER_ROW = """
-            <html><body>
-            <table>
-              <thead>
-                <tr>
-                  <th>Company</th><th>Issue Category</th><th>Opening Date</th><th>Closing Date</th>
-                  <th>Listing Date</th><th>Issue Price (Rs.)</th>
-                  <th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>
-                  <th>Fresh Capital (Rs.Cr.)</th><th>Offer For Sale (Rs.Cr.)</th><th>Listing At</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><a href="/ipo/company-a/1/">Company A Ltd</a></td>
-                  <td>Mainboard</td><td>01-Jul-2026</td><td>03-Jul-2026</td><td>08-Jul-2026</td>
-                  <td>100.00 to 110.00</td><td>200.00</td><td>150.00</td><td>50.00</td><td>BSE, NSE</td>
-                </tr>
-                <tr><th colspan="10">-- Advertisement --</th></tr>
-                <tr>
-                  <td><a href="/ipo/company-b/2/">Company B Ltd</a></td>
-                  <td>Mainboard</td><td>11-Jul-2026</td><td>13-Jul-2026</td><td>18-Jul-2026</td>
-                  <td>200.00 to 210.00</td><td>300.00</td><td>200.00</td><td>100.00</td><td>NSE</td>
-                </tr>
-                <tr>
-                  <td><a href="/ipo/company-c/3/">Company C Ltd</a></td>
-                  <td>SME</td><td>21-Jul-2026</td><td>23-Jul-2026</td><td>28-Jul-2026</td>
-                  <td>300.00 to 310.00</td><td>400.00</td><td>250.00</td><td>150.00</td><td>BSE SME</td>
-                </tr>
-              </tbody>
-            </table>
-            </body></html>
-            """;
-
-    private static String detailFixtureFor(String companyLabel) {
-        return "<html><body><h2>About " + companyLabel + "</h2><p>" + companyLabel
-                + " own description, unique to this company.</p></body></html>";
-    }
-
-    @Test
-    void fetchAll_emptySpacerRowBetweenCompanies_doesNotMisattributeDetailData() {
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(FIXTURE_HTML_WITH_SPACER_ROW, new HttpHeaders()));
-        when(httpClient.get(eq(DETAIL_URL_A), any()))
-                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company A Ltd"), new HttpHeaders()));
-        when(httpClient.get(eq(DETAIL_URL_B), any()))
-                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company B Ltd"), new HttpHeaders()));
-        when(httpClient.get(eq(DETAIL_URL_C), any()))
-                .thenReturn(new IpoHttpResponse(detailFixtureFor("Company C Ltd"), new HttpHeaders()));
-
-        List<IpoDto> result = newSource().fetchAll();
-
-        // The spacer row (zero <td> cells) must be skipped, not counted as a company.
-        assertThat(result).hasSize(3);
-
-        IpoDto a = result.get(0);
-        IpoDto b = result.get(1);
-        IpoDto c = result.get(2);
-        assertThat(a.companyName()).isEqualTo("Company A Ltd");
-        assertThat(b.companyName()).isEqualTo("Company B Ltd");
-        assertThat(c.companyName()).isEqualTo("Company C Ltd");
-
-        // Each company must be enriched from its OWN detail page — never a neighbour's.
-        assertThat(a.about()).contains("Company A Ltd own description");
-        assertThat(b.about()).contains("Company B Ltd own description");
-        assertThat(c.about()).contains("Company C Ltd own description");
-
-        // The specific regression: with the spacer row shifting a stale index, Company C would
-        // previously receive Company B's detail-page data instead of its own.
-        assertThat(c.about()).isNotEqualTo(b.about());
-        assertThat(c.about()).doesNotContain("Company B");
-    }
-
-    // ── Strengths/Risks heading collision: a combined "Strengths and Risks" heading matches both
-    // STRENGTHS_HEADING and RISKS_HEADING patterns and must not yield duplicate content for both ──
-
-    private static final String DETAIL_FIXTURE_COMBINED_STRENGTHS_RISKS_HEADING_HTML = """
-            <html><body>
-            <h2>About Gamma Textiles Ltd</h2>
-            <p>Gamma Textiles manufactures synthetic yarns.</p>
-
-            <h2>Strengths and Risks</h2>
-            <ul>
-              <li>Strong brand recognition</li>
-              <li>Established supplier network</li>
-            </ul>
-            </body></html>
-            """;
-
     @Test
     void parseDetail_combinedStrengthsAndRisksHeading_doesNotDuplicateContentIntoRisks() {
-        Document doc = Jsoup.parse(DETAIL_FIXTURE_COMBINED_STRENGTHS_RISKS_HEADING_HTML, DETAIL_URL);
+        String html = """
+                <html><body>
+                <h2>About Gamma Textiles Ltd</h2>
+                <p>Gamma Textiles manufactures synthetic yarns.</p>
+
+                <h2>Strengths and Risks</h2>
+                <ul>
+                  <li>Strong brand recognition</li>
+                  <li>Established supplier network</li>
+                </ul>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
 
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
 
         assertThat(enrichment.strengths())
                 .isEqualTo("Strong brand recognition\nEstablished supplier network");
-        // The combined heading is claimed by strengths; risks must not duplicate it.
         assertThat(enrichment.risks()).isNotEqualTo(enrichment.strengths());
         assertThat(enrichment.risks()).isNull();
     }
 
-    // ── About robustness: an About paragraph wrapped in an intermediate <div> (rather than being a
-    // direct sibling of the heading) should still be found, mirroring extractBullets/extractFinancials ──
-
-    private static final String DETAIL_FIXTURE_ABOUT_WRAPPED_IN_DIV_HTML = """
-            <html><body>
-            <h2>About Delta Robotics Ltd</h2>
-            <div class="content-wrapper">
-            <p>Delta Robotics builds automation solutions for warehouses.</p>
-            </div>
-            </body></html>
-            """;
-
     @Test
     void parseDetail_aboutParagraphWrappedInDiv_stillExtracted() {
-        Document doc = Jsoup.parse(DETAIL_FIXTURE_ABOUT_WRAPPED_IN_DIV_HTML, DETAIL_URL);
+        String html = """
+                <html><body>
+                <h2>About Delta Robotics Ltd</h2>
+                <div class="content-wrapper">
+                <p>Delta Robotics builds automation solutions for warehouses.</p>
+                </div>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
 
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
 
@@ -510,22 +415,21 @@ class ChittorgarhSourceTest {
     }
 
     // ── Unit 2: bound the per-IPO detail-page fetch to a relevant, capped subset ───────────────
-    // The real year-list page carries ~147 rows (all mainboard+SME IPOs for the whole year); only
-    // upcoming/open (no listing date yet) or recently-listed (within ~30 days) rows are worth the
-    // extra HTTP round-trip, and even that subset is hard-capped so a busy year can't balloon it.
 
-    private static String miniListRow(String company, String detailPath, String listingDateCell) {
-        return "<tr><td><a href=\"" + detailPath + "\">" + company + "</a></td><td>Mainboard</td>"
-                + "<td>01-Jul-2026</td><td>03-Jul-2026</td><td>" + listingDateCell + "</td>"
-                + "<td>100.00 to 110.00</td><td>200.00</td><td>150.00</td><td>50.00</td><td>BSE, NSE</td></tr>";
+    private static String jsonRow(String company, String detailHref, String listingDateCell) {
+        return "{\"Company\":\"<a href=\\\"" + detailHref + "\\\">" + company + "</a>\","
+                + "\"Issue Category\":\"Mainboard\",\"Opening Date\":\"01-Jul-2026\",\"Closing Date\":\"03-Jul-2026\","
+                + "\"Listing Date\":\"" + listingDateCell + "\",\"Issue Price (Rs.)\":\"100.00 to 110.00\","
+                + "\"Listing at\":\"BSE, NSE\"}";
     }
 
-    private static String listFixtureWithRows(String rowsHtml) {
-        return "<html><body><table><thead><tr><th>Company</th><th>Issue Category</th>"
-                + "<th>Opening Date</th><th>Closing Date</th><th>Listing Date</th>"
-                + "<th>Issue Price (Rs.)</th><th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>"
-                + "<th>Fresh Capital (Rs.Cr.)</th><th>Offer For Sale (Rs.Cr.)</th><th>Listing At</th></tr></thead>"
-                + "<tbody>" + rowsHtml + "</tbody></table></body></html>";
+    private static String listJson(String joinedRows) {
+        return "{\"reportTableData\":[" + joinedRows + "],\"totalPages\":1}";
+    }
+
+    private static String detailFixtureFor(String companyLabel) {
+        return "<html><body><h2>About " + companyLabel + "</h2><p>" + companyLabel
+                + " own description, unique to this company.</p></body></html>";
     }
 
     private static final String UPCOMING_DETAIL_URL = "https://www.chittorgarh.com/ipo/upcoming-co/1/";
@@ -534,13 +438,12 @@ class ChittorgarhSourceTest {
 
     @Test
     void fetchAll_enrichmentGate_skipsRowsListedMoreThanAboutAMonthAgo() {
-        String html = listFixtureWithRows(
-                miniListRow("Upcoming Co", "/ipo/upcoming-co/1/", "")               // no listing date yet
-                        + miniListRow("Recently Listed Co", "/ipo/recent-co/2/", "14-Jul-2026") // 10 days before TODAY
-                        + miniListRow("Old Listed Co", "/ipo/old-co/3/", "01-Jan-2026"));        // ~204 days before TODAY
+        String html = listJson(String.join(",",
+                jsonRow("Upcoming Co", UPCOMING_DETAIL_URL, "")                 // no listing date yet
+                        + "," + jsonRow("Recently Listed Co", RECENT_DETAIL_URL, "14-Jul-2026") // 10 days before TODAY
+                        + "," + jsonRow("Old Listed Co", OLD_DETAIL_URL, "01-Jan-2026")));       // ~204 days before TODAY
 
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
+        when(httpClient.get(eq(LIST_URL_PAGE1), any())).thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
         when(httpClient.get(eq(UPCOMING_DETAIL_URL), any()))
                 .thenReturn(new IpoHttpResponse(detailFixtureFor("Upcoming Co"), new HttpHeaders()));
         when(httpClient.get(eq(RECENT_DETAIL_URL), any()))
@@ -561,13 +464,15 @@ class ChittorgarhSourceTest {
         int totalEligibleRows = 27;
         StringBuilder rows = new StringBuilder();
         for (int i = 1; i <= totalEligibleRows; i++) {
-            // All "upcoming" (no listing date) -> all gate-eligible; only the cap should limit fetches.
-            rows.append(miniListRow("Company " + i, "/ipo/company-" + i + "/" + i + "/", ""));
+            if (i > 1) {
+                rows.append(",");
+            }
+            // All "upcoming" (no listing date) → all gate-eligible; only the cap should limit fetches.
+            rows.append(jsonRow("Company " + i, "https://www.chittorgarh.com/ipo/company-" + i + "/" + i + "/", ""));
         }
-        String html = listFixtureWithRows(rows.toString());
+        String html = listJson(rows.toString());
 
-        when(httpClient.get(eq(LIST_URL), any()))
-                .thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
+        when(httpClient.get(eq(LIST_URL_PAGE1), any())).thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
         when(httpClient.get(argThat(url -> url != null && url.contains("/ipo/company-")), any()))
                 .thenReturn(new IpoHttpResponse(detailFixtureFor("Some Co"), new HttpHeaders()));
 
