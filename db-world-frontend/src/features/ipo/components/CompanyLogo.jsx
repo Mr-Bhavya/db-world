@@ -9,6 +9,37 @@ import { LOGODEV_TOKEN } from '../config';
  * no case yet that needs a different fetched size. */
 const logoDevUrl = (domain) => `https://img.logo.dev/${domain}?token=${LOGODEV_TOKEN}&size=128&format=png`;
 
+/** Clearbit's logo-by-domain endpoint (`logo.clearbit.com`) has been shut down and now
+ * fails DNS resolution (`ERR_NAME_NOT_RESOLVED`). Some existing/seeded rows still carry a
+ * `logoUrl` pointing at it from before the backend seeder was fixed to stop emitting it —
+ * treat any such URL as absent rather than mounting an `<img>` that can only ever fail.
+ * A malformed/unparseable `logoUrl` is NOT treated as Clearbit (safe default: fall through
+ * to using it as-is, same as this function's pre-existing behavior for any string). */
+const isClearbitUrl = (url) => {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'clearbit.com' || host.endsWith('.clearbit.com');
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Pure resolver for the `<img src>`, extracted so it's unit-testable without mounting the
+ * component. Resolution order:
+ *   1. `logoUrl` — a full, ready-to-use URL, when the caller already has one AND it isn't
+ *      a dead Clearbit URL (see `isClearbitUrl`). Blank/whitespace-only values are absent.
+ *   2. `logoDomain` — a bare domain (e.g. "swiggy.com"), built into a Logo.dev URL via
+ *      `logoDevUrl`. Blank/whitespace-only domains are treated as absent.
+ *   3. neither usable → `null` (caller renders the initials avatar).
+ */
+export const resolveLogoSrc = (logoUrl, logoDomain) => {
+  const trimmedUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
+  const usableUrl = trimmedUrl && !isClearbitUrl(trimmedUrl) ? trimmedUrl : '';
+  const trimmedDomain = typeof logoDomain === 'string' ? logoDomain.trim() : '';
+  return usableUrl || (trimmedDomain ? logoDevUrl(trimmedDomain) : null);
+};
+
 /**
  * Circular company logo; falls back to initials on a teal tint when there's no usable
  * image source or the image fails to load (broken URL, network error, etc). Shared
@@ -21,11 +52,9 @@ const logoDevUrl = (domain) => `https://img.logo.dev/${domain}?token=${LOGODEV_T
  * number) is derived from the largest breakpoint value so the fallback avatar's text
  * still reads well at any viewport.
  *
- * Resolves the `<img>` source in this order:
- *   1. `logoUrl` — a full, ready-to-use URL, when the caller already has one.
- *   2. `logoDomain` — a bare domain (e.g. "swiggy.com"), built into a Logo.dev URL via
- *      `logoDevUrl`. Blank/whitespace-only domains are treated as absent.
- *   3. neither present → initials avatar, no `<img>` mounted at all.
+ * Resolves the `<img>` source via `resolveLogoSrc` (see above for the full order); when
+ * that resolves to `null` (neither a usable `logoUrl` nor `logoDomain`), no `<img>` is
+ * mounted at all and the initials avatar renders instead.
  *
  * The `errored` flag guards the fallback so a 404/network failure flips to initials
  * EXACTLY ONCE per resolved src (once `errored` is true the `<img>` unmounts, so
@@ -42,8 +71,7 @@ export default function CompanyLogo({ logoUrl, logoDomain, companyName, size = 3
   // value so the initials-fallback font never renders undersized.
   const numericSize = typeof size === 'number' ? size : Math.max(...Object.values(size));
 
-  const trimmedDomain = typeof logoDomain === 'string' ? logoDomain.trim() : '';
-  const src = logoUrl || (trimmedDomain ? logoDevUrl(trimmedDomain) : null);
+  const src = resolveLogoSrc(logoUrl, logoDomain);
 
   useEffect(() => {
     setErrored(false);
