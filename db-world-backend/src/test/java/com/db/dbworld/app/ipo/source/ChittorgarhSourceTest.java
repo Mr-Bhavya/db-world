@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.source;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
 import org.jsoup.Jsoup;
@@ -11,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -68,6 +70,43 @@ class ChittorgarhSourceTest {
                   <td></td>
                   <td>&#8212;</td>
                 </tr>
+              </tbody>
+            </table>
+            </body></html>
+            """;
+
+    private static final String DETAIL_URL = "https://www.chittorgarh.com/ipo/acme-robotics/123/";
+
+    // Synthesized detail-page fixture: About paragraphs, Strengths/Risks bullet lists, and the
+    // "Company Financials" table, matched by heading TEXT (Chittorgarh's detail markup carries no
+    // stable semantic classes/ids for these sections either) — TODO(verify) against a live page.
+    private static final String DETAIL_FIXTURE_HTML = """
+            <html><body>
+            <h2>About Acme Robotics Ltd</h2>
+            <p>Acme Robotics designs and manufactures industrial robotics for the automotive sector.</p>
+            <p>It has a pan-India distribution network.</p>
+
+            <h2>Acme Robotics Strengths</h2>
+            <ul>
+              <li>Strong industrial robotics portfolio</li>
+              <li>Established automotive OEM relationships</li>
+            </ul>
+
+            <h2>Risks</h2>
+            <ul>
+              <li>Reliant on automotive sector capex cycles</li>
+              <li>Customer concentration risk</li>
+            </ul>
+
+            <h2>Company Financials</h2>
+            <table>
+              <thead>
+                <tr><th>Period</th><th>Revenue</th><th>Profit After Tax</th><th>Total Assets</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>FY 2022-23</td><td>4192.40</td><td>(971.00)</td><td>6800.00</td></tr>
+                <tr><td>FY 2023-24</td><td>7079.60</td><td>175.00</td><td>9600.00</td></tr>
+                <tr><td>Mar 2025</td><td>3200.00</td><td>50.00</td><td>4000.00</td></tr>
               </tbody>
             </table>
             </body></html>
@@ -180,5 +219,102 @@ class ChittorgarhSourceTest {
         List<IpoDto> result = newSource().fetchAll();
 
         assertThat(result).isEmpty();
+    }
+
+    // ── Detail-page enrichment (About/Strengths/Risks/Financials) ──────────────────────────────
+
+    @Test
+    void parseDetail_extractsAboutStrengthsRisksAndFinancials() {
+        Document doc = Jsoup.parse(DETAIL_FIXTURE_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.about()).isEqualTo(
+                "Acme Robotics designs and manufactures industrial robotics for the automotive sector. "
+                        + "It has a pan-India distribution network.");
+        assertThat(enrichment.strengths()).isEqualTo(
+                "Strong industrial robotics portfolio\nEstablished automotive OEM relationships");
+        assertThat(enrichment.risks()).isEqualTo(
+                "Reliant on automotive sector capex cycles\nCustomer concentration risk");
+
+        assertThat(enrichment.financials()).hasSize(3);
+        IpoFinancialRowDto fy23 = enrichment.financials().get(0);
+        assertThat(fy23.fiscalYear()).isEqualTo("FY 2022-23");
+        assertThat(fy23.periodEnd()).isEqualTo(LocalDate.of(2023, 3, 31));
+        assertThat(fy23.revenue()).isEqualByComparingTo("4192.40");
+        assertThat(fy23.pat()).isEqualByComparingTo("-971.00"); // parenthesis notation -> negative
+        assertThat(fy23.totalAssets()).isEqualByComparingTo("6800.00");
+
+        IpoFinancialRowDto fy24 = enrichment.financials().get(1);
+        assertThat(fy24.fiscalYear()).isEqualTo("FY 2023-24");
+        assertThat(fy24.periodEnd()).isEqualTo(LocalDate.of(2024, 3, 31));
+        assertThat(fy24.pat()).isEqualByComparingTo("175.00");
+
+        IpoFinancialRowDto interim = enrichment.financials().get(2);
+        assertThat(interim.fiscalYear()).isEqualTo("Mar 2025");
+        assertThat(interim.periodEnd()).isEqualTo(LocalDate.of(2025, 3, 31)); // "Mon yyyy" -> end of month
+        assertThat(interim.revenue()).isEqualByComparingTo("3200.00");
+    }
+
+    @Test
+    void parseDetail_noMatchingSections_returnsNullsAndEmptyFinancials() {
+        Document doc = Jsoup.parse("<html><body><p>Nothing relevant here.</p></body></html>", DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.about()).isNull();
+        assertThat(enrichment.strengths()).isNull();
+        assertThat(enrichment.risks()).isNull();
+        assertThat(enrichment.financials()).isEmpty();
+    }
+
+    @Test
+    void parseDetail_headingWithNoFollowingBulletList_returnsNull() {
+        Document doc = Jsoup.parse("<html><body><h2>Strengths</h2><p>Not a list.</p></body></html>", DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.strengths()).isNull();
+    }
+
+    @Test
+    void fetchAll_enrichesRowWithDetailPageDataViaItsRowAnchor() {
+        when(httpClient.get(eq(LIST_URL), any()))
+                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
+        when(httpClient.get(eq(DETAIL_URL), any()))
+                .thenReturn(new IpoHttpResponse(DETAIL_FIXTURE_HTML, new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(2);
+        IpoDto acme = result.get(0);
+        assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd"); // core list data untouched
+        assertThat(acme.about()).startsWith("Acme Robotics designs and manufactures");
+        assertThat(acme.strengths()).contains("Strong industrial robotics portfolio");
+        assertThat(acme.risks()).contains("Reliant on automotive sector capex cycles");
+        assertThat(acme.financials()).hasSize(3);
+
+        // Beta Textiles' row has no anchor in the fixture -> no detail URL -> no enrichment attempted.
+        IpoDto beta = result.get(1);
+        assertThat(beta.companyName()).isEqualTo("Beta Textiles Ltd");
+        assertThat(beta.about()).isNull();
+        assertThat(beta.strengths()).isNull();
+        assertThat(beta.risks()).isNull();
+        assertThat(beta.financials()).isNull();
+    }
+
+    @Test
+    void fetchAll_detailPageFetchThrows_skipsEnrichmentButKeepsCoreListData() {
+        when(httpClient.get(eq(LIST_URL), any()))
+                .thenReturn(new IpoHttpResponse(FIXTURE_HTML, new HttpHeaders()));
+        when(httpClient.get(eq(DETAIL_URL), any())).thenThrow(new SourceFetchException("blocked"));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(2); // whole fetchAll still succeeds
+        IpoDto acme = result.get(0);
+        assertThat(acme.companyName()).isEqualTo("Acme Robotics Ltd");
+        assertThat(acme.about()).isNull();
+        assertThat(acme.financials()).isNull();
     }
 }

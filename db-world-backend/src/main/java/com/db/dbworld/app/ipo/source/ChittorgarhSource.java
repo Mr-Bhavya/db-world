@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.source;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.source.support.IpoDateParser;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
@@ -15,13 +16,19 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Fallback / gap-fill source: scrapes Chittorgarh's mainboard IPO list page with Jsoup.
+ * Fallback / gap-fill source: scrapes Chittorgarh's mainboard IPO list page with Jsoup, then
+ * (best-effort) each listed IPO's own detail page for its About/Strengths/Risks/Financials.
  *
  * <p>We cannot fetch a live Chittorgarh page from this environment (server-side requests are
  * blocked), so this adapter maps to the best-known public structure of the mainboard list table —
@@ -35,6 +42,17 @@ import java.util.Map;
  * matching is done by header text (case-insensitive, tolerant of reordering) rather than fixed
  * indices or generated CSS classes/ids — Chittorgarh's markup carries no stable semantic
  * classes/ids per cell, so header-text matching is the least brittle option available.
+ *
+ * <p><b>Detail-page enrichment</b>: each list row's company-name cell is assumed to carry an
+ * anchor linking to that IPO's own Chittorgarh detail page ({@code TODO(verify)} — confirmed only
+ * against a synthetic fixture, never a live page). {@link #fetchAll()} resolves that link, fetches
+ * the detail page (one extra HTTP round-trip per IPO — acceptable given the mainboard list is
+ * only ever ~10-20 active IPOs and this whole adapter runs on a periodic poll, not per-request),
+ * and parses the About paragraph(s), Strengths/Risks bullet lists, and the "Company Financials"
+ * table via {@link #parseDetail(Document)} (unit-testable the same way as {@link #parseTable}).
+ * Every step is best-effort: a missing section yields {@code null}/empty for just that field, and
+ * ANY failure fetching/parsing one IPO's detail page (network, anti-bot block, shape change)
+ * leaves that IPO's core list-row data untouched and never propagates out of {@link #fetchAll()}.
  */
 @Log4j2
 @Component
@@ -65,6 +83,27 @@ public class ChittorgarhSource implements IpoSource {
     private static final List<String> H_ISSUE_SIZE = List.of("issue size");
     private static final List<String> H_GAIN = List.of("listing gain", "gain");
 
+    // ── Detail-page "Company Financials" column aliases — TODO(verify) against a live page ───
+    private static final List<String> H_FIN_PERIOD = List.of("period", "year", "fy");
+    private static final List<String> H_FIN_REVENUE = List.of("revenue", "total income");
+    private static final List<String> H_FIN_PAT = List.of("profit after tax", "pat", "net profit");
+    private static final List<String> H_FIN_ASSETS = List.of("total assets", "net worth");
+
+    // ── Detail-page section headings — matched by text, not markup, since Chittorgarh's detail
+    // pages carry no stable semantic classes/ids either — TODO(verify) against a live page ─────
+    private static final Pattern ABOUT_HEADING = Pattern.compile("^about\\b.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STRENGTHS_HEADING = Pattern.compile(".*strengths?.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RISKS_HEADING = Pattern.compile(".*(risks?|weakness(es)?).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FINANCIALS_HEADING = Pattern.compile(".*financials?.*", Pattern.CASE_INSENSITIVE);
+    private static final String HEADING_SELECTOR = "h1,h2,h3,h4,h5,strong,b";
+    /** Bails out of the heading→content sibling walk after this many hops so a shape mismatch can't loop indefinitely. */
+    private static final int MAX_SIBLING_HOPS = 6;
+
+    private static final Pattern FY_RANGE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\s*[-/]\\s*(\\d{2,4})", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FY_SINGLE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\b", Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter MONTH_YEAR_SHORT = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter MONTH_YEAR_FULL = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+
     private final IpoHttpClient httpClient;
 
     public ChittorgarhSource(IpoHttpClient httpClient) {
@@ -84,7 +123,15 @@ public class ChittorgarhSource implements IpoSource {
                     HttpHeaders.ACCEPT, "text/html"
             ));
             Document doc = Jsoup.parse(response.body(), LIST_URL);
-            return parseTable(doc);
+            List<IpoDto> listed = parseTable(doc);
+            List<String> detailUrls = resolveDetailUrls(doc);
+
+            List<IpoDto> result = new ArrayList<>(listed.size());
+            for (int i = 0; i < listed.size(); i++) {
+                String detailUrl = i < detailUrls.size() ? detailUrls.get(i) : null;
+                result.add(enrichFromDetailPage(listed.get(i), detailUrl));
+            }
+            return result;
         } catch (Exception e) {
             log.warn("Chittorgarh fetch failed: {}", e.toString());
             return List.of();
@@ -138,14 +185,264 @@ public class ChittorgarhSource implements IpoSource {
                     null, null,                                        // subscriptionCategories, subTotal
                     null,                                               // allotmentStatus
                     null, null,                                         // registrar, registrarUrl
-                    null, null,                                         // logoUrl, about — not on this page
+                    null, null,                                         // logoUrl, about — filled in later by detail-page enrichment
                     null, null,                                        // refundDate, dematDate — not on this page
                     null, null, null,                                   // faceValue, freshIssue, offerForSale — not on this page
-                    null, null, null,                                   // tickerSymbol, strengths, risks — not on this page
-                    null                                                // financials — not on this page
+                    null, null, null,                                   // tickerSymbol, strengths, risks — filled in later by detail-page enrichment
+                    null                                                // financials — filled in later by detail-page enrichment
             ));
         }
         return result;
+    }
+
+    /**
+     * Resolves each data row's detail-page URL from its first anchor's {@code href}, resolved to
+     * absolute against the list page's base URI, parallel-indexed to {@link #parseTable(Document)}'s
+     * output (same row iteration order). {@code TODO(verify)}: confirmed only against a synthetic
+     * fixture — on the live page confirm the company-name cell is indeed the one carrying the
+     * detail-page anchor. A row without any anchor yields {@code null} at that index, so its
+     * enrichment is simply skipped (the core list row for it is unaffected).
+     */
+    private static List<String> resolveDetailUrls(Document doc) {
+        Element table = doc.selectFirst("table");
+        if (table == null) {
+            return List.of();
+        }
+        List<String> urls = new ArrayList<>();
+        for (Element row : resolveDataRows(table)) {
+            Element anchor = row.selectFirst("a[href]");
+            String url = anchor == null ? null : anchor.absUrl("href");
+            urls.add(url == null || url.isBlank() ? null : url);
+        }
+        return urls;
+    }
+
+    /**
+     * Fetches and parses one IPO's detail page for About/Strengths/Risks/Financials — a SEPARATE
+     * HTTP round-trip per IPO on top of the single list-page fetch. Acceptable cost: the mainboard
+     * list is only ever ~10-20 active IPOs, and this adapter runs on a periodic background poll,
+     * never per-request. ANY failure here (network, anti-bot block, unexpected shape) is logged
+     * and swallowed — returns {@code dto} unchanged so the IPO keeps its core list data and the
+     * failure never propagates out of {@link #fetchAll()}.
+     */
+    private IpoDto enrichFromDetailPage(IpoDto dto, String detailUrl) {
+        if (detailUrl == null || detailUrl.isBlank()) {
+            return dto;
+        }
+        try {
+            IpoHttpResponse response = httpClient.get(detailUrl, Map.of(
+                    HttpHeaders.USER_AGENT, USER_AGENT,
+                    HttpHeaders.ACCEPT, "text/html"
+            ));
+            Document detailDoc = Jsoup.parse(response.body(), detailUrl);
+            return withDetailEnrichment(dto, parseDetail(detailDoc));
+        } catch (Exception e) {
+            log.warn("Chittorgarh: detail page fetch/parse failed for {}: {}", detailUrl, e.toString());
+            return dto;
+        }
+    }
+
+    /** Extracted for unit testing without HTTP — parses a detail page already fetched into a Document. */
+    DetailEnrichment parseDetail(Document doc) {
+        return new DetailEnrichment(
+                extractAbout(doc),
+                extractBullets(doc, STRENGTHS_HEADING),
+                extractBullets(doc, RISKS_HEADING),
+                extractFinancials(doc)
+        );
+    }
+
+    /** One detail page's scraped enrichment fields, merged onto the list-row dto by {@link #withDetailEnrichment}. */
+    record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials) {}
+
+    private static IpoDto withDetailEnrichment(IpoDto dto, DetailEnrichment enrichment) {
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), enrichment.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), enrichment.strengths(), enrichment.risks(), enrichment.financials());
+    }
+
+    /**
+     * The "About {Company}" description: the run of {@code <p>} elements immediately following the
+     * heading whose text starts with "About" (case-insensitive) — stops at the first non-{@code <p>}
+     * sibling (e.g. the next section's heading). {@code null} if no such heading, or it has no
+     * paragraph siblings.
+     */
+    private static String extractAbout(Document doc) {
+        Element heading = findHeading(doc, ABOUT_HEADING);
+        if (heading == null) {
+            return null;
+        }
+        List<String> paragraphs = new ArrayList<>();
+        Element sibling = heading.nextElementSibling();
+        while (sibling != null && "p".equalsIgnoreCase(sibling.tagName())) {
+            String text = sibling.text().trim();
+            if (!text.isEmpty()) {
+                paragraphs.add(text);
+            }
+            sibling = sibling.nextElementSibling();
+        }
+        return paragraphs.isEmpty() ? null : String.join(" ", paragraphs);
+    }
+
+    /**
+     * A bullet list (newline-delimited, matching how the entity stores strengths/risks) found
+     * after the first heading whose text matches {@code headingPattern} — e.g. "Strengths" or
+     * "Risks"/"Weaknesses". {@code null} if no matching heading, or no {@code <ul>}/{@code <ol>}
+     * is found within {@value #MAX_SIBLING_HOPS} sibling hops of it.
+     */
+    private static String extractBullets(Document doc, Pattern headingPattern) {
+        Element heading = findHeading(doc, headingPattern);
+        if (heading == null) {
+            return null;
+        }
+        Element list = findFollowing(heading, "ul,ol");
+        if (list == null) {
+            return null;
+        }
+        List<String> items = list.select("li").eachText();
+        return items.isEmpty() ? null : String.join("\n", items);
+    }
+
+    /**
+     * The "Company Financials" table found after the first heading whose text matches
+     * {@link #FINANCIALS_HEADING}; empty if no matching heading, or no {@code <table>} is found
+     * within {@value #MAX_SIBLING_HOPS} sibling hops of it.
+     */
+    private static List<IpoFinancialRowDto> extractFinancials(Document doc) {
+        Element heading = findHeading(doc, FINANCIALS_HEADING);
+        if (heading == null) {
+            return List.of();
+        }
+        Element table = findFollowing(heading, "table");
+        return table == null ? List.of() : parseFinancialsTable(table);
+    }
+
+    private static List<IpoFinancialRowDto> parseFinancialsTable(Element table) {
+        List<String> headers = resolveHeaders(table);
+        int idxPeriod = findColumn(headers, H_FIN_PERIOD);
+        int idxRevenue = findColumn(headers, H_FIN_REVENUE);
+        int idxPat = findColumn(headers, H_FIN_PAT);
+        int idxAssets = findColumn(headers, H_FIN_ASSETS);
+
+        List<IpoFinancialRowDto> rows = new ArrayList<>();
+        for (Element row : resolveDataRows(table)) {
+            Elements cells = row.select("td");
+            if (cells.isEmpty()) {
+                continue;
+            }
+            String fiscalYear = cellText(cells, idxPeriod);
+            if (fiscalYear == null) {
+                continue; // no usable period label for this row
+            }
+            rows.add(new IpoFinancialRowDto(
+                    fiscalYear,
+                    derivePeriodEnd(fiscalYear),
+                    toFinancialDecimal(cellText(cells, idxRevenue)),
+                    toFinancialDecimal(cellText(cells, idxPat)),
+                    toFinancialDecimal(cellText(cells, idxAssets))
+            ));
+        }
+        return rows;
+    }
+
+    /**
+     * First element matching {@code heading}, {@code strong}, or {@code b} whose own text matches
+     * {@code pattern} (case-insensitive), in document order. Chittorgarh's detail-page markup
+     * carries no stable semantic classes/ids for these sections, so text-based heading matching is
+     * the least brittle option available (mirrors the header-text column matching in
+     * {@link #findColumn}).
+     */
+    private static Element findHeading(Document doc, Pattern pattern) {
+        for (Element el : doc.select(HEADING_SELECTOR)) {
+            String text = el.text();
+            if (text != null && pattern.matcher(text.trim()).matches()) {
+                return el;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Walks {@code heading}'s following siblings (up to {@value #MAX_SIBLING_HOPS} hops) looking
+     * for the first element matching {@code selector} — either the sibling itself, or nested
+     * inside it (the target content is sometimes wrapped in an intermediate {@code <div>} rather
+     * than being a direct sibling of the heading).
+     */
+    private static Element findFollowing(Element heading, String selector) {
+        Element sibling = heading.nextElementSibling();
+        int hops = 0;
+        while (sibling != null && hops < MAX_SIBLING_HOPS) {
+            if (sibling.is(selector)) {
+                return sibling;
+            }
+            Element nested = sibling.selectFirst(selector);
+            if (nested != null) {
+                return nested;
+            }
+            sibling = sibling.nextElementSibling();
+            hops++;
+        }
+        return null;
+    }
+
+    /**
+     * Best-effort derivation of a chronological sort key from a fiscal-year/period display label —
+     * never throws; returns {@code null} for anything unrecognised. Recognises "FY 2022-23" /
+     * "FY2022-23" (period end = 31 Mar of the second year), "FY23" (period end = 31 Mar 2023),
+     * "Mar 2023" / "March 2023" (last day of that month), and plain ISO dates (via
+     * {@link IpoDateParser}). {@code TODO(verify)}: confirm the live page's actual label format(s)
+     * — this covers the formats documented/observed elsewhere in this codebase's sample data, not
+     * a confirmed live response.
+     */
+    private static LocalDate derivePeriodEnd(String label) {
+        if (label == null || label.isBlank()) {
+            return null;
+        }
+        String trimmed = label.trim();
+
+        Matcher rangeMatcher = FY_RANGE.matcher(trimmed);
+        if (rangeMatcher.find()) {
+            Integer year = normalizeYear(rangeMatcher.group(2));
+            if (year != null) {
+                return LocalDate.of(year, 3, 31);
+            }
+        }
+        Matcher singleMatcher = FY_SINGLE.matcher(trimmed);
+        if (singleMatcher.find()) {
+            Integer year = normalizeYear(singleMatcher.group(1));
+            if (year != null) {
+                return LocalDate.of(year, 3, 31);
+            }
+        }
+        try {
+            return YearMonth.parse(trimmed, MONTH_YEAR_SHORT).atEndOfMonth();
+        } catch (DateTimeParseException ignored) {
+            // fall through
+        }
+        try {
+            return YearMonth.parse(trimmed, MONTH_YEAR_FULL).atEndOfMonth();
+        } catch (DateTimeParseException ignored) {
+            // fall through
+        }
+        return IpoDateParser.parse(trimmed);
+    }
+
+    /** "23" -&gt; 2023 (2-digit fiscal-year shorthand); a 4-digit year passes through unchanged. */
+    private static Integer normalizeYear(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(raw);
+            return raw.length() <= 2 ? 2000 + value : value;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static List<String> resolveHeaders(Element table) {
@@ -226,6 +523,32 @@ public class ChittorgarhSource implements IpoSource {
         }
         try {
             return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Like {@link #toDecimal} but for P&amp;L figures, which (unlike a price band) CAN be
+     * negative — a loss-making year's PAT — reported either as a leading "-971.00" or in
+     * accounting parenthesis notation "(971.00)". Strips currency symbols/commas; null-safe.
+     */
+    private static BigDecimal toFinancialDecimal(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        boolean negative = trimmed.startsWith("(") && trimmed.endsWith(")");
+        if (negative) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1);
+        }
+        String cleaned = trimmed.replaceAll("[^0-9.\\-]", "");
+        if (cleaned.isEmpty() || "-".equals(cleaned) || ".".equals(cleaned)) {
+            return null;
+        }
+        try {
+            BigDecimal value = new BigDecimal(cleaned);
+            return negative ? value.negate() : value;
         } catch (NumberFormatException e) {
             return null;
         }
