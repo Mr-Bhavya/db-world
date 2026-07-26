@@ -271,9 +271,10 @@ function LeadManagers({ managers }) {
 
 /**
  * Overview tab — the at-a-glance summary, ordered by decision-usefulness: timeline stepper, the
- * compact "key facts" grid, the financials snapshot + key metrics (the numbers), then the
- * narrative/party details (About, Strengths, Lead managers, Objects of the issue). The full
- * GMP/subscription charts live on their own tabs.
+ * compact "key facts" grid, a brief (collapsible) About so the reader knows what the company is
+ * before the numbers, then the financials snapshot + key metrics, and finally the remaining
+ * prospectus detail (Strengths, Lead managers, Objects of the issue). The full GMP/subscription
+ * charts live on their own tabs.
  */
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
@@ -313,18 +314,18 @@ export default function OverviewTab({ ipo, id }) {
         </Box>
       </SectionCard>
 
+      {showAbout && (
+        <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          {ipo.about && <AboutBlurb text={ipo.about} mb={hasAboutFacts(ipo) ? 2 : 0} />}
+          {hasAboutFacts(ipo) && <AboutFacts ipo={ipo} />}
+        </SectionCard>
+      )}
+
       <FinancialsTable id={id} />
 
       {ipo.kpis?.length > 0 && (
         <SectionCard title="Key metrics" icon={<QueryStatsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
           <KpiGrid kpis={ipo.kpis} />
-        </SectionCard>
-      )}
-
-      {showAbout && (
-        <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          {ipo.about && <AboutBlurb text={ipo.about} mb={hasAboutFacts(ipo) ? 2 : 0} />}
-          {hasAboutFacts(ipo) && <AboutFacts ipo={ipo} />}
         </SectionCard>
       )}
 

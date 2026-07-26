@@ -272,7 +272,7 @@ export default function GmpChart({ points = [], loading }) {
                   showMark: true,
                 }]}
                 margin={margin}
-                slotProps={{ legend: { hidden: true } }}
+                hideLegend
                 sx={{
                   '.MuiAreaElement-root': { fill: `url(#${gradientId})` },
                   '.MuiChartsAxis-tickLabel': { fill: axisColor, fontSize: 10 },

@@ -80,6 +80,9 @@ const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocume
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
 const LazyMyIposPage          = lazy(() => import('@features/ipo/pages/MyIposPage.jsx'));
+// Imported eagerly (it's tiny) so it can serve as the detail route's OWN Suspense fallback —
+// a page-shaped placeholder during the code-split chunk download, instead of the generic top bar.
+import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
@@ -215,7 +218,7 @@ const routeConfig = {
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
     { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
-    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <LazyIpoDetailPage /> },
+    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []

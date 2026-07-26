@@ -6,7 +6,6 @@ import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import { useT } from '@shared/theme';
 import { formatShortDate, formatCurrency, formatPct, expectedListingPrice, dayOverDayDelta } from '../utils/format';
 import GmpChart from './GmpChart';
-import IpoGuruAttribution from './IpoGuruAttribution';
 import SectionCard from './SectionCard';
 import DayWiseTable from './DayWiseTable';
 
@@ -91,9 +90,10 @@ function Cell({ children, bold, muted, align }) {
 }
 
 /**
- * GMP tab — dual-axis (₹/%) chart with the (contractual) IPO Guru attribution kept
- * prominent right next to the data it credits, an expected-listing-price stat, and a
- * most-recent-first day-wise GMP history table.
+ * GMP tab — the "GMP journey" chart, an expected-listing-price stat, and a most-recent-first
+ * day-wise GMP history table. (Source attribution was removed pending the final crediting
+ * requirement — it will be re-added deliberately once that's settled, hence `IpoGuruAttribution`
+ * is intentionally left in the tree unused.)
  */
 export default function GmpTab({ ipo, points, loading }) {
   const T = useT();
@@ -111,7 +111,6 @@ export default function GmpTab({ ipo, points, loading }) {
 
   return (
     <Box sx={{ width: '100%', minWidth: 0 }}>
-      <IpoGuruAttribution />
       <Box sx={{ width: '100%', minWidth: 0, mb: 2 }}>
         <GmpChart points={points} loading={loading} />
       </Box>
