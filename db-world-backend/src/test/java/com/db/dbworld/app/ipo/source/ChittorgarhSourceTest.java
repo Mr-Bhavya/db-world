@@ -22,7 +22,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -503,5 +507,74 @@ class ChittorgarhSourceTest {
         ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
 
         assertThat(enrichment.about()).isEqualTo("Delta Robotics builds automation solutions for warehouses.");
+    }
+
+    // ── Unit 2: bound the per-IPO detail-page fetch to a relevant, capped subset ───────────────
+    // The real year-list page carries ~147 rows (all mainboard+SME IPOs for the whole year); only
+    // upcoming/open (no listing date yet) or recently-listed (within ~30 days) rows are worth the
+    // extra HTTP round-trip, and even that subset is hard-capped so a busy year can't balloon it.
+
+    private static String miniListRow(String company, String detailPath, String listingDateCell) {
+        return "<tr><td><a href=\"" + detailPath + "\">" + company + "</a></td><td>Mainboard</td>"
+                + "<td>01-Jul-2026</td><td>03-Jul-2026</td><td>" + listingDateCell + "</td>"
+                + "<td>100.00 to 110.00</td><td>200.00</td><td>150.00</td><td>50.00</td><td>BSE, NSE</td></tr>";
+    }
+
+    private static String listFixtureWithRows(String rowsHtml) {
+        return "<html><body><table><thead><tr><th>Company</th><th>Issue Category</th>"
+                + "<th>Opening Date</th><th>Closing Date</th><th>Listing Date</th>"
+                + "<th>Issue Price (Rs.)</th><th>Total Issue Amount (Incl.Firm Reservations) (Rs.Cr.)</th>"
+                + "<th>Fresh Capital (Rs.Cr.)</th><th>Offer For Sale (Rs.Cr.)</th><th>Listing At</th></tr></thead>"
+                + "<tbody>" + rowsHtml + "</tbody></table></body></html>";
+    }
+
+    private static final String UPCOMING_DETAIL_URL = "https://www.chittorgarh.com/ipo/upcoming-co/1/";
+    private static final String RECENT_DETAIL_URL = "https://www.chittorgarh.com/ipo/recent-co/2/";
+    private static final String OLD_DETAIL_URL = "https://www.chittorgarh.com/ipo/old-co/3/";
+
+    @Test
+    void fetchAll_enrichmentGate_skipsRowsListedMoreThanAboutAMonthAgo() {
+        String html = listFixtureWithRows(
+                miniListRow("Upcoming Co", "/ipo/upcoming-co/1/", "")               // no listing date yet
+                        + miniListRow("Recently Listed Co", "/ipo/recent-co/2/", "14-Jul-2026") // 10 days before TODAY
+                        + miniListRow("Old Listed Co", "/ipo/old-co/3/", "01-Jan-2026"));        // ~204 days before TODAY
+
+        when(httpClient.get(eq(LIST_URL), any()))
+                .thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
+        when(httpClient.get(eq(UPCOMING_DETAIL_URL), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Upcoming Co"), new HttpHeaders()));
+        when(httpClient.get(eq(RECENT_DETAIL_URL), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Recently Listed Co"), new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).about()).contains("Upcoming Co own description");
+        assertThat(result.get(1).about()).contains("Recently Listed Co own description");
+        assertThat(result.get(2).about()).isNull(); // gated out — listed 01-Jan-2026, > 30 days before TODAY
+
+        verify(httpClient, never()).get(eq(OLD_DETAIL_URL), any());
+    }
+
+    @Test
+    void fetchAll_enrichmentCap_boundsDetailFetchesToAtMost25EvenWhenMoreAreEligible() {
+        int totalEligibleRows = 27;
+        StringBuilder rows = new StringBuilder();
+        for (int i = 1; i <= totalEligibleRows; i++) {
+            // All "upcoming" (no listing date) -> all gate-eligible; only the cap should limit fetches.
+            rows.append(miniListRow("Company " + i, "/ipo/company-" + i + "/" + i + "/", ""));
+        }
+        String html = listFixtureWithRows(rows.toString());
+
+        when(httpClient.get(eq(LIST_URL), any()))
+                .thenReturn(new IpoHttpResponse(html, new HttpHeaders()));
+        when(httpClient.get(argThat(url -> url != null && url.contains("/ipo/company-")), any()))
+                .thenReturn(new IpoHttpResponse(detailFixtureFor("Some Co"), new HttpHeaders()));
+
+        List<IpoDto> result = newSource().fetchAll();
+
+        assertThat(result).hasSize(totalEligibleRows); // every row still returned, just not all enriched
+        verify(httpClient, times(25))
+                .get(argThat(url -> url != null && url.contains("/ipo/company-")), any());
     }
 }

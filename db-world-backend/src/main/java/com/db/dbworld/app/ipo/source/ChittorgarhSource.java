@@ -31,17 +31,19 @@ import java.util.regex.Pattern;
 
 /**
  * Fallback / gap-fill source: scrapes Chittorgarh's IPO list page (Mainboard + SME, the
- * {@code /all/} tab) with Jsoup, then (best-effort) each listed IPO's own detail page for its
- * About/Strengths/Risks/Financials.
+ * {@code /all/} tab) with Jsoup, then (best-effort) a BOUNDED subset of listed IPOs' own detail
+ * pages for About/Strengths/Risks/Financials.
  *
  * <p>The list URL and its column set below ARE confirmed against a live-page screenshot (unlike
  * this adapter's earlier revision, which mapped a stale, 301-redirecting URL never actually seen
  * live) — see {@link #listUrl()}: {@code
  * https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/all/?year=<current-year>}.
- * This adapter still can't fetch a live page from this environment (server-side requests are
- * blocked) to confirm the DETAIL page's own structure — that half remains {@code TODO(verify)}.
- * We fetch the HTML through the shared {@link IpoHttpClient} (same retry policy as the other
- * sources) and hand the body to Jsoup purely for DOM parsing/selection, not networking.
+ * The {@code /all/} tab carries EVERY IPO for the whole calendar year (mainboard + SME, ~147 rows
+ * incl. long-listed ones), so this adapter still can't fetch a live page from this environment
+ * (server-side requests are blocked) to confirm the DETAIL page's own structure — that half
+ * remains {@code TODO(verify)}. We fetch the HTML through the shared {@link IpoHttpClient} (same
+ * retry policy as the other sources) and hand the body to Jsoup purely for DOM parsing/selection,
+ * not networking.
  *
  * <p>The table-parsing logic is deliberately extracted into {@link #parseTable(Document)} so it
  * can be unit tested against a synthesized HTML fixture without any HTTP involved. Column
@@ -53,18 +55,23 @@ import java.util.regex.Pattern;
  * "Left Lead Manager" is the lead manager — NOT the registrar — so it is never written to {@link
  * IpoDto#registrar()}.
  *
- * <p><b>Detail-page enrichment</b>: each list row's company-name cell is assumed to carry an
- * anchor linking to that IPO's own Chittorgarh detail page ({@code TODO(verify)} — confirmed only
- * against a synthetic fixture, never a live page). That detail-page URL is resolved from the SAME
- * row element used to build the row's {@link IpoDto} — see {@code parseRows(Document)} — so an
- * empty/spacer row (e.g. an ad or divider row with no {@code <td>} cells) is skipped identically
- * for both and can never desynchronise a dto from a different row's detail URL. {@link
- * #fetchAll()} then fetches the detail page (one extra HTTP round-trip per IPO), and parses the
- * About paragraph(s), Strengths/Risks bullet lists, and the "Company Financials" table via
- * {@link #parseDetail(Document)} (unit-testable the same way as {@link #parseTable}). Every step
- * is best-effort: a missing section yields {@code null}/empty for just that field, and ANY
- * failure fetching/parsing one IPO's detail page (network, anti-bot block, shape change) leaves
- * that IPO's core list-row data untouched and never propagates out of {@link #fetchAll()}.
+ * <p><b>Detail-page enrichment, BOUNDED</b>: each list row's company-name cell is assumed to
+ * carry an anchor linking to that IPO's own Chittorgarh detail page ({@code TODO(verify)} —
+ * confirmed only against a synthetic fixture, never a live page). That detail-page URL is
+ * resolved from the SAME row element used to build the row's {@link IpoDto} — see {@code
+ * parseRows(Document)} — so an empty/spacer row (e.g. an ad or divider row with no {@code <td>}
+ * cells) is skipped identically for both and can never desynchronise a dto from a different row's
+ * detail URL. Given the list now covers the WHOLE year (~147 rows, not just ~10-20 active ones),
+ * {@link #fetchAll()} only fetches the detail page for a bounded, relevant subset — rows that are
+ * upcoming/open (no listing date yet) or listed within the last {@value
+ * #RECENT_LISTING_WINDOW_DAYS} days, see {@link #isEligibleForDetailFetch(IpoDto)} — and hard-caps
+ * the number of such fetches at {@value #MAX_DETAIL_FETCHES} (see {@link #MAX_DETAIL_FETCHES}) so
+ * a busy year can never balloon into ~147 extra HTTP round-trips per poll. Rows outside that
+ * subset simply keep their core list-row data, exactly as if they had no detail anchor. Every
+ * enrichment step is best-effort: a missing section yields {@code null}/empty for just that
+ * field, and ANY failure fetching/parsing one IPO's detail page (network, anti-bot block, shape
+ * change) leaves that IPO's core list-row data untouched and never propagates out of {@link
+ * #fetchAll()}.
  */
 @Log4j2
 @Component
@@ -78,6 +85,21 @@ public class ChittorgarhSource implements IpoSource {
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+    /**
+     * Hard cap on the number of detail-page HTTP fetches per {@link #fetchAll()} call, on top of
+     * the {@link #isEligibleForDetailFetch(IpoDto)} gate — the year list can carry ~147 rows, and
+     * even the "active/recent" subset of that could exceed a sane per-poll fetch budget in a busy
+     * IPO season.
+     */
+    private static final int MAX_DETAIL_FETCHES = 25;
+
+    /**
+     * A row is worth a detail-page fetch if it has no listing date yet (upcoming/open) or listed
+     * within this many days of "today" — anything older is very unlikely to have changed and isn't
+     * worth the extra round-trip.
+     */
+    private static final int RECENT_LISTING_WINDOW_DAYS = 30;
 
     // ── Column header aliases, mapped to the REAL list-page columns (live-page screenshot):
     // Company | Issue Category | Pricing Method | Opening Date | Closing Date | Listing Date |
@@ -153,14 +175,35 @@ public class ChittorgarhSource implements IpoSource {
             List<RowWithDetailUrl> rows = parseRows(doc);
 
             List<IpoDto> result = new ArrayList<>(rows.size());
+            int detailFetchesRemaining = MAX_DETAIL_FETCHES;
             for (RowWithDetailUrl row : rows) {
-                result.add(enrichFromDetailPage(row.dto(), row.detailUrl()));
+                IpoDto dto = row.dto();
+                if (detailFetchesRemaining > 0 && row.detailUrl() != null && isEligibleForDetailFetch(dto)) {
+                    dto = enrichFromDetailPage(dto, row.detailUrl());
+                    detailFetchesRemaining--;
+                }
+                result.add(dto);
             }
             return result;
         } catch (Exception e) {
             log.warn("Chittorgarh fetch failed: {}", e.toString());
             return List.of();
         }
+    }
+
+    /**
+     * Bounds detail-page enrichment to a relevant subset (see class javadoc): upcoming/open IPOs
+     * (no listing date reported yet) or ones that listed within the last {@value
+     * #RECENT_LISTING_WINDOW_DAYS} days. A future listing date (an upcoming IPO whose listing date
+     * is already announced) also counts as eligible, since it's not "before" the cutoff either.
+     */
+    private boolean isEligibleForDetailFetch(IpoDto dto) {
+        LocalDate listingDate = dto.listingDate();
+        if (listingDate == null) {
+            return true;
+        }
+        LocalDate cutoff = LocalDate.now(clock).minusDays(RECENT_LISTING_WINDOW_DAYS);
+        return !listingDate.isBefore(cutoff);
     }
 
     /**
