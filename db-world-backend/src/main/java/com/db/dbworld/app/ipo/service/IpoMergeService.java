@@ -36,6 +36,13 @@ public class IpoMergeService {
     /** Allotment/registrar/listing-gain: Chittorgarh is the most complete for these. */
     private static final List<String> PRECEDENCE_REGISTRAR = List.of("chittorgarh", "ipoguru", "nse");
 
+    /**
+     * Listing venue: the NSE feed can only ever report {@code "NSE"} (its own exchange), so it must
+     * NOT shadow Chittorgarh's "Listing at" or IPO Guru's "listing_on", which name ALL venues an IPO
+     * lists on ({@code BOTH}/{@code BSE}/{@code NSE}). Chittorgarh-first, NSE last (as a floor).
+     */
+    private static final List<String> PRECEDENCE_LISTING_VENUE = List.of("chittorgarh", "ipoguru", "nse");
+
     private final IpoNormalizer normalizer;
 
     public IpoMergeService(IpoNormalizer normalizer) {
@@ -73,7 +80,7 @@ public class IpoMergeService {
         Picked<BigDecimal> priceMax = pick(group, PRECEDENCE_PRIMARY, IpoDto::priceMax, "priceMax");
         Picked<Integer> lotSize = pick(group, PRECEDENCE_PRIMARY, IpoDto::lotSize, "lotSize");
         Picked<String> issueSize = pick(group, PRECEDENCE_PRIMARY, IpoDto::issueSize, "issueSize");
-        Picked<String> listingExchange = pick(group, PRECEDENCE_PRIMARY, IpoDto::listingExchange, "listingExchange");
+        Picked<String> listingExchange = pick(group, PRECEDENCE_LISTING_VENUE, IpoDto::listingExchange, "listingExchange");
         Picked<BigDecimal> listingPrice = pick(group, PRECEDENCE_PRIMARY, IpoDto::listingPrice, "listingPrice");
         Picked<String> logoUrl = pick(group, PRECEDENCE_PRIMARY, IpoDto::logoUrl, "logoUrl");
         Picked<String> about = pick(group, PRECEDENCE_PRIMARY, IpoDto::about, "about");

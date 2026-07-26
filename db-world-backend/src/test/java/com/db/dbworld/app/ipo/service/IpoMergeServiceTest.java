@@ -77,7 +77,9 @@ class IpoMergeServiceTest {
 
         // primary group -> nse wins
         assertThat(m.status()).isEqualTo("open-nse");
-        assertThat(m.listingExchange()).isEqualTo("NSE-nse");
+        // listing venue has its OWN precedence (chittorgarh-first): the NSE feed only ever reports
+        // "NSE", so it must not shadow Chittorgarh's fuller BOTH/BSE/NSE venue.
+        assertThat(m.listingExchange()).isEqualTo("NSE-chittorgarh");
         assertThat(m.listingPrice()).isEqualByComparingTo("135.00");
         assertThat(m.companyName()).isEqualTo("Acme Corp Ltd");
         assertThat(m.issueSize()).isEqualTo("500 Cr-nse");
@@ -120,7 +122,8 @@ class IpoMergeServiceTest {
         IpoDto m = merged.get(0);
 
         assertThat(m.status()).isEqualTo("open-ipoguru");
-        assertThat(m.listingExchange()).isEqualTo("NSE-ipoguru");
+        // listing venue precedence is [chittorgarh, ipoguru, nse] → chittorgarh present, so it wins.
+        assertThat(m.listingExchange()).isEqualTo("NSE-chittorgarh");
     }
 
     @Test
