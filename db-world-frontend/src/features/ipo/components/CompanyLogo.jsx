@@ -15,6 +15,12 @@ const logoDevUrl = (domain) => `https://img.logo.dev/${domain}?token=${LOGODEV_T
  * between IpoCard/MyIpoCard (compact, default size) and the detail page header (larger,
  * via `size`).
  *
+ * `size` accepts either a plain number (most callers) or an MUI responsive breakpoint
+ * object (e.g. `{ xs: 36, sm: 44 }`) — passed straight through to the `sx` width/height so
+ * it shrinks on mobile, while the initials-fallback font size (which needs one concrete
+ * number) is derived from the largest breakpoint value so the fallback avatar's text
+ * still reads well at any viewport.
+ *
  * Resolves the `<img>` source in this order:
  *   1. `logoUrl` — a full, ready-to-use URL, when the caller already has one.
  *   2. `logoDomain` — a bare domain (e.g. "swiggy.com"), built into a Logo.dev URL via
@@ -31,6 +37,10 @@ const logoDevUrl = (domain) => `https://img.logo.dev/${domain}?token=${LOGODEV_T
 export default function CompanyLogo({ logoUrl, logoDomain, companyName, size = 34 }) {
   const T = useT();
   const [errored, setErrored] = useState(false);
+
+  // A responsive `size` object has no single "the" number — take the largest breakpoint
+  // value so the initials-fallback font never renders undersized.
+  const numericSize = typeof size === 'number' ? size : Math.max(...Object.values(size));
 
   const trimmedDomain = typeof logoDomain === 'string' ? logoDomain.trim() : '';
   const src = logoUrl || (trimmedDomain ? logoDevUrl(trimmedDomain) : null);
@@ -53,7 +63,7 @@ export default function CompanyLogo({ logoUrl, logoDomain, companyName, size = 3
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         bgcolor: T.tealBg, border: `1px solid ${T.border}`,
       }}>
-        <Typography sx={{ fontSize: Math.round(size * 0.35), fontWeight: 800, color: T.teal, lineHeight: 1 }}>
+        <Typography sx={{ fontSize: Math.round(numericSize * 0.35), fontWeight: 800, color: T.teal, lineHeight: 1 }}>
           {initials}
         </Typography>
       </Box>

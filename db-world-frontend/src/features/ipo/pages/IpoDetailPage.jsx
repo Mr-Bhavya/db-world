@@ -157,37 +157,55 @@ export default function IpoDetailPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <Box sx={{ ...PAGE_SX, color: T.textPrimary, maxWidth: 1100, mx: 'auto' }}>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: { xs: 1.5, sm: 2 } }}>
           <IconButton
             onClick={backToList}
             aria-label="Back to IPO Tracker"
-            sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, mt: 0.25, flexShrink: 0 }}
+            sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, mt: 0.25, flexShrink: 0, p: { xs: 0.75, sm: 1 } }}
           >
-            <ArrowBackIcon sx={{ fontSize: 20 }} />
+            <ArrowBackIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
           </IconButton>
-          <CompanyLogo logoUrl={ipo.logoUrl} logoDomain={ipo.logoDomain} companyName={ipo.companyName} size={44} />
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: { xs: 18, sm: 21 }, fontWeight: 800, wordBreak: 'break-word' }}>
-                {ipo.companyName}
-              </Typography>
+          <CompanyLogo
+            logoUrl={ipo.logoUrl}
+            logoDomain={ipo.logoDomain}
+            companyName={ipo.companyName}
+            size={{ xs: 36, sm: 44 }}
+          />
+          {/* Name-block + chip-group live in ONE flex row that only wraps BETWEEN the two
+              of them (`flexWrap: 'wrap'` here) — the chip-group itself is `flexWrap: 'nowrap'`
+              so the status badge, ticker and type chip always stay on the same line as each
+              other, never each dropping to their own row. A long company name clamps to 2
+              lines (`-webkit-line-clamp`) instead of forcing the chips down further. */}
+          <Box sx={{
+            minWidth: 0, flex: 1, display: 'flex', flexWrap: 'wrap',
+            alignItems: 'center', rowGap: 0.5, columnGap: 1,
+          }}>
+            <Typography sx={{
+              flex: '1 1 180px', minWidth: 0,
+              fontSize: { xs: 16, sm: 21 }, fontWeight: 800, lineHeight: 1.25,
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden', wordBreak: 'break-word',
+            }}>
+              {ipo.companyName}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, flexWrap: 'nowrap' }}>
               <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: meta.bg, border: `1px solid ${meta.color}55`, flexShrink: 0 }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color }}>{meta.label}</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color, whiteSpace: 'nowrap' }}>{meta.label}</Typography>
               </Box>
               {ipo.tickerSymbol && (
                 <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: T.tealBg, border: `1px solid ${T.teal}55`, flexShrink: 0 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: T.teal }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: T.teal, whiteSpace: 'nowrap' }}>
                     {formatExchange(ipo.listingExchange)}: {ipo.tickerSymbol}
                   </Typography>
                 </Box>
               )}
+              <Chip
+                label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
+                size="small"
+                variant="outlined"
+                sx={{ height: 20, fontSize: 11, borderColor: T.border, color: T.textMuted, flexShrink: 0 }}
+              />
             </Box>
-            <Chip
-              label={IPO_TYPE_LABEL[ipo.ipoType] ?? ipo.ipoType ?? 'IPO'}
-              size="small"
-              variant="outlined"
-              sx={{ height: 20, fontSize: 11, mt: 0.75, borderColor: T.border, color: T.textMuted }}
-            />
           </Box>
         </Box>
 
