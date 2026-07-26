@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
+import com.db.dbworld.app.ipo.dto.IpoIssueDetailsDto;
 import com.db.dbworld.app.ipo.dto.IpoIssueObjectDto;
 import com.db.dbworld.app.ipo.dto.IpoKpiDto;
 import lombok.extern.log4j.Log4j2;
@@ -118,6 +119,9 @@ public class IpoMergeService {
         Picked<List<IpoIssueObjectDto>> issueObjects = pick(group, PRECEDENCE_REGISTRAR,
                 d -> isEmpty(d.issueObjects()) ? null : d.issueObjects(), "issueObjects");
         Picked<String> leadManagers = pick(group, PRECEDENCE_REGISTRAR, IpoDto::leadManagers, "leadManagers");
+        // Issue details (type / min qty / sponsor bank / RHP+DRHP links) come only from NSE's
+        // ipo-detail enrichment, so NSE-first primary precedence resolves it.
+        Picked<IpoIssueDetailsDto> issueDetails = pick(group, PRECEDENCE_PRIMARY, IpoDto::issueDetails, "issueDetails");
 
         // The merged dto carries a single `source`, but its fields came from up to three sources.
         // Downstream (IpoIngestService) only reads dto.source() to stamp GMP/subscription history
@@ -133,7 +137,7 @@ public class IpoMergeService {
                 allotmentStatus.value(), registrar.value(), registrarUrl.value(), logoUrl.value(), about.value(),
                 refundDate.value(), dematDate.value(), faceValue.value(), freshIssue.value(), offerForSale.value(),
                 tickerSymbol.value(), strengths.value(), risks.value(), financials.value(),
-                kpis.value(), issueObjects.value(), leadManagers.value());
+                kpis.value(), issueObjects.value(), leadManagers.value(), issueDetails.value());
     }
 
     private static boolean isEmpty(List<?> list) {

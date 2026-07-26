@@ -337,7 +337,8 @@ public class ChittorgarhSource implements IpoSource {
                     null, null,                                       // strengths, risks — filled by detail-page enrichment
                     null,                                             // financials — filled by detail-page enrichment
                     null, null,                                       // kpis, issueObjects — filled by detail-page enrichment
-                    null                                              // leadManagers — filled by detail-page enrichment
+                    null,                                             // leadManagers — filled by detail-page enrichment
+                    null                                              // issueDetails — NSE-only
             );
             rows.add(new RowWithDetailUrl(dto, company.detailUrl()));
         }
@@ -443,7 +444,7 @@ public class ChittorgarhSource implements IpoSource {
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), enrichment.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
                 dto.tickerSymbol(), enrichment.strengths(), enrichment.risks(), enrichment.financials(),
-                enrichment.kpis(), enrichment.issueObjects(), enrichment.leadManagers());
+                enrichment.kpis(), enrichment.issueObjects(), enrichment.leadManagers(), dto.issueDetails());
     }
 
     /**

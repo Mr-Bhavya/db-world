@@ -3,6 +3,7 @@ package com.db.dbworld.app.ipo.source;
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoIssueDetailsDto;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -106,6 +107,8 @@ public class NseSource implements IpoSource {
 
     private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
     private static final Pattern INTEGER = Pattern.compile("\\d+");
+    /** First href in an {@code <a href=...>} value (NSE occasionally wraps a document link in an anchor). */
+    private static final Pattern HREF = Pattern.compile("href=[\"']?([^\"'> ]+)", Pattern.CASE_INSENSITIVE);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -266,7 +269,8 @@ public class NseSource implements IpoSource {
                 null, null,                   // strengths, risks
                 null,                         // financials
                 null, null,                   // kpis, issueObjects — Chittorgarh-only
-                null                          // leadManagers — Chittorgarh-only
+                null,                         // leadManagers — Chittorgarh-only
+                null                          // issueDetails — filled by detail enrichment (open issues)
         );
     }
 
@@ -305,6 +309,11 @@ public class NseSource implements IpoSource {
             Integer lotSize = null;
             String registrar = null;
             BigDecimal[] band = null;
+            String issueType = null;
+            String minOrderQuantity = null;
+            String sponsorBank = null;
+            String rhpUrl = null;
+            String drhpUrl = null;
             for (JsonNode item : root.path(F_ISSUE_INFO).path(F_DATA_LIST)) {
                 String title = text(item, F_TITLE);
                 String value = text(item, F_VALUE);
@@ -320,7 +329,23 @@ public class NseSource implements IpoSource {
                     lotSize = firstInteger(value);
                 } else if (t.contains("name of the registrar")) {
                     registrar = value.trim();
+                } else if (t.equals("issue type")) {
+                    issueType = cleanText(value);
+                } else if (t.contains("minimum order quantity")) {
+                    minOrderQuantity = cleanText(value);
+                } else if (t.contains("sponsor bank")) {
+                    sponsorBank = cleanText(value);
+                } else if (t.contains("draft") && t.contains("prospectus")) {
+                    // check DRHP before RHP — "red herring prospectus" is a substring of the draft title
+                    drhpUrl = extractUrl(value);
+                } else if (t.contains("red herring prospectus")) {
+                    rhpUrl = extractUrl(value);
                 }
+            }
+            IpoIssueDetailsDto issueDetails =
+                    new IpoIssueDetailsDto(issueType, minOrderQuantity, sponsorBank, rhpUrl, drhpUrl);
+            if (issueDetails.isEmpty()) {
+                issueDetails = null;
             }
 
             Map<String, BigDecimal> mergedCategories = categories.isEmpty() ? dto.subscriptionCategories() : categories;
@@ -328,7 +353,8 @@ public class NseSource implements IpoSource {
             BigDecimal mergedMin = dto.priceMin() != null ? dto.priceMin() : (band != null ? band[0] : null);
             BigDecimal mergedMax = dto.priceMax() != null ? dto.priceMax() : (band != null ? band[1] : null);
 
-            return withEnrichment(dto, mergedCategories, mergedSubTotal, faceValue, lotSize, registrar, mergedMin, mergedMax);
+            return withEnrichment(dto, mergedCategories, mergedSubTotal, faceValue, lotSize, registrar,
+                    mergedMin, mergedMax, issueDetails);
         } catch (Exception e) {
             log.warn("NSE: detail fetch/parse failed for symbol={} series={}: {}", symbol, series, e.toString());
             return dto;
@@ -337,7 +363,7 @@ public class NseSource implements IpoSource {
 
     private static IpoDto withEnrichment(IpoDto dto, Map<String, BigDecimal> categories, BigDecimal subTotal,
                                          BigDecimal faceValue, Integer lotSize, String registrar,
-                                         BigDecimal priceMin, BigDecimal priceMax) {
+                                         BigDecimal priceMin, BigDecimal priceMax, IpoIssueDetailsDto issueDetails) {
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 priceMin, priceMax, lotSize, dto.issueSize(),
@@ -346,7 +372,7 @@ public class NseSource implements IpoSource {
                 dto.allotmentStatus(), registrar, dto.registrarUrl(), dto.logoUrl(), dto.about(),
                 dto.refundDate(), dto.dematDate(), faceValue, dto.freshIssue(), dto.offerForSale(),
                 dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers());
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), issueDetails);
     }
 
     private static void putIfPresent(Map<String, BigDecimal> map, String category, BigDecimal value) {
@@ -383,6 +409,34 @@ public class NseSource implements IpoSource {
             return new BigDecimal[] {null, null};
         }
         return new BigDecimal[] {min, max};
+    }
+
+    /** Trims, strips one layer of wrapping double-quotes (NSE quotes some values), and collapses
+     * internal whitespace runs; a blank result becomes {@code null}. */
+    private static String cleanText(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String v = raw.trim();
+        if (v.length() >= 2 && v.startsWith("\"") && v.endsWith("\"")) {
+            v = v.substring(1, v.length() - 1).trim();
+        }
+        v = v.replaceAll("\\s+", " ").trim();
+        return v.isEmpty() ? null : v;
+    }
+
+    /** A document link value: the value itself when it's already a bare {@code http(s)} URL, else the
+     * first {@code href} if it's wrapped in an anchor, else {@code null}. */
+    private static String extractUrl(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String v = raw.trim();
+        if (v.regionMatches(true, 0, "http", 0, 4)) {
+            return v;
+        }
+        Matcher m = HREF.matcher(v);
+        return m.find() ? m.group(1).trim() : null;
     }
 
     /** First decimal number in {@code raw} (e.g. "10" from "Rs.10 per Equity Share"), or {@code null}. */

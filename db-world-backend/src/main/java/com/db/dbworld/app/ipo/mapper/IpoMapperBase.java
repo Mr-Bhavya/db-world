@@ -45,6 +45,7 @@ public abstract class IpoMapperBase {
     @Mapping(target = "leadManagers", source = "leadManagers", qualifiedByName = "splitLines")
     @Mapping(target = "kpis", source = "kpisJson", qualifiedByName = "kpisFromJson")
     @Mapping(target = "issueObjects", source = "issueObjectsJson", qualifiedByName = "issueObjectsFromJson")
+    @Mapping(target = "issueDetails", source = "issueDetailsJson", qualifiedByName = "issueDetailsFromJson")
     public abstract IpoDetailDto toDetail(IpoListingEntity e);
 
     public abstract IpoFinancialDto toFinancial(IpoFinancialEntity e);
@@ -80,6 +81,7 @@ public abstract class IpoMapperBase {
     @Mapping(target = "logoDomain", ignore = true)
     @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
     @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
+    @Mapping(target = "issueDetailsJson", source = "issueDetails", qualifiedByName = "issueDetailsToJson")
     public abstract IpoListingEntity toNewEntity(IpoDto dto);
 
     /**
@@ -105,6 +107,7 @@ public abstract class IpoMapperBase {
     @Mapping(target = "logoDomain", ignore = true)
     @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
     @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
+    @Mapping(target = "issueDetailsJson", source = "issueDetails", qualifiedByName = "issueDetailsToJson")
     public abstract void applyUpdatable(IpoDto dto, @MappingTarget IpoListingEntity entity);
 
     /** Joins a saved application with a light summary of the IPO it's for, for the "My IPOs" list. */
@@ -165,5 +168,15 @@ public abstract class IpoMapperBase {
     @Named("issueObjectsFromJson")
     protected static List<IpoIssueObjectDto> issueObjectsFromJson(String json) {
         return IpoDetailJson.issueObjectsFromJson(json);
+    }
+
+    @Named("issueDetailsToJson")
+    protected static String issueDetailsToJson(IpoIssueDetailsDto issueDetails) {
+        return IpoDetailJson.issueDetailsToJson(issueDetails);
+    }
+
+    @Named("issueDetailsFromJson")
+    protected static IpoIssueDetailsDto issueDetailsFromJson(String json) {
+        return IpoDetailJson.issueDetailsFromJson(json);
     }
 }

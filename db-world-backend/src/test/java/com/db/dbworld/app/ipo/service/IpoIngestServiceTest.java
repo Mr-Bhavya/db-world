@@ -91,7 +91,7 @@ class IpoIngestServiceTest {
                 listingExchange, listingPrice, listingGainPct,
                 gmp, gmpPct, subscriptionCategories(), subTotal,
                 allotmentStatus, "Link Intime", "https://registrar", null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** Returns a copy of {@code dto} with {@code financials} swapped in — mirrors {@code IpoNormalizer.withMatchKey}. */
@@ -103,7 +103,7 @@ class IpoIngestServiceTest {
                 dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), financials, null, null, null);
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), financials, null, null, null, null);
     }
 
     /** A minimal dto with just {@code ipoType} varied, for the type-canonicalization tests. */
@@ -114,7 +114,7 @@ class IpoIngestServiceTest {
                 null, null, null,
                 new BigDecimal("20.00"), new BigDecimal("18.00"), subscriptionCategories(), new BigDecimal("1.50"),
                 "awaited", "Link Intime", "https://registrar", null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -127,7 +127,7 @@ class IpoIngestServiceTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
 
         service.ingest(List.of(noStatus));
 

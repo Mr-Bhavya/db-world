@@ -82,7 +82,12 @@ class NseSourceTest {
                   {"title": "Face Value", "value": "Rs.10 per Equity Share"},
                   {"title": "Bid Lot", "value": "Minimum 110 Equity shares and in multiples thereof"},
                   {"title": "Name of the Registrar", "value": "Kfin Technologies Limited"},
-                  {"title": "Address of the Registrar", "value": "Selenium, Tower B, Plot No. 31 and 32, Hyderabad"}
+                  {"title": "Address of the Registrar", "value": "Selenium, Tower B, Plot No. 31 and 32, Hyderabad"},
+                  {"title": "Issue Type", "value": "100% Book Building"},
+                  {"title": "Minimum Order Quantity", "value": "Minimum 110 Equity Shares"},
+                  {"title": "Sponsor Bank", "value": "Axis Bank Limited  "},
+                  {"title": "Red Herring Prospectus", "value": "https://nsearchives.nseindia.com/content/ipo/RHP_XTRANET.zip"},
+                  {"title": "Draft Red Herring Prospectus", "value": "https://nsearchives.nseindia.com/content/ipo/DRHP_XTRANET.zip"}
                 ],
                 "symbol": "XTRANET"
               }
@@ -185,6 +190,16 @@ class NseSourceTest {
         assertThat(xtranet.registrar()).isEqualTo("Kfin Technologies Limited"); // NOT the Address row
         assertThat(xtranet.priceMin()).isEqualByComparingTo("120");
         assertThat(xtranet.priceMax()).isEqualByComparingTo("127");
+
+        // Issue details from issueInfo.dataList — type / min qty / sponsor bank (trailing spaces
+        // trimmed) + the RHP & DRHP document URLs. DRHP must be matched before RHP, since the RHP
+        // title ("red herring prospectus") is a substring of the DRHP one ("draft red herring...").
+        assertThat(xtranet.issueDetails()).isNotNull();
+        assertThat(xtranet.issueDetails().issueType()).isEqualTo("100% Book Building");
+        assertThat(xtranet.issueDetails().minOrderQuantity()).isEqualTo("Minimum 110 Equity Shares");
+        assertThat(xtranet.issueDetails().sponsorBank()).isEqualTo("Axis Bank Limited");
+        assertThat(xtranet.issueDetails().rhpUrl()).isEqualTo("https://nsearchives.nseindia.com/content/ipo/RHP_XTRANET.zip");
+        assertThat(xtranet.issueDetails().drhpUrl()).isEqualTo("https://nsearchives.nseindia.com/content/ipo/DRHP_XTRANET.zip");
     }
 
     @Test

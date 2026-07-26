@@ -123,6 +123,10 @@ public class IpoListingEntity {
     @Column(name = "lead_managers", columnDefinition = "TEXT")
     private String leadManagers;
 
+    /** JSON object of the NSE "Issue details" (type/min-qty/sponsor-bank/RHP+DRHP links); parsed to a DTO on the detail. */
+    @Column(name = "issue_details_json", columnDefinition = "TEXT")
+    private String issueDetailsJson;
+
     // ── Company "About" profile facts ────────────────────────────────────────────────────────
     // Seeder-populated for now (a live adapter can fill these via a separate path later). Not
     // part of IpoDto/ingest — deliberately excluded from applyUpdatable/toNewEntity so ingest

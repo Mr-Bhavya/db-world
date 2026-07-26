@@ -201,7 +201,8 @@ public class IpoGuruSource implements IpoSource {
                 null, null, null,                                          // tickerSymbol, strengths, risks — not documented
                 null,                                                      // financials — not documented for this source
                 null, null,                                                // kpis, issueObjects — Chittorgarh-only
-                null                                                       // leadManagers — Chittorgarh-only
+                null,                                                      // leadManagers — Chittorgarh-only
+                null                                                       // issueDetails — NSE-only
         );
     }
 

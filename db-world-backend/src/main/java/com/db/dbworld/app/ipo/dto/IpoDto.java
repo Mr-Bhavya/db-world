@@ -78,5 +78,11 @@ public record IpoDto(
          * section, {@code null} for every other source. Split into a {@code List<String>} on the
          * detail DTO.
          */
-        String leadManagers
+        String leadManagers,
+        /**
+         * Miscellaneous "Issue details" (issue type / min order qty / sponsor bank / RHP+DRHP doc
+         * links) from the NSE {@code ipo-detail} {@code issueInfo.dataList} — {@code null} for every
+         * source except {@code nse}. Persisted as a single JSON object ({@code issue_details_json}).
+         */
+        IpoIssueDetailsDto issueDetails
 ) {}

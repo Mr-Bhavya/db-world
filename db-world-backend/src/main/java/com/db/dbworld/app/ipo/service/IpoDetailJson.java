@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.ipo.dto.IpoIssueDetailsDto;
 import com.db.dbworld.app.ipo.dto.IpoIssueObjectDto;
 import com.db.dbworld.app.ipo.dto.IpoKpiDto;
 import lombok.extern.log4j.Log4j2;
@@ -39,6 +40,33 @@ public final class IpoDetailJson {
 
     public static List<IpoIssueObjectDto> issueObjectsFromJson(String json) {
         return fromJson(json, OBJECT_LIST);
+    }
+
+    /** Single-object variant (not a list): a null/all-blank object serializes to {@code null} (so
+     * ingest's null-property IGNORE keeps a previously-good value instead of wiping it). */
+    public static String issueDetailsToJson(IpoIssueDetailsDto issueDetails) {
+        if (issueDetails == null || issueDetails.isEmpty()) {
+            return null;
+        }
+        try {
+            return MAPPER.writeValueAsString(issueDetails);
+        } catch (Exception e) {
+            log.warn("Failed to serialize IPO issue-details — storing null: {}", e.toString());
+            return null;
+        }
+    }
+
+    /** A null/blank/malformed string deserializes to {@code null} (logged at WARN). */
+    public static IpoIssueDetailsDto issueDetailsFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return MAPPER.readValue(json, IpoIssueDetailsDto.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse IPO issue-details JSON — treating as null: {}", e.toString());
+            return null;
+        }
     }
 
     private static String toJson(List<?> list) {
