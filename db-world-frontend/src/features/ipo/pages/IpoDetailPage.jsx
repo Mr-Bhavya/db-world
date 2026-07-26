@@ -165,7 +165,7 @@ export default function IpoDetailPage() {
           >
             <ArrowBackIcon sx={{ fontSize: 20 }} />
           </IconButton>
-          <CompanyLogo logoUrl={ipo.logoUrl} companyName={ipo.companyName} size={44} />
+          <CompanyLogo logoUrl={ipo.logoUrl} logoDomain={ipo.logoDomain} companyName={ipo.companyName} size={44} />
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography sx={{ fontSize: { xs: 18, sm: 21 }, fontWeight: 800, wordBreak: 'break-word' }}>
