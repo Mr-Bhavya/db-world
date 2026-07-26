@@ -1,5 +1,7 @@
 package com.db.dbworld.app.ipo.source;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
@@ -56,14 +58,17 @@ public class NseSource implements IpoSource {
 
     private static final String KEY = "nse";
 
-    // ── Endpoints ─────────────────────────────────────────────────────────────────────────────
-    private static final String HOME_URL = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo";
+    // ── Endpoints — a configurable base URL (admin: ipo.nse.base-url) + in-code path suffixes, so
+    //    NSE can be repointed without a redeploy. A blank/unset setting falls back to
+    //    DEFAULT_BASE_URL, which reproduces the original absolute URLs exactly. ──────────────────
+    private static final String DEFAULT_BASE_URL = "https://www.nseindia.com";
+    private static final String HOME_PATH = "/market-data/all-upcoming-issues-ipo";
     /** Currently-OPEN issues (with live subscription {@code noOfTime}). Confirmed against a real response. */
-    private static final String CURRENT_URL = "https://www.nseindia.com/api/ipo-current-issue";
+    private static final String CURRENT_PATH = "/api/ipo-current-issue";
     /** Not-yet-open issues. Confirmed working against a live NSE session — returns rows. */
-    private static final String UPCOMING_URL = "https://www.nseindia.com/api/all-upcoming-issues?category=ipo";
+    private static final String UPCOMING_PATH = "/api/all-upcoming-issues?category=ipo";
     /** Per-open-issue detail (category subscription + face value / lot / registrar / price range). */
-    private static final String DETAIL_URL_TEMPLATE = "https://www.nseindia.com/api/ipo-detail?symbol=%s&series=%s";
+    private static final String DETAIL_PATH_TEMPLATE = "/api/ipo-detail?symbol=%s&series=%s";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -104,10 +109,21 @@ public class NseSource implements IpoSource {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private final SettingsService settingsService;
     private final IpoHttpClient httpClient;
 
-    public NseSource(IpoHttpClient httpClient) {
+    public NseSource(SettingsService settingsService, IpoHttpClient httpClient) {
+        this.settingsService = settingsService;
         this.httpClient = httpClient;
+    }
+
+    /** Configured NSE base URL (host+prefix), falling back to {@link #DEFAULT_BASE_URL} when the
+     * {@link ConfigKeys#IPO_NSE_BASE_URL} setting is blank/unset. Any trailing "/" is trimmed so it
+     * always joins cleanly with the leading-slash path constants. */
+    private String baseUrl() {
+        String configured = settingsService.getString(ConfigKeys.IPO_NSE_BASE_URL);
+        String base = (configured == null || configured.isBlank()) ? DEFAULT_BASE_URL : configured.trim();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     @Override
@@ -118,14 +134,15 @@ public class NseSource implements IpoSource {
     @Override
     public List<IpoDto> fetchAll() {
         try {
-            IpoHttpResponse home = httpClient.get(HOME_URL, browserHeaders(null));
+            String homeUrl = baseUrl() + HOME_PATH;
+            IpoHttpResponse home = httpClient.get(homeUrl, browserHeaders(null));
             String cookie = buildCookieHeader(home.header(HttpHeaders.SET_COOKIE));
             if (cookie == null || cookie.isBlank()) {
                 log.warn("NSE: bootstrap request returned no session cookie — aborting");
                 return List.of();
             }
 
-            Map<String, String> dataHeaders = browserHeaders(HOME_URL);
+            Map<String, String> dataHeaders = browserHeaders(homeUrl);
             dataHeaders.put(HttpHeaders.COOKIE, cookie);
 
             List<IpoDto> result = new ArrayList<>();
@@ -156,10 +173,11 @@ public class NseSource implements IpoSource {
     /** Currently-open issues (bare JSON array), each paired with its raw symbol/series for detail enrichment. */
     private List<CurrentIssue> fetchCurrentIssues(Map<String, String> headers) {
         try {
-            IpoHttpResponse data = httpClient.get(CURRENT_URL, headers);
+            String currentUrl = baseUrl() + CURRENT_PATH;
+            IpoHttpResponse data = httpClient.get(currentUrl, headers);
             JsonNode array = resolveArray(MAPPER.readTree(data.body()));
             if (array == null) {
-                log.warn("NSE: unexpected response shape at {}", CURRENT_URL);
+                log.warn("NSE: unexpected response shape at {}", currentUrl);
                 return List.of();
             }
             List<CurrentIssue> result = new ArrayList<>();
@@ -176,10 +194,11 @@ public class NseSource implements IpoSource {
     /** Upcoming (not-yet-open) issues. Any failure yields {@code []} — never propagated. */
     private List<IpoDto> fetchUpcoming(Map<String, String> headers) {
         try {
-            IpoHttpResponse data = httpClient.get(UPCOMING_URL, headers);
+            String upcomingUrl = baseUrl() + UPCOMING_PATH;
+            IpoHttpResponse data = httpClient.get(upcomingUrl, headers);
             JsonNode array = resolveArray(MAPPER.readTree(data.body()));
             if (array == null) {
-                log.warn("NSE: unexpected response shape at {}", UPCOMING_URL);
+                log.warn("NSE: unexpected response shape at {}", upcomingUrl);
                 return List.of();
             }
             List<IpoDto> result = new ArrayList<>();
@@ -259,7 +278,7 @@ public class NseSource implements IpoSource {
      */
     private IpoDto enrichFromDetail(IpoDto dto, String symbol, String series, Map<String, String> headers) {
         try {
-            String url = DETAIL_URL_TEMPLATE.formatted(encode(symbol), encode(series));
+            String url = (baseUrl() + DETAIL_PATH_TEMPLATE).formatted(encode(symbol), encode(series));
             IpoHttpResponse response = httpClient.get(url, headers);
             JsonNode root = MAPPER.readTree(response.body());
 

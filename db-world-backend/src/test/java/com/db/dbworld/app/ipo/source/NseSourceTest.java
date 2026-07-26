@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.source;
 
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
@@ -26,6 +27,11 @@ class NseSourceTest {
 
     @Mock
     IpoHttpClient httpClient;
+
+    // Left unstubbed on purpose: an unstubbed getString(...) returns null, which NseSource.baseUrl()
+    // treats as "use the built-in default" — so the endpoint URLs below stay exactly as before.
+    @Mock
+    SettingsService settingsService;
 
     private static final String HOME_URL = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo";
     private static final String CURRENT_URL = "https://www.nseindia.com/api/ipo-current-issue";
@@ -109,7 +115,7 @@ class NseSourceTest {
             """;
 
     private NseSource newSource() {
-        return new NseSource(httpClient);
+        return new NseSource(settingsService, httpClient);
     }
 
     private void stubHomeWithCookie() {

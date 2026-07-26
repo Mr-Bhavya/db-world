@@ -44,5 +44,11 @@ public final class ConfigKeys {
     // admin-editable via the Scheduler page like every other cron job.
     public static final String IPO_SOURCES_ENABLED                  = "ipo.sources.enabled";
     public static final String IPO_IPOGURU_BASE_URL                 = "ipo.ipoguru.base-url";
+    // Per-source API base URLs — the host+prefix each adapter prepends to its (in-code) path
+    // templates, so a source can be repointed from the admin console without a redeploy if an
+    // upstream host/path changes. Blank/unset falls back to the adapter's built-in default.
+    public static final String IPO_NSE_BASE_URL                     = "ipo.nse.base-url";
+    public static final String IPO_CHITTORGARH_BASE_URL             = "ipo.chittorgarh.base-url";
+    public static final String IPO_INVESTORGAIN_BASE_URL            = "ipo.investorgain.base-url";
     public static final String IPO_GMP_NOTIFY_THRESHOLD_PCT         = "ipo.gmp.notify-threshold-pct";
 }

@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.source;
 
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
@@ -33,6 +34,11 @@ class ChittorgarhSourceTest {
     @Mock
     IpoHttpClient httpClient;
 
+    // Left unstubbed on purpose: an unstubbed getString(...) returns null, which baseUrl() treats as
+    // "use the built-in default" — so the list URLs below stay exactly as before.
+    @Mock
+    SettingsService settingsService;
+
     // Fixed "now" so the FY-based list URL and the recent-listing enrichment gate are deterministic:
     // 24-Jul-2026 (IST) → financial year 2026-27, same reference date used elsewhere in the suite.
     private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
@@ -44,7 +50,7 @@ class ChittorgarhSourceTest {
             "https://webnodejs.chittorgarh.com/cloud/report/data-read/82/2/7/2026/2026-27/0/all";
 
     private ChittorgarhSource newSource() {
-        return new ChittorgarhSource(httpClient, CLOCK);
+        return new ChittorgarhSource(settingsService, httpClient, CLOCK);
     }
 
     // Synthesized list-JSON fixture matching the REAL webnodejs response shape (captured from the

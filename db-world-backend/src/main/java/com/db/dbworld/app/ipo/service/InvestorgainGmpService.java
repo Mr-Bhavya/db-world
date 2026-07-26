@@ -1,5 +1,7 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -66,9 +68,12 @@ public class InvestorgainGmpService {
     // SME + REIT/InvIT, upcoming through recently-listed), each row carrying investorgain's own
     // ~id — so GMP can be resolved for UPCOMING issues too, not just the live-subscription
     // dashboard. Same FY-keyed shape as Chittorgarh's list: report-id(394)/page/7/fyStart/fy/0/all.
-    private static final String LIST_URL_TEMPLATE =
-            "https://webnodejs.investorgain.com/cloud/v2/report/data-read/394/%d/7/%d/%s/0/all";
-    private static final String GMP_URL_TEMPLATE = "https://webnodejs.investorgain.com/cloud/v2/ipo/ipo-gmp-read/%s/true";
+    // A configurable base URL (admin: ipo.investorgain.base-url) + these in-code path templates, so
+    // the webnodejs host can be repointed without a redeploy. Blank/unset config falls back to
+    // DEFAULT_BASE_URL, reproducing the original absolute URLs exactly.
+    private static final String DEFAULT_BASE_URL = "https://webnodejs.investorgain.com";
+    private static final String LIST_PATH_TEMPLATE = "/cloud/v2/report/data-read/394/%d/7/%d/%s/0/all";
+    private static final String GMP_PATH_TEMPLATE = "/cloud/v2/ipo/ipo-gmp-read/%s/true";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -101,25 +106,36 @@ public class InvestorgainGmpService {
     private final IpoGmpHistoryRepository gmpHistoryRepo;
     private final IpoNormalizer normalizer;
     private final IpoSourcePollService pollService;
+    private final SettingsService settingsService;
     private final Clock clock;
 
     @Autowired
     public InvestorgainGmpService(IpoHttpClient httpClient, IpoListingRepository listingRepo,
                                   IpoGmpHistoryRepository gmpHistoryRepo, IpoNormalizer normalizer,
-                                  IpoSourcePollService pollService) {
-        this(httpClient, listingRepo, gmpHistoryRepo, normalizer, pollService, Clock.systemUTC());
+                                  IpoSourcePollService pollService, SettingsService settingsService) {
+        this(httpClient, listingRepo, gmpHistoryRepo, normalizer, pollService, settingsService, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for a deterministic health timestamp. */
     InvestorgainGmpService(IpoHttpClient httpClient, IpoListingRepository listingRepo,
                            IpoGmpHistoryRepository gmpHistoryRepo, IpoNormalizer normalizer,
-                           IpoSourcePollService pollService, Clock clock) {
+                           IpoSourcePollService pollService, SettingsService settingsService, Clock clock) {
         this.httpClient = httpClient;
         this.listingRepo = listingRepo;
         this.gmpHistoryRepo = gmpHistoryRepo;
         this.normalizer = normalizer;
         this.pollService = pollService;
+        this.settingsService = settingsService;
         this.clock = clock;
+    }
+
+    /** Configured Investorgain (webnodejs) base URL, falling back to {@link #DEFAULT_BASE_URL} when
+     * the {@link ConfigKeys#IPO_INVESTORGAIN_BASE_URL} setting is blank/unset. Trailing "/" trimmed
+     * so it joins cleanly with the leading-slash path templates. */
+    private String baseUrl() {
+        String configured = settingsService.getString(ConfigKeys.IPO_INVESTORGAIN_BASE_URL);
+        String base = (configured == null || configured.isBlank()) ? DEFAULT_BASE_URL : configured.trim();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     /**
@@ -199,7 +215,7 @@ public class InvestorgainGmpService {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return LIST_URL_TEMPLATE.formatted(page, fyStart, fyLabel);
+        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, fyStart, fyLabel);
     }
 
     /** Extracted for unit testing without HTTP — parses a report-list body into id/name/open-date rows. */
@@ -226,7 +242,7 @@ public class InvestorgainGmpService {
 
     private List<GmpPoint> fetchGmp(String investorgainId) {
         try {
-            IpoHttpResponse response = httpClient.get(GMP_URL_TEMPLATE.formatted(investorgainId), jsonHeaders());
+            IpoHttpResponse response = httpClient.get((baseUrl() + GMP_PATH_TEMPLATE).formatted(investorgainId), jsonHeaders());
             return parseGmpPoints(response.body());
         } catch (Exception e) {
             log.warn("investorgain: GMP fetch failed for id {}: {}", investorgainId, e.toString());

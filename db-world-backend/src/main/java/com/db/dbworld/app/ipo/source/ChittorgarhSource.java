@@ -1,5 +1,7 @@
 package com.db.dbworld.app.ipo.source;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.IpoDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
 import com.db.dbworld.app.ipo.dto.IpoIssueObjectDto;
@@ -72,9 +74,12 @@ public class ChittorgarhSource implements IpoSource {
     private static final String KEY = "chittorgarh";
 
     // ── List JSON endpoint (confirmed from a live DevTools capture) ──────────────────────────────
+    // A configurable base URL (admin: ipo.chittorgarh.base-url) + this in-code path template, so the
+    // webnodejs host can be repointed without a redeploy. Blank/unset config falls back to
+    // DEFAULT_BASE_URL, reproducing the original absolute URL exactly.
     // Path segments: report-id(82) / page / <const 7> / fyStartYear / fyLabel / <const 0> / tab(all)
-    private static final String LIST_URL_TEMPLATE =
-            "https://webnodejs.chittorgarh.com/cloud/report/data-read/82/%d/7/%d/%s/0/all";
+    private static final String DEFAULT_BASE_URL = "https://webnodejs.chittorgarh.com";
+    private static final String LIST_PATH_TEMPLATE = "/cloud/report/data-read/82/%d/7/%d/%s/0/all";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -150,18 +155,29 @@ public class ChittorgarhSource implements IpoSource {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private final SettingsService settingsService;
     private final IpoHttpClient httpClient;
     private final Clock clock;
 
     @Autowired
-    public ChittorgarhSource(IpoHttpClient httpClient) {
-        this(httpClient, Clock.systemUTC());
+    public ChittorgarhSource(SettingsService settingsService, IpoHttpClient httpClient) {
+        this(settingsService, httpClient, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic year/gate tests. */
-    ChittorgarhSource(IpoHttpClient httpClient, Clock clock) {
+    ChittorgarhSource(SettingsService settingsService, IpoHttpClient httpClient, Clock clock) {
+        this.settingsService = settingsService;
         this.httpClient = httpClient;
         this.clock = clock;
+    }
+
+    /** Configured Chittorgarh (webnodejs) base URL, falling back to {@link #DEFAULT_BASE_URL} when
+     * the {@link ConfigKeys#IPO_CHITTORGARH_BASE_URL} setting is blank/unset. Trailing "/" trimmed so
+     * it joins cleanly with the leading-slash path template. */
+    private String baseUrl() {
+        String configured = settingsService.getString(ConfigKeys.IPO_CHITTORGARH_BASE_URL);
+        String base = (configured == null || configured.isBlank()) ? DEFAULT_BASE_URL : configured.trim();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     @Override
@@ -180,7 +196,7 @@ public class ChittorgarhSource implements IpoSource {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return LIST_URL_TEMPLATE.formatted(page, fyStart, fyLabel);
+        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, fyStart, fyLabel);
     }
 
     @Override

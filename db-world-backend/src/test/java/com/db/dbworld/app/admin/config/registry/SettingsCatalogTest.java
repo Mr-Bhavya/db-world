@@ -43,7 +43,8 @@ class SettingsCatalogTest {
 
     @Test
     void catalogCoversExpectedKeyCount() {
-        // 10 recommend + 9 tracking + 1 weather + 3 cdn + 2 wallet + 3 ipo = 28
-        assertThat(SettingsCatalog.ALL).hasSize(28);
+        // 10 recommend + 9 tracking + 1 weather + 3 cdn + 2 wallet + 6 ipo = 31
+        // (ipo: sources-enabled + 4 per-source base URLs [ipoguru, nse, chittorgarh, investorgain] + gmp-threshold)
+        assertThat(SettingsCatalog.ALL).hasSize(31);
     }
 }

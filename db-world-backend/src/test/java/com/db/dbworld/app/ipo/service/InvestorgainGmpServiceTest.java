@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -35,6 +36,9 @@ class InvestorgainGmpServiceTest {
     @Mock IpoListingRepository listingRepo;
     @Mock IpoGmpHistoryRepository gmpHistoryRepo;
     @Mock IpoSourcePollService pollService;
+    // Unstubbed on purpose: getString(...) returns null → baseUrl() uses the built-in default, so
+    // the report/GMP URLs below stay exactly as before.
+    @Mock SettingsService settingsService;
 
     // FY report list URL for the fixed test clock (26-Jul-2026 IST → FY 2026-27).
     private static final String LIST_URL = "https://webnodejs.investorgain.com/cloud/v2/report/data-read/394/1/7/2026/2026-27/0/all";
@@ -56,7 +60,7 @@ class InvestorgainGmpServiceTest {
 
     private InvestorgainGmpService newService() {
         return new InvestorgainGmpService(httpClient, listingRepo, gmpHistoryRepo, new IpoNormalizer(),
-                pollService, Clock.fixed(Instant.parse("2026-07-26T13:00:00Z"), ZoneOffset.UTC));
+                pollService, settingsService, Clock.fixed(Instant.parse("2026-07-26T13:00:00Z"), ZoneOffset.UTC));
     }
 
     private static IpoHttpResponse ok(String body) {

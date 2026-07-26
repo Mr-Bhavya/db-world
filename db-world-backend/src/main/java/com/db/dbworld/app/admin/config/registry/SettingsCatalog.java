@@ -99,8 +99,20 @@ public final class SettingsCatalog {
         str(IPO_IPOGURU_BASE_URL, C_IPO, "IPO Guru base URL",
             "Base URL for the IPO Guru API.",
             "https://www.ipoguru.in/api/v1", false, 1),
+        str(IPO_NSE_BASE_URL, C_IPO, "NSE base URL",
+            "Base URL for the NSE IPO endpoints (e.g. …/api/ipo-current-issue, …/api/ipo-detail). "
+                + "Blank restores the built-in default.",
+            "https://www.nseindia.com", false, 2),
+        str(IPO_CHITTORGARH_BASE_URL, C_IPO, "Chittorgarh base URL",
+            "Base URL for the Chittorgarh list JSON API (the webnodejs host). "
+                + "Blank restores the built-in default.",
+            "https://webnodejs.chittorgarh.com", false, 3),
+        str(IPO_INVESTORGAIN_BASE_URL, C_IPO, "Investorgain base URL",
+            "Base URL for the Investorgain GMP report + gmp-read JSON API (the webnodejs host). "
+                + "Blank restores the built-in default.",
+            "https://webnodejs.investorgain.com", false, 4),
         lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
-            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 2)
+            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 5)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =
