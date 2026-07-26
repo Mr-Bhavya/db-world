@@ -24,11 +24,17 @@ import static com.db.dbworld.app.ipo.source.support.IpoJsonUtil.text;
  * Authoritative source for dates/status/listing: the NSE (National Stock Exchange) public site.
  *
  * <p>NSE blocks non-browser clients, so every call needs a two-step "bootstrap" dance: first a
- * GET against a normal NSE page to receive session cookies, then the actual data call replaying
+ * GET against a normal NSE page to receive session cookies, then the actual data call(s) replaying
  * those cookies with a realistic User-Agent/Accept/Referer. This is fragile by nature (NSE can
- * change its anti-bot behaviour at any time) — ANY failure at any step is treated as non-fatal:
- * log a warning and return {@code []}. We do not yet have a captured live response, so the
- * endpoint URL and field names below are documented/provisional — see the TODO(verify) markers.
+ * change its anti-bot behaviour at any time) — ANY failure at the bootstrap step is treated as
+ * non-fatal for the whole source: log a warning and return {@code []}.
+ *
+ * <p>We cannot fetch a live NSE session from this environment (server-side requests are blocked),
+ * so the endpoint URLs and field names below are best-effort, mapped to NSE's community-documented
+ * IPO JSON shape — see the {@code TODO(verify)} markers. Two endpoints are targeted: the
+ * "all upcoming issues" listing and its "current issues" (i.e. currently open for subscription)
+ * equivalent; each is fetched and mapped independently, so a failure/shape-change on one endpoint
+ * doesn't lose the rows the other endpoint still reports.
  */
 @Log4j2
 @Component
@@ -36,21 +42,26 @@ public class NseSource implements IpoSource {
 
     private static final String KEY = "nse";
 
-    // ── Endpoint assumptions — TODO(verify): confirm against a real NSE session ─────────────
+    // ── Endpoint assumptions — TODO(verify): confirm both URLs against a real NSE session ───────
     private static final String HOME_URL = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo";
-    private static final String DATA_URL = "https://www.nseindia.com/api/all-upcoming-issues?category=ipo";
+    /** Upcoming (not-yet-open) IPOs. */
+    private static final String UPCOMING_URL = "https://www.nseindia.com/api/all-upcoming-issues?category=ipo";
+    /** TODO(verify): the "current issues" (open-for-subscription) equivalent — exact path/name unconfirmed. */
+    private static final String CURRENT_URL = "https://www.nseindia.com/api/all-current-issues?category=ipo";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private static final String ACCEPT = "application/json, text/plain, */*";
 
-    /** Every IPO in this feed lists on NSE by definition of the endpoint scraped. */
+    /** Every IPO in this feed lists on NSE by definition of the endpoints scraped. */
     private static final String LISTING_EXCHANGE = "NSE";
 
-    // ── Field-name assumptions — TODO(verify): confirm against a real response ──────────────
-    private static final String F_DATA = "data";              // in case the endpoint wraps the array
+    // ── Field-name assumptions — TODO(verify): confirm against a real response for BOTH endpoints ──
+    private static final String F_DATA = "data";              // in case an endpoint wraps the array
     private static final String F_COMPANY_NAME = "companyName";
     private static final String F_SYMBOL = "symbol";
+    /** TODO(verify): NSE's series marker (e.g. "EQ" for mainboard, "SME" for the SME platform) — passed raw; ingest canonicalizes recognized aliases. */
+    private static final String F_SERIES = "series";
     private static final String F_STATUS = "status";
     private static final String F_OPEN_DATE = "issueStartDate";
     private static final String F_CLOSE_DATE = "issueEndDate";
@@ -84,10 +95,30 @@ public class NseSource implements IpoSource {
             Map<String, String> dataHeaders = browserHeaders(HOME_URL);
             dataHeaders.put(HttpHeaders.COOKIE, cookie);
 
-            IpoHttpResponse data = httpClient.get(DATA_URL, dataHeaders);
+            List<IpoDto> result = new ArrayList<>();
+            result.addAll(fetchAndMap(UPCOMING_URL, dataHeaders));
+            result.addAll(fetchAndMap(CURRENT_URL, dataHeaders));
+            return result;
+        } catch (Exception e) {
+            // Anti-bot block, cookie/session failure, or a hard failure while bootstrapping — all
+            // non-fatal by design. Never propagate; the scheduler just sees an empty result.
+            log.warn("NSE fetch failed (likely anti-bot block or upstream change): {}", e.toString());
+            return List.of();
+        }
+    }
+
+    /**
+     * Fetches and maps a single data endpoint. Any failure here (anti-bot block on just this
+     * endpoint, shape change, malformed payload) is logged and yields {@code []} for THIS
+     * endpoint only — the sibling endpoint's rows (if it succeeded) are still returned by the
+     * caller.
+     */
+    private List<IpoDto> fetchAndMap(String url, Map<String, String> headers) {
+        try {
+            IpoHttpResponse data = httpClient.get(url, headers);
             JsonNode array = resolveArray(MAPPER.readTree(data.body()));
             if (array == null) {
-                log.warn("NSE: unexpected response shape");
+                log.warn("NSE: unexpected response shape at {}", url);
                 return List.of();
             }
 
@@ -97,9 +128,7 @@ public class NseSource implements IpoSource {
             }
             return result;
         } catch (Exception e) {
-            // Anti-bot block, cookie/session failure, non-2xx, or a malformed payload — all
-            // non-fatal by design. Never propagate; the scheduler just sees an empty result.
-            log.warn("NSE fetch failed (likely anti-bot block or upstream change): {}", e.toString());
+            log.warn("NSE: fetch failed for {}: {}", url, e.toString());
             return List.of();
         }
     }
@@ -142,7 +171,7 @@ public class NseSource implements IpoSource {
         return pair.isEmpty() ? null : pair;
     }
 
-    /** TODO(verify): confirm whether the endpoint returns a bare JSON array or {@code {data:[...]}}. */
+    /** TODO(verify): confirm whether either endpoint returns a bare JSON array or {@code {data:[...]}}. */
     private static JsonNode resolveArray(JsonNode root) {
         if (root.isArray()) {
             return root;
@@ -163,7 +192,7 @@ public class NseSource implements IpoSource {
                 KEY,                       // source
                 null,                      // matchKey — assigned later by the normaliser
                 companyName,               // companyName
-                null,                      // ipoType — not reliably present on this feed
+                text(n, F_SERIES),          // ipoType — raw NSE series marker; ingest canonicalizes
                 text(n, F_STATUS),          // status
                 date(n, F_OPEN_DATE),        // openDate
                 date(n, F_CLOSE_DATE),        // closeDate

@@ -27,7 +27,8 @@ class ChittorgarhSourceTest {
 
     private static final String LIST_URL = "https://www.chittorgarh.com/report/mainboard-ipo-list-in-india-bse-nse/83/";
 
-    // Synthesized fixture matching the documented mainboard-list table shape.
+    // Synthesized fixture matching the documented mainboard-list table shape, including the
+    // price band / lot size / issue size columns this adapter now also maps.
     private static final String FIXTURE_HTML = """
             <html><body>
             <table>
@@ -38,6 +39,9 @@ class ChittorgarhSourceTest {
                   <th>Close Date</th>
                   <th>Allotment Date</th>
                   <th>Listing Date</th>
+                  <th>Price Band</th>
+                  <th>Lot Size</th>
+                  <th>Issue Size</th>
                   <th>Listing Gain</th>
                 </tr>
               </thead>
@@ -48,6 +52,9 @@ class ChittorgarhSourceTest {
                   <td>23-Jul-2026</td>
                   <td>24-Jul-2026</td>
                   <td>28-Jul-2026</td>
+                  <td>115-120</td>
+                  <td>125</td>
+                  <td>500 Cr</td>
                   <td>15.50%</td>
                 </tr>
                 <tr>
@@ -55,6 +62,9 @@ class ChittorgarhSourceTest {
                   <td>05-Aug-2026</td>
                   <td>07-Aug-2026</td>
                   <td>08-Aug-2026</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
                   <td></td>
                   <td>&#8212;</td>
                 </tr>
@@ -84,6 +94,10 @@ class ChittorgarhSourceTest {
         assertThat(acme.closeDate()).isEqualTo(LocalDate.of(2026, 7, 23));
         assertThat(acme.allotmentDate()).isEqualTo(LocalDate.of(2026, 7, 24));
         assertThat(acme.listingDate()).isEqualTo(LocalDate.of(2026, 7, 28));
+        assertThat(acme.priceMin()).isEqualByComparingTo("115");
+        assertThat(acme.priceMax()).isEqualByComparingTo("120");
+        assertThat(acme.lotSize()).isEqualTo(125);
+        assertThat(acme.issueSize()).isEqualTo("500 Cr");
         assertThat(acme.listingGainPct()).isEqualByComparingTo("15.50");
     }
 
@@ -99,7 +113,44 @@ class ChittorgarhSourceTest {
         assertThat(beta.closeDate()).isEqualTo(LocalDate.of(2026, 8, 7));
         assertThat(beta.allotmentDate()).isEqualTo(LocalDate.of(2026, 8, 8));
         assertThat(beta.listingDate()).isNull();     // blank cell
+        assertThat(beta.priceMin()).isNull();        // blank cell
+        assertThat(beta.priceMax()).isNull();
+        assertThat(beta.lotSize()).isNull();
+        assertThat(beta.issueSize()).isNull();
         assertThat(beta.listingGainPct()).isNull();  // "—" placeholder, not yet listed
+    }
+
+    @Test
+    void parseTable_singlePriceBandValue_bothBoundsEqual() {
+        Document doc = Jsoup.parse("""
+                <html><body>
+                <table>
+                  <thead><tr><th>IPO Name</th><th>Price Band</th></tr></thead>
+                  <tbody><tr><td>Fixed Price Co</td><td>172</td></tr></tbody>
+                </table>
+                </body></html>
+                """, LIST_URL);
+
+        List<IpoDto> result = newSource().parseTable(doc);
+
+        assertThat(result.get(0).priceMin()).isEqualByComparingTo("172");
+        assertThat(result.get(0).priceMax()).isEqualByComparingTo("172");
+    }
+
+    @Test
+    void parseTable_lotSizeWithNonDigitSuffix_stripsToDigitsOnly() {
+        Document doc = Jsoup.parse("""
+                <html><body>
+                <table>
+                  <thead><tr><th>IPO Name</th><th>Lot Size</th></tr></thead>
+                  <tbody><tr><td>Shares Co</td><td>1,600 Shares</td></tr></tbody>
+                </table>
+                </body></html>
+                """, LIST_URL);
+
+        List<IpoDto> result = newSource().parseTable(doc);
+
+        assertThat(result.get(0).lotSize()).isEqualTo(1600);
     }
 
     @Test

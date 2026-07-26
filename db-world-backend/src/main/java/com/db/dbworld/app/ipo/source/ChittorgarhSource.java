@@ -23,15 +23,18 @@ import java.util.Map;
 /**
  * Fallback / gap-fill source: scrapes Chittorgarh's mainboard IPO list page with Jsoup.
  *
- * <p>Chittorgarh's strengths are company name, the open/close/allotment/listing dates and the
- * realised listing gain — that's all this adapter maps; other fields are left to IPO Guru/NSE.
+ * <p>We cannot fetch a live Chittorgarh page from this environment (server-side requests are
+ * blocked), so this adapter maps to the best-known public structure of the mainboard list table —
+ * company name, open/close/allotment/listing dates, price band, lot size, issue size and the
+ * realised listing gain — see the {@code TODO(verify)} markers on the page URL and header aliases.
  * We fetch the HTML through the shared {@link IpoHttpClient} (same retry policy as the other
  * sources) and hand the body to Jsoup purely for DOM parsing/selection, not networking.
  *
  * <p>The table-parsing logic is deliberately extracted into {@link #parseTable(Document)} so it
  * can be unit tested against a synthesized HTML fixture without any HTTP involved. Column
  * matching is done by header text (case-insensitive, tolerant of reordering) rather than fixed
- * indices, since Chittorgarh's markup carries no semantic classes/ids per cell.
+ * indices or generated CSS classes/ids — Chittorgarh's markup carries no stable semantic
+ * classes/ids per cell, so header-text matching is the least brittle option available.
  */
 @Log4j2
 @Component
@@ -54,6 +57,10 @@ public class ChittorgarhSource implements IpoSource {
     private static final List<String> H_CLOSE = List.of("close date", "close");
     private static final List<String> H_ALLOTMENT = List.of("allotment date", "allotment");
     private static final List<String> H_LISTING = List.of("listing date", "est listing", "listing");
+    private static final List<String> H_PRICE_BAND = List.of("price band", "issue price", "price");
+    // NOTE: no bare "lot" alias — it's a substring of "allotment (date)" and would mismatch that column.
+    private static final List<String> H_LOT_SIZE = List.of("lot size");
+    private static final List<String> H_ISSUE_SIZE = List.of("issue size");
     private static final List<String> H_GAIN = List.of("listing gain", "gain");
 
     private final IpoHttpClient httpClient;
@@ -96,6 +103,9 @@ public class ChittorgarhSource implements IpoSource {
         int idxClose = findColumn(headers, H_CLOSE);
         int idxAllotment = findColumn(headers, H_ALLOTMENT);
         int idxListing = findColumn(headers, H_LISTING);
+        int idxPriceBand = findColumn(headers, H_PRICE_BAND);
+        int idxLotSize = findColumn(headers, H_LOT_SIZE);
+        int idxIssueSize = findColumn(headers, H_ISSUE_SIZE);
         int idxGain = findColumn(headers, H_GAIN);
 
         List<IpoDto> result = new ArrayList<>();
@@ -104,6 +114,7 @@ public class ChittorgarhSource implements IpoSource {
             if (cells.isEmpty()) {
                 continue;
             }
+            BigDecimal[] priceBand = parsePriceBand(cellText(cells, idxPriceBand));
             result.add(new IpoDto(
                     KEY,                                  // source
                     null,                                 // matchKey — assigned later by the normaliser
@@ -114,10 +125,12 @@ public class ChittorgarhSource implements IpoSource {
                     parseDate(cellText(cells, idxClose)),        // closeDate
                     parseDate(cellText(cells, idxAllotment)),     // allotmentDate
                     parseDate(cellText(cells, idxListing)),        // listingDate
-                    null, null,                                     // priceMin, priceMax — not mapped (YAGNI, other sources cover this)
-                    null, null,                                      // lotSize, issueSize
-                    null,                                              // listingExchange
-                    null,                                              // listingPrice
+                    priceBand[0],                                   // priceMin
+                    priceBand[1],                                    // priceMax
+                    parseLotSize(cellText(cells, idxLotSize)),        // lotSize
+                    cellText(cells, idxIssueSize),                     // issueSize — kept verbatim
+                    null,                                               // listingExchange — not derivable from this table
+                    null,                                               // listingPrice
                     parsePercent(cellText(cells, idxGain)),            // listingGainPct
                     null, null,                                        // gmp, gmpPct
                     null, null,                                        // subscriptionCategories, subTotal
@@ -173,6 +186,62 @@ public class ChittorgarhSource implements IpoSource {
 
     private static LocalDate parseDate(String raw) {
         return IpoDateParser.parse(raw);
+    }
+
+    /**
+     * Splits a "163-172"-style price-band cell into {@code [min, max]}; a single value (no
+     * separator) yields equal bounds; blank/unparseable yields {@code [null, null]}.
+     */
+    private static BigDecimal[] parsePriceBand(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new BigDecimal[] {null, null};
+        }
+        String[] parts = raw.trim().split("[-–]");
+        if (parts.length == 2) {
+            BigDecimal min = toDecimal(parts[0]);
+            BigDecimal max = toDecimal(parts[1]);
+            if (min != null && max != null) {
+                return new BigDecimal[] {min, max};
+            }
+        } else if (parts.length == 1) {
+            BigDecimal single = toDecimal(parts[0]);
+            if (single != null) {
+                return new BigDecimal[] {single, single};
+            }
+        }
+        return new BigDecimal[] {null, null};
+    }
+
+    private static BigDecimal toDecimal(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        // Strips currency symbols/commas (e.g. "₹163") that can appear in a scraped price cell.
+        String cleaned = raw.replaceAll("[^0-9.]", "").trim();
+        if (cleaned.isEmpty()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Strips non-digit characters (e.g. a "800 Shares" cell) and parses the remainder; null-safe. */
+    private static Integer parseLotSize(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String digitsOnly = raw.replaceAll("[^0-9]", "");
+        if (digitsOnly.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(digitsOnly);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** Strips a trailing "%" (and stray whitespace/dashes) and parses the remainder; null-safe. */
