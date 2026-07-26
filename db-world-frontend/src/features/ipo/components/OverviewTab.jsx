@@ -26,6 +26,8 @@ import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { useT } from '@shared/theme';
 import {
   formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange, websiteDomain,
@@ -254,6 +256,61 @@ function AboutBlurb({ text, mb }) {
   );
 }
 
+/** A prospectus document as a pill-style external link (opens the NSE-hosted file in a new tab). */
+function DocLink({ label, url }) {
+  const T = useT();
+  return (
+    <Box
+      component="a"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      sx={{
+        display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.6, borderRadius: 2,
+        border: `1px solid ${T.border}`, bgcolor: T.glass, color: T.teal, textDecoration: 'none',
+        fontSize: 12.5, fontWeight: 700, '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
+      }}
+    >
+      <ArticleOutlinedIcon sx={{ fontSize: 15 }} />
+      {label}
+    </Box>
+  );
+}
+
+const hasIssueDetails = (d) =>
+  !!d && (!!d.issueType || !!d.minOrderQuantity || !!d.sponsorBank || !!d.rhpUrl || !!d.drhpUrl);
+
+/**
+ * NSE "Issue details" — issue mechanism / minimum order quantity / sponsor bank as compact fact
+ * tiles, plus the prospectus (RHP / DRHP) document links as pill buttons. Each piece is
+ * independently optional; the section (see call site) only renders when at least one is present.
+ */
+function IssueDetails({ details }) {
+  const facts = [];
+  if (details.issueType) facts.push({ icon: CategoryOutlinedIcon, label: 'Issue type', value: details.issueType });
+  if (details.minOrderQuantity) facts.push({ icon: Inventory2OutlinedIcon, label: 'Min. order qty', value: details.minOrderQuantity });
+  if (details.sponsorBank) facts.push({ icon: AccountBalanceWalletOutlinedIcon, label: 'Sponsor bank', value: details.sponsorBank });
+  const docs = [];
+  if (details.rhpUrl) docs.push({ label: 'Red Herring Prospectus', url: details.rhpUrl });
+  if (details.drhpUrl) docs.push({ label: 'Draft RHP (DRHP)', url: details.drhpUrl });
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: facts.length && docs.length ? 2 : 0 }}>
+      {facts.length > 0 && (
+        <Box sx={{
+          display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 2,
+        }}>
+          {facts.map((f) => <FactTile key={f.label} icon={f.icon} label={f.label} value={f.value} />)}
+        </Box>
+      )}
+      {docs.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {docs.map((d) => <DocLink key={d.label} label={d.label} url={d.url} />)}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 /** Book-running lead manager(s) as a simple bulleted list. */
 function LeadManagers({ managers }) {
   const T = useT();
@@ -334,6 +391,12 @@ export default function OverviewTab({ ipo, id }) {
       {ipo.leadManagers?.length > 0 && (
         <SectionCard title="Lead manager(s)" icon={<GroupsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
           <LeadManagers managers={ipo.leadManagers} />
+        </SectionCard>
+      )}
+
+      {hasIssueDetails(ipo.issueDetails) && (
+        <SectionCard title="Issue details" icon={<ReceiptLongOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+          <IssueDetails details={ipo.issueDetails} />
         </SectionCard>
       )}
 
