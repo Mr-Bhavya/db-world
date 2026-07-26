@@ -26,6 +26,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Persists the merged per-IPO feed produced by {@link IpoMergeService}: creates new listings,
@@ -122,6 +124,19 @@ public class IpoIngestService {
     private void upsertFinancials(String ipoId, List<IpoFinancialRowDto> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
+        }
+        // Reconcile: drop any previously-stored fiscal year that the current scrape no longer
+        // reports — e.g. stale rows left by an earlier parse that mis-read metric labels ("Assets",
+        // "Profit After Tax", …) as periods — so the detail view/chart never shows orphaned empty
+        // rows. Guarded by the empty check above, so a transient empty scrape can't wipe good data.
+        Set<String> incomingYears = rows.stream()
+                .map(IpoFinancialRowDto::fiscalYear)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        for (IpoFinancialEntity existing : financialRepo.findByIpoIdOrderByPeriodEndAsc(ipoId)) {
+            if (!incomingYears.contains(existing.getFiscalYear())) {
+                financialRepo.delete(existing);
+            }
         }
         for (IpoFinancialRowDto row : rows) {
             if (row.fiscalYear() == null) {

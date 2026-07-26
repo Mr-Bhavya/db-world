@@ -70,6 +70,7 @@ class IpoIngestServiceTest {
         when(subHistoryRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(financialRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(financialRepo.findByIpoIdAndFiscalYear(any(), any())).thenReturn(Optional.empty());
+        when(financialRepo.findByIpoIdOrderByPeriodEndAsc(any())).thenReturn(List.of());
     }
 
     /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
@@ -506,6 +507,33 @@ class IpoIngestServiceTest {
         verify(financialRepo, times(1)).save(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo("fin-1"); // updated in place, not re-inserted
         assertThat(captor.getValue().getRevenue()).isEqualByComparingTo("120.00");
+    }
+
+    @Test
+    void ingest_financialsReconcile_dropsStaleFiscalYearsNoLongerReported() {
+        stubNoExisting();
+        // The DB already has a stale row (a metric label mis-stored as a "period" by an earlier
+        // parse) alongside a real fiscal year. The fresh scrape reports only the real year, so the
+        // stale row must be deleted and the real one kept.
+        IpoFinancialEntity stale = IpoFinancialEntity.builder()
+                .id("fin-stale").ipoId("ipo-1").fiscalYear("Assets").build();
+        IpoFinancialEntity real = IpoFinancialEntity.builder()
+                .id("fin-24").ipoId("ipo-1").fiscalYear("FY 2023-24")
+                .revenue(new BigDecimal("100.00")).pat(new BigDecimal("10.00")).totalAssets(new BigDecimal("500.00"))
+                .periodEnd(LocalDate.of(2024, 3, 31)).build();
+        when(financialRepo.findByIpoIdOrderByPeriodEndAsc("ipo-1")).thenReturn(List.of(stale, real));
+        when(financialRepo.findByIpoIdAndFiscalYear("ipo-1", "FY 2023-24")).thenReturn(Optional.of(real));
+
+        IpoDto dto = withFinancials(
+                dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                        new BigDecimal("1.50"), "awaited", null, null, null),
+                List.of(new IpoFinancialRowDto("FY 2023-24", LocalDate.of(2024, 3, 31),
+                        new BigDecimal("100.00"), new BigDecimal("10.00"), new BigDecimal("500.00"))));
+
+        service.ingest(List.of(dto));
+
+        verify(financialRepo).delete(stale);
+        verify(financialRepo, never()).delete(real);
     }
 
     @Test
