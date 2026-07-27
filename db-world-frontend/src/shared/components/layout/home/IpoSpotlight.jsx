@@ -50,11 +50,15 @@ function Stat({ T, value, label, valueColor, loading }) {
  * (light/dark safe); the app's emerald accent drives the icon, glow and CTA.
  */
 export default function IpoSpotlight({ T, app, onOpen }) {
-  const { data: ipos = [], isLoading, isError } = useIpos();
-  const { openCount, upcomingCount, topGmp } = useMemo(() => computeQuickStats(ipos), [ipos]);
+  // useIpos resolves to an IpoListResponse ({ ipos, lastUpdated }) — the array is under `.ipos`
+  // (same as IpoListPage), NOT the response object itself. Depend on the stable query ref `list`
+  // (not an inline `?? []`, which would be a fresh array each render → useMemo churn).
+  const { data, isLoading, isError } = useIpos();
+  const list = data?.ipos;
+  const { openCount, upcomingCount, topGmp } = useMemo(() => computeQuickStats(list), [list]);
 
   const Icon = app.Icon;
-  const hasData = !isError && ipos.length > 0;
+  const hasData = !isError && Array.isArray(list) && list.length > 0;
   const showStats = hasData || isLoading;
   const fmtPct = (p) => `${p > 0 ? '+' : ''}${Number(p).toFixed(1)}%`;
 

@@ -382,7 +382,10 @@ export const dayOverDayDelta = (current, previous) => {
  * being treated as 0).
  */
 export const computeQuickStats = (ipos) => {
-  const list = ipos ?? [];
+  // Defensive: only an array is iterable here. A caller that hands the raw list RESPONSE
+  // ({ ipos, lastUpdated }) — or anything non-array — must degrade to empty stats, never throw
+  // (a `for…of` on a non-iterable would crash the whole page via the calling useMemo).
+  const list = Array.isArray(ipos) ? ipos : [];
   let openCount = 0;
   let upcomingCount = 0;
   let topGmp = null;
