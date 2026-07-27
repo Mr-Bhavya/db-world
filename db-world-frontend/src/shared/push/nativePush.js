@@ -44,7 +44,10 @@ export async function nativeSetup({ request = false, onToken, onMessage, onActio
     perm = await PushNotifications.requestPermissions();
   }
   if (perm.receive === 'granted') {
-    await PushNotifications.register(); // fires 'registration' → onToken
+    // Fire registration but DON'T await it — the token (or a registrationError) arrives via the
+    // listeners above. Awaiting can hang forever when native FCM init fails (e.g. a release APK
+    // built without google-services.json), which would leave the Enable button spinning.
+    PushNotifications.register().catch(() => onToken?.(null));
   }
   return mapPermission(perm.receive);
 }
