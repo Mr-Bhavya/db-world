@@ -61,8 +61,9 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
+# Google Services (e.g. APIs or Firebase) — kept out of this PUBLIC repo; the canonical copy
+# lives in the private db-world-config repo and is placed here for local Android builds.
+google-services.json
 
 # Freeline
 freeline.py
