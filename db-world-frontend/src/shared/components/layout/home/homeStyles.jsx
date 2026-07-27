@@ -31,36 +31,42 @@ export const horizontalScrollSx = {
   },
 };
 
+/**
+ * Bento grid for the app tiles. A fixed 4-column track on desktop lets the two `feature` apps
+ * (IPO Radar, Cinema) each span two columns and sit side-by-side on the top row, with the four
+ * `standard` apps filling the row below — so product priority is felt, not just ordered. On
+ * phones/tablets it collapses to a 2-column track (feature = full-width, standard = 2-up), which
+ * keeps the dense app-launcher feel without any tile getting awkwardly narrow.
+ */
 export const appsGridSx = {
   display: 'grid',
-
-  /*
-   * Responsive layout:
-   * - Small mobile: 1 column
-   * - Big mobile/tablet: 2 columns when space allows
-   * - Desktop/monitor/TV: more columns automatically
-   */
   gridTemplateColumns: {
-    // Phones: fixed 2-up grid (denser, app-launcher feel) instead of one
-    // full-width card per row.
     xs: 'repeat(2, minmax(0, 1fr))',
-    sm: 'repeat(auto-fit, minmax(220px, 1fr))',
-    md: 'repeat(auto-fit, minmax(230px, 1fr))',
-    lg: 'repeat(auto-fit, minmax(240px, 1fr))',
-    xl: 'repeat(auto-fit, minmax(250px, 1fr))',
+    sm: 'repeat(2, minmax(0, 1fr))',
+    md: 'repeat(4, minmax(0, 1fr))',
   },
-
-  '@media (min-width:1920px)': {
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  },
-
+  gridAutoRows: '1fr',
   gap: {
     xs: 1.1,
     sm: 1.75,
     md: 2.2,
     xl: 2.6,
   },
-
   alignItems: 'stretch',
   minWidth: 0,
+};
+
+/**
+ * The column span for one tile, keyed off its `size`. `feature` is two-wide everywhere (full width
+ * on the 2-col phone/tablet track, half on the 4-col desktop track); `utility` (Admin) stretches
+ * the whole row as a set-apart strip; `standard` is a single cell.
+ */
+export const bentoSpanSx = (size) => {
+  if (size === 'feature') {
+    return { gridColumn: { xs: 'span 2', sm: 'span 2', md: 'span 2' } };
+  }
+  if (size === 'utility') {
+    return { gridColumn: { xs: 'span 2', sm: 'span 2', md: 'span 4' } };
+  }
+  return { gridColumn: 'span 1' };
 };
