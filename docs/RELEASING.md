@@ -51,8 +51,10 @@ Both **Build** and **Deploy & Release** take:
 ## Versioning (the release number)
 - **`versionName`** (human, e.g. `3.1.0`) — the **`version`** input on *Deploy & Release ▸ Android*.
   Leave it blank → **auto-bumps the patch** of the latest published release (`3.1.0 → 3.1.1`).
-- **`versionCode`** (Android's internal upgrade counter — must always increase) — auto: a monotonic
-  **UTC timestamp `yymmddHHmm`**. No manual bumping; never collides.
+- **`versionCode`** (Android's internal upgrade counter — must always increase) — auto: **minutes
+  since the Unix epoch** (~29.7M today). Monotonic, minute-granular, and safely inside Android's
+  signed-`int` range. No manual bumping. (An earlier `yymmddHHmm` scheme was dropped — 10 digits
+  overflowed `int` and failed the build.)
 - The Release is tagged **`v<versionName>`** and carries the APK + a `version.json`
   (`versionCode` / `versionName` / `apkUrl` / `mandatory` / `changelog`) — the source the in-app
   updater reads.
