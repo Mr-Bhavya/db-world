@@ -323,6 +323,16 @@
             <version>${metrics-dropwizard.version}</version>
         </dependency>
 
+        <!-- ── Google Auth (FCM push: OAuth2 access token minted from the Firebase
+             service account, for the FCM HTTP v1 + Instance-ID topic APIs). Deliberately
+             NOT firebase-admin — this is a far lighter tree (no gRPC/Netty) so it can't
+             clash with Spring Boot's own reactor-netty stack. ─────────────────────────── -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.30.1</version>
+        </dependency>
+
         <!-- ── Test ──────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
