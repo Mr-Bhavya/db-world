@@ -28,6 +28,9 @@ on:
           - "Backend — deploy WAR to the Pi"
           - "Frontend — deploy web to the Pi"
           - "Android — publish APK release"
+      ref:
+        description: "Version to deploy/release — branch, tag (e.g. v3.0.3) or SHA. Blank = the ref you launched from. Pick a PREVIOUS tag to roll back."
+        required: false
       version:
         description: "Android release version, e.g. 3.1.0 (blank = auto-bump latest patch). Ignored for backend/frontend."
         required: false
@@ -54,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -92,6 +97,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -141,6 +148,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'

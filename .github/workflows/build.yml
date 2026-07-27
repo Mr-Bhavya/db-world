@@ -19,6 +19,9 @@ on:
           - "Backend — WAR"
           - "Frontend — web bundle"
           - "Android — APK (debug)"
+      ref:
+        description: "Version to build — a branch, tag (e.g. v3.0.3) or commit SHA. Blank = the ref you launched this from."
+        required: false
 
 concurrency:
   group: build-${{ github.ref }}-${{ github.event.inputs.component }}
@@ -31,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -51,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -79,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'

@@ -1,99 +1,98 @@
 # Releasing & Deploying DB World
 
-The full CI/CD flow: how code goes from a branch to a running deployment and an
-auto-updating Android app. All automation lives in [`.github/workflows/`](../.github/workflows/)
-(see its [README](../.github/workflows/README.md) for per-workflow details + secrets).
+How code goes from a branch to a running deployment and an auto-updating Android app. All
+automation lives in [`.github/workflows/`](../.github/workflows/). The model is deliberately two
+verbs:
+
+- **Build** — make artifacts (WAR / web bundle / debug APK). **Never** deploys or publishes.
+- **Deploy & Release** — build **and ship**: WAR + web to the Pi, and the signed APK to a GitHub
+  Release. Manual only.
+
+Everything is built on GitHub cloud runners; the Pi only receives deployments.
 
 ## Branches
 - **feature branches** → merged into **`development`** (integration).
-- **`development`** → promoted to **`main`** via Pull Request. `main` is the
-  default, protected branch (direct pushes are rejected — PR required).
-- Releases are tagged on **`main`**.
+- **`development`** → promoted to **`main`** via Pull Request. `main` is the default, **protected**
+  branch (direct pushes rejected — PR required).
+- If your `gh`/CLI account is an **Enterprise Managed User**, GitHub blocks it from opening PRs on a
+  personal repo — open the `development → main` PR from your **personal** account in the web UI:
+  `https://github.com/Mr-Bhavya/db-world/compare/main...development`.
 
-## The pipeline at a glance
+## Workflows
 
-**Backend and app are separate tracks** — a backend change never rebuilds the APK,
-and an app release never rebuilds the WAR. Everything is built on GitHub runners; the
-Pi only downloads + deploys.
+| Workflow | Runs on | Trigger | What it does |
+|----------|---------|---------|--------------|
+| **CI** | cloud | PR to `development`/`main` + push to `main` | Lint frontend + compile backend (checks only) |
+| **Build** | cloud | manual | Build the selected artifact(s) and upload as **workflow artifacts** — no deploy, no publish |
+| **Deploy & Release** | cloud **+ Pi** | manual | Build **and ship** the selected component |
 
-```
- feature ─(merge)─► development ─(PR)─► main
-                        │                │
-                    ci.yml         ┌─────┴─────────────┐
-               (lint+compile)  (tag vX.Y.Z)     (backend change)
-                                    │                  │
-                             release.yml          backend.yml     (cloud runners)
-                        frontend dist +          builds the WAR
-                        signed APK +             → rolling `backend-latest`
-                        version.json             prerelease
-                        → GitHub Release             │
-                                    │                │
-   Actions ▸ Deploy to Pi ─(self-hosted runner on the Pi)
-        frontend ◄ app release dist        backend ◄ backend-latest WAR
-             → /var/www/dbworld                 → dbworldctl
-                                    │
-   Android app on launch ─► GET /api/app/version ─► backend returns the latest
-        app Release's version.json ─► self-updates from GitHub
-```
+Both **Build** and **Deploy & Release** take:
+- **`component`** — `Everything` · `Backend (WAR)` · `Frontend (web)` · `Android (APK)`.
+- **`ref`** — a branch, tag (e.g. `v3.0.3`) or commit SHA to build. Blank = the ref you launched
+  from. This is how you build/ship a **specific version** and how you **roll back** (see below).
 
-| Workflow | Runs on | Trigger | Builds |
-|----------|---------|---------|--------|
-| `ci.yml` | cloud | push/PR to `development`,`main` | lint FE + compile BE (checks only) |
-| `release.yml` | cloud | tag `v*` (or manual) | **app**: frontend zip + signed APK + `version.json` → Release |
-| `backend.yml` | cloud | push to `main` under `db-world-backend/**` (or manual) | **backend**: WAR → rolling `backend-latest` prerelease |
-| `deploy.yml` | **Pi (self-hosted)** | manual | download + deploy (backend ← `backend-latest`, frontend ← app release) |
+**Deploy & Release** also takes (Android only): **`version`** (e.g. `3.1.0`), **`mandatory`**
+(force-update flag), **`changelog`** (shown in the update dialog).
 
 ## Ship a change
 
-Both start by promoting to `main` (PR, because `main` is protected):
-open `https://github.com/Mr-Bhavya/db-world/compare/main...development` → CI runs → **Merge**.
+1. **Promote to `main`** — merge `development → main` via PR (main is protected).
+2. **Actions ▸ Deploy & Release ▸ Run workflow**, pick the `component`:
+   - **Backend** → builds the WAR (JDK 25) → deploys to the Pi (`dbworldctl update`).
+   - **Frontend** → builds the web bundle → deploys under `/var/www/dbworld` (timestamped release
+     folder + `current` symlink; keeps the last 5).
+   - **Android** → builds the signed APK + `version.json` → publishes GitHub Release `v<version>`.
+     The installed app self-updates on next launch (`/api/app/version` → `version.json` → if
+     `versionCode` > installed, downloads `/api/app/download` → 302 → GitHub APK).
+   - **Everything** → all three.
+3. *(Optional)* Run **Build** first to sanity-check the artifacts (or grab a debug APK) without
+   shipping anything.
 
-**Backend-only change**
-1. `backend.yml` runs automatically on the merge (or run it manually) → refreshes the
-   `backend-latest` prerelease WAR. No APK is built.
-2. **Actions ▸ Deploy to Pi ▸ Run workflow** → part **`backend`**. Pulls the
-   `backend-latest` WAR → `dbworldctl update`.
+## Versioning (the release number)
+- **`versionName`** (human, e.g. `3.1.0`) — the **`version`** input on *Deploy & Release ▸ Android*.
+  Leave it blank → **auto-bumps the patch** of the latest published release (`3.1.0 → 3.1.1`).
+- **`versionCode`** (Android's internal upgrade counter — must always increase) — auto: a monotonic
+  **UTC timestamp `yymmddHHmm`**. No manual bumping; never collides.
+- The Release is tagged **`v<versionName>`** and carries the APK + a `version.json`
+  (`versionCode` / `versionName` / `apkUrl` / `mandatory` / `changelog`) — the source the in-app
+  updater reads.
+- The APK is signed with the `ANDROID_*` keystore secrets. It **must be the same keystore** that
+  signed installed apps, or Android refuses the update.
 
-**Frontend / Android change (app release)**
-1. Tag it on `main`:
-   ```bash
-   git checkout main && git pull
-   git tag v3.0.1 && git push origin v3.0.1
-   ```
-   `release.yml` publishes **Release `v3.0.1`** with `db-world-frontend-dist.zip`,
-   `db-world-3.0.1.apk`, and `version.json` (no WAR).
-   *(Alternative: Actions ▸ Release ▸ Run workflow — set versionName + explicit versionCode.)*
-2. **Actions ▸ Deploy to Pi ▸ Run workflow** → part **`frontend`**, appTag `v3.0.1`
-   (blank = latest app release). Deploys the dist under `/var/www/dbworld`.
-3. **The Android app self-updates**: on launch `/api/app/version` returns the release's
-   `version.json`; if **versionCode > installed**, it downloads + installs the APK
-   (`/api/app/download` → 302 → GitHub). No manual APK distribution.
-
-**Both changed?** Deploy with part **`full`** (pulls `backend-latest` + the app release).
-
-## versionCode
-- Auto: a monotonic **date stamp `yymmddHH` (UTC)** — always increasing and above any
-  small hand-set codes, so updates are reliably offered. No manual bumping.
-- Override via the **Run workflow → `versionCode`** input for edge cases (or if two
-  releases go out in the same UTC hour).
-- The APK is signed with the keystore in the `ANDROID_*` secrets — it **must stay the
-  same keystore** as installed apps, or Android refuses the update.
+## Build or ship a *specific* version
+Set the **`ref`** input to a tag/SHA (e.g. `v3.0.3`) on **Build** or **Deploy & Release**. The
+workflow *logic* always comes from the default branch, but the *code it checks out* is your `ref` —
+so you build old code with the current pipeline. For an Android republish, also set `version`.
 
 ## Rollback
-- **Frontend**: run **Deploy to Pi** again with an older `appTag` (e.g. `v3.0.0`) to
-  redeploy that release's dist.
-- **Backend**: `backend-latest` is rolling (no history). To roll back, run `backend.yml`
-  manually from an older commit/branch (Run workflow → pick the ref) to rebuild the WAR,
-  then deploy part `backend`.
+- **Backend / Frontend** — *Deploy & Release* with `component` + **`ref` = the last-good tag/SHA** →
+  rebuilds and redeploys that version.
+- **Frontend, instantly (no rebuild)** — the Pi keeps the last 5 web releases. Repoint the symlink
+  over SSH:
+  ```bash
+  ln -sfn /var/www/dbworld/releases/<previous-timestamp> /var/www/dbworld/current
+  ```
+- **Android** — devices that already updated can't be "un-updated"; roll **forward** by publishing a
+  higher `version` with the fix. (You can also delete/mark the bad GitHub Release so new installs
+  don't pick it up.)
+
+## Why CI runs on the PR *and* again after merge
+- **On the PR** (`pull_request`) — the **gate**: it validates the *merge result* and blocks a red PR
+  from landing.
+- **On push to `main`** (post-merge) — confirms `main` is actually green after the merge applied;
+  catches drift when `main` advanced between the PR check and the merge (another PR landed in the
+  gap). It's intentional belt-and-suspenders. If you'd rather have a single run, drop the
+  `push: [main]` trigger in `ci.yml` and rely on the PR check.
 
 ## Prerequisites (one-time)
-- **Release secrets** (repo → Settings → Secrets → Actions): `ANDROID_KEYSTORE_BASE64`,
-  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, and
-  (optional) `FRONTEND_ENV_PRODUCTION`.
-- **Self-hosted runner** on the Pi, running as a service; its user has NOPASSWD sudo
-  for `/usr/local/bin/dbworldctl`, write access to `/var/www/dbworld`, and `curl`+`unzip`.
+- **Secrets** (repo → Settings → Secrets → Actions): `FRONTEND_ENV_PRODUCTION` (web env incl.
+  `VITE_FIREBASE_*`), `GOOGLE_SERVICES_JSON_BASE64` (Android FCM config), `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+- **Self-hosted runner** on the Pi, running as a service; its user has NOPASSWD sudo for
+  `/usr/local/bin/dbworldctl`, write access to `/var/www/dbworld`, and `curl` + `unzip`.
+- A **`production`** Environment (optionally with a required reviewer) gates the Pi deploy jobs.
 - The Pi needs outbound access to `github.com` / `api.github.com`.
 
 ## Relationship to Jenkins
-This overlaps the Jenkins pipeline (`db-world-config/server_config/Jenkinsfile`). Use
-**one** deploy path — the GitHub Actions deploy here, or Jenkins — not both.
+This overlaps the Jenkins pipeline (`db-world-config/server_config/Jenkinsfile`). Use **one** deploy
+path — the GitHub Actions flow here — not both.
