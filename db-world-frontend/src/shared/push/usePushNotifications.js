@@ -77,7 +77,15 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
     setBusy(true);
     try {
       if (native) {
-        const perm = await nativeSetup({ request: true, onToken: persist, onMessage, onAction });
+        let perm;
+        try {
+          perm = await nativeSetup({ request: true, onToken: persist, onMessage, onAction });
+        } catch (e) {
+          // Surface the staged reason (e.g. "push stalled at: request-permissions") so a hung
+          // native setup is diagnosable from the toast instead of an endless spinner.
+          notify.error(e?.message || 'Couldn’t enable notifications.');
+          return;
+        }
         setPermission(perm);
         if (perm !== 'granted') {
           notify.info('Notifications stayed off — you can enable them in device settings.');
