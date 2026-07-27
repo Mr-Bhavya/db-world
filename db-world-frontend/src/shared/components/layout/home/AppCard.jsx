@@ -100,6 +100,43 @@ const AppCard = memo(function AppCard({ app, isFavorite, onNavigate, onToggleFav
     </Box>
   );
 
+  // A compact rounded gradient icon badge for the horizontal (feature / utility) layout — the same
+  // premium look as the vertical banner but vertically centred, so the tile reads as an icon + info
+  // banner instead of a big flat colour slab. `dim` is a responsive size used for width & height.
+  const iconBadge = (dim) => (
+    <Box
+      sx={{
+        width: dim,
+        height: dim,
+        borderRadius: { xs: 2.5, sm: 3 },
+        background: app.gradient,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        flexShrink: 0,
+        boxShadow: `0 12px 28px ${app.accent}55`,
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 'inherit',
+          background: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.42), transparent 55%)',
+        },
+      }}
+    >
+      <Icon
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          color: '#fff',
+          fontSize: isFeature ? { xs: 30, sm: 40, md: 46 } : { xs: 22, sm: 26 },
+          filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.34))',
+        }}
+      />
+    </Box>
+  );
+
   const cardBaseSx = {
     width: '100%',
     height: '100%',
@@ -147,27 +184,41 @@ const AppCard = memo(function AppCard({ app, isFavorite, onNavigate, onToggleFav
         sx={{
           ...cardBaseSx,
           display: 'flex',
-          alignItems: 'stretch',
+          alignItems: 'center',
+          gap: { xs: 1.5, sm: 2, md: 2.5 },
+          p: { xs: 1.5, sm: 2, md: 2.5 },
+          pr: { xs: 5, sm: 5.5 },
           minHeight: isFeature
-            ? { xs: 116, sm: 150, md: 168 }
-            : { xs: 84, sm: 92 },
+            ? { xs: 118, sm: 148, md: 164 }
+            : { xs: 76, sm: 88 },
+          // Feature tiles get a soft accent wash sweeping in from the icon side, so the whole banner
+          // feels branded without a hard colour block; utility stays neutral/quiet.
+          ...(isFeature && {
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(105deg, ${app.accent}26 0%, ${app.accent}0f 34%, transparent 66%)`,
+              pointerEvents: 'none',
+            },
+          }),
         }}
       >
-        {iconPanel(
+        {iconBadge(
           isFeature
-            ? { width: { xs: 92, sm: 132, md: 152 } }
-            : { width: { xs: 72, sm: 88 } }
+            ? { xs: 60, sm: 80, md: 92 }
+            : { xs: 44, sm: 52 }
         )}
 
         <Box
           sx={{
             flex: 1,
             minWidth: 0,
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            p: { xs: 1.5, sm: 2, md: 2.5 },
-            pr: { xs: 5, sm: 5.5 },
           }}
         >
           <Typography
