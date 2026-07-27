@@ -1,30 +1,39 @@
 import React, { memo } from 'react';
 
 import {
-    Typography,
+  Typography,
   Box,
   Button,
   Container,
-
 } from '@mui/material';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { MovieFilter as CinemaIcon } from '@mui/icons-material';
 
 import BokehBackground from '@shared/components/ui/BokehBackground';
 
+import IpoSpotlight from './IpoSpotlight';
 import ScrollIndicator from './ScrollIndicator';
-import { cardFocusSx, clampTextSx } from './homeStyles';
 
+/**
+ * Home hero. Left column: a personalised greeting + primary CTA into the #1 app (IPO Radar) and a
+ * secondary "Explore all apps" that smooth-scrolls to the tiles. Right column (lg+): a featured
+ * IPO spotlight with a live snapshot. Accent + label for the primary CTA come from the IPO entry in
+ * the app registry, so renaming/recolouring the app updates the hero automatically.
+ */
 const HeroSection = memo(function HeroSection({
   T,
   firstName,
   visibleApps,
   scrolled,
   onNavigate,
-  openCinema,
 }) {
   const prefersReducedMotion = useReducedMotion();
+  const ipoApp = visibleApps.find((app) => app.id === 'ipo') ?? visibleApps[0];
+  const IpoAppIcon = ipoApp?.Icon;
+
+  const scrollToApps = () => {
+    document.getElementById('apps')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <BokehBackground
@@ -40,8 +49,6 @@ const HeroSection = memo(function HeroSection({
         sx={{
           position: 'relative',
           minHeight: {
-            // Phones: shrink to content so the apps grid sits just below the
-            // fold instead of behind a full-screen wall of text.
             xs: 'auto',
             sm: '100svh',
           },
@@ -90,7 +97,7 @@ const HeroSection = memo(function HeroSection({
               display: 'grid',
               gridTemplateColumns: {
                 xs: '1fr',
-                lg: 'minmax(0, 1.05fr) minmax(320px, 0.95fr)',
+                lg: 'minmax(0, 1.05fr) minmax(340px, 0.95fr)',
               },
               alignItems: 'center',
               gap: {
@@ -121,20 +128,9 @@ const HeroSection = memo(function HeroSection({
               }}
             >
               <motion.div
-                initial={{
-                  opacity: 0,
-                  y: prefersReducedMotion ? 0 : 10,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay: 0.05,
-                  type: 'spring',
-                  stiffness: 100,
-                  damping: 16,
-                }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, type: 'spring', stiffness: 100, damping: 16 }}
               >
                 <Typography
                   sx={{
@@ -161,25 +157,14 @@ const HeroSection = memo(function HeroSection({
                     lineHeight: 1.4,
                   }}
                 >
-                  Your Personal Universe
+                  One hub · every app
                 </Typography>
               </motion.div>
 
               <motion.div
-                initial={{
-                  opacity: 0,
-                  y: prefersReducedMotion ? 0 : 18,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay: 0.15,
-                  type: 'spring',
-                  stiffness: 100,
-                  damping: 16,
-                }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15, type: 'spring', stiffness: 100, damping: 16 }}
               >
                 <Typography
                   component="h1"
@@ -218,20 +203,9 @@ const HeroSection = memo(function HeroSection({
               </motion.div>
 
               <motion.div
-                initial={{
-                  opacity: 0,
-                  y: prefersReducedMotion ? 0 : 16,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay: 0.25,
-                  type: 'spring',
-                  stiffness: 100,
-                  damping: 16,
-                }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, type: 'spring', stiffness: 100, damping: 16 }}
               >
                 <Typography
                   sx={{
@@ -264,79 +238,78 @@ const HeroSection = memo(function HeroSection({
                     wordBreak: 'break-word',
                   }}
                 >
-                  Your personal media universe — stream, play, check weather,
-                  and manage your secure vault from one responsive dashboard.
+                  Track live IPOs, stream cinema, guard your passwords and
+                  documents, play, and check the weather — all from one fast,
+                  secure hub.
                 </Typography>
               </motion.div>
 
               <motion.div
-                initial={{
-                  opacity: 0,
-                  y: prefersReducedMotion ? 0 : 14,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay: 0.34,
-                  type: 'spring',
-                  stiffness: 100,
-                  damping: 16,
-                }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.34, type: 'spring', stiffness: 100, damping: 16 }}
               >
                 <Box
                   sx={{
                     display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 1.5,
                     justifyContent: {
                       xs: 'center',
                       lg: 'flex-start',
                     },
                   }}
                 >
+                  {ipoApp && (
+                    <Button
+                      variant="contained"
+                      onClick={() => onNavigate(ipoApp)}
+                      startIcon={IpoAppIcon ? <IpoAppIcon sx={{ fontSize: { xs: '1.15rem', xl: '1.3rem' } }} /> : null}
+                      sx={{
+                        bgcolor: ipoApp.accent,
+                        color: '#fff',
+                        borderRadius: 2.2,
+                        px: { xs: 3.4, sm: 3.6, xl: 4.4 },
+                        py: { xs: 1.2, xl: 1.45 },
+                        minHeight: { xs: 48, xl: 56 },
+                        fontSize: { xs: '0.96rem', xl: '1.08rem' },
+                        fontWeight: 900,
+                        textTransform: 'none',
+                        boxShadow: `0 0 22px ${ipoApp.accent}55`,
+                        '&:hover': {
+                          bgcolor: ipoApp.accent,
+                          filter: 'brightness(1.08)',
+                          boxShadow: `0 0 30px ${ipoApp.accent}77`,
+                        },
+                      }}
+                    >
+                      Open {ipoApp.label}
+                    </Button>
+                  )}
+
                   <Button
-                    variant="contained"
-                    onClick={openCinema}
-                    startIcon={<CinemaIcon sx={{ fontSize: { xs: '1.15rem', xl: '1.3rem' } }} />}
+                    variant="outlined"
+                    onClick={scrollToApps}
                     sx={{
-                      // Content-width (not full-width) so it stays well-proportioned
-                      // on any phone size or font scale; centred on mobile, left on lg.
-                      bgcolor: T.teal,
-                      color: '#fff',
+                      borderColor: T.borderHover,
+                      color: T.textPrimary,
                       borderRadius: 2.2,
-                      px: {
-                        xs: 3.4,
-                        sm: 3.6,
-                        xl: 4.4,
-                      },
-                      py: {
-                        xs: 1.2,
-                        xl: 1.45,
-                      },
-                      minHeight: {
-                        xs: 48,
-                        xl: 56,
-                      },
-                      fontSize: {
-                        xs: '0.96rem',
-                        xl: '1.08rem',
-                      },
-                      fontWeight: 900,
+                      px: { xs: 3, sm: 3.4, xl: 4 },
+                      py: { xs: 1.2, xl: 1.45 },
+                      minHeight: { xs: 48, xl: 56 },
+                      fontSize: { xs: '0.96rem', xl: '1.08rem' },
+                      fontWeight: 800,
                       textTransform: 'none',
-                      boxShadow: `0 0 22px ${T.tealGlow}`,
-                      '&:hover': {
-                        bgcolor: T.tealHover,
-                        boxShadow: `0 0 28px ${T.tealGlow}`,
-                      },
+                      '&:hover': { borderColor: T.teal, bgcolor: T.glass },
                     }}
                   >
-                    Browse Cinema
+                    Explore all apps
                   </Button>
                 </Box>
               </motion.div>
             </Box>
 
-            {/* Right quick launch panel */}
+            {/* Right: featured-app spotlight (IPO Radar) with a live snapshot */}
             <Box
               sx={{
                 display: {
@@ -346,189 +319,19 @@ const HeroSection = memo(function HeroSection({
                 minWidth: 0,
               }}
             >
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: prefersReducedMotion ? 1 : 0.96,
-                  y: prefersReducedMotion ? 0 : 18,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay: 0.28,
-                  type: 'spring',
-                  stiffness: 90,
-                  damping: 18,
-                }}
-              >
-                <Box
-                  sx={{
-                    p: {
-                      lg: 2.2,
-                      xl: 2.8,
-                    },
-                    '@media (min-width:1920px)': {
-                      p: 3.4,
-                    },
-                    borderRadius: {
-                      lg: 4,
-                      xl: 5,
-                    },
-                    border: `1px solid ${T.glassBorder}`,
-                    bgcolor: 'rgba(255,255,255,0.035)',
-                    backdropFilter: 'blur(18px)',
-                    boxShadow: '0 24px 80px rgba(0,0,0,0.28)',
-                    minWidth: 0,
+              {ipoApp && (
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    scale: prefersReducedMotion ? 1 : 0.96,
+                    y: prefersReducedMotion ? 0 : 18,
                   }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: 0.28, type: 'spring', stiffness: 90, damping: 18 }}
                 >
-                  <Typography
-                    sx={{
-                      color: T.textMuted,
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.12em',
-                      fontSize: {
-                        lg: '0.75rem',
-                        xl: '0.86rem',
-                      },
-                      mb: 2,
-                    }}
-                  >
-                    Quick Launch
-                  </Typography>
-
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: {
-                        lg: 1.4,
-                        xl: 1.8,
-                      },
-                      minWidth: 0,
-                    }}
-                  >
-                    {visibleApps.slice(0, 4).map((app) => {
-                      const Icon = app.Icon;
-
-                      return (
-                        <Box
-                          key={app.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => onNavigate(app)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              onNavigate(app);
-                            }
-                          }}
-                          aria-label={`Open ${app.label}`}
-                          sx={{
-                            minWidth: 0,
-                            p: {
-                              lg: 1.5,
-                              xl: 1.9,
-                            },
-                            '@media (min-width:1920px)': {
-                              p: 2.3,
-                            },
-                            borderRadius: 3,
-                            border: `1px solid ${T.glassBorder}`,
-                            bgcolor: 'rgba(0,0,0,0.14)',
-                            cursor: 'pointer',
-                            transition:
-                              'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
-                            ...cardFocusSx(app.accent),
-                            '&:hover': {
-                              transform: prefersReducedMotion
-                                ? 'none'
-                                : 'translateY(-3px)',
-                              borderColor: `${app.accent}99`,
-                              bgcolor: `${app.accent}18`,
-                            },
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: {
-                                lg: 42,
-                                xl: 50,
-                              },
-                              height: {
-                                lg: 42,
-                                xl: 50,
-                              },
-                              '@media (min-width:1920px)': {
-                                width: 62,
-                                height: 62,
-                              },
-                              borderRadius: 2.2,
-                              background: app.gradient,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              mb: 1.2,
-                            }}
-                          >
-                            <Icon
-                              sx={{
-                                color: '#fff',
-                                fontSize: {
-                                  lg: 23,
-                                  xl: 28,
-                                },
-                                '@media (min-width:1920px)': {
-                                  fontSize: 34,
-                                },
-                              }}
-                            />
-                          </Box>
-
-                          <Typography
-                            sx={{
-                              color: T.textPrimary,
-                              fontWeight: 900,
-                              fontSize: {
-                                lg: '0.9rem',
-                                xl: '1.04rem',
-                              },
-                              '@media (min-width:1920px)': {
-                                fontSize: '1.18rem',
-                              },
-                              lineHeight: 1.2,
-                              mb: 0.4,
-                              ...clampTextSx(1),
-                            }}
-                          >
-                            {app.label}
-                          </Typography>
-
-                          <Typography
-                            sx={{
-                              color: T.textMuted,
-                              fontSize: {
-                                lg: '0.74rem',
-                                xl: '0.84rem',
-                              },
-                              '@media (min-width:1920px)': {
-                                fontSize: '0.96rem',
-                              },
-                              lineHeight: 1.4,
-                              ...clampTextSx(2),
-                            }}
-                          >
-                            {app.description}
-                          </Typography>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </Box>
-              </motion.div>
+                  <IpoSpotlight T={T} app={ipoApp} onOpen={() => onNavigate(ipoApp)} />
+                </motion.div>
+              )}
             </Box>
           </Box>
         </Container>

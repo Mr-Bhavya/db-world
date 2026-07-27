@@ -65,6 +65,7 @@ const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyWalletAdmin          = lazy(() => import('@features/admin/wallet'));
+const LazyIpoAdmin             = lazy(() => import('@features/admin/ipo'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
@@ -76,6 +77,12 @@ const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybri
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 const LazyWallet              = lazy(() => import('@features/wallet'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
+const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
+const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
+const LazyMyIposPage          = lazy(() => import('@features/ipo/pages/MyIposPage.jsx'));
+// Imported eagerly (it's tiny) so it can serve as the detail route's OWN Suspense fallback —
+// a page-shaped placeholder during the code-split chunk download, instead of the generic top bar.
+import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
@@ -209,6 +216,9 @@ const routeConfig = {
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
+    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
+    { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
+    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []
@@ -406,6 +416,7 @@ const ThemedApp = () => {
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
                     <Route path="settings"      element={<LazySettingsPanel />} />
                     <Route path="document-wallet" element={<LazyWalletAdmin />} />
+                    <Route path="ipo"            element={<LazyIpoAdmin />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<ErrorPage />} />

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Box, Typography, IconButton, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, IconButton, Skeleton, useMediaQuery, useTheme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,6 +12,24 @@ import ContinueCard from './ContinueCard';
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
+
+// Loading placeholder that matches ContinueCard's footprint (16:9 + teal progress
+// bar; mobile has a title line below) so the row doesn't jump when cards arrive.
+const ContinueCardSkeleton = ({ isMobile }) => (
+  <Box sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 } }}>
+    <Box sx={{
+      position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 1,
+      overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)',
+    }}>
+      <Skeleton variant="rectangular" width="100%" height="100%"
+        sx={{ bgcolor: 'rgba(255,255,255,.06)', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }} />
+      <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: 'rgba(255,255,255,.12)' }} />
+    </Box>
+    {isMobile && (
+      <Skeleton variant="text" width="60%" height={16} sx={{ mt: 0.6, bgcolor: 'rgba(255,255,255,.06)' }} />
+    )}
+  </Box>
+);
 
 /**
  * Continue Watching row — self-contained: fetches the enriched resume tiles,
@@ -139,16 +157,20 @@ const ContinueRailRow = () => {
               scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
             }}
           >
-            {items.map((item) => (
-              <ContinueCard
-                key={item.recordId}
-                item={item}
-                onResume={onResume}
-                onRemove={(it) => removeMut.mutate(it.recordId)}
-                onInfo={onInfo}
-                isMobile={isMobile}
-              />
-            ))}
+            {isLoading && items.length === 0
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <ContinueCardSkeleton key={`sk-${i}`} isMobile={isMobile} />
+                ))
+              : items.map((item) => (
+                  <ContinueCard
+                    key={item.recordId}
+                    item={item}
+                    onResume={onResume}
+                    onRemove={(it) => removeMut.mutate(it.recordId)}
+                    onInfo={onInfo}
+                    isMobile={isMobile}
+                  />
+                ))}
           </Box>
         </Box>
       </Box>

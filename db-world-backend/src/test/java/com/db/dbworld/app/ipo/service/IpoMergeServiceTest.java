@@ -1,0 +1,233 @@
+package com.db.dbworld.app.ipo.service;
+
+import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.dto.IpoFinancialRowDto;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class IpoMergeServiceTest {
+
+    private IpoMergeService mergeService;
+
+    private static final LocalDate OPEN = LocalDate.of(2026, 7, 20);
+
+    @BeforeEach
+    void setUp() {
+        mergeService = new IpoMergeService(new IpoNormalizer());
+    }
+
+    /** Builds a fully-populated dto for a given source so precedence/fallback is easy to assert on. */
+    private IpoDto full(String source) {
+        // freshIssue/offerForSale vary by source (unlike most other numeric fields here) so the
+        // precedence-winning source can actually be discriminated by value.
+        BigDecimal freshIssue = switch (source) {
+            case "nse" -> new BigDecimal("500.00");
+            case "ipoguru" -> new BigDecimal("600.00");
+            default -> new BigDecimal("700.00");
+        };
+        BigDecimal offerForSale = switch (source) {
+            case "nse" -> new BigDecimal("200.00");
+            case "ipoguru" -> new BigDecimal("300.00");
+            default -> new BigDecimal("400.00");
+        };
+        return new IpoDto(source, null, "Acme Corp Ltd", "mainboard", "open-" + source,
+                OPEN, LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 28), LocalDate.of(2026, 7, 30),
+                new BigDecimal("100.00"), new BigDecimal("110.00"), 130, "500 Cr-" + source,
+                "NSE-" + source, new BigDecimal("135.00"), new BigDecimal("22.73"),
+                new BigDecimal("25.00"), new BigDecimal("22.00"),
+                Map.of("Cat-" + source, new BigDecimal("1.00")), new BigDecimal("6.75"),
+                "finalized-" + source, "Link Intime-" + source, "https://registrar/" + source,
+                "https://logo/" + source, "About " + source,
+                LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
+                new BigDecimal("10.00"), freshIssue, offerForSale,
+                "TICK-" + source, "Strength " + source, "Risk " + source, List.of(), null, null, null, null);
+    }
+
+    /** Minimal dto (like the fallback-precedence helpers below) varying only source + financials. */
+    private IpoDto dtoWithFinancials(String source, List<IpoFinancialRowDto> financials) {
+        return new IpoDto(source, null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, financials, null, null, null, null);
+    }
+
+    private static IpoFinancialRowDto row(String fiscalYear) {
+        return new IpoFinancialRowDto(fiscalYear, null, null, null, null);
+    }
+
+    @Test
+    void merge_threeSourcesSameIpo_pickEachFieldFromItsPrecedenceWinner() {
+        IpoDto nse = full("nse");
+        IpoDto ipoguru = full("ipoguru");
+        IpoDto chittorgarh = full("chittorgarh");
+
+        List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, chittorgarh));
+
+        assertThat(merged).hasSize(1);
+        IpoDto m = merged.get(0);
+
+        // primary group -> nse wins
+        assertThat(m.status()).isEqualTo("open-nse");
+        // listing venue has its OWN precedence (chittorgarh-first): the NSE feed only ever reports
+        // "NSE", so it must not shadow Chittorgarh's fuller BOTH/BSE/NSE venue.
+        assertThat(m.listingExchange()).isEqualTo("NSE-chittorgarh");
+        assertThat(m.listingPrice()).isEqualByComparingTo("135.00");
+        assertThat(m.companyName()).isEqualTo("Acme Corp Ltd");
+        assertThat(m.issueSize()).isEqualTo("500 Cr-nse");
+        assertThat(m.openDate()).isEqualTo(OPEN);
+
+        // volatile group -> ipoguru wins
+        assertThat(m.gmp()).isEqualByComparingTo("25.00");
+        assertThat(m.subTotal()).isEqualByComparingTo("6.75");
+        assertThat(m.subscriptionCategories()).containsOnlyKeys("Cat-ipoguru");
+
+        // registrar group -> chittorgarh wins
+        assertThat(m.allotmentStatus()).isEqualTo("finalized-chittorgarh");
+        assertThat(m.registrar()).isEqualTo("Link Intime-chittorgarh");
+        assertThat(m.registrarUrl()).isEqualTo("https://registrar/chittorgarh");
+
+        assertThat(m.refundDate()).isEqualTo(LocalDate.of(2026, 7, 29));
+        assertThat(m.dematDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+
+        // primary group -> nse wins (new fields follow the same precedence as the rest of the group)
+        assertThat(m.faceValue()).isEqualByComparingTo("10.00");
+        assertThat(m.freshIssue()).isEqualByComparingTo("500.00");
+        assertThat(m.offerForSale()).isEqualByComparingTo("200.00");
+        assertThat(m.tickerSymbol()).isEqualTo("TICK-nse");
+        assertThat(m.strengths()).isEqualTo("Strength nse");
+        assertThat(m.risks()).isEqualTo("Risk nse");
+
+        assertThat(m.matchKey()).isNotNull();
+    }
+
+    @Test
+    void merge_groupMissingPreferredSource_fallsBackToNextInPrecedence() {
+        // Primary group precedence is [nse, ipoguru, chittorgarh]; no nse dto present here,
+        // so ipoguru should supply the primary-group fields.
+        IpoDto ipoguru = full("ipoguru");
+        IpoDto chittorgarh = full("chittorgarh");
+
+        List<IpoDto> merged = mergeService.merge(List.of(ipoguru, chittorgarh));
+
+        assertThat(merged).hasSize(1);
+        IpoDto m = merged.get(0);
+
+        assertThat(m.status()).isEqualTo("open-ipoguru");
+        // listing venue precedence is [chittorgarh, ipoguru, nse] → chittorgarh present, so it wins.
+        assertThat(m.listingExchange()).isEqualTo("NSE-chittorgarh");
+    }
+
+    @Test
+    void merge_fieldMissingFromAllPrecedenceSources_fallsBackToAnyNonNullInGroup() {
+        // allotmentStatus's precedence is [chittorgarh, ipoguru, nse]. Both precedence-listed
+        // sources present here (nse, ipoguru) leave it null, so the only way the merged value
+        // can come through is the true fallback branch — any non-null value anywhere in the
+        // group — picking it up from "manual", a source that isn't even in the precedence list.
+        IpoDto nse = new IpoDto("nse", null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+        IpoDto ipoguru = new IpoDto("ipoguru", null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+        IpoDto manual = new IpoDto("manual", null, "Acme Corp Ltd", null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                "finalized-manual-only", null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+
+        List<IpoDto> merged = mergeService.merge(List.of(nse, ipoguru, manual));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).allotmentStatus()).isEqualTo("finalized-manual-only");
+    }
+
+    @Test
+    void merge_twoDifferentIpos_producesTwoMergedRows() {
+        IpoDto acme = full("nse");
+        IpoDto other = new IpoDto("nse", null, "Widget Industries Ltd", "mainboard", "open",
+                LocalDate.of(2026, 8, 1), null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+
+        List<IpoDto> merged = mergeService.merge(List.of(acme, other));
+
+        assertThat(merged).hasSize(2);
+        assertThat(merged).extracting(IpoDto::companyName)
+                .containsExactlyInAnyOrder("Acme Corp Ltd", "Widget Industries Ltd");
+    }
+
+    @Test
+    void merge_dtoWithNullMatchKey_isDropped() {
+        IpoDto uningestable = new IpoDto("nse", null, null, null, null,
+                OPEN, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+        IpoDto valid = full("ipoguru");
+
+        List<IpoDto> merged = mergeService.merge(List.of(uningestable, valid));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).companyName()).isEqualTo("Acme Corp Ltd");
+    }
+
+    @Test
+    void merge_setsMatchKeyOnEveryMergedDto() {
+        IpoDto nse = full("nse");
+
+        List<IpoDto> merged = mergeService.merge(List.of(nse));
+
+        assertThat(merged.get(0).matchKey()).isEqualTo(new IpoNormalizer().matchKey(nse));
+    }
+
+    @Test
+    void merge_financials_chittorgarhWinsOverAnotherNonEmptyList() {
+        IpoDto ipoguru = dtoWithFinancials("ipoguru", List.of(row("FY23-ipoguru")));
+        IpoDto chittorgarh = dtoWithFinancials("chittorgarh", List.of(row("FY23-chittorgarh")));
+
+        List<IpoDto> merged = mergeService.merge(List.of(ipoguru, chittorgarh));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).financials()).extracting(IpoFinancialRowDto::fiscalYear)
+                .containsExactly("FY23-chittorgarh");
+    }
+
+    @Test
+    void merge_financials_chittorgarhEmpty_fallsBackToNextPrecedenceSource() {
+        IpoDto ipoguru = dtoWithFinancials("ipoguru", List.of(row("FY23-ipoguru")));
+        IpoDto chittorgarh = dtoWithFinancials("chittorgarh", List.of());
+
+        List<IpoDto> merged = mergeService.merge(List.of(ipoguru, chittorgarh));
+
+        assertThat(merged.get(0).financials()).extracting(IpoFinancialRowDto::fiscalYear)
+                .containsExactly("FY23-ipoguru");
+    }
+
+    @Test
+    void merge_financials_noSourceReportsAny_mergedFieldIsNull() {
+        IpoDto nse = full("nse");
+
+        List<IpoDto> merged = mergeService.merge(List.of(nse));
+
+        assertThat(merged.get(0).financials()).isNull();
+    }
+}

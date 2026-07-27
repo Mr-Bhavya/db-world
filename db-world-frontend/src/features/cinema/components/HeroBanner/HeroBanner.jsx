@@ -35,7 +35,9 @@ const SkeletonBlock = (props) => (
 );
 
 const HeroSkeletonMobile = ({ isXs }) => {
-  const cardHeight = isXs ? '76svh' : '68svh';
+  // Match HeroBannerMobile's `metrics.cardHeight` exactly so the row doesn't
+  // resize when the real hero card loads in.
+  const cardHeight = isXs ? '66svh' : '60svh';
   const cardRadius = isXs ? 18 : 22;
 
   return (
@@ -85,12 +87,14 @@ const HeroSkeletonMobile = ({ isXs }) => {
             gap: 1,
           }}
         >
-          <SkeletonBlock width="62%" height={24} sx={{ borderRadius: 1 }} />
+          {/* Logo-first layout: taller block reads as the title logo, not a label */}
+          <SkeletonBlock width="62%" height={isXs ? 52 : 60} sx={{ borderRadius: 1 }} />
           <SkeletonBlock width="44%" height={12} sx={{ mb: 1 }} />
 
+          {/* My List · Play · Info — Play height matches metrics.btnHeight */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.25 }}>
             <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
-            <SkeletonBlock width={150} height={44} sx={{ borderRadius: 1 }} />
+            <SkeletonBlock width={150} height={isXs ? 44 : 48} sx={{ borderRadius: 1 }} />
             <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
           </Box>
 
@@ -114,6 +118,8 @@ const HeroSkeletonMobile = ({ isXs }) => {
 };
 
 const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
+  // Mirror HeroBannerDesktop's `metrics` so the skeleton fills the same footprint
+  // at every desktop-class size: desktop, large monitor and TV.
   const heroHeight = isTv
     ? 'clamp(760px, 90vh, 1120px)'
     : isMonitor
@@ -122,6 +128,22 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
 
   const contentLeft = isTv ? 56 : isMonitor ? 72 : 56;
   const contentBottom = isTv ? 240 : isMonitor ? 206 : 176;
+  const contentWidth = isTv
+    ? 'min(35vw, 780px)'
+    : isMonitor
+      ? 'min(38vw, 680px)'
+      : 'min(44vw, 560px)';
+
+  // ~⅔ of the real logoMaxH (200 / 168 / 132) so it reads as a logo, not a slab.
+  const logoW = isTv ? 360 : isMonitor ? 320 : 260;
+  const logoH = isTv ? 132 : isMonitor ? 112 : 92;
+  const buttonHeight = isTv ? 60 : 46;
+  const roundBtn = isTv ? 54 : 42;
+  const navBtn = isTv ? 44 : 36;
+  const thumbW = isTv ? 132 : isMonitor ? 116 : 104;
+  const thumbH = isTv ? 74 : isMonitor ? 66 : 58;
+  const overviewLines = isTv ? 4 : 3;
+  const lineWidths = ['86%', '78%', '70%', '58%'];
 
   return (
     <Box
@@ -176,38 +198,35 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
           position: 'absolute',
           left: contentLeft,
           bottom: contentBottom,
-          maxWidth: isTv ? 780 : 640,
-          width: 'min(50vw, 780px)',
+          width: contentWidth,
+          maxWidth: 'calc(100vw - 180px)',
         }}
       >
         {/* Logo placeholder (logo-first layout) */}
-        <SkeletonBlock width={isTv ? 360 : 260} height={isTv ? 120 : 96} sx={{ mb: 2, borderRadius: 2 }} />
+        <SkeletonBlock width={logoW} height={logoH} sx={{ mb: 2, borderRadius: 2 }} />
 
-        {/* Meta row */}
+        {/* Single meta line: rating pill + genres · year · type */}
         <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
           <SkeletonBlock width={64} height={22} sx={{ borderRadius: 999 }} />
-          <SkeletonBlock width={48} height={16} />
-          <SkeletonBlock width={42} height={16} />
+          <SkeletonBlock width={56} height={16} />
+          <SkeletonBlock width={44} height={16} />
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.4, mb: 2 }}>
-          <SkeletonBlock width={70} height={14} />
-          <SkeletonBlock width={80} height={14} />
-          <SkeletonBlock width={64} height={14} />
-        </Box>
-
-        <SkeletonBlock width="86%" height={14} sx={{ mb: 1 }} />
-        <SkeletonBlock width="78%" height={14} sx={{ mb: 1 }} />
-        <SkeletonBlock width="62%" height={14} sx={{ mb: 2.5 }} />
-
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <SkeletonBlock width={140} height={isTv ? 60 : 46} sx={{ borderRadius: 999 }} />
-          <SkeletonBlock width={170} height={isTv ? 60 : 46} sx={{ borderRadius: 999 }} />
+        {/* Overview lines */}
+        {Array.from({ length: overviewLines }).map((_, i) => (
           <SkeletonBlock
-            width={isTv ? 54 : 42}
-            height={isTv ? 54 : 42}
-            sx={{ borderRadius: '50%' }}
+            key={i}
+            width={lineWidths[i] ?? '60%'}
+            height={14}
+            sx={{ mb: i === overviewLines - 1 ? 2.5 : 1 }}
           />
+        ))}
+
+        {/* Play · More Info · round add */}
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <SkeletonBlock width={140} height={buttonHeight} sx={{ borderRadius: 999 }} />
+          <SkeletonBlock width={170} height={buttonHeight} sx={{ borderRadius: 999 }} />
+          <SkeletonBlock width={roundBtn} height={roundBtn} sx={{ borderRadius: '50%' }} />
         </Box>
       </Box>
 
@@ -222,16 +241,16 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
           gap: 1,
         }}
       >
-        <SkeletonBlock width={isTv ? 44 : 36} height={isTv ? 44 : 36} sx={{ borderRadius: '50%' }} />
+        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
         {[0, 1, 2, 3].map((i) => (
           <SkeletonBlock
             key={i}
-            width={isTv ? 132 : isMonitor ? 116 : 104}
-            height={isTv ? 74 : isMonitor ? 66 : 58}
+            width={thumbW}
+            height={thumbH}
             sx={{ borderRadius: 1.5, bgcolor: shimmerStrong }}
           />
         ))}
-        <SkeletonBlock width={isTv ? 44 : 36} height={isTv ? 44 : 36} sx={{ borderRadius: '50%' }} />
+        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
       </Box>
     </Box>
   );

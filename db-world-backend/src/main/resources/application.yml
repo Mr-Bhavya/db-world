@@ -198,6 +198,15 @@ dbworld:
     cdn-log-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
     rotated-suffix: ".1"
 
+  # ── IPO tracker ────────────────────────────────────────────────────────────
+  ipo:
+    # DEV-only sample-data seeder: when true AND ipo_listing is completely empty, seeds ~10
+    # realistic sample IPOs (all statuses/types, GMP+subscription history, financials) on boot.
+    # Prod-safe: defaults false, and is also an empty-table guard, so it never overwrites real
+    # ingested data even if left on by accident. Enable only in a local dev profile/env.
+    sample-data:
+      enabled: ${IPO_SAMPLE_DATA_ENABLED:false}
+
 # =========================================================
 # Logging
 # =========================================================

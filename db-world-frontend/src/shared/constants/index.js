@@ -94,6 +94,10 @@ export const DB_ADMIN_TOOLS_ROUTE =
 export const DB_ADMIN_BASE_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/admin`;
 
+// Cadence for the ipo-poll job is edited on the Scheduler page, not the IPO
+// admin page — this constant backs that cross-link.
+export const DB_ADMIN_SCHEDULER_ROUTE = `${DB_ADMIN_BASE_ROUTE}/scheduler`;
+
 export const ADD_RECORD_ROUTE =
   `${DB_ADMIN_BASE_ROUTE}/records`;
 
@@ -102,6 +106,13 @@ export const EDIT_RECORD_ROUTE =
 
 export const DB_WALLET_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-wallet`;
 export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
+
+export const DB_IPO_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo`;
+export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
+export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
+// "My IPOs" — applicant-level saved-application list. Declared before DB_IPO_DETAIL_ROUTE's
+// `:id` param in the route table (see App.jsx) so `/my` never gets swallowed as an :id.
+export const DB_IPO_MY_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo/my`;
 
 /* =========================
  * USER ROLES
@@ -226,10 +237,15 @@ export default {
 
   DB_ADMIN_TOOLS_ROUTE,
   DB_ADMIN_BASE_ROUTE,
+  DB_ADMIN_SCHEDULER_ROUTE,
   ADD_RECORD_ROUTE,
   EDIT_RECORD_ROUTE,
   DB_WALLET_ROUTE,
   DB_WALLET_SHARE_ROUTE,
+  DB_IPO_ROUTE,
+  DB_IPO_DETAIL_ROUTE,
+  ipoDetailPath,
+  DB_IPO_MY_ROUTE,
 
   OWNER_USER_ROLE,
   ADMIN_USER_ROLE,

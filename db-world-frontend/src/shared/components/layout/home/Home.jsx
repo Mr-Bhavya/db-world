@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 
 import {
   Box,
@@ -17,6 +18,7 @@ import { useT } from '@shared/theme';
 
 import Footer from '@shared/components/layout/Footer';
 import SectionHeading from '@shared/components/ui/SectionHeading';
+import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
 import { APPS } from './homeData';
 
@@ -29,6 +31,7 @@ import {
 
 import {
   appsGridSx,
+  bentoSpanSx,
   horizontalScrollSx,
 } from './homeStyles';
 
@@ -43,6 +46,7 @@ const Home = () => {
   const T = useT();
   const navigate = useNavigate();
   const theme = useTheme();
+  const prefersReducedMotion = useReducedMotion();
 
   const isTabletDown = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -140,14 +144,6 @@ const Home = () => {
     setFavorites(Array.isArray(updated) ? [...updated] : []);
   }, []);
 
-  const openCinema = useCallback(() => {
-    const app = APPS.find((candidate) => candidate.id === 'cinema');
-
-    if (app) {
-      handleNavigate(app);
-    }
-  }, [handleNavigate]);
-
   return (
     <Box
       sx={{
@@ -163,7 +159,6 @@ const Home = () => {
         visibleApps={visibleApps}
         scrolled={scrolled}
         onNavigate={handleNavigate}
-        openCinema={openCinema}
       />
 
       <Box
@@ -208,6 +203,9 @@ const Home = () => {
             },
           }}
         >
+          {/* Push-notification opt-in (only shows when supported + not yet decided) */}
+          <NotificationsPrompt />
+
           {/* Favorites */}
           <Box
             component="section"
@@ -226,7 +224,7 @@ const Home = () => {
               <Box
                 sx={{
                   border: `1px dashed ${T.glassBorder}`,
-                  bgcolor: 'rgba(255,255,255,0.018)',
+                  bgcolor: T.glass,
                   borderRadius: 3,
                   px: {
                     xs: 1.5,
@@ -311,13 +309,23 @@ const Home = () => {
             <SectionHeading label="All Apps" />
 
             <Box sx={appsGridSx}>
-              {visibleApps.map((app) => (
+              {visibleApps.map((app, index) => (
                 <Box
                   key={`${app.id}-${isAdmin ? 'admin' : 'user'}`}
+                  component={motion.div}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{
+                    delay: Math.min(index * 0.06, 0.36),
+                    type: 'spring',
+                    stiffness: 90,
+                    damping: 18,
+                  }}
                   sx={{
                     display: 'flex',
-                    width: '100%',
                     minWidth: 0,
+                    ...bentoSpanSx(app.size),
                   }}
                 >
                   <AppCard

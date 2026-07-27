@@ -46,9 +46,14 @@
         <springdoc.version>3.0.3</springdoc.version>
         <metrics-dropwizard.version>4.2.33</metrics-dropwizard.version>
         <commons-io.version>2.20.0</commons-io.version>
+        <jsoup.version>1.18.3</jsoup.version>
 
         <!-- Explicit so MapStruct's annotation processor picks up a Java 25 compatible build. -->
         <lombok.version>1.18.42</lombok.version>
+        <!-- Lets MapStruct's annotation processor see Lombok-generated getters/setters/builders
+             during the same compilation round (must run after both lombok and mapstruct-processor
+             in annotationProcessorPaths below). -->
+        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
     </properties>
 
     <!-- ================================================================ -->
@@ -304,11 +309,28 @@
             <version>3.0.3</version>
         </dependency>
 
+        <!-- ── Jsoup (Chittorgarh IPO source: HTML table scraping) ──────── -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+
         <!-- ── Dropwizard Metrics ─────────────────────────────────────── -->
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
             <version>${metrics-dropwizard.version}</version>
+        </dependency>
+
+        <!-- ── Google Auth (FCM push: OAuth2 access token minted from the Firebase
+             service account, for the FCM HTTP v1 + Instance-ID topic APIs). Deliberately
+             NOT firebase-admin — this is a far lighter tree (no gRPC/Netty) so it can't
+             clash with Spring Boot's own reactor-netty stack. ─────────────────────────── -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.30.1</version>
         </dependency>
 
         <!-- ── Test ──────────────────────────────────────────────────── -->
@@ -368,6 +390,11 @@
                             <groupId>org.mapstruct</groupId>
                             <artifactId>mapstruct-processor</artifactId>
                             <version>${mapstruct.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>${lombok-mapstruct-binding.version}</version>
                         </path>
                     </annotationProcessorPaths>
                     <compilerArgs>

@@ -19,6 +19,8 @@ public final class SettingsCatalog {
     private static final String C_WEATHER   = "Weather";
     private static final String C_CDN       = "CDN Signing";
     private static final String C_WALLET    = "Document Wallet";
+    private static final String C_IPO       = "IPO Tracker";
+    private static final String C_PUSH      = "Push Notifications";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -89,7 +91,38 @@ public final class SettingsCatalog {
             "Maximum upload size per wallet document.", 10_485_760L, 1_048_576L, 104_857_600L, 0),
         str(WALLET_ALLOWED_CONTENT_TYPES, C_WALLET, "Allowed content types",
             "Comma-separated MIME types accepted for wallet uploads.",
-            "application/pdf,image/png,image/jpeg", false, 1)
+            "application/pdf,image/png,image/jpeg", false, 1),
+
+        // ── IPO Tracker ──────────────────────────────────────────────────
+        str(IPO_SOURCES_ENABLED, C_IPO, "Enabled sources",
+            "Comma-separated keys of enabled IPO data sources.",
+            "ipoguru,nse,chittorgarh", false, 0),
+        str(IPO_IPOGURU_BASE_URL, C_IPO, "IPO Guru base URL",
+            "Base URL for the IPO Guru API.",
+            "https://www.ipoguru.in/api/v1", false, 1),
+        str(IPO_NSE_BASE_URL, C_IPO, "NSE base URL",
+            "Base URL for the NSE IPO endpoints (e.g. …/api/ipo-current-issue, …/api/ipo-detail). "
+                + "Blank restores the built-in default.",
+            "https://www.nseindia.com", false, 2),
+        str(IPO_CHITTORGARH_BASE_URL, C_IPO, "Chittorgarh base URL",
+            "Base URL for the Chittorgarh list JSON API (the webnodejs host). "
+                + "Blank restores the built-in default.",
+            "https://webnodejs.chittorgarh.com", false, 3),
+        str(IPO_INVESTORGAIN_BASE_URL, C_IPO, "Investorgain base URL",
+            "Base URL for the Investorgain GMP report + gmp-read JSON API (the webnodejs host). "
+                + "Blank restores the built-in default.",
+            "https://webnodejs.investorgain.com", false, 4),
+        lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
+            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 5),
+
+        // ── Push Notifications ────────────────────────────────────────────
+        bool(PUSH_ENABLED, C_PUSH, "Push enabled",
+             "Master flag — gates all outgoing push notifications (FCM). The Firebase service "
+             + "account must also be configured via env for anything to actually send.", true, 0),
+        str(PUSH_IPO_TOPIC, C_PUSH, "IPO push topic",
+            "FCM topic every device is subscribed to on register; IPO alerts broadcast to it "
+            + "(so every user is notified). Blank restores the built-in default.",
+            "ipo-all", false, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =
