@@ -1,73 +1,249 @@
-name: Deploy to Pi (self-hosted)
+name: Deploy & Release
 
-# Deploys to the Pi from prebuilt GitHub artifacts (nothing is built on the Pi).
-# Runs on a SELF-HOSTED runner installed on the Pi, so no inbound SSH/firewall
-# holes are needed — the job executes locally on the box (like Jenkins).
-#   • backend  ← the WAR from the rolling `backend-latest` prerelease (backend.yml)
-#   • frontend ← the dist zip from an app Release (release.yml); blank tag = latest
+# Builds AND ships the selected component. Manual only (workflow_dispatch):
+#   • Backend  — build the WAR and deploy it to the Pi
+#   • Frontend — build the web bundle and deploy it to the Pi
+#   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
+#                (the source the in-app updater reads)
+#   • Everything — all of the above
 #
-# Prerequisites (one-time):
-#   1. Register the Pi as a self-hosted runner (Settings → Actions → Runners).
-#      Default labels (self-hosted) are fine. Run it as a SERVICE:
-#        sudo ./svc.sh install && sudo ./svc.sh start
-#   2. Create a `production` Environment (Settings → Environments), optionally
-#      with a required reviewer so each deploy waits for your approval.
-#   3. The runner user can `sudo /usr/local/bin/dbworldctl` (NOPASSWD sudoers)
-#      and write to /var/www/dbworld; `curl` + `unzip` installed.
+# Release number (Android): the `version` input, e.g. 3.1.0 (blank = auto-bump the patch of the
+# latest published release). versionCode is an auto UTC timestamp (always increasing).
 #
-# This OVERLAPS the Jenkins deploy — use one path, not both.
+# Pi deploys run on the self-hosted runner under the `production` Environment — add a required
+# reviewer there to gate every prod ship.
+#
+# Secrets: FRONTEND_ENV_PRODUCTION, GOOGLE_SERVICES_JSON_BASE64, ANDROID_KEYSTORE_BASE64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+
 on:
   workflow_dispatch:
     inputs:
-      part:
-        description: What to deploy
+      component:
+        description: What to deploy / release
         type: choice
-        options: [full, frontend, backend]
-        default: full
-      appTag:
-        description: App release tag for the frontend (e.g. v3.0.1; blank = latest)
+        default: "Frontend — deploy web to the Pi"
+        options:
+          - "Everything (backend + frontend + Android)"
+          - "Backend — deploy WAR to the Pi"
+          - "Frontend — deploy web to the Pi"
+          - "Android — publish APK release"
+      version:
+        description: "Android release version, e.g. 3.1.0 (blank = auto-bump latest patch). Ignored for backend/frontend."
+        required: false
+      mandatory:
+        description: "Android: force (mandatory) update?"
+        type: boolean
+        default: false
+      changelog:
+        description: "Android: release notes shown in the update dialog"
         required: false
 
+permissions:
+  contents: write   # publish the Release
+
 concurrency:
-  group: deploy-pi
+  group: deploy-release
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    runs-on: self-hosted   # the Pi runner (default labels: self-hosted, Linux, ARM64)
-    environment: production
-    env:
-      PART: ${{ inputs.part }}
-      APP_TAG: ${{ inputs.appTag }}
-      REPO: ${{ github.repository }}
+  # ── Backend: build the WAR on a cloud runner ───────────────────────────────
+  backend-build:
+    name: Backend · build WAR
+    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Backend') }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Deploy backend (from backend-latest)
-        if: ${{ env.PART != 'frontend' }}
-        run: |
-          set -euxo pipefail
-          WORK="$RUNNER_TEMP/dbworld-deploy"
-          rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"
-          curl -fL -o db-world.war "https://github.com/$REPO/releases/download/backend-latest/db-world.war"
-          sudo /usr/local/bin/dbworldctl update "$WORK/db-world.war"
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Package WAR
+        working-directory: db-world-backend
+        run: mvn -B -ntp -P prod -DskipTests package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backend-war
+          path: db-world-backend/target/*.war
+          if-no-files-found: error
 
-      - name: Deploy frontend (from app release)
-        if: ${{ env.PART != 'backend' }}
+  # ── Backend: deploy the WAR to the Pi (self-hosted) ────────────────────────
+  backend-deploy:
+    name: Backend · deploy to Pi
+    needs: backend-build
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-war
+          path: war
+      - name: Deploy WAR
         run: |
           set -euxo pipefail
-          WORK="$RUNNER_TEMP/dbworld-deploy"
-          mkdir -p "$WORK" && cd "$WORK"
-          TAG="$APP_TAG"
-          if [ -z "$TAG" ]; then
-            TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-                  | grep -m1 '"tag_name"' | sed 's/.*: *"\(.*\)".*/\1/')
+          WAR=$(ls war/*.war | head -1)
+          sudo /usr/local/bin/dbworldctl update "$WAR"
+
+  # ── Frontend: build the web bundle on a cloud runner ───────────────────────
+  frontend-build:
+    name: Frontend · build web
+    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Frontend') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Build web bundle
+        working-directory: db-world-frontend
+        env:
+          FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
+        run: |
+          npm install --no-audit --no-fund
+          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
+            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            npm run build:production
+          else
+            npm run build
           fi
-          TAG="v${TAG#v}"   # normalize: accept "3.0.1" or "v3.0.1"
-          curl -fL -o dist.zip "https://github.com/$REPO/releases/download/$TAG/db-world-frontend-dist.zip"
-          unzip -oq dist.zip -d "$WORK"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: db-world-frontend/dist
+          if-no-files-found: error
+
+  # ── Frontend: deploy the bundle to the Pi (self-hosted) ────────────────────
+  frontend-deploy:
+    name: Frontend · deploy to Pi
+    needs: frontend-build
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: dist
+      - name: Publish to /var/www/dbworld
+        run: |
+          set -euxo pipefail
           REL="/var/www/dbworld/releases/$(date +%Y%m%d-%H%M%S)"
           mkdir -p "$REL"
-          cp -r "$WORK/dist/." "$REL/"
+          cp -r dist/. "$REL/"
           ln -sfn "$REL" /var/www/dbworld/current
-          # keep only the last 5 releases
           ls -dt /var/www/dbworld/releases/* | tail -n +6 | xargs rm -rf || true
-          echo "Deployed frontend ($TAG) -> $REL"
+          echo "Deployed frontend -> $REL"
+
+  # ── Android: build the signed APK and publish the versioned Release ────────
+  android-release:
+    name: Android · publish APK release
+    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Android') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Resolve version (name + code)
+        id: ver
+        env:
+          REPO: ${{ github.repository }}
+          IN_NAME: ${{ github.event.inputs.version }}
+        run: |
+          NAME="$IN_NAME"
+          # Blank version → auto-bump the patch of the latest published release (3.1.0 -> 3.1.1).
+          if [ -z "$NAME" ]; then
+            LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+                     | grep -m1 '"tag_name"' | sed 's/.*: *"\(.*\)".*/\1/' || true)
+            LATEST="${LATEST#v}"
+            if [ -z "$LATEST" ]; then NAME="3.0.0"; else
+              NAME=$(echo "$LATEST" | awk -F. -v OFS=. '{ $NF = $NF + 1; print }')
+            fi
+          fi
+          NAME="${NAME#v}"
+          CODE="$(date -u +%y%m%d%H%M)"   # monotonic UTC timestamp
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved v$NAME (versionCode $CODE)"
+
+      - name: Build web bundle + Capacitor sync
+        working-directory: db-world-frontend
+        env:
+          FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
+        run: |
+          npm install --no-audit --no-fund
+          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
+            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            npm run build:production
+          else
+            npm run build
+          fi
+          npx cap sync android
+
+      - name: Inject google-services.json (Firebase / FCM)
+        working-directory: db-world-frontend
+        env:
+          GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS_B64" ]; then
+            echo "$GS_B64" | base64 -d > android/app/google-services.json
+          else
+            echo "No GOOGLE_SERVICES_JSON_BASE64 — released APK will lack push (FCM)."
+          fi
+
+      - name: Configure release signing
+        working-directory: db-world-frontend/android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > app/release.keystore
+            printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > keystore.properties
+            echo "Release signing configured."
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 — APK will be DEBUG-signed (not for public release)."
+          fi
+
+      - name: Assemble release APK
+        working-directory: db-world-frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -PappVersionCode=${{ steps.ver.outputs.code }} \
+            -PappVersionName=${{ steps.ver.outputs.name }}
+          cp app/build/outputs/apk/release/app-release.apk \
+             "$GITHUB_WORKSPACE/db-world-${{ steps.ver.outputs.name }}.apk"
+
+      - name: Write version.json (updater metadata)
+        env:
+          CODE: ${{ steps.ver.outputs.code }}
+          NAME: ${{ steps.ver.outputs.name }}
+          MAND: ${{ github.event.inputs.mandatory }}
+          LOG: ${{ github.event.inputs.changelog }}
+        run: |
+          [ -z "$MAND" ] && MAND=false
+          APK="https://github.com/${{ github.repository }}/releases/download/v${NAME}/db-world-${NAME}.apk"
+          jq -n --argjson code "$CODE" --arg name "$NAME" --argjson mandatory "$MAND" \
+                --arg apk "$APK" --arg changelog "$LOG" \
+             '{versionCode:$code, versionName:$name, mandatory:$mandatory, minSupportedCode:0, apkUrl:$apk, changelog:$changelog}' \
+             > "$GITHUB_WORKSPACE/version.json"
+          cat "$GITHUB_WORKSPACE/version.json"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: v${{ steps.ver.outputs.name }}
+          generate_release_notes: true
+          files: |
+            db-world-*.apk
+            version.json
