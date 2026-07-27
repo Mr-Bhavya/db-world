@@ -18,6 +18,7 @@ import { useT } from '@shared/theme';
 
 import Footer from '@shared/components/layout/Footer';
 import SectionHeading from '@shared/components/ui/SectionHeading';
+import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
 import { APPS } from './homeData';
 
@@ -202,6 +203,9 @@ const Home = () => {
             },
           }}
         >
+          {/* Push-notification opt-in (only shows when supported + not yet decided) */}
+          <NotificationsPrompt />
+
           {/* Favorites */}
           <Box
             component="section"
