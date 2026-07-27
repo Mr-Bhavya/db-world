@@ -94,9 +94,19 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
         return;
       }
       const token = await getFcmToken();
-      persist(token);
-      if (token) notify.success('Notifications on — you’ll get IPO alerts.');
-      else notify.error('Couldn’t enable notifications just now. Please try again.');
+      if (!token) {
+        notify.error('Couldn’t enable notifications just now. Please try again.');
+        return;
+      }
+      // Only claim success once the token is actually registered (→ topic subscription).
+      // Registration needs a signed-in session, so a 401 surfaces as "sign in" rather than a
+      // misleading "Notifications on".
+      try {
+        await registerPushToken(token, 'web');
+        notify.success('Notifications on — you’ll get IPO alerts.');
+      } catch {
+        notify.error('Please sign in to turn on notifications, then try again.');
+      }
     } catch {
       notify.error('Couldn’t enable notifications.');
     } finally {

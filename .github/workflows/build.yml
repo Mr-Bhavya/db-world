@@ -2,7 +2,7 @@ name: Build
 
 # Builds artifacts ONLY — a backend WAR, a web bundle, and/or an installable (debug) APK — and
 # uploads them as workflow artifacts. It NEVER deploys to the Pi or publishes a release; use the
-# "Deploy & Release" workflow for that. Handy for sanity-checking a build or grabbing a test APK.
+# "Deploy & Release" workflow for that. Tick any combination of backend / frontend / android.
 #
 # Optional secrets: FRONTEND_ENV_PRODUCTION (web env incl. VITE_FIREBASE_*),
 # GOOGLE_SERVICES_JSON_BASE64 (Android FCM config). Missing secrets just build with defaults.
@@ -10,27 +10,35 @@ name: Build
 on:
   workflow_dispatch:
     inputs:
-      component:
-        description: Which artifact(s) to build
-        type: choice
-        default: "Everything (backend + frontend + Android)"
-        options:
-          - "Everything (backend + frontend + Android)"
-          - "Backend — WAR"
-          - "Frontend — web bundle"
-          - "Android — APK (debug)"
+      backend:
+        description: Build the backend WAR
+        type: boolean
+        default: false
+      frontend:
+        description: Build the frontend web bundle
+        type: boolean
+        default: true
+      android:
+        description: Build the Android APK (debug)
+        type: boolean
+        default: false
+      ref:
+        description: "Version to build — a branch, tag (e.g. v3.0.3) or commit SHA. Blank = the ref you launched this from."
+        required: false
 
 concurrency:
-  group: build-${{ github.ref }}-${{ github.event.inputs.component }}
-  cancel-in-progress: true
+  group: build-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   backend:
     name: Backend · build WAR
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Backend') }}
+    if: ${{ github.event.inputs.backend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -47,10 +55,12 @@ jobs:
 
   frontend:
     name: Frontend · build web bundle
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Frontend') }}
+    if: ${{ github.event.inputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -75,10 +85,12 @@ jobs:
 
   android:
     name: Android · build APK (debug)
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Android') }}
+    if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
