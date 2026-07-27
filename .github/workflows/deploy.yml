@@ -1,11 +1,10 @@
 name: Deploy & Release
 
-# Builds AND ships the selected component. Manual only (workflow_dispatch):
+# Builds AND ships each ticked component. Manual only (workflow_dispatch). Tick any combination:
 #   • Backend  — build the WAR and deploy it to the Pi
 #   • Frontend — build the web bundle and deploy it to the Pi
 #   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
 #                (the source the in-app updater reads)
-#   • Everything — all of the above
 #
 # Release number (Android): the `version` input, e.g. 3.1.0 (blank = auto-bump the patch of the
 # latest published release). versionCode is an auto UTC timestamp (always increasing).
@@ -19,15 +18,18 @@ name: Deploy & Release
 on:
   workflow_dispatch:
     inputs:
-      component:
-        description: What to deploy / release
-        type: choice
-        default: "Frontend — deploy web to the Pi"
-        options:
-          - "Everything (backend + frontend + Android)"
-          - "Backend — deploy WAR to the Pi"
-          - "Frontend — deploy web to the Pi"
-          - "Android — publish APK release"
+      backend:
+        description: Deploy the backend WAR to the Pi
+        type: boolean
+        default: false
+      frontend:
+        description: Deploy the frontend web bundle to the Pi
+        type: boolean
+        default: true
+      android:
+        description: Build + publish the signed Android APK release
+        type: boolean
+        default: false
       ref:
         description: "Version to deploy/release — branch, tag (e.g. v3.0.3) or SHA. Blank = the ref you launched from. Pick a PREVIOUS tag to roll back."
         required: false
@@ -53,7 +55,7 @@ jobs:
   # ── Backend: build the WAR on a cloud runner ───────────────────────────────
   backend-build:
     name: Backend · build WAR
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Backend') }}
+    if: ${{ github.event.inputs.backend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -93,7 +95,7 @@ jobs:
   # ── Frontend: build the web bundle on a cloud runner ───────────────────────
   frontend-build:
     name: Frontend · build web
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Frontend') }}
+    if: ${{ github.event.inputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -144,7 +146,7 @@ jobs:
   # ── Android: build the signed APK and publish the versioned Release ────────
   android-release:
     name: Android · publish APK release
-    if: ${{ startsWith(github.event.inputs.component, 'Everything') || startsWith(github.event.inputs.component, 'Android') }}
+    if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

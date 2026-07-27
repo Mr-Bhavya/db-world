@@ -27,7 +27,7 @@ Everything is built on GitHub cloud runners; the Pi only receives deployments.
 | **Deploy & Release** | cloud **+ Pi** | manual | Build **and ship** the selected component |
 
 Both **Build** and **Deploy & Release** take:
-- **`component`** — `Everything` · `Backend (WAR)` · `Frontend (web)` · `Android (APK)`.
+- **`backend` / `frontend` / `android`** — checkboxes; tick any combination (all three = "everything").
 - **`ref`** — a branch, tag (e.g. `v3.0.3`) or commit SHA to build. Blank = the ref you launched
   from. This is how you build/ship a **specific version** and how you **roll back** (see below).
 
@@ -37,14 +37,14 @@ Both **Build** and **Deploy & Release** take:
 ## Ship a change
 
 1. **Promote to `main`** — merge `development → main` via PR (main is protected).
-2. **Actions ▸ Deploy & Release ▸ Run workflow**, pick the `component`:
-   - **Backend** → builds the WAR (JDK 25) → deploys to the Pi (`dbworldctl update`).
-   - **Frontend** → builds the web bundle → deploys under `/var/www/dbworld` (timestamped release
+2. **Actions ▸ Deploy & Release ▸ Run workflow**, tick the components you want:
+   - **backend** → builds the WAR (JDK 25) → deploys to the Pi (`dbworldctl update`).
+   - **frontend** → builds the web bundle → deploys under `/var/www/dbworld` (timestamped release
      folder + `current` symlink; keeps the last 5).
-   - **Android** → builds the signed APK + `version.json` → publishes GitHub Release `v<version>`.
+   - **android** → builds the signed APK + `version.json` → publishes GitHub Release `v<version>`.
      The installed app self-updates on next launch (`/api/app/version` → `version.json` → if
      `versionCode` > installed, downloads `/api/app/download` → 302 → GitHub APK).
-   - **Everything** → all three.
+   - Tick all three to ship everything in one run.
 3. *(Optional)* Run **Build** first to sanity-check the artifacts (or grab a debug APK) without
    shipping anything.
 
@@ -65,8 +65,8 @@ workflow *logic* always comes from the default branch, but the *code it checks o
 so you build old code with the current pipeline. For an Android republish, also set `version`.
 
 ## Rollback
-- **Backend / Frontend** — *Deploy & Release* with `component` + **`ref` = the last-good tag/SHA** →
-  rebuilds and redeploys that version.
+- **Backend / Frontend** — *Deploy & Release* with the component ticked + **`ref` = the last-good
+  tag/SHA** → rebuilds and redeploys that version.
 - **Frontend, instantly (no rebuild)** — the Pi keeps the last 5 web releases. Repoint the symlink
   over SSH:
   ```bash
