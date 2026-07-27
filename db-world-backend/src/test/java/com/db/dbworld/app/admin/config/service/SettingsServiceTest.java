@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(31); // bumped when the 3 per-source IPO base-URL settings were added
+        assertThat(after1).isEqualTo(33); // +3 per-source IPO base-URLs, then +2 push settings
     }
 
     @Test

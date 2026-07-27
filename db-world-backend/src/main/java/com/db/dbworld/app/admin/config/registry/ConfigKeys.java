@@ -51,4 +51,9 @@ public final class ConfigKeys {
     public static final String IPO_CHITTORGARH_BASE_URL             = "ipo.chittorgarh.base-url";
     public static final String IPO_INVESTORGAIN_BASE_URL            = "ipo.investorgain.base-url";
     public static final String IPO_GMP_NOTIFY_THRESHOLD_PCT         = "ipo.gmp.notify-threshold-pct";
+
+    // Push notifications (FCM). The Firebase service-account credentials are a SECRET — read from
+    // env (not a setting here), same as the IPO Guru API key.
+    public static final String PUSH_ENABLED                         = "push.enabled";
+    public static final String PUSH_IPO_TOPIC                       = "push.ipo.topic";
 }

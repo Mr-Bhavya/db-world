@@ -8,6 +8,7 @@ import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
+import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
 import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
 @Service
 public class IpoIngestService {
 
+    private static final String STATUS_OPEN = "open";
     private static final String STATUS_LISTED = "listed";
 
     /** Indian IPO calendar zone — status boundaries (open/close/listing) flip at IST midnight. */
@@ -74,14 +76,21 @@ public class IpoIngestService {
         this.clock = clock;
     }
 
+    /**
+     * Ingests the merged feed and returns the user-facing lifecycle changes detected along the way
+     * (open / listed / allotment / GMP jump) for the caller to broadcast — the poll scheduler
+     * dispatches these to {@code IpoNotificationService} AFTER this transactional method commits.
+     */
     @Transactional
-    public void ingest(List<IpoDto> merged) {
+    public List<IpoLifecycleChange> ingest(List<IpoDto> merged) {
+        List<IpoLifecycleChange> notifications = new ArrayList<>();
         for (IpoDto dto : merged) {
-            ingestOne(dto);
+            notifications.addAll(ingestOne(dto));
         }
+        return notifications;
     }
 
-    private void ingestOne(IpoDto rawDto) {
+    private List<IpoLifecycleChange> ingestOne(IpoDto rawDto) {
         // Canonicalize status and ipoType once, up front, so every downstream read of
         // dto.status()/dto.ipoType() — the change-detection compare below, mapper.toNewEntity,
         // and mapper.applyUpdatable — sees (and stores) the same canonical lowercase value
@@ -100,7 +109,7 @@ public class IpoIngestService {
             changeEventRepo.save(event(saved.getId(), "NEW", null, dto.companyName(), now));
             appendHistory(saved.getId(), dto, now);
             upsertFinancials(saved.getId(), dto.financials());
-            return;
+            return List.of();
         }
 
         List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
@@ -110,6 +119,33 @@ public class IpoIngestService {
         events.forEach(changeEventRepo::save);
         appendHistory(existing.getId(), dto, now);
         upsertFinancials(existing.getId(), dto.financials());
+        return toLifecycleChanges(existing.getId(), dto.companyName(), events);
+    }
+
+    /**
+     * Maps the raw change-events for one IPO to the narrower set of user-facing lifecycle
+     * notifications — open / listed / allotment / GMP jump. A NEW listing and every other field
+     * change produce no user notification (they still land in the admin change feed).
+     */
+    private static List<IpoLifecycleChange> toLifecycleChanges(String ipoId, String company,
+                                                               List<IpoChangeEventEntity> events) {
+        List<IpoLifecycleChange> out = new ArrayList<>();
+        for (IpoChangeEventEntity e : events) {
+            switch (e.getEventType()) {
+                case "STATUS" -> {
+                    if (STATUS_OPEN.equals(e.getNewValue())) {
+                        out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.OPENED));
+                    } else if (STATUS_LISTED.equals(e.getNewValue())) {
+                        out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.LISTED));
+                    }
+                }
+                case "ALLOTMENT" -> out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.ALLOTMENT));
+                case "GMP" -> out.add(new IpoLifecycleChange(ipoId, company, IpoLifecycleChange.Kind.GMP_JUMP,
+                        e.getOldValue(), e.getNewValue()));
+                default -> { /* NEW and other field changes → no user notification */ }
+            }
+        }
+        return out;
     }
 
     /**

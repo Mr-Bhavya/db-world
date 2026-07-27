@@ -1,6 +1,8 @@
 package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
+import com.db.dbworld.app.ipo.notification.IpoNotificationService;
 import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
 import com.db.dbworld.app.ipo.service.IpoMergeService;
@@ -48,24 +50,27 @@ public class IpoPollScheduler {
     private final IpoIngestService ingestService;
     private final IpoSourcePollService pollService;
     private final InvestorgainGmpService gmpService;
+    private final IpoNotificationService notificationService;
     private final Supplier<Instant> now;
 
     @Autowired
     public IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
                              IpoIngestService ingestService, IpoSourcePollService pollService,
-                             InvestorgainGmpService gmpService) {
-        this(registry, mergeService, ingestService, pollService, gmpService, Instant::now);
+                             InvestorgainGmpService gmpService, IpoNotificationService notificationService) {
+        this(registry, mergeService, ingestService, pollService, gmpService, notificationService, Instant::now);
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
                       IpoIngestService ingestService, IpoSourcePollService pollService,
-                      InvestorgainGmpService gmpService, Supplier<Instant> now) {
+                      InvestorgainGmpService gmpService, IpoNotificationService notificationService,
+                      Supplier<Instant> now) {
         this.registry = registry;
         this.mergeService = mergeService;
         this.ingestService = ingestService;
         this.pollService = pollService;
         this.gmpService = gmpService;
+        this.notificationService = notificationService;
         this.now = now;
     }
 
@@ -93,12 +98,18 @@ public class IpoPollScheduler {
         }
 
         List<IpoDto> merged = mergeService.merge(allDtos);
-        ingestService.ingest(merged);
+        List<IpoLifecycleChange> changes = ingestService.ingest(merged);
 
         // GMP is a day-wise time series from investorgain (not part of the source→merge→ingest
         // snapshot pipeline), backfilled AFTER ingest so the listings it matches against already
         // exist. Best-effort — refreshGmp never throws, so a GMP hiccup can't fail the poll.
         gmpService.refreshGmp();
+
+        // Broadcast the notification-worthy changes from this cycle (open / listed / allotment /
+        // GMP jump), then the once-per-IPO "closing soon" reminders. Both are best-effort and gated
+        // behind push.enabled — a push hiccup can never affect the poll outcome.
+        notificationService.dispatch(changes);
+        notificationService.notifyClosingSoon();
 
         log.info("IPO poll complete: sourcesPolled={} sourcesFailed={} rawCount={} ipoCount={}",
                 sources.size(), sourcesFailed, allDtos.size(), merged.size());

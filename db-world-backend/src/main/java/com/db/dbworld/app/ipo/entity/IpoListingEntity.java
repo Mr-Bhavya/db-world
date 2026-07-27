@@ -163,4 +163,12 @@ public class IpoListingEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * When the "closing soon" push was sent for this IPO — a once-per-IPO dedupe marker so the
+     * reminder (fired from the poll each cycle) isn't re-sent on every subsequent poll. Null until
+     * the reminder goes out.
+     */
+    @Column(name = "closing_soon_notified_at")
+    private Instant closingSoonNotifiedAt;
 }

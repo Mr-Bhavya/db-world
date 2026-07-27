@@ -20,6 +20,7 @@ public final class SettingsCatalog {
     private static final String C_CDN       = "CDN Signing";
     private static final String C_WALLET    = "Document Wallet";
     private static final String C_IPO       = "IPO Tracker";
+    private static final String C_PUSH      = "Push Notifications";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -112,7 +113,16 @@ public final class SettingsCatalog {
                 + "Blank restores the built-in default.",
             "https://webnodejs.investorgain.com", false, 4),
         lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
-            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 5)
+            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 5),
+
+        // ── Push Notifications ────────────────────────────────────────────
+        bool(PUSH_ENABLED, C_PUSH, "Push enabled",
+             "Master flag — gates all outgoing push notifications (FCM). The Firebase service "
+             + "account must also be configured via env for anything to actually send.", true, 0),
+        str(PUSH_IPO_TOPIC, C_PUSH, "IPO push topic",
+            "FCM topic every device is subscribed to on register; IPO alerts broadcast to it "
+            + "(so every user is notified). Blank restores the built-in default.",
+            "ipo-all", false, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
+import com.db.dbworld.app.ipo.notification.IpoNotificationService;
 import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler.IpoPollResult;
 import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
@@ -39,12 +40,14 @@ class IpoPollSchedulerTest {
     @Mock IpoIngestService ingestService;
     @Mock IpoSourcePollService pollService;
     @Mock InvestorgainGmpService gmpService;
+    @Mock IpoNotificationService notificationService;
 
     private IpoPollScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new IpoPollScheduler(registry, mergeService, ingestService, pollService, gmpService, () -> NOW);
+        scheduler = new IpoPollScheduler(registry, mergeService, ingestService, pollService, gmpService,
+                notificationService, () -> NOW);
     }
 
     private static IpoSource fakeSuccess(String key, List<IpoDto> dtos) {
