@@ -67,7 +67,7 @@ class PushServiceTest {
     @Test
     void broadcastIpo_whenDisabled_sendsNothing() {
         when(settings.getBoolean(ConfigKeys.PUSH_ENABLED)).thenReturn(false);
-        service().broadcastIpo("Title", "Body", Map.of());
+        service().broadcast("Title", "Body", Map.of());
         verify(sender, never()).sendToTopic(org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
@@ -77,7 +77,7 @@ class PushServiceTest {
     void broadcastIpo_whenEnabled_sendsToResolvedTopic_blankTopicFallsBackToDefault() {
         when(settings.getBoolean(ConfigKeys.PUSH_ENABLED)).thenReturn(true);
         when(settings.getString(ConfigKeys.PUSH_IPO_TOPIC)).thenReturn(""); // blank → built-in default
-        service().broadcastIpo("Title", "Body", null);
+        service().broadcast("Title", "Body", null);
         verify(sender).sendToTopic("ipo-all", "Title", "Body", Map.of());
     }
 }

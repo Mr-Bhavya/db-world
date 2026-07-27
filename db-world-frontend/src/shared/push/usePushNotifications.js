@@ -15,7 +15,7 @@ const platform = () => (isNative() ? 'android' : 'web');
 const webSupported = () =>
   typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && isPushConfigured();
 
-const ipoDeepLink = (data) => (data?.ipoId ? `/db-world/db-ipo/${data.ipoId}` : '/db-world/db-ipo');
+const deepLink = (data) => data?.link || '/db-world';
 
 const toastMessage = (title, body) => {
   if (title) notify.info(body ? `${title} — ${body}` : title);
@@ -41,7 +41,7 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
   }, []);
 
   const onMessage = useCallback((n) => toastMessage(n?.title, n?.body), []);
-  const onAction = useCallback((n) => window.location.assign(ipoDeepLink(n?.data)), []);
+  const onAction = useCallback((n) => window.location.assign(deepLink(n?.data)), []);
 
   // Native permission resolves asynchronously — read it once on mount.
   useEffect(() => {

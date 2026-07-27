@@ -87,9 +87,10 @@ public class IpoNotificationService {
         Instant now = clock.instant();
         for (IpoListingEntity ipo : due) {
             try {
-                pushService.broadcastIpo("⏳ " + ipo.getCompanyName() + " closing soon",
+                pushService.broadcast("⏳ " + ipo.getCompanyName() + " closing soon",
                         "Last chance to apply before this IPO closes.",
-                        Map.of("ipoId", ipo.getId(), "kind", "CLOSING_SOON"));
+                        Map.of("ipoId", ipo.getId(), "kind", "CLOSING_SOON",
+                                "link", "/db-world/db-ipo/" + ipo.getId()));
                 ipo.setClosingSoonNotifiedAt(now);
                 listingRepo.save(ipo);
             } catch (Exception e) {
@@ -124,7 +125,8 @@ public class IpoNotificationService {
     }
 
     private void send(IpoLifecycleChange c, String title, String body) {
-        pushService.broadcastIpo(title, body, Map.of("ipoId", c.ipoId(), "kind", c.kind().name()));
+        pushService.broadcast(title, body,
+                Map.of("ipoId", c.ipoId(), "kind", c.kind().name(), "link", "/db-world/db-ipo/" + c.ipoId()));
     }
 
     private static BigDecimal parse(String s) {

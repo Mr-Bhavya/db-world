@@ -29,12 +29,12 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-// Tapping a notification deep-links into the IPO (detail if we have its id, else the tracker),
-// focusing an existing tab when one is open.
+// Tapping a notification deep-links to wherever `data.link` points (each notification sets its
+// own — e.g. an IPO detail path), falling back to the app home. Focuses an existing tab if open.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const target = data.ipoId ? `/db-world/db-ipo/${data.ipoId}` : '/db-world/db-ipo';
+  const target = data.link || '/db-world';
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {

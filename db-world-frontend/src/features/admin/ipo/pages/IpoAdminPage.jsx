@@ -1,13 +1,14 @@
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
-import { useSourceHealth, useIpoChanges, useRepoll } from '../hooks/useIpoAdmin';
+import { useSourceHealth, useIpoChanges, useRepoll, useSendTestPush, usePushStatus } from '../hooks/useIpoAdmin';
 
 const SOURCE_LABEL = {
   ipoguru: 'IPO Guru',
@@ -81,6 +82,8 @@ export default function IpoAdminPage() {
   const { data: sources = [], isLoading: sourcesLoading } = useSourceHealth();
   const { data: changes = [], isLoading: changesLoading } = useIpoChanges();
   const repollMutation = useRepoll();
+  const testPush = useSendTestPush();
+  const { data: pushStatus } = usePushStatus();
 
   const columns = [
     {
@@ -101,15 +104,26 @@ export default function IpoAdminPage() {
     <Box sx={{ p: { xs: 2, sm: 3 }, color: T.textPrimary }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
         <Typography sx={{ fontSize: 20, fontWeight: 800 }}>IPO Tracker</Typography>
-        <Button
-          variant="contained"
-          startIcon={repollMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-          disabled={repollMutation.isPending}
-          onClick={() => repollMutation.mutate()}
-          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}
-        >
-          {repollMutation.isPending ? 'Re-polling…' : 'Re-poll now'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            startIcon={testPush.isPending ? <CircularProgress size={14} color="inherit" /> : <NotificationsActiveIcon />}
+            disabled={testPush.isPending}
+            onClick={() => testPush.mutate({})}
+            sx={{ borderColor: T.teal, color: T.teal, '&:hover': { borderColor: T.tealHover, bgcolor: T.tealBg } }}
+          >
+            {testPush.isPending ? 'Sending…' : 'Send test push'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={repollMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+            disabled={repollMutation.isPending}
+            onClick={() => repollMutation.mutate()}
+            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}
+          >
+            {repollMutation.isPending ? 'Re-polling…' : 'Re-poll now'}
+          </Button>
+        </Box>
       </Box>
 
       <Typography
@@ -118,6 +132,14 @@ export default function IpoAdminPage() {
       >
         Adjust the poll schedule on the Scheduler page →
       </Typography>
+
+      {pushStatus && (
+        <Typography sx={{ fontSize: 12, color: T.textFaint, mb: 2 }}>
+          Push: {pushStatus.enabled ? 'enabled' : 'disabled'} · transport{' '}
+          {pushStatus.transportReady ? 'ready (FCM)' : 'not ready'} · topic {pushStatus.topic}
+          {' '}— reaches only devices that enabled notifications.
+        </Typography>
+      )}
 
       <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
         Source health

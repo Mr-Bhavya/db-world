@@ -68,8 +68,9 @@ public class PushService {
         tokenRepo.deleteByToken(token.trim());
     }
 
-    /** Broadcast one notification to the IPO topic (all subscribed devices), honouring the enable flag. */
-    public void broadcastIpo(String title, String body, Map<String, String> data) {
+    /** Broadcast one notification to everyone (the shared topic), honouring the enable flag. Kept
+     * app-agnostic — IPO is just the first caller; any feature can broadcast through here. */
+    public void broadcast(String title, String body, Map<String, String> data) {
         if (!settings.getBoolean(ConfigKeys.PUSH_ENABLED)) {
             log.debug("Push disabled (push.enabled=false) — skipping broadcast '{}'", title);
             return;
@@ -77,7 +78,17 @@ public class PushService {
         sender.sendToTopic(topic(), title, body, data == null ? Map.of() : data);
     }
 
-    /** The configured IPO broadcast topic, falling back to the built-in default when blank/unset. */
+    /** Whether push is enabled (the master flag) — for admin diagnostics. */
+    public boolean isEnabled() {
+        return settings.getBoolean(ConfigKeys.PUSH_ENABLED);
+    }
+
+    /** Whether a real FCM transport is wired + ready (vs the no-op logger) — for admin diagnostics. */
+    public boolean isTransportReady() {
+        return sender.isReady();
+    }
+
+    /** The configured broadcast topic, falling back to the built-in default when blank/unset. */
     public String topic() {
         String configured = settings.getString(ConfigKeys.PUSH_IPO_TOPIC);
         return (configured == null || configured.isBlank()) ? DEFAULT_IPO_TOPIC : configured.trim();

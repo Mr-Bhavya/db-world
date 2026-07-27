@@ -50,7 +50,7 @@ class IpoNotificationServiceTest {
     @Test
     void dispatch_opened_broadcastsWithDeepLinkData() {
         service().dispatch(List.of(IpoLifecycleChange.of("ipo1", "Acme", Kind.OPENED)));
-        verify(pushService).broadcastIpo(
+        verify(pushService).broadcast(
                 contains("is open"),
                 any(),
                 argThat(m -> "ipo1".equals(m.get("ipoId")) && "OPENED".equals(m.get("kind"))));
@@ -61,7 +61,7 @@ class IpoNotificationServiceTest {
         when(settings.getLong(ConfigKeys.IPO_GMP_NOTIFY_THRESHOLD_PCT)).thenReturn(10L);
         // 100 → 105 = a 5% move, below the 10% threshold → suppressed.
         service().dispatch(List.of(new IpoLifecycleChange("ipo1", "Acme", Kind.GMP_JUMP, "100", "105")));
-        verify(pushService, never()).broadcastIpo(any(), any(), any());
+        verify(pushService, never()).broadcast(any(), any(), any());
     }
 
     @Test
@@ -69,7 +69,7 @@ class IpoNotificationServiceTest {
         when(settings.getLong(ConfigKeys.IPO_GMP_NOTIFY_THRESHOLD_PCT)).thenReturn(10L);
         // 100 → 125 = a 25% move → broadcast, body carries the new value.
         service().dispatch(List.of(new IpoLifecycleChange("ipo1", "Acme", Kind.GMP_JUMP, "100", "125")));
-        verify(pushService).broadcastIpo(contains("GMP"), contains("₹125"), any());
+        verify(pushService).broadcast(contains("GMP"), contains("₹125"), any());
     }
 
     @Test
@@ -83,7 +83,7 @@ class IpoNotificationServiceTest {
 
         service().notifyClosingSoon();
 
-        verify(pushService).broadcastIpo(contains("closing soon"), any(), any());
+        verify(pushService).broadcast(contains("closing soon"), any(), any());
         assertThat(ipo.getClosingSoonNotifiedAt()).isEqualTo(NOW);
         verify(listingRepo).save(ipo);
     }
