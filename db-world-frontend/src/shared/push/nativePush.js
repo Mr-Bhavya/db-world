@@ -1,13 +1,11 @@
 /**
  * Native (Capacitor / Android) push via `@capacitor/push-notifications`. Unlike web push this uses
- * the OS's native FCM integration — no VAPID / service worker. The plugin is dynamic-imported so it
- * never loads in a plain web bundle. Permission strings are mapped to the same
- * 'default' | 'granted' | 'denied' vocabulary the web path uses; every call is defensive.
+ * the OS's native FCM integration — no VAPID / service worker. Imported STATICALLY: a dynamic
+ * `import()` of the plugin chunk hung in the release WebView ("push stalled at: load-plugin"), so
+ * the plugin now rides in the main bundle. It's harmless on web (methods just aren't called there).
+ * Permission strings map to the shared 'default' | 'granted' | 'denied' vocabulary; calls are defensive.
  */
-async function plugin() {
-  const mod = await import('@capacitor/push-notifications');
-  return mod.PushNotifications;
-}
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const mapPermission = (receive) => {
   if (receive === 'granted') return 'granted';
@@ -30,7 +28,7 @@ const withTimeout = (promise, ms, stage) =>
 /** Current native push permission, mapped to the shared vocabulary. */
 export async function nativeCheckPermission() {
   try {
-    const perm = await (await plugin()).checkPermissions();
+    const perm = await PushNotifications.checkPermissions();
     return mapPermission(perm.receive);
   } catch {
     return 'denied';
@@ -44,7 +42,6 @@ export async function nativeCheckPermission() {
  * Returns the (mapped) resulting permission.
  */
 export async function nativeSetup({ request = false, onToken, onMessage, onAction } = {}) {
-  const PushNotifications = await withTimeout(plugin(), 5000, 'load-plugin');
   await withTimeout(PushNotifications.removeAllListeners(), 5000, 'remove-listeners');
   await withTimeout(PushNotifications.addListener('registration', (t) => onToken?.(t?.value ?? null)), 5000, 'listen-registration');
   await withTimeout(PushNotifications.addListener('registrationError', () => onToken?.(null)), 5000, 'listen-registration-error');
