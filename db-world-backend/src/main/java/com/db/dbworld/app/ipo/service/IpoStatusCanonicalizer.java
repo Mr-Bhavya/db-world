@@ -1,6 +1,8 @@
 package com.db.dbworld.app.ipo.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Map;
 
 /**
@@ -55,7 +57,31 @@ public final class IpoStatusCanonicalizer {
             Map.entry("listed today", "listed")
     );
 
+    /**
+     * Indian IPO bidding closes on the last day around 5&nbsp;PM IST (mainboard ~5&nbsp;PM, some
+     * categories 4:30&nbsp;PM). Treat at/after this IST time on the close date as "no longer open" —
+     * both the source-reported status and the date-only {@link #deriveStatus} keep saying "open" on
+     * the close day itself, which is why an IPO lingered as Open all evening.
+     */
+    public static final LocalTime CLOSE_CUTOFF_IST = LocalTime.of(17, 0);
+
     private IpoStatusCanonicalizer() {
+    }
+
+    /**
+     * @return {@code true} once the IST close moment has passed — any day after {@code close}, or the
+     * close day itself at/after {@link #CLOSE_CUTOFF_IST}. {@code false} when {@code close}/{@code nowIst}
+     * is null or the close moment is still ahead. {@code nowIst} must be "now" in IST.
+     */
+    public static boolean isPastClose(LocalDate close, LocalDateTime nowIst) {
+        if (close == null || nowIst == null) {
+            return false;
+        }
+        LocalDate today = nowIst.toLocalDate();
+        if (today.isAfter(close)) {
+            return true;
+        }
+        return today.isEqual(close) && !nowIst.toLocalTime().isBefore(CLOSE_CUTOFF_IST);
     }
 
     /**

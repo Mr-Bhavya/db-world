@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,7 +98,7 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)));
+        IpoDto dto = withCloseCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto))));
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -332,6 +333,29 @@ public class IpoIngestService {
             return dto;
         }
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), derived,
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+    }
+
+    /**
+     * Downgrades an "open" IPO to "closed" once the IST close moment has passed (Indian IPOs close
+     * ~5&nbsp;PM IST on the last day). Both a source's reported status and the date-only
+     * {@link IpoStatusCanonicalizer#deriveStatus} keep returning "open" on the close day itself, so
+     * without this an IPO stayed Open all evening. Applied to the INCOMING dto (before the
+     * change-compare), so once persisted it stays "closed" and never flip-flops back to "open".
+     */
+    private IpoDto withCloseCutoff(IpoDto dto) {
+        if (!"open".equals(dto.status())
+                || !IpoStatusCanonicalizer.isPastClose(dto.closeDate(), LocalDateTime.now(clock.withZone(IST)))) {
+            return dto;
+        }
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), "closed",
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
