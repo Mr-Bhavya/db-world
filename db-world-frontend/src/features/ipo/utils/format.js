@@ -213,7 +213,7 @@ export const averageSubscription = (values) => {
  * these, alphabetically — so a brand-new category never gets dropped, it just lands last.
  */
 const PREFERRED_SUBSCRIPTION_CATEGORY_ORDER = [
-  'QIB', 'NII', 'HNI', 'Retail', 'RII', 'Employee', 'Shareholder', 'Anchor',
+  'QIB', 'NII', 'S-NII', 'B-NII', 'HNI', 'Retail', 'RII', 'Employee', 'Shareholder', 'Anchor', 'Other',
 ];
 
 /**
@@ -249,12 +249,16 @@ export const orderSubscriptionCategories = (keys) => {
 const CATEGORY_COLOR_MAP = {
   qib: '#38bdf8',
   nii: '#a855f7',
+  'nii (hni)': '#a855f7',
   hni: '#a855f7',
+  's-nii': '#c084fc',
+  'b-nii': '#7c3aed',
   retail: '#f59e0b',
   rii: '#f59e0b',
   employee: '#34d399',
   shareholder: '#f472b6',
   anchor: '#818cf8',
+  other: '#94a3b8',
 };
 const CATEGORY_COLOR_FALLBACK = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#f472b6', '#818cf8', '#facc15', '#fb7185'];
 

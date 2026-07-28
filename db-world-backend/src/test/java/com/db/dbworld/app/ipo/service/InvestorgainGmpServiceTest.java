@@ -5,6 +5,7 @@ import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
+import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.app.ipo.source.support.IpoHttpClient;
 import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class InvestorgainGmpServiceTest {
     @Mock IpoHttpClient httpClient;
     @Mock IpoListingRepository listingRepo;
     @Mock IpoGmpHistoryRepository gmpHistoryRepo;
+    @Mock IpoSubscriptionHistoryRepository subHistoryRepo;
     @Mock IpoSourcePollService pollService;
     // Unstubbed on purpose: getString(...) returns null → baseUrl() uses the built-in default, so
     // the report/GMP URLs below stay exactly as before.
@@ -57,9 +59,21 @@ class InvestorgainGmpServiceTest {
               {"gmp_date":"25-07-2026","gmp":"7.5","max_ipo_price":"127.00","gmp_active_record_flag":0}
             ]}
             """;
+    // One day of the ipo-subscription-read shape (Indo-MIM Day 3): all categories present except
+    // Shareholder/Other (offered = 0, so excluded); NII split into Small/Big.
+    private static final String SUB_JSON = """
+            {"msg":1,"data":{"ipoBiddingData":[
+              {"bid_date":"27th Jul 2026 18:56",
+               "qib_offered":"1,56,74,494","nii_offered":"1,17,60,045","nii_offered_big":"78,40,030",
+               "nii_offered_small":"39,20,015","rii_offered":"2,74,40,105","emp_offered":"2,00,000",
+               "shareholder_offered":"0","other_offered":"0",
+               "qib":"204.47","nii":"50.65","nii_big":"57.69","nii_small":"36.55","rii":"6.69","emp":"9.44",
+               "shareholder":"0","other":"0","total":"72.37","create_date":"2026-07-27T19:05:00.000Z"}
+            ]}}
+            """;
 
     private InvestorgainGmpService newService() {
-        return new InvestorgainGmpService(httpClient, listingRepo, gmpHistoryRepo, new IpoNormalizer(),
+        return new InvestorgainGmpService(httpClient, listingRepo, gmpHistoryRepo, subHistoryRepo, new IpoNormalizer(),
                 pollService, settingsService, Clock.fixed(Instant.parse("2026-07-26T13:00:00Z"), ZoneOffset.UTC));
     }
 
@@ -147,6 +161,23 @@ class InvestorgainGmpServiceTest {
         assertThat(updated).isZero();
         verify(httpClient, never()).get(contains("ipo-gmp-read"), any());
         verify(pollService).recordSuccess(eq("investorgain"), any());
+    }
+
+    @Test
+    void parseSubscriptionPoints_mapsPresentCategoriesInOrderAndSkipsAbsentOnes() {
+        List<InvestorgainGmpService.SubPoint> points = newService().parseSubscriptionPoints(SUB_JSON);
+
+        assertThat(points).hasSize(1);
+        InvestorgainGmpService.SubPoint p = points.get(0);
+        assertThat(p.capturedAt())
+                .isEqualTo(LocalDate.of(2026, 7, 27).atStartOfDay(ZoneOffset.UTC).toInstant());
+        assertThat(p.total()).isEqualByComparingTo("72.37");
+        // Present categories in display order; Shareholder/Other dropped (offered = 0).
+        assertThat(p.categories().keySet()).containsExactly("QIB", "NII", "S-NII", "B-NII", "RII", "Employee");
+        assertThat(p.categories().get("QIB")).isEqualByComparingTo("204.47");
+        assertThat(p.categories().get("S-NII")).isEqualByComparingTo("36.55");
+        assertThat(p.categories().get("B-NII")).isEqualByComparingTo("57.69");
+        assertThat(p.categories()).doesNotContainKeys("Shareholder", "Other");
     }
 
     private void stubLists() {

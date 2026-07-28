@@ -100,10 +100,12 @@ public class IpoPollScheduler {
         List<IpoDto> merged = mergeService.merge(allDtos);
         List<IpoLifecycleChange> changes = ingestService.ingest(merged);
 
-        // GMP is a day-wise time series from investorgain (not part of the source→merge→ingest
-        // snapshot pipeline), backfilled AFTER ingest so the listings it matches against already
-        // exist. Best-effort — refreshGmp never throws, so a GMP hiccup can't fail the poll.
+        // GMP + day-wise category subscription are time series from investorgain (not part of the
+        // source→merge→ingest snapshot pipeline), backfilled AFTER ingest so the listings they match
+        // against already exist. Both are best-effort — they never throw, so a hiccup can't fail the
+        // poll. Subscription persists after close (NSE drops it), so it's the post-close source.
         gmpService.refreshGmp();
+        gmpService.refreshSubscription();
 
         // Broadcast the notification-worthy changes from this cycle (open / listed / allotment /
         // GMP jump), then the once-per-IPO "closing soon" reminders. Both are best-effort and gated

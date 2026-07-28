@@ -24,6 +24,8 @@ const CATEGORY_ICON_MAP = {
   qib: BusinessCenterOutlinedIcon,
   nii: WorkspacePremiumOutlinedIcon,
   hni: WorkspacePremiumOutlinedIcon,
+  's-nii': WorkspacePremiumOutlinedIcon,
+  'b-nii': WorkspacePremiumOutlinedIcon,
   retail: PersonOutlineOutlinedIcon,
   rii: PersonOutlineOutlinedIcon,
   employee: BadgeOutlinedIcon,
