@@ -421,8 +421,6 @@ export default function OverviewTab({ ipo, id }) {
         </Box>
       </SectionCard>
 
-      {lotBreakdown && <LotSizeSection breakdown={lotBreakdown} />}
-
       {showAbout && (
         <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
           {ipo.about && <AboutBlurb text={ipo.about} mb={hasAboutFacts(ipo) ? 2 : 0} />}
@@ -445,6 +443,8 @@ export default function OverviewTab({ ipo, id }) {
           <LeadManagers managers={ipo.leadManagers} />
         </SectionCard>
       )}
+
+      {lotBreakdown && <LotSizeSection breakdown={lotBreakdown} />}
 
       {hasIssueDetails(ipo.issueDetails) && (
         <SectionCard title="Issue details" icon={<ReceiptLongOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
