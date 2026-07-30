@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.ipo.dto.SubscriptionCategoryDto;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -67,6 +68,7 @@ class InvestorgainGmpServiceTest {
                "qib_offered":"1,56,74,494","nii_offered":"1,17,60,045","nii_offered_big":"78,40,030",
                "nii_offered_small":"39,20,015","rii_offered":"2,74,40,105","emp_offered":"2,00,000",
                "shareholder_offered":"0","other_offered":"0",
+               "qib_shares_bid_for":"3,20,48,97,090","qib_bid_amt":"1,55,437.51",
                "qib":"204.47","nii":"50.65","nii_big":"57.69","nii_small":"36.55","rii":"6.69","emp":"9.44",
                "shareholder":"0","other":"0","total":"72.37","create_date":"2026-07-27T19:05:00.000Z"}
             ]}}
@@ -179,6 +181,15 @@ class InvestorgainGmpServiceTest {
         assertThat(p.categories().get("S-NII")).isEqualByComparingTo("36.55");
         assertThat(p.categories().get("B-NII")).isEqualByComparingTo("57.69");
         assertThat(p.categories()).doesNotContainKeys("Shareholder", "Other");
+
+        // Full per-category breakdown (offered/bid/amount), same order, comma-grouped numbers parsed.
+        assertThat(p.detail()).extracting(SubscriptionCategoryDto::category)
+                .containsExactly("QIB", "NII", "S-NII", "B-NII", "RII", "Employee");
+        SubscriptionCategoryDto qib = p.detail().get(0);
+        assertThat(qib.times()).isEqualByComparingTo("204.47");
+        assertThat(qib.sharesOffered()).isEqualByComparingTo("15674494");   // 1,56,74,494
+        assertThat(qib.sharesBid()).isEqualByComparingTo("3204897090");     // 3,20,48,97,090
+        assertThat(qib.bidAmountCr()).isEqualByComparingTo("155437.51");    // 1,55,437.51
     }
 
     private void stubLists() {

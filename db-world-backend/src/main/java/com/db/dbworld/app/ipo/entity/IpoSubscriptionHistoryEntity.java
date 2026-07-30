@@ -29,6 +29,16 @@ public class IpoSubscriptionHistoryEntity {
     @Column(name = "categories_json", columnDefinition = "TEXT")
     private String categoriesJson;
 
+    /**
+     * Full per-category breakdown JSON — a {@code [{category,times,sharesOffered,sharesBid,
+     * bidAmountCr}]} array (see {@link com.db.dbworld.app.ipo.dto.SubscriptionCategoryDto}) so the
+     * detail page can show shares offered/bid, bid amount, lots and % of total exactly like
+     * investorgain. Nullable — {@code categories_json} (category→multiple) remains the lightweight
+     * series used by the day-wise multiples table/chart.
+     */
+    @Column(name = "category_detail_json", columnDefinition = "TEXT")
+    private String categoryDetailJson;
+
     @Column(precision = 10, scale = 2) private BigDecimal total;
 
     @Column(length = 30)

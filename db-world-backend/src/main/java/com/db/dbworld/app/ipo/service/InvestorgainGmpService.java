@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.service;
 
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.ipo.dto.SubscriptionCategoryDto;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
@@ -100,20 +101,21 @@ public class InvestorgainGmpService {
     private static final String F_SUB_COR_DATE = "cor_date_added";       // ISO fallback for the day
     private static final String F_SUB_TOTAL = "total";                   // overall multiple, e.g. "72.37"
     /**
-     * {@code {timesKey, offeredKey, displayLabel}} per subscription category, in display order. A
-     * category is only recorded when its {@code *_offered} is present and non-zero (so Employee /
-     * Shareholder / Other only appear for IPOs that actually have that quota) — NII is split into
-     * Small (≤ ₹10L) and Big (> ₹10L) exactly as investorgain reports it.
+     * {@code {timesKey, offeredKey, sharesBidKey, bidAmtKey, displayLabel}} per subscription
+     * category, in display order. A category is only recorded when its {@code *_offered} is present
+     * and non-zero (so Employee / Shareholder / Other only appear for IPOs that actually have that
+     * quota) — NII is split into Small (≤ ₹10L) and Big (> ₹10L) exactly as investorgain reports it.
+     * Note the odd one out: shareholder's shares-bid key is {@code shareholder_shares_bid} (no {@code _for}).
      */
     private static final String[][] SUB_CATEGORIES = {
-            {"qib",         "qib_offered",         "QIB"},
-            {"nii",         "nii_offered",         "NII"},
-            {"nii_small",   "nii_offered_small",   "S-NII"},
-            {"nii_big",     "nii_offered_big",     "B-NII"},
-            {"rii",         "rii_offered",         "RII"},
-            {"emp",         "emp_offered",         "Employee"},
-            {"shareholder", "shareholder_offered", "Shareholder"},
-            {"other",       "other_offered",       "Other"},
+            {"qib",         "qib_offered",         "qib_shares_bid_for",       "qib_bid_amt",         "QIB"},
+            {"nii",         "nii_offered",         "nii_shares_bid_for",       "nii_bid_amt",         "NII"},
+            {"nii_small",   "nii_offered_small",   "nii_shares_bid_for_small", "nii_bid_amt_small",   "S-NII"},
+            {"nii_big",     "nii_offered_big",     "nii_shares_bid_for_big",   "nii_bid_amt_big",     "B-NII"},
+            {"rii",         "rii_offered",         "rii_shares_bid_for",       "rii_bid_amt",         "RII"},
+            {"emp",         "emp_offered",         "emp_shares_bid_for",       "emp_bid_amt",         "Employee"},
+            {"shareholder", "shareholder_offered", "shareholder_shares_bid",   "shareholder_bid_amt", "Shareholder"},
+            {"other",       "other_offered",       "other_shares_bid_for",     "other_bid_amt",       "Other"},
     };
 
     // ── List (report) field names ─────────────────────────────────────────────────────────────
@@ -270,8 +272,10 @@ public class InvestorgainGmpService {
         }
     }
 
-    /** One day's subscription reading: the category → multiple map plus the overall multiple. */
-    record SubPoint(Instant capturedAt, Map<String, BigDecimal> categories, BigDecimal total) {}
+    /** One day's subscription reading: the category → multiple map, the fuller per-category
+     *  breakdown (offered/bid/amount), and the overall multiple. */
+    record SubPoint(Instant capturedAt, Map<String, BigDecimal> categories,
+                    List<SubscriptionCategoryDto> detail, BigDecimal total) {}
 
     private List<SubPoint> fetchSubscription(String investorgainId) {
         try {
@@ -301,21 +305,26 @@ public class InvestorgainGmpService {
                     continue;
                 }
                 Map<String, BigDecimal> categories = new LinkedHashMap<>();
+                List<SubscriptionCategoryDto> detail = new ArrayList<>();
                 for (String[] cat : SUB_CATEGORIES) {
                     String offered = text(node, cat[1]);
                     if (offered == null || offered.isBlank() || "0".equals(offered.trim())) {
                         continue; // this category doesn't exist for this IPO
                     }
                     BigDecimal times = decimal(text(node, cat[0]));
-                    if (times != null) {
-                        categories.put(cat[2], times);
+                    if (times == null) {
+                        continue;
                     }
+                    String label = cat[4];
+                    categories.put(label, times);
+                    detail.add(new SubscriptionCategoryDto(label, times,
+                            indianDecimal(offered), indianDecimal(text(node, cat[2])), indianDecimal(text(node, cat[3]))));
                 }
                 BigDecimal total = decimal(text(node, F_SUB_TOTAL));
                 if (categories.isEmpty() && total == null) {
                     continue;
                 }
-                result.add(new SubPoint(day.atStartOfDay(ZoneOffset.UTC).toInstant(), categories, total));
+                result.add(new SubPoint(day.atStartOfDay(ZoneOffset.UTC).toInstant(), categories, detail, total));
             }
         } catch (Exception e) {
             log.warn("investorgain: subscription parse failed: {}", e.toString());
@@ -335,18 +344,22 @@ public class InvestorgainGmpService {
         }
         for (SubPoint point : points) {
             String categoriesJson = IpoSubscriptionJson.toJson(point.categories());
+            String detailJson = IpoSubscriptionJson.toDetailJson(point.detail());
             IpoSubscriptionHistoryEntity row = existing.get(point.capturedAt());
             if (row == null) {
                 subHistoryRepo.save(IpoSubscriptionHistoryEntity.builder()
                         .ipoId(ipoId)
                         .categoriesJson(categoriesJson)
+                        .categoryDetailJson(detailJson)
                         .total(point.total())
                         .source(SOURCE)
                         .capturedAt(point.capturedAt())
                         .build());
             } else if (!java.util.Objects.equals(row.getCategoriesJson(), categoriesJson)
+                    || !java.util.Objects.equals(row.getCategoryDetailJson(), detailJson)
                     || bigDecimalDiffers(row.getTotal(), point.total())) {
                 row.setCategoriesJson(categoriesJson);
+                row.setCategoryDetailJson(detailJson);
                 row.setTotal(point.total());
                 row.setSource(SOURCE);
                 subHistoryRepo.save(row);
@@ -548,6 +561,19 @@ public class InvestorgainGmpService {
         }
         try {
             return new BigDecimal(raw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Parses an Indian-grouped number string (e.g. {@code "1,56,74,494"} or {@code "1,55,437.51"}),
+     *  stripping the comma separators; {@code null} for null/blank/unparseable. */
+    private static BigDecimal indianDecimal(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(raw.trim().replace(",", ""));
         } catch (NumberFormatException e) {
             return null;
         }

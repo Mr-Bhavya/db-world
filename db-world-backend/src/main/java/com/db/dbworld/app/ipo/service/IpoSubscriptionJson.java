@@ -1,12 +1,15 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.ipo.dto.SubscriptionCategoryDto;
 import lombok.extern.log4j.Log4j2;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +45,33 @@ public final class IpoSubscriptionJson {
             }
         });
         return node.toString();
+    }
+
+    /** @return the JSON array string for the per-category {@code detail} list, or {@code null} if null/empty. */
+    public static String toDetailJson(List<SubscriptionCategoryDto> detail) {
+        if (detail == null || detail.isEmpty()) {
+            return null;
+        }
+        try {
+            return MAPPER.writeValueAsString(detail);
+        } catch (Exception e) {
+            log.warn("Failed to serialize IPO subscription detail — storing none: {}", e.toString());
+            return null;
+        }
+    }
+
+    /** @return the per-category detail list parsed from {@code json}; empty (never null, never throws) if blank/malformed. */
+    public static List<SubscriptionCategoryDto> fromDetailJson(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<SubscriptionCategoryDto> parsed = MAPPER.readValue(json, new TypeReference<List<SubscriptionCategoryDto>>() {});
+            return parsed == null ? List.of() : parsed;
+        } catch (Exception e) {
+            log.warn("Failed to parse IPO subscription detail JSON — treating as empty: {}", e.toString());
+            return List.of();
+        }
     }
 
     /** @return an order-preserving map parsed from {@code json}; empty (never null, never throws) if blank/malformed. */

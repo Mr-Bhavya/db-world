@@ -138,6 +138,7 @@ public abstract class IpoMapperBase {
     public SubscriptionPointDto toSubscriptionPoint(IpoSubscriptionHistoryEntity e) {
         Map<String, BigDecimal> categories = IpoSubscriptionJson.fromJson(e.getCategoriesJson());
         return new SubscriptionPointDto(e.getCapturedAt(), e.getTotal(), categories,
+                IpoSubscriptionJson.fromDetailJson(e.getCategoryDetailJson()),
                 findCategory(categories, "qib"), findCategory(categories, "nii"), findCategory(categories, "retail"));
     }
 
