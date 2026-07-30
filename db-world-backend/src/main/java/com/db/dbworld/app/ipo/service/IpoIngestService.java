@@ -6,7 +6,6 @@ import com.db.dbworld.app.ipo.entity.IpoChangeEventEntity;
 import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
-import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
 import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
@@ -217,9 +216,6 @@ public class IpoIngestService {
         if (dto.gmp() != null && bigDecimalDiffers(entity.getGmp(), dto.gmp())) {
             events.add(event(ipoId, "GMP", toPlainString(entity.getGmp()), toPlainString(dto.gmp()), now));
         }
-        if (dto.subTotal() != null && bigDecimalDiffers(entity.getSubTotal(), dto.subTotal())) {
-            events.add(event(ipoId, "SUBSCRIPTION", toPlainString(entity.getSubTotal()), toPlainString(dto.subTotal()), now));
-        }
         if (dto.allotmentStatus() != null && !Objects.equals(entity.getAllotmentStatus(), dto.allotmentStatus())) {
             events.add(event(ipoId, "ALLOTMENT", entity.getAllotmentStatus(), dto.allotmentStatus(), now));
         }
@@ -261,20 +257,11 @@ public class IpoIngestService {
                         .build());
             }
         }
-        if (dto.subTotal() != null) {
-            BigDecimal lastTotal = subHistoryRepo.findTopByIpoIdOrderByCapturedAtDesc(ipoId)
-                    .map(IpoSubscriptionHistoryEntity::getTotal)
-                    .orElse(null);
-            if (bigDecimalDiffers(lastTotal, dto.subTotal())) {
-                subHistoryRepo.save(IpoSubscriptionHistoryEntity.builder()
-                        .ipoId(ipoId)
-                        .categoriesJson(IpoSubscriptionJson.toJson(dto.subscriptionCategories()))
-                        .total(dto.subTotal())
-                        .source(dto.source())
-                        .capturedAt(now)
-                        .build());
-            }
-        }
+        // NOTE: subscription history is NOT written here. Investorgain owns the subscription series
+        // (InvestorgainGmpService.refreshSubscription) — one authoritative day-wise row per day with
+        // the full category breakdown (QIB/NII/S-NII/B-NII/RII/…). Writing NSE's per-poll snapshots
+        // here too mixed two sources with different capturedAt granularity and category naming
+        // (NSE "Retail" vs investorgain "RII"), so the "current" pick and the day-wise table were wrong.
     }
 
     private static IpoChangeEventEntity event(String ipoId, String eventType, String oldValue, String newValue, Instant now) {
@@ -328,7 +315,7 @@ public class IpoIngestService {
             return dto;
         }
         String derived = IpoStatusCanonicalizer.deriveStatus(
-                dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDate.now(clock.withZone(IST)));
+                dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDateTime.now(clock.withZone(IST)));
         if (derived == null) {
             return dto;
         }

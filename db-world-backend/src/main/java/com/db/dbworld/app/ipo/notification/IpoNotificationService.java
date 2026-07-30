@@ -84,6 +84,12 @@ public class IpoNotificationService {
     /** Once-per-IPO "closing soon" reminder for open IPOs closing today or tomorrow (IST). */
     public void notifyClosingSoon() {
         LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
+        // Don't send reminders overnight/early morning (the status flips at IST times now, but a poll
+        // can still run at midnight) — wait until the market day has begun so alerts arrive at a sane
+        // hour rather than 12:00 AM.
+        if (nowIst.toLocalTime().isBefore(IpoStatusCanonicalizer.OPEN_CUTOFF_IST)) {
+            return;
+        }
         LocalDate today = nowIst.toLocalDate();
         List<IpoListingEntity> due = listingRepo
                 .findByStatusAndCloseDateBetweenAndClosingSoonNotifiedAtIsNull(STATUS_OPEN, today, today.plusDays(1));

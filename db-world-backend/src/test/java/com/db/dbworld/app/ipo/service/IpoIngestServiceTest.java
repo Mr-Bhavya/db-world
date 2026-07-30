@@ -207,22 +207,8 @@ class IpoIngestServiceTest {
         assertThat(eventCaptor.getValue().getNewValue()).isEqualTo("Acme Corp");
 
         verify(gmpHistoryRepo, times(1)).save(any());
-        verify(subHistoryRepo, times(1)).save(any());
-    }
-
-    @Test
-    void ingest_newIpo_subscriptionHistorySerializesCategoriesMapToJson() {
-        stubNoExisting();
-        IpoDto dto = dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
-                new BigDecimal("1.50"), "awaited", null, null, null);
-
-        service.ingest(List.of(dto));
-
-        ArgumentCaptor<IpoSubscriptionHistoryEntity> captor = ArgumentCaptor.forClass(IpoSubscriptionHistoryEntity.class);
-        verify(subHistoryRepo, times(1)).save(captor.capture());
-        IpoSubscriptionHistoryEntity saved = captor.getValue();
-        assertThat(saved.getCategoriesJson()).isEqualTo(IpoSubscriptionJson.toJson(subscriptionCategories()));
-        assertThat(saved.getTotal()).isEqualByComparingTo("1.50");
+        // Subscription history is investorgain-owned now — ingest never writes it (see appendHistory).
+        verify(subHistoryRepo, never()).save(any());
     }
 
     @Test

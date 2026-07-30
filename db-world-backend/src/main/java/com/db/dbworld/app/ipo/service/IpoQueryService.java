@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -120,24 +121,29 @@ public class IpoQueryService {
     }
 
     /**
-     * Fills {@code refundDate}/{@code dematDate} on the DTO returned for the detail page's 6-stage
-     * timeline when the source hasn't reported them yet: both conventionally land the day after
-     * allotment finalizes, so each null one is derived as {@code allotmentDate.plusDays(1)}.
-     * Leaves both null if {@code allotmentDate} itself isn't known yet. Never touches the stored
-     * entity — this only affects the DTO built for this read.
+     * Fills the timeline dates the sources don't report (allotment / refund / demat) for the detail
+     * page's 6-stage timeline — no source supplies them (NSE nulls them; Chittorgarh's list JSON has
+     * only open/close/listing), which is why they showed "TBA". Indian IPOs follow a fixed T+ schedule
+     * off the close day, so a missing date is derived on the working-day calendar: allotment ≈ the next
+     * working day after close (T+1), refund + demat ≈ the working day after allotment (T+2). A real
+     * source value always wins when present. Needs a {@code closeDate} (or a real {@code allotmentDate})
+     * to anchor on; otherwise left as-is. Never touches the stored entity — DTO-only.
      */
     private static IpoDetailDto withDerivedTimelineDates(IpoDetailDto dto) {
-        if (dto.allotmentDate() == null) {
-            return dto;
+        LocalDate allotment = dto.allotmentDate() != null
+                ? dto.allotmentDate()
+                : (dto.closeDate() != null ? nextWorkingDay(dto.closeDate().plusDays(1)) : null);
+        if (allotment == null) {
+            return dto; // no close/allotment date to anchor the schedule on
         }
-        if (dto.refundDate() != null && dto.dematDate() != null) {
-            return dto;
+        if (dto.allotmentDate() != null && dto.refundDate() != null && dto.dematDate() != null) {
+            return dto; // everything already known from a source
         }
-        LocalDate derived = dto.allotmentDate().plusDays(1);
-        LocalDate refundDate = dto.refundDate() != null ? dto.refundDate() : derived;
-        LocalDate dematDate = dto.dematDate() != null ? dto.dematDate() : derived;
+        LocalDate afterAllotment = nextWorkingDay(allotment.plusDays(1));
+        LocalDate refundDate = dto.refundDate() != null ? dto.refundDate() : afterAllotment;
+        LocalDate dematDate = dto.dematDate() != null ? dto.dematDate() : afterAllotment;
         return new IpoDetailDto(dto.id(), dto.companyName(), dto.ipoType(), dto.status(),
-                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.openDate(), dto.closeDate(), allotment, dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.listingPrice(), dto.listingGainPct(),
                 dto.gmp(), dto.gmpPct(), dto.subTotal(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(),
@@ -147,6 +153,15 @@ public class IpoQueryService {
                 dto.foundedYear(), dto.managingDirector(), dto.parentCompany(),
                 dto.sector(), dto.headquarters(), dto.website(),
                 dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+    }
+
+    /** The given date, rolled forward past Sat/Sun to the next weekday (holidays aren't modelled). */
+    private static LocalDate nextWorkingDay(LocalDate date) {
+        LocalDate d = date;
+        while (d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            d = d.plusDays(1);
+        }
+        return d;
     }
 
     /** Blank or {@code all} means no type filter; otherwise a case-insensitive exact match on {@code ipoType}. */
