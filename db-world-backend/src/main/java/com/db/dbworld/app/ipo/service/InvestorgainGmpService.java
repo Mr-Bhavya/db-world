@@ -122,6 +122,7 @@ public class InvestorgainGmpService {
     private static final String F_ID = "~id";
     private static final String F_IPO = "IPO";                            // short company name
     private static final String F_SRT_OPEN = "~Srt_Open";                 // ISO date, e.g. "2026-07-23"
+    private static final String F_SRT_BOA = "~Srt_BoA_Dt";                // Basis-of-Allotment ISO date
 
     // ── GMP-read field names ──────────────────────────────────────────────────────────────────
     private static final String F_GMP_DATA = "ipoGmpData";
@@ -239,8 +240,17 @@ public class InvestorgainGmpService {
                 if (entity == null) {
                     continue; // not an IPO we track — don't spend an HTTP call on it
                 }
+
+                // Basis-of-Allotment date is in the report row (no HTTP) — investorgain is the
+                // authoritative source (NSE/Chittorgarh don't report it), so stamp it for EVERY
+                // matched IPO regardless of the subscription-fetch budget below.
+                if (listing.boaDate() != null && !listing.boaDate().equals(entity.getAllotmentDate())) {
+                    entity.setAllotmentDate(listing.boaDate());
+                    listingRepo.save(entity);
+                }
+
                 if (budget <= 0) {
-                    break;
+                    continue; // out of subscription-fetch budget — but keep stamping allotment above
                 }
                 budget--;
 
@@ -358,8 +368,9 @@ public class InvestorgainGmpService {
         }
     }
 
-    /** One dashboard row reduced to what we need to match it to a tracked listing + fetch its GMP. */
-    record Listing(String id, String companyName, LocalDate openDate) {}
+    /** One dashboard row reduced to what we need to match it to a tracked listing + enrich it
+     *  ({@code boaDate} = Basis-of-Allotment date; may be null when not announced yet). */
+    record Listing(String id, String companyName, LocalDate openDate, LocalDate boaDate) {}
 
     /** One day's GMP reading. */
     record GmpPoint(LocalDate date, BigDecimal gmp, BigDecimal gmpPct) {}
@@ -404,8 +415,9 @@ public class InvestorgainGmpService {
                 String id = text(node, F_ID);
                 String company = text(node, F_IPO);
                 LocalDate openDate = parseIsoDate(text(node, F_SRT_OPEN));
+                LocalDate boaDate = parseIsoDate(text(node, F_SRT_BOA));
                 if (id != null && company != null) {
-                    result.add(new Listing(id, company, openDate));
+                    result.add(new Listing(id, company, openDate, boaDate));
                 }
             }
         } catch (Exception e) {

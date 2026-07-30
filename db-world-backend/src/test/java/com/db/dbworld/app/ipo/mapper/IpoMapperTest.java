@@ -359,15 +359,17 @@ class IpoMapperTest {
         assertThat(entity.getStatus()).isEqualTo("open");
         assertThat(entity.getOpenDate()).isEqualTo(LocalDate.of(2026, 7, 20));
         assertThat(entity.getCloseDate()).isEqualTo(LocalDate.of(2026, 7, 24));
-        assertThat(entity.getAllotmentDate()).isEqualTo(LocalDate.of(2026, 7, 28));
         assertThat(entity.getListingDate()).isEqualTo(LocalDate.of(2026, 7, 30));
         assertThat(entity.getPriceMin()).isEqualByComparingTo("100.00");
         assertThat(entity.getPriceMax()).isEqualByComparingTo("110.00");
         assertThat(entity.getListingPrice()).isEqualByComparingTo("135.00");
         assertThat(entity.getListingGainPct()).isEqualByComparingTo("22.73");
-        assertThat(entity.getGmp()).isEqualByComparingTo("25.00");
-        assertThat(entity.getGmpPct()).isEqualByComparingTo("22.73");
-        assertThat(entity.getSubTotal()).isEqualByComparingTo("15.50");
+        // GMP, subscription (subTotal) and the allotment date are investorgain-owned — the mapper
+        // deliberately ignores them so ingest can never overwrite investorgain's authoritative value.
+        assertThat(entity.getGmp()).isNull();
+        assertThat(entity.getGmpPct()).isNull();
+        assertThat(entity.getSubTotal()).isNull();
+        assertThat(entity.getAllotmentDate()).isNull();
         assertThat(entity.getLotSize()).isEqualTo(130);
         assertThat(entity.getIssueSize()).isEqualTo("500 Cr");
         assertThat(entity.getListingExchange()).isEqualTo("NSE");

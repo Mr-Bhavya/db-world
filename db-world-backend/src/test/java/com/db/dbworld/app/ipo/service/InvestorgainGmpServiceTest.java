@@ -49,8 +49,8 @@ class InvestorgainGmpServiceTest {
     // Real investorgain shapes (trimmed): FY report list (one row) + day-wise GMP for one IPO.
     private static final String LIST_JSON = """
             {"msg":1,"reportTableData":[
-              {"~id":1951,"IPO":"Xtranet Technologies","~Srt_Open":"2026-07-23","IPO Price":"₹ 127","Lot":110,
-               "Status":"<span>Open</span>","IPO Size":"&#8377;166.80 Cr"}
+              {"~id":1951,"IPO":"Xtranet Technologies","~Srt_Open":"2026-07-23","~Srt_BoA_Dt":"2026-07-28",
+               "IPO Price":"₹ 127","Lot":110,"Status":"<span>Open</span>","IPO Size":"&#8377;166.80 Cr"}
             ],"totalRecords":1,"totalPages":1}
             """;
     private static final String GMP_JSON = """
@@ -89,6 +89,7 @@ class InvestorgainGmpServiceTest {
         assertThat(listings.get(0).id()).isEqualTo("1951");
         assertThat(listings.get(0).companyName()).isEqualTo("Xtranet Technologies");
         assertThat(listings.get(0).openDate()).isEqualTo(LocalDate.of(2026, 7, 23));
+        assertThat(listings.get(0).boaDate()).isEqualTo(LocalDate.of(2026, 7, 28));
     }
 
     @Test
