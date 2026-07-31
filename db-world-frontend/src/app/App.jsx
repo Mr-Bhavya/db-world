@@ -29,9 +29,11 @@ import NotifyProvider from '@shared/notify/NotifyProvider';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
+import InstallAppPrompt from '@shared/components/InstallAppPrompt';
 import PermissionOnboardingGate, { PERMISSIONS_ONBOARDED_KEY } from '@shared/components/PermissionOnboardingGate';
 import BiometricGate from '@features/auth/BiometricGate';
 import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
+import AppLockGate from '@features/auth/AppLockGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -342,8 +344,10 @@ const ThemedApp = () => {
               (behind the transparent WebView) shows through. Only paint the dark
               backdrop when the mobile detail sheet scales the page back. */}
           <div style={{ background: pageScaled ? '#000' : 'transparent' }}>
+            <AppLockGate />
             <BackButtonHandler />
             <AppUpdateGate />
+            <InstallAppPrompt />
             <PermissionOnboardingGate />
             <BiometricEnrollPrompt />
             <BiometricGate />

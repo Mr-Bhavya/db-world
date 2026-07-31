@@ -18,7 +18,7 @@ import {
   AddRounded, ArrowBackRounded, CheckCircleRounded, ContentCopyRounded,
   DeleteOutlineRounded, EditRounded, ErrorOutlineRounded,
   LockRounded, SearchRounded, Visibility, VisibilityOff, ClearRounded,
-  AutoAwesomeRounded,
+  AutoAwesomeRounded, CloudOffRounded, LockOpenRounded,
 } from '@mui/icons-material';
 
 import BrandLogo, { domainFromUrl } from '@shared/brand/BrandLogo';
@@ -32,8 +32,20 @@ import {
 } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 
+import { useAuth } from '@features/auth/context/Authentication';
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
 import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr } from './vaultShared';
+import { cacheVault, readOfflineVault } from './offline/vaultCache';
+
+// Compact "3 min ago" for the offline-snapshot banner.
+const relativeTime = (ts) => {
+  if (!ts) return '';
+  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60); if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`;
+  const d = Math.round(h / 24); return `${d} day${d > 1 ? 's' : ''} ago`;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Schema + helpers
@@ -484,17 +496,36 @@ const ViewPassword = () => {
   const reduce = useReducedMotion();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { auth } = useAuth();
+  const userId = auth?.user?.id ?? auth?.user?.userId ?? auth?.user?.username ?? auth?.user?.email ?? null;
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | weak | reused
   const [editTarget, setEditTarget] = useState(null);
   const [deleteCredTarget, setDelCred] = useState(null);
   const [deleteHostTarget, setDelHost] = useState(null);
+  const [offline, setOffline] = useState(null); // { syncedAt } | { locked } | { invalidated } | null
 
   const { data: vault = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['pm-vault'],
-    queryFn: async () => (await getCredential()).data ?? [],
+    retry: false, // the offline fallback prompts for biometrics — never silently re-run it
     staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      try {
+        const data = (await getCredential()).data ?? [];
+        setOffline(null);
+        cacheVault(userId, data); // best-effort write-through snapshot (native only, no prompt)
+        return data;
+      } catch (err) {
+        // Server unreachable → try the encrypted offline snapshot (prompts biometric / device lock).
+        const res = await readOfflineVault(userId);
+        if (res.status === 'ok') { setOffline({ syncedAt: res.syncedAt }); return res.vault; }
+        if (res.status === 'locked') setOffline({ locked: true });
+        else if (res.status === 'invalidated') setOffline({ invalidated: true });
+        else setOffline(null);
+        throw err;
+      }
+    },
   });
 
   const { flags, weak, reused, total } = useMemo(() => analyzeVault(vault), [vault]);
@@ -575,6 +606,16 @@ const ViewPassword = () => {
           </Box>
         </Box>
 
+        {/* Offline snapshot banner */}
+        {offline?.syncedAt && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.25, mb: 2.5, borderRadius: 2.5, bgcolor: T.warningBg, border: `1px solid ${T.warning}44` }}>
+            <CloudOffRounded sx={{ color: T.warning, fontSize: 20, flexShrink: 0 }} />
+            <Typography sx={{ color: T.textMuted, fontSize: '0.8rem', lineHeight: 1.4 }}>
+              Offline — showing your vault saved {relativeTime(offline.syncedAt)}. Editing is unavailable until you reconnect.
+            </Typography>
+          </Box>
+        )}
+
         {/* Search + filters */}
         {!isLoading && vault.length > 0 && (
           <Box sx={{ mb: 3 }}>
@@ -604,9 +645,34 @@ const ViewPassword = () => {
           <VaultSkeleton T={T} />
         ) : isError ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
-            <ErrorOutlineRounded sx={{ fontSize: 48, color: '#f87171', mb: 2 }} />
-            <Typography sx={{ color: T.textMuted, mb: 2 }}>Failed to load vault</Typography>
-            <Button onClick={refetch} sx={{ color: T.teal, fontWeight: 800, minHeight: 44 }}>Retry</Button>
+            {offline?.invalidated ? (
+              <>
+                <LockRounded sx={{ fontSize: 48, color: T.warning, mb: 2 }} />
+                <Typography sx={{ color: T.textPrimary, fontWeight: 800, mb: 1 }}>Device security changed</Typography>
+                <Typography sx={{ color: T.textMuted, mb: 2, maxWidth: 360, mx: 'auto', fontSize: '0.86rem' }}>
+                  Your offline copy was locked after a change to this device’s screen lock. Connect to the internet to sync your vault again.
+                </Typography>
+                <Button onClick={refetch} sx={{ color: T.teal, fontWeight: 800, minHeight: 44 }}>Retry</Button>
+              </>
+            ) : offline?.locked ? (
+              <>
+                <LockRounded sx={{ fontSize: 48, color: T.teal, mb: 2 }} />
+                <Typography sx={{ color: T.textPrimary, fontWeight: 800, mb: 1 }}>You’re offline</Typography>
+                <Typography sx={{ color: T.textMuted, mb: 2, maxWidth: 360, mx: 'auto', fontSize: '0.86rem' }}>
+                  Unlock to view your saved vault from this device.
+                </Typography>
+                <Button startIcon={<LockOpenRounded />} onClick={refetch} variant="contained"
+                  sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, borderRadius: 2, minHeight: 44, '&:hover': { bgcolor: '#0f766e' } }}>
+                  Unlock vault
+                </Button>
+              </>
+            ) : (
+              <>
+                <ErrorOutlineRounded sx={{ fontSize: 48, color: '#f87171', mb: 2 }} />
+                <Typography sx={{ color: T.textMuted, mb: 2 }}>Failed to load vault</Typography>
+                <Button onClick={refetch} sx={{ color: T.teal, fontWeight: 800, minHeight: 44 }}>Retry</Button>
+              </>
+            )}
           </Box>
         ) : vault.length === 0 ? (
           <GlassPanel sx={{ textAlign: 'center', py: { xs: 6, sm: 8 }, px: 2 }}>

@@ -49,6 +49,29 @@ export async function isBiometricAvailable() {
 }
 
 /**
+ * Can we lock the app on this device? True when biometrics are enrolled OR a
+ * device screen-lock (PIN/pattern/password) is set — either can unlock the app.
+ */
+export async function canLockApp() {
+  if (!isNative()) return false;
+  try {
+    const res = await NativeBiometric.isAvailable({ useFallback: true });
+    return !!(res?.isAvailable || res?.deviceIsSecure);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * App-lock unlock: prompt for biometric OR device credential (PIN/pattern/password).
+ * Resolves on success; throws on cancel/failure. Not tied to the login token flow.
+ */
+export async function verifyDeviceOwner(reason = 'Unlock DB World') {
+  await NativeBiometric.verifyIdentity({ reason, title: 'DB World', subtitle: reason, useFallback: true });
+  return true;
+}
+
+/**
  * Enroll: mint a device token server-side (authenticated) and store it in the hardware Keystore.
  * Caller must already be logged in.
  */
