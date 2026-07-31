@@ -123,6 +123,7 @@ class IpoControllerTest {
         List<SubscriptionPointDto> expected = List.of(new SubscriptionPointDto(
                 Instant.parse("2026-07-01T00:00:00Z"), new BigDecimal("6.00"),
                 Map.of("QIB", new BigDecimal("1.00"), "NII", new BigDecimal("2.00"), "Retail", new BigDecimal("3.00")),
+                List.of(),
                 new BigDecimal("1.00"), new BigDecimal("2.00"), new BigDecimal("3.00")));
         when(queryService.subscriptionHistory("1")).thenReturn(expected);
 

@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  alpha,
   Autocomplete,
   Box,
   Button,
@@ -25,18 +24,20 @@ import {
   useTheme,
 } from '@mui/material';
 import {
-  AutoAwesome,
-  Link as LinkIcon,
-  LinkOff,
-  Refresh,
-  Search,
-  Storage,
-  VideoFile,
+  AutoAwesomeRounded as AutoAwesome,
+  LinkRounded as LinkIcon,
+  LinkOffRounded as LinkOff,
+  RefreshRounded as Refresh,
+  SearchRounded as Search,
+  StorageRounded as Storage,
+  VideoFileRounded as VideoFile,
 } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { getUnassignedFiles, linkFileToRecord, searchRecords } from '../services/ingestionApi';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,39 +90,34 @@ function getExtension(fileName) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
 
   return (
     <Paper
       elevation={0}
       variant="outlined"
       sx={{
-        borderRadius: { xs: 3, sm: 4 },
+        borderRadius: 3,
         overflow: 'hidden',
-        borderColor: alpha(theme.palette.divider, 0.72),
-        background:
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.018) 100%)'
-            : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
-        boxShadow:
-          theme.palette.mode === 'dark'
-            ? '0 8px 26px rgba(0,0,0,0.16)'
-            : '0 8px 26px rgba(15, 23, 42, 0.045)',
+        borderColor: S.border,
+        bgcolor: S.card,
+        boxShadow: 'none',
         ...sx,
       }}
     >
-      <Box sx={{ px: { xs: 1.25, sm: 1.7, md: 2.1 }, py: { xs: 1.25, sm: 1.5 } }}>
+      <Box sx={{ px: { xs: 1.25, sm: 1.75, md: 2 }, py: { xs: 1.25, sm: 1.5 } }}>
         <Stack direction="row" spacing={1.1} alignItems="flex-start" justifyContent="space-between" mb={1.25}>
           <Stack direction="row" spacing={1} alignItems="center" minWidth={0}>
             <Box
               sx={{
                 width: 36,
                 height: 36,
-                borderRadius: 2.25,
+                borderRadius: 2,
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: (t) => alpha(t.palette.primary.main, 0.1),
-                color: 'primary.main',
+                bgcolor: T.tealBg,
+                color: T.teal,
                 flexShrink: 0,
               }}
             >
@@ -169,6 +165,8 @@ function SummaryRow({ label, value, chip = false, color = 'default' }) {
 
 function LinkDialog({ file, open, onClose }) {
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
   const qc = useQueryClient();
   const timerRef = useRef(null);
@@ -247,11 +245,11 @@ function LinkDialog({ file, open, onClose }) {
             sx={{
               width: 36,
               height: 36,
-              borderRadius: 2.25,
+              borderRadius: 2,
               display: 'grid',
               placeItems: 'center',
-              bgcolor: (t) => alpha(t.palette.primary.main, 0.1),
-              color: 'primary.main',
+              bgcolor: T.tealBg,
+              color: T.teal,
               flexShrink: 0,
             }}
           >
@@ -366,7 +364,7 @@ function LinkDialog({ file, open, onClose }) {
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.15, sm: 1.5 }, borderTop: `1px solid ${alpha(theme.palette.divider, 0.75)}` }}>
+      <DialogActions sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.15, sm: 1.5 }, borderTop: `1px solid ${S.border}` }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ width: '100%' }}>
           <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
             {record ? `Ready to link with ${record.name || record.title}` : 'Select a record to continue'}
@@ -396,7 +394,8 @@ function LinkDialog({ file, open, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const UnassignedFileCard = memo(function UnassignedFileCard({ file }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const [linkOpen, setLinkOpen] = useState(false);
 
   const video = getTrack(file?.tracks, 'Video');
@@ -414,26 +413,28 @@ const UnassignedFileCard = memo(function UnassignedFileCard({ file }) {
         sx={{
           borderRadius: 3,
           overflow: 'hidden',
-          borderColor: alpha(theme.palette.divider, 0.72),
-          transition: 'all 0.18s ease',
+          borderColor: S.border,
+          bgcolor: S.card,
+          boxShadow: 'none',
+          transition: 'border-color 0.18s ease, background-color 0.18s ease',
           '&:hover': {
-            boxShadow: theme.palette.mode === 'dark' ? '0 10px 26px rgba(0,0,0,0.18)' : '0 10px 26px rgba(15, 23, 42, 0.07)',
-            borderColor: alpha(theme.palette.primary.main, 0.28),
+            bgcolor: S.cardHover,
+            borderColor: T.teal,
           },
         }}
       >
-        <CardContent sx={{ p: '14px !important' }}>
+        <CardContent sx={{ p: { xs: '12px !important', sm: '14px !important' } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.35} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
             <Stack direction="row" spacing={1.1} alignItems="flex-start" sx={{ flex: 1, minWidth: 0 }}>
               <Box
                 sx={{
                   width: 38,
                   height: 38,
-                  borderRadius: 2.25,
+                  borderRadius: 2,
                   display: 'grid',
                   placeItems: 'center',
-                  bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
-                  color: 'primary.main',
+                  bgcolor: T.tealBg,
+                  color: T.teal,
                   flexShrink: 0,
                   mt: 0.1,
                 }}
@@ -499,6 +500,8 @@ const UnassignedFileCard = memo(function UnassignedFileCard({ file }) {
 
 export default function UnassignedFiles() {
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const timerRef = useRef(null);
   const [search, setSearch] = useState('');
@@ -542,18 +545,16 @@ export default function UnassignedFiles() {
   );
 
   return (
-    <Box sx={{ maxWidth: 1480, mx: 'auto', px: { xs: 0.25, sm: 0.5, lg: 1 } }}>
+    <Box>
       <Paper
         elevation={0}
         variant="outlined"
         sx={{
           mb: { xs: 1.5, sm: 2 },
-          borderRadius: { xs: 3, sm: 4 },
-          borderColor: alpha(theme.palette.divider, 0.72),
-          background:
-            theme.palette.mode === 'dark'
-              ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.16)} 0%, rgba(255,255,255,0.02) 100%)`
-              : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, rgba(255,255,255,0.95) 100%)`,
+          borderRadius: 3,
+          borderColor: S.border,
+          bgcolor: S.card,
+          boxShadow: 'none',
         }}
       >
         <Box sx={{ p: { xs: 1.25, sm: 1.6, md: 2 } }}>

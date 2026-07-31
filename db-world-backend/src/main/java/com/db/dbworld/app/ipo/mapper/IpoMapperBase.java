@@ -79,6 +79,13 @@ public abstract class IpoMapperBase {
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
     @Mapping(target = "logoDomain", ignore = true)
+    // Single-source-of-truth: GMP, subscription (subTotal) and the allotment date are owned solely
+    // by InvestorgainGmpService (day-wise, authoritative), so ingest never sets them — otherwise a
+    // source-reported value would overwrite investorgain's each poll (flip-flop).
+    @Mapping(target = "gmp", ignore = true)
+    @Mapping(target = "gmpPct", ignore = true)
+    @Mapping(target = "subTotal", ignore = true)
+    @Mapping(target = "allotmentDate", ignore = true)
     @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
     @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
     @Mapping(target = "issueDetailsJson", source = "issueDetails", qualifiedByName = "issueDetailsToJson")
@@ -105,6 +112,13 @@ public abstract class IpoMapperBase {
     @Mapping(target = "headquarters", ignore = true)
     @Mapping(target = "website", ignore = true)
     @Mapping(target = "logoDomain", ignore = true)
+    // Single-source-of-truth (see toNewEntity): investorgain owns GMP, subscription and the allotment
+    // date — ingest must never overwrite them (NSE reports a live subTotal while open, which would
+    // otherwise flip-flop against investorgain's authoritative value each poll).
+    @Mapping(target = "gmp", ignore = true)
+    @Mapping(target = "gmpPct", ignore = true)
+    @Mapping(target = "subTotal", ignore = true)
+    @Mapping(target = "allotmentDate", ignore = true)
     @Mapping(target = "kpisJson", source = "kpis", qualifiedByName = "kpisToJson")
     @Mapping(target = "issueObjectsJson", source = "issueObjects", qualifiedByName = "issueObjectsToJson")
     @Mapping(target = "issueDetailsJson", source = "issueDetails", qualifiedByName = "issueDetailsToJson")
@@ -124,6 +138,7 @@ public abstract class IpoMapperBase {
     public SubscriptionPointDto toSubscriptionPoint(IpoSubscriptionHistoryEntity e) {
         Map<String, BigDecimal> categories = IpoSubscriptionJson.fromJson(e.getCategoriesJson());
         return new SubscriptionPointDto(e.getCapturedAt(), e.getTotal(), categories,
+                IpoSubscriptionJson.fromDetailJson(e.getCategoryDetailJson()),
                 findCategory(categories, "qib"), findCategory(categories, "nii"), findCategory(categories, "retail"));
     }
 

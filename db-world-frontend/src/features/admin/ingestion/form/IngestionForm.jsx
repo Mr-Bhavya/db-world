@@ -35,28 +35,29 @@ import {
 } from 'react-hook-form';
 
 import {
-  Add,
-  Archive,
-  Clear,
-  Close,
-  Delete,
-  DriveFileRenameOutline,
-  Link as LinkIcon,
-  Lock,
+  AddRounded as Add,
+  ArchiveRounded as Archive,
+  ClearRounded as Clear,
+  CloseRounded as Close,
+  DeleteRounded as Delete,
+  DriveFileRenameOutlineRounded as DriveFileRenameOutline,
+  LinkRounded as LinkIcon,
+  LockRounded as Lock,
   LockOutlined,
-  PlaylistPlay,
-  Send,
-  Tv,
-  UploadFile,
-  VideoSettings,
-  QueueMusic,
-  AutoAwesome,
-  LockReset,
+  PlaylistPlayRounded as PlaylistPlay,
+  SendRounded as Send,
+  TvRounded as Tv,
+  UploadFileRounded as UploadFile,
+  VideoSettingsRounded as VideoSettings,
+  QueueMusicRounded as QueueMusic,
+  AutoAwesomeRounded as AutoAwesome,
+  LockResetRounded as LockReset,
 } from '@mui/icons-material';
 
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import RecordSearch from './RecordSearch';
 import YtFormatPicker from './YtFormatPicker';
 import PlaylistPicker from './PlaylistPicker';
@@ -178,31 +179,26 @@ function SourceBadge({ type }) {
 }
 
 function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
 
   return (
     <Paper
       elevation={0}
       variant="outlined"
       sx={{
-        borderRadius: { xs: 3, sm: 4 },
-        borderColor: alpha(theme.palette.divider, 0.7),
-        background:
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.02) 100%)'
-            : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
-        boxShadow:
-          theme.palette.mode === 'dark'
-            ? '0 8px 24px rgba(0,0,0,0.16)'
-            : '0 8px 24px rgba(15, 23, 42, 0.045)',
+        borderRadius: 3,
+        borderColor: S.border,
+        bgcolor: S.card,
+        boxShadow: 'none',
         overflow: 'hidden',
         ...sx,
       }}
     >
       <Box
         sx={{
-          px: { xs: 1.25, sm: 1.75, md: 2.25 },
-          py: { xs: 1.25, sm: 1.5, md: 1.75 },
+          px: { xs: 1.25, sm: 1.75, md: 2 },
+          py: { xs: 1.25, sm: 1.5 },
         }}
       >
         <Stack
@@ -217,11 +213,11 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
               sx={{
                 width: { xs: 34, sm: 38 },
                 height: { xs: 34, sm: 38 },
-                borderRadius: 2.25,
+                borderRadius: 2,
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
-                color: 'primary.main',
+                bgcolor: T.tealBg,
+                color: T.teal,
                 flexShrink: 0,
               }}
             >
@@ -259,7 +255,8 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
 }
 
 function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
 
   return (
     <Paper
@@ -268,13 +265,9 @@ function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
         borderRadius: 3,
         px: 1.25,
         py: 1.1,
-        borderColor: checked
-          ? alpha(theme.palette.primary.main, 0.35)
-          : alpha(theme.palette.divider, 0.8),
-        bgcolor: checked
-          ? alpha(theme.palette.primary.main, 0.04)
-          : 'background.paper',
-        transition: '0.2s ease',
+        borderColor: checked ? T.teal : S.border,
+        bgcolor: checked ? T.tealBg : S.card,
+        transition: 'border-color .2s ease, background-color .2s ease',
       }}
     >
       <Stack spacing={1}>
@@ -292,8 +285,8 @@ function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
                 borderRadius: 2,
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
-                color: 'primary.main',
+                bgcolor: T.tealBg,
+                color: T.teal,
               }}
             >
               {icon}
@@ -334,6 +327,7 @@ const UrlRow = memo(function UrlRow({
   compact = false,
 }) {
   const T = useT();
+  const S = adminSurface(T);
   const urlValue = useWatch({ control, name: `urls.${index}.url` });
   const renameValue = useWatch({ control, name: `urls.${index}.rename` });
   const type = detectUrlType(urlValue || '');
@@ -353,8 +347,8 @@ const UrlRow = memo(function UrlRow({
         sx={{
           p: compact ? { xs: 1, sm: 1.25 } : { xs: 1.1, sm: 1.35 },
           borderRadius: 3,
-          borderColor: type !== 'unknown' ? sourceColors.border : 'divider',
-          bgcolor: type !== 'unknown' ? sourceColors.bg : 'background.paper',
+          borderColor: type !== 'unknown' ? sourceColors.border : S.border,
+          bgcolor: type !== 'unknown' ? sourceColors.bg : S.inset,
         }}
       >
         <Stack spacing={1}>
@@ -527,6 +521,8 @@ export default function IngestionForm({
   onCancel,
 }) {
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
@@ -865,10 +861,10 @@ export default function IngestionForm({
         dialogMode
           ? { px: 0, pt: 0.5, pb: 0.5 }
           : {
-              maxWidth: 1480,
-              mx: 'auto',
-              px: { xs: 1, sm: 1.5, lg: 2.5 },
-              pt: { xs: 1, sm: 1.25 },
+              // Full width — the AdminPage already provides the page inset, so the
+              // form fills the panel instead of re-centering at a fixed maxWidth.
+              px: 0,
+              pt: { xs: 0.5, sm: 1 },
               pb: { xs: 10, md: 11 },
             }
       }
@@ -1027,8 +1023,8 @@ export default function IngestionForm({
                     p: { xs: 1.2, sm: 1.5 },
                     borderRadius: 3,
                     borderStyle: 'dashed',
-                    borderColor: alpha(theme.palette.divider, 0.85),
-                    bgcolor: alpha(theme.palette.info.main, 0.03),
+                    borderColor: S.border,
+                    bgcolor: S.inset,
                   }}
                 >
                   <Stack
@@ -1045,8 +1041,8 @@ export default function IngestionForm({
                           borderRadius: 2,
                           display: 'grid',
                           placeItems: 'center',
-                          bgcolor: alpha(theme.palette.info.main, 0.1),
-                          color: 'info.main',
+                          bgcolor: T.infoBg,
+                          color: T.info,
                           flexShrink: 0,
                         }}
                       >
@@ -1129,9 +1125,9 @@ export default function IngestionForm({
                   >
                     <Stack direction="row" spacing={1} alignItems="center">
                       {formatsLoading ? (
-                        <CircularProgress size={16} />
+                        <CircularProgress size={16} sx={{ color: T.teal }} />
                       ) : (
-                        <AutoAwesome sx={{ fontSize: 18, color: 'primary.main' }} />
+                        <AutoAwesome sx={{ fontSize: 18, color: T.teal }} />
                       )}
                       <Box>
                         <Typography variant="body2" fontWeight={700}>
@@ -1355,7 +1351,8 @@ export default function IngestionForm({
                   sx={{
                     borderRadius: 3,
                     p: 1.25,
-                    bgcolor: alpha(theme.palette.primary.main, 0.035),
+                    borderColor: S.border,
+                    bgcolor: S.inset,
                   }}
                 >
                   <Stack spacing={0.75}>
@@ -1448,20 +1445,20 @@ export default function IngestionForm({
           </Stack>
         ) : (
         <Paper
-          elevation={10}
+          elevation={0}
           sx={{
             position: 'fixed',
 
-            // ✅ MOBILE (bottom full width)
+            // MOBILE (bottom full width)
             left: { xs: 8, sm: 16 },
             right: { xs: 8, sm: 16 },
 
-            // ✅ DESKTOP (right sidebar)
+            // DESKTOP (right sidebar) — aligned to the AdminPage maxWidth (1440)
             ...(isLgUp && {
               left: 'auto',
               width: 360,
               right: {
-                xl: 'calc((100vw - 1480px) / 2 + 24px)',
+                xl: 'calc((100vw - 1440px) / 2 + 24px)',
                 lg: 32,
               },
             }),
@@ -1474,19 +1471,11 @@ export default function IngestionForm({
             px: { xs: 1, sm: 1.5 },
             py: { xs: 1, sm: 1.25 },
 
-            border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-
-            bgcolor:
-              theme.palette.mode === 'dark'
-                ? alpha(theme.palette.background.paper, 0.92)
-                : alpha('#ffffff', 0.92),
-
-            backdropFilter: 'blur(12px)',
-
-            boxShadow:
-              theme.palette.mode === 'dark'
-                ? '0 10px 36px rgba(0,0,0,0.35)'
-                : '0 10px 30px rgba(15, 23, 42, 0.1)',
+            // Flat solid surface — no glass / backdrop blur / gradient. A neutral
+            // shadow keeps the floating bar separated from the content underneath.
+            border: `1px solid ${S.border}`,
+            bgcolor: S.card,
+            boxShadow: '0 6px 22px rgba(0,0,0,0.18)',
           }}
         >
           {isLgUp ? (

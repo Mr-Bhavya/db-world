@@ -1,6 +1,7 @@
 package com.db.dbworld.app.ipo.source.support;
 
 import io.netty.channel.ChannelOption;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import lombok.extern.log4j.Log4j2;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
@@ -58,6 +59,10 @@ public class IpoWebClientConfig {
                 .build();
 
         var httpClient = HttpClient.create(provider)
+                // Use the JVM/OS resolver (glibc → nsswitch → systemd-resolved) instead of Netty's
+                // async DNS resolver, which queries 127.0.0.53 directly and times out on the Pi
+                // (DnsNameResolverTimeoutException resolving webnodejs.chittorgarh.com etc.).
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
                 .responseTimeout(RESPONSE_TIMEOUT);
 

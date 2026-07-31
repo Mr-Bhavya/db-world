@@ -237,7 +237,7 @@ export default function IpoCard({ ipo, index = 0 }) {
             <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
           </Stat>
           <Stat label="Subscription">
-            {(ipo.status === 'open' || ipo.status === 'closed') && ipo.subTotal != null
+            {(ipo.status === 'open' || ipo.status === 'closed' || ipo.status === 'listed') && ipo.subTotal != null
               ? <SubscriptionMiniBar subTotal={ipo.subTotal} />
               : <Typography sx={{ fontSize: 13, color: T.textFaint }}>—</Typography>}
           </Stat>

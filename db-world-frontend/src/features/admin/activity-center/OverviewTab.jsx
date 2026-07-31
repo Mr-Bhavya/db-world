@@ -8,13 +8,15 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { useT } from '@shared/theme/ThemeContext';
+import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 
 import ActivityTrendChart   from '@features/admin/analytics/components/ActivityTrendChart';
 import ClientBreakdownChart from '@features/admin/analytics/components/ClientBreakdownChart';
 import TopRecordsTable      from '@features/admin/analytics/components/TopRecordsTable';
 import TopUsersTable        from '@features/admin/analytics/components/TopUsersTable';
 
+import LiveTab from './LiveTab';
 import {
   fetchActivityOverview, fetchActivityTrend, fetchClientBreakdown,
   fetchTopContent, fetchTopUsers,
@@ -56,6 +58,7 @@ const ACCENTS = {
 
 function KpiTile({ icon, label, value, suffix, accent, index = 0 }) {
   const T = useT();
+  const S = adminSurface(T);
   const a = ACCENTS[accent] ?? ACCENTS.teal;
   return (
     <Box
@@ -64,8 +67,8 @@ function KpiTile({ icon, label, value, suffix, accent, index = 0 }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04 }}
       sx={{
-        bgcolor: T.glass,
-        border: `1px solid ${T.border}`,
+        bgcolor: S.card,
+        border: `1px solid ${S.border}`,
         borderRadius: 2,
         p: { xs: 1.25, sm: 1.75 },
         display: 'flex', alignItems: 'center', gap: 1.25,
@@ -108,6 +111,7 @@ function KpiTile({ icon, label, value, suffix, accent, index = 0 }) {
 
 function KpiGrid({ data, loading, days }) {
   const T = useT();
+  const S = adminSurface(T);
 
   const win = windowLabel(days);
 
@@ -130,7 +134,7 @@ function KpiGrid({ data, loading, days }) {
         },
       }}>
         {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} variant="rounded" height={70} sx={{ bgcolor: T.glass, borderRadius: 2 }} />
+          <Skeleton key={i} variant="rounded" height={70} sx={{ bgcolor: S.inset, borderRadius: 2 }} />
         ))}
       </Box>
     );
@@ -139,7 +143,7 @@ function KpiGrid({ data, loading, days }) {
   if (!data) {
     return (
       <Box sx={{
-        bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2,
+        bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2,
         py: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <Typography sx={{ fontSize: 12.5, color: T.textFaint }}>No overview data yet.</Typography>
@@ -262,6 +266,17 @@ export default function OverviewTab() {
       </Box>
 
       <KpiGrid data={overviewQ.data} loading={overviewQ.isLoading} days={kpiDays} />
+
+      {/* ── Live sessions (merged in from the former standalone Live tab) ── */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, sm: 1.25 } }}>
+        <Typography sx={{
+          fontSize: 11, color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontWeight: 700,
+        }}>
+          Live sessions
+        </Typography>
+        <LiveTab />
+      </Box>
 
       {/* ── Trend + client breakdown ── */}
       <Box sx={{

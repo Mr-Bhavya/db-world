@@ -206,6 +206,39 @@ export const averageSubscription = (values) => {
 };
 
 /**
+ * The application lot-size breakdown investorgain/Chittorgarh show — how many lots each investor
+ * category can bid, derived purely from the lot size + the cut-off price (upper band) and SEBI's
+ * category caps: Retail ≤ ₹2,00,000, S-HNI ₹2,00,000–₹10,00,000, B-HNI > ₹10,00,000. Returns
+ * `{ minBidShares, tiers: [{ label, group, lots, shares, amount }] }`, or `null` when lot size /
+ * price is missing. SME issues have no 2L/10L split — a single HNI tier above the retail cap.
+ *   - Retail (Min) = 1 lot; Retail (Max) = most lots still ≤ ₹2L.
+ *   - S-HNI (Min) = Retail-max + 1; S-HNI (Max) = most lots still ≤ ₹10L; B-HNI (Min) = S-HNI-max + 1.
+ */
+export const computeLotBreakdown = (lotSize, price, ipoType) => {
+  const lot = Number(lotSize);
+  const p = Number(price);
+  if (!lot || !p || lot <= 0 || p <= 0) return null;
+
+  const RETAIL_CAP = 200000;
+  const SHNI_CAP = 1000000;
+  const lotValue = lot * p;
+  const tier = (label, group, lots) => ({ label, group, lots, shares: lots * lot, amount: lots * lotValue });
+
+  const retailMaxLots = Math.max(1, Math.floor(RETAIL_CAP / lotValue));
+  const tiers = [tier('Retail (Min)', 'retail', 1), tier('Retail (Max)', 'retail', retailMaxLots)];
+
+  if (String(ipoType).toLowerCase() === 'sme') {
+    tiers.push(tier('HNI (Min)', 'hni', retailMaxLots + 1));
+  } else {
+    const sHniMaxLots = Math.max(retailMaxLots + 1, Math.floor(SHNI_CAP / lotValue));
+    tiers.push(tier('S-HNI (Min)', 'hni', retailMaxLots + 1));
+    tiers.push(tier('S-HNI (Max)', 'hni', sHniMaxLots));
+    tiers.push(tier('B-HNI (Min)', 'hni', sHniMaxLots + 1));
+  }
+  return { minBidShares: lot, tiers };
+};
+
+/**
  * Preferred display order for subscription categories — the classic QIB/NII/Retail trio
  * first, then the aliases some sources use for the same tranches (HNI ≈ NII, RII ≈ Retail),
  * then the less-common reservation categories, all matched case-insensitively. Anything not
@@ -213,7 +246,7 @@ export const averageSubscription = (values) => {
  * these, alphabetically — so a brand-new category never gets dropped, it just lands last.
  */
 const PREFERRED_SUBSCRIPTION_CATEGORY_ORDER = [
-  'QIB', 'NII', 'HNI', 'Retail', 'RII', 'Employee', 'Shareholder', 'Anchor',
+  'QIB', 'NII', 'S-NII', 'B-NII', 'HNI', 'Retail', 'RII', 'Employee', 'Shareholder', 'Anchor', 'Other',
 ];
 
 /**
@@ -249,12 +282,16 @@ export const orderSubscriptionCategories = (keys) => {
 const CATEGORY_COLOR_MAP = {
   qib: '#38bdf8',
   nii: '#a855f7',
+  'nii (hni)': '#a855f7',
   hni: '#a855f7',
+  's-nii': '#c084fc',
+  'b-nii': '#7c3aed',
   retail: '#f59e0b',
   rii: '#f59e0b',
   employee: '#34d399',
   shareholder: '#f472b6',
   anchor: '#818cf8',
+  other: '#94a3b8',
 };
 const CATEGORY_COLOR_FALLBACK = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#f472b6', '#818cf8', '#facc15', '#fb7185'];
 

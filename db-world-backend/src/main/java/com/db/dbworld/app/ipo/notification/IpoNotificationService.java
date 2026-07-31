@@ -4,6 +4,7 @@ import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
+import com.db.dbworld.app.ipo.service.IpoStatusCanonicalizer;
 import com.db.dbworld.core.push.PushService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -81,16 +83,29 @@ public class IpoNotificationService {
 
     /** Once-per-IPO "closing soon" reminder for open IPOs closing today or tomorrow (IST). */
     public void notifyClosingSoon() {
-        LocalDate today = LocalDate.now(clock.withZone(IST));
+        LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
+        // Don't send reminders overnight/early morning (the status flips at IST times now, but a poll
+        // can still run at midnight) — wait until the market day has begun so alerts arrive at a sane
+        // hour rather than 12:00 AM.
+        if (nowIst.toLocalTime().isBefore(IpoStatusCanonicalizer.OPEN_CUTOFF_IST)) {
+            return;
+        }
+        LocalDate today = nowIst.toLocalDate();
         List<IpoListingEntity> due = listingRepo
                 .findByStatusAndCloseDateBetweenAndClosingSoonNotifiedAtIsNull(STATUS_OPEN, today, today.plusDays(1));
         Instant now = clock.instant();
         for (IpoListingEntity ipo : due) {
+            // Don't fire "last chance to apply" once bidding has actually closed (~5 PM IST on the
+            // close day) — only before the cutoff today, or for an IPO still closing tomorrow.
+            if (IpoStatusCanonicalizer.isPastClose(ipo.getCloseDate(), nowIst)) {
+                continue;
+            }
             try {
                 pushService.broadcast("⏳ " + ipo.getCompanyName() + " closing soon",
                         "Last chance to apply before this IPO closes.",
                         Map.of("ipoId", ipo.getId(), "kind", "CLOSING_SOON",
-                                "link", "/db-world/db-ipo/" + ipo.getId()));
+                                "link", "/db-world/db-ipo/" + ipo.getId()),
+                        "ipo");
                 ipo.setClosingSoonNotifiedAt(now);
                 listingRepo.save(ipo);
             } catch (Exception e) {
@@ -126,7 +141,8 @@ public class IpoNotificationService {
 
     private void send(IpoLifecycleChange c, String title, String body) {
         pushService.broadcast(title, body,
-                Map.of("ipoId", c.ipoId(), "kind", c.kind().name(), "link", "/db-world/db-ipo/" + c.ipoId()));
+                Map.of("ipoId", c.ipoId(), "kind", c.kind().name(), "link", "/db-world/db-ipo/" + c.ipoId()),
+                "ipo");
     }
 
     private static BigDecimal parse(String s) {

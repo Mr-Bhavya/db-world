@@ -23,6 +23,13 @@ public class CredentialEntity {
     @JoinColumn(name = "password_manager")
     private PasswordManagerEntity passwordManager;
 
+    // Full URL the credential was saved for (e.g. "https://netflix.com"). Stored
+    // in plaintext (the bare host is already plaintext in the HOST table) so the
+    // vault can suggest/link sites from our own data instead of re-hitting the
+    // logo.dev search API (limited quota).
+    @Column(length = 1024)
+    private String url;
+
     @Convert(converter = StringCryptoConverter.class)
     @Column(length = 512)
     private String username;

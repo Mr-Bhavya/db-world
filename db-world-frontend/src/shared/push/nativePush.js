@@ -1,13 +1,11 @@
 /**
  * Native (Capacitor / Android) push via `@capacitor/push-notifications`. Unlike web push this uses
- * the OS's native FCM integration — no VAPID / service worker. The plugin is dynamic-imported so it
- * never loads in a plain web bundle. Permission strings are mapped to the same
- * 'default' | 'granted' | 'denied' vocabulary the web path uses; every call is defensive.
+ * the OS's native FCM integration — no VAPID / service worker. Imported STATICALLY: a dynamic
+ * `import()` of the plugin chunk hung in the release WebView ("push stalled at: load-plugin"), so
+ * the plugin now rides in the main bundle. It's harmless on web (methods just aren't called there).
+ * Permission strings map to the shared 'default' | 'granted' | 'denied' vocabulary; calls are defensive.
  */
-async function plugin() {
-  const mod = await import('@capacitor/push-notifications');
-  return mod.PushNotifications;
-}
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const mapPermission = (receive) => {
   if (receive === 'granted') return 'granted';
@@ -15,10 +13,43 @@ const mapPermission = (receive) => {
   return 'default'; // 'prompt' | 'prompt-with-rationale'
 };
 
+/**
+ * Per-category Android notification channels. Each becomes a toggle the user can
+ * turn on/off in the OS app-settings → Notifications; the backend tags every push
+ * with the matching `channel_id`, so a disabled channel simply isn't shown.
+ * importance: 4 = HIGH (heads-up), 3 = DEFAULT. Android-only (no-op elsewhere).
+ */
+export const PUSH_CHANNELS = [
+  { id: 'ipo',             name: 'IPO Tracker',     description: 'IPO open, closing, allotment & listing alerts', importance: 4 },
+  { id: 'cinema',          name: 'New content',     description: 'New movies & series added to the catalog',      importance: 3 },
+  { id: 'admin',           name: 'Admin',           description: 'New requests & media ingestion status',         importance: 4 },
+  { id: 'request-updates', name: 'Request updates', description: 'When your requests are fulfilled or dismissed', importance: 3 },
+];
+
+/** Create/refresh the notification channels (Android). Safe to call repeatedly; no-op on web/iOS. */
+export async function nativeCreateChannels() {
+  if (typeof PushNotifications.createChannel !== 'function') return;
+  await Promise.all(
+    PUSH_CHANNELS.map((c) => PushNotifications.createChannel({ ...c, visibility: 1 }).catch(() => {})),
+  );
+}
+
+/**
+ * Reject if a native bridge call doesn't settle in `ms`, naming the `stage`. A Capacitor plugin
+ * call that never resolves (e.g. an unregistered/misbehaving native plugin) would otherwise leave
+ * the Enable button spinning forever; this turns that into a surfaced "push stalled at: <stage>"
+ * so the failing step is obvious without device logs.
+ */
+const withTimeout = (promise, ms, stage) =>
+  Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`push stalled at: ${stage}`)), ms)),
+  ]);
+
 /** Current native push permission, mapped to the shared vocabulary. */
 export async function nativeCheckPermission() {
   try {
-    const perm = await (await plugin()).checkPermissions();
+    const perm = await PushNotifications.checkPermissions();
     return mapPermission(perm.receive);
   } catch {
     return 'denied';
@@ -32,19 +63,25 @@ export async function nativeCheckPermission() {
  * Returns the (mapped) resulting permission.
  */
 export async function nativeSetup({ request = false, onToken, onMessage, onAction } = {}) {
-  const PushNotifications = await plugin();
-  await PushNotifications.removeAllListeners();
-  await PushNotifications.addListener('registration', (t) => onToken?.(t?.value ?? null));
-  await PushNotifications.addListener('registrationError', () => onToken?.(null));
-  await PushNotifications.addListener('pushNotificationReceived', (n) => onMessage?.(n));
-  await PushNotifications.addListener('pushNotificationActionPerformed', (a) => onAction?.(a?.notification));
+  // Define the per-category channels up front so incoming pushes land on the
+  // right (user-toggleable) channel. Best-effort; never blocks setup.
+  await nativeCreateChannels().catch(() => {});
+  await withTimeout(PushNotifications.removeAllListeners(), 5000, 'remove-listeners');
+  await withTimeout(PushNotifications.addListener('registration', (t) => onToken?.(t?.value ?? null)), 5000, 'listen-registration');
+  await withTimeout(PushNotifications.addListener('registrationError', () => onToken?.(null)), 5000, 'listen-registration-error');
+  await withTimeout(PushNotifications.addListener('pushNotificationReceived', (n) => onMessage?.(n)), 5000, 'listen-received');
+  await withTimeout(PushNotifications.addListener('pushNotificationActionPerformed', (a) => onAction?.(a?.notification)), 5000, 'listen-action');
 
-  let perm = await PushNotifications.checkPermissions();
+  let perm = await withTimeout(PushNotifications.checkPermissions(), 5000, 'check-permissions');
   if (request && (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale')) {
-    perm = await PushNotifications.requestPermissions();
+    // Longer budget — this awaits the user tapping the OS permission dialog.
+    perm = await withTimeout(PushNotifications.requestPermissions(), 60000, 'request-permissions');
   }
   if (perm.receive === 'granted') {
-    await PushNotifications.register(); // fires 'registration' → onToken
+    // Fire registration but DON'T await it — the token (or a registrationError) arrives via the
+    // listeners above. Awaiting can hang forever when native FCM init fails (e.g. a release APK
+    // built without google-services.json), which would leave the Enable button spinning.
+    PushNotifications.register().catch(() => onToken?.(null));
   }
   return mapPermission(perm.receive);
 }

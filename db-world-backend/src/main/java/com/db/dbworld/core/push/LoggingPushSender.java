@@ -19,14 +19,26 @@ import java.util.Map;
 public class LoggingPushSender implements PushSender {
 
     @Override
-    public void sendToTopic(String topic, String title, String body, Map<String, String> data) {
-        log.info("[push:noop] would broadcast to topic='{}' title='{}' body='{}' data={}",
-                topic, title, body, data);
+    public void sendToTopic(String topic, String title, String body, Map<String, String> data, String channelId) {
+        log.info("[push:noop] would broadcast to topic='{}' channel='{}' title='{}' body='{}' data={}",
+                topic, channelId, title, body, data);
+    }
+
+    @Override
+    public void sendToTokens(List<String> tokens, String title, String body, Map<String, String> data, String channelId) {
+        log.info("[push:noop] would send to {} token(s) channel='{}' title='{}' body='{}' data={}",
+                tokens == null ? 0 : tokens.size(), channelId, title, body, data);
     }
 
     @Override
     public void subscribeToTopic(List<String> tokens, String topic) {
         log.info("[push:noop] would subscribe {} token(s) to topic='{}'",
+                tokens == null ? 0 : tokens.size(), topic);
+    }
+
+    @Override
+    public void unsubscribeFromTopic(List<String> tokens, String topic) {
+        log.info("[push:noop] would unsubscribe {} token(s) from topic='{}'",
                 tokens == null ? 0 : tokens.size(), topic);
     }
 }

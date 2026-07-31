@@ -28,9 +28,11 @@ import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import { useT } from '@shared/theme';
 import {
   formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange, websiteDomain,
+  computeLotBreakdown,
 } from '../utils/format';
 import IpoTimeline from './IpoTimeline';
 import SectionCard from './SectionCard';
@@ -326,6 +328,53 @@ function LeadManagers({ managers }) {
   );
 }
 
+/** Green for the retail tranche, purple for HNI — mid-tone hexes that read on both themes. */
+const LOT_GROUP_COLOR = { retail: '#059669', hni: '#7c3aed' };
+const INR0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+
+/** One application-lot-size tier card — amount (colour-coded by category) over a Lots / Shares pair. */
+function LotTierCard({ tier }) {
+  const T = useT();
+  const color = LOT_GROUP_COLOR[tier.group];
+  return (
+    <Box sx={{ p: 1.5, borderRadius: 2.5, border: `1px solid ${color}33`, bgcolor: `${color}12`, minWidth: 0 }}>
+      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted }} noWrap>{tier.label}</Typography>
+      <Typography sx={{ fontSize: 19, fontWeight: 800, color, mt: 0.25 }} noWrap>₹{INR0.format(tier.amount)}</Typography>
+      <Box sx={{ display: 'flex', gap: 2.5, mt: 0.85 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>Lots</Typography>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: T.textPrimary }}>{INR0.format(tier.lots)}</Typography>
+        </Box>
+        <Box sx={{ minWidth: 0, borderLeft: `1px solid ${T.border}`, pl: 2.5 }}>
+          <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>Shares</Typography>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: T.textPrimary }}>{INR0.format(tier.shares)}</Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * "IPO lot size" — the per-category application ladder (Retail Min/Max, S-HNI Min/Max, B-HNI Min),
+ * derived from lot size + the cut-off price via {@code computeLotBreakdown}. Renders nothing when
+ * lot size / price aren't known yet (see call site gating on the return being null).
+ */
+function LotSizeSection({ breakdown }) {
+  const T = useT();
+  return (
+    <SectionCard title="IPO lot size" icon={<LayersOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+      <Typography sx={{ fontSize: 13, color: T.textMuted, mb: 2 }}>
+        Minimum bid:{' '}
+        <Box component="span" sx={{ fontWeight: 800, color: T.textPrimary }}>{breakdown.minBidShares}</Box>
+        {' '}shares and in multiples thereof
+      </Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)' }, gap: 1.5 }}>
+        {breakdown.tiers.map((tier) => <LotTierCard key={tier.label} tier={tier} />)}
+      </Box>
+    </SectionCard>
+  );
+}
+
 /**
  * Overview tab — the at-a-glance summary, ordered by decision-usefulness: timeline stepper, the
  * compact "key facts" grid, a brief (collapsible) About so the reader knows what the company is
@@ -336,6 +385,7 @@ function LeadManagers({ managers }) {
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
   const showAbout = !!ipo.about || hasAboutFacts(ipo);
+  const lotBreakdown = computeLotBreakdown(ipo.lotSize, ipo.priceMax, ipo.ipoType);
   return (
     <Box>
       <SectionCard title="Timeline">
@@ -393,6 +443,8 @@ export default function OverviewTab({ ipo, id }) {
           <LeadManagers managers={ipo.leadManagers} />
         </SectionCard>
       )}
+
+      {lotBreakdown && <LotSizeSection breakdown={lotBreakdown} />}
 
       {hasIssueDetails(ipo.issueDetails) && (
         <SectionCard title="Issue details" icon={<ReceiptLongOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>

@@ -10,6 +10,7 @@ import java.util.List;
 @Setter
 public class CredentialDto {
     private String id;
+    private String url;
     private String username;
     private String password;
     private String pin;

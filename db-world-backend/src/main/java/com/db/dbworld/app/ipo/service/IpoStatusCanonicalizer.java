@@ -1,6 +1,8 @@
 package com.db.dbworld.app.ipo.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Map;
 
 /**
@@ -55,7 +57,44 @@ public final class IpoStatusCanonicalizer {
             Map.entry("listed today", "listed")
     );
 
+    /** Indian IPO bidding opens ~10&nbsp;AM IST on day 1 — before that the issue is still upcoming. */
+    public static final LocalTime OPEN_CUTOFF_IST = LocalTime.of(10, 0);
+    /**
+     * Indian IPO bidding closes on the last day around 5&nbsp;PM IST (mainboard ~5&nbsp;PM, some
+     * categories 4:30&nbsp;PM). Before that on the close day the issue is still open.
+     */
+    public static final LocalTime CLOSE_CUTOFF_IST = LocalTime.of(17, 0);
+    /** Shares list / trading opens ~10&nbsp;AM IST on the listing day — before that it isn't "listed". */
+    public static final LocalTime LISTING_CUTOFF_IST = LocalTime.of(10, 0);
+
     private IpoStatusCanonicalizer() {
+    }
+
+    /** {@code true} once the IST moment (that day at/after {@code cutoff}, or any later day) has passed. */
+    private static boolean isPastCutoff(LocalDate date, LocalDateTime nowIst, LocalTime cutoff) {
+        if (date == null || nowIst == null) {
+            return false;
+        }
+        LocalDate today = nowIst.toLocalDate();
+        if (today.isAfter(date)) {
+            return true;
+        }
+        return today.isEqual(date) && !nowIst.toLocalTime().isBefore(cutoff);
+    }
+
+    /** Whether bidding has opened (open day at/after 10&nbsp;AM IST, or later). {@code nowIst} = now in IST. */
+    public static boolean isPastOpen(LocalDate open, LocalDateTime nowIst) {
+        return isPastCutoff(open, nowIst, OPEN_CUTOFF_IST);
+    }
+
+    /** Whether bidding has closed (close day at/after 5&nbsp;PM IST, or later). {@code nowIst} = now in IST. */
+    public static boolean isPastClose(LocalDate close, LocalDateTime nowIst) {
+        return isPastCutoff(close, nowIst, CLOSE_CUTOFF_IST);
+    }
+
+    /** Whether shares have listed (listing day at/after 10&nbsp;AM IST, or later). {@code nowIst} = now in IST. */
+    public static boolean isPastListing(LocalDate listing, LocalDateTime nowIst) {
+        return isPastCutoff(listing, nowIst, LISTING_CUTOFF_IST);
     }
 
     /**
@@ -95,25 +134,35 @@ public final class IpoStatusCanonicalizer {
      * flip at IST midnight — the caller supplies it rather than reading a clock here so this stays
      * a pure, testable function.
      */
-    public static String deriveStatus(LocalDate open, LocalDate close, LocalDate listing, LocalDate today) {
-        if (today == null) {
+    public static String deriveStatus(LocalDate open, LocalDate close, LocalDate listing, LocalDateTime nowIst) {
+        if (nowIst == null) {
             return null;
         }
-        if (listing != null && !listing.isAfter(today)) {
+        if (listing != null && isPastListing(listing, nowIst)) {
             return "listed";
         }
-        if (close != null && today.isAfter(close)) {
+        if (close != null && isPastClose(close, nowIst)) {
             return "closed";
         }
-        if (open != null && !today.isBefore(open) && (close == null || !today.isAfter(close))) {
+        if (open != null && isPastOpen(open, nowIst) && (close == null || !isPastClose(close, nowIst))) {
             return "open";
         }
-        if (open != null && today.isBefore(open)) {
+        if (open != null && !isPastOpen(open, nowIst)) {
             return "upcoming";
         }
-        if (listing != null && listing.isAfter(today)) {
+        if (listing != null && !isPastListing(listing, nowIst)) {
             return "upcoming";
         }
         return null;
+    }
+
+    /**
+     * Back-compat date-only overload — delegates at <b>noon IST</b>, so a pure-date caller keeps the
+     * old day-boundary semantics (past the 10&nbsp;AM open and before the 5&nbsp;PM close at midday).
+     * Prefer the {@link LocalDateTime} overload for live status so the open/close/listing transitions
+     * happen at the real IST times, not at midnight.
+     */
+    public static String deriveStatus(LocalDate open, LocalDate close, LocalDate listing, LocalDate today) {
+        return today == null ? null : deriveStatus(open, close, listing, today.atTime(12, 0));
     }
 }

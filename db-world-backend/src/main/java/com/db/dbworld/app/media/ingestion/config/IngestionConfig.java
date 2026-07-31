@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.ingestion.spi.SourceHandler;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
+import com.db.dbworld.core.push.PushService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,7 +49,8 @@ public class IngestionConfig {
             ExecutorService          ingestionJobExecutor,
             IngestionJobStore        jobStore,
             IngestionDownloadQueue   downloadQueue,
-            RecordRepository         recordRepository
+            RecordRepository         recordRepository,
+            PushService              pushService
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -62,7 +64,8 @@ public class IngestionConfig {
                 ingestionJobExecutor,
                 jobStore,
                 downloadQueue,
-                recordRepository
+                recordRepository,
+                pushService
         );
     }
 }

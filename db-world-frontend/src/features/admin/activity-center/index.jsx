@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { Box, Typography, Tabs, Tab, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
-import InsightsIcon     from '@mui/icons-material/Insights';
-import BoltIcon         from '@mui/icons-material/Bolt';
-import DevicesIcon      from '@mui/icons-material/Devices';
-import HttpIcon         from '@mui/icons-material/Http';
-import RefreshIcon      from '@mui/icons-material/Refresh';
+import { Box, Tabs, Tab, useMediaQuery, useTheme } from '@mui/material';
+import InsightsIcon from '@mui/icons-material/Insights';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import DevicesIcon  from '@mui/icons-material/Devices';
+import HttpIcon     from '@mui/icons-material/Http';
 import { useQueryClient } from '@tanstack/react-query';
-import { useT }         from '@shared/theme/ThemeContext';
-import OverviewTab      from './OverviewTab';
-import LiveTab          from './LiveTab';
-import SessionsTab      from './SessionsTab';
-import ApiLogsFeed      from './ApiLogsFeed';
+import { useT } from '@shared/theme';
+import { AdminPage, StickyBar, useSwipeNav } from '@features/admin/adminUi';
+import OverviewTab from './OverviewTab';
+import SessionsTab from './SessionsTab';
+import ApiLogsFeed from './ApiLogsFeed';
 
-// Query keys used by the tabs' TanStack Query hooks (see OverviewTab, LiveTab,
-// SessionsTab — ApiLogsFeed manages its own fetch/state and isn't query-cache
-// backed, so it's refreshed independently below).
+// Query keys used by the tabs' TanStack Query hooks (see OverviewTab — which now
+// also hosts the live-sessions view — and SessionsTab; ApiLogsFeed manages its
+// own fetch/state and isn't query-cache backed, so it's refreshed independently
+// below).
 const ACTIVITY_QUERY_KEYS = [
   'activityOverview', 'activityTrend', 'activityClientBreakdown',
   'activityTopContent', 'activityTopUsers',
@@ -22,15 +22,12 @@ const ACTIVITY_QUERY_KEYS = [
   'sessions', 'activityUsers',
 ];
 
-// ─── Tab config ────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'overview', label: 'Overview',    icon: <InsightsIcon fontSize="small" /> },
-  { id: 'live',     label: 'Live',        icon: <BoltIcon fontSize="small" /> },
   { id: 'sessions', label: 'Sessions',    icon: <DevicesIcon fontSize="small" /> },
   { id: 'requests', label: 'Request Log', icon: <HttpIcon fontSize="small" /> },
 ];
 
-// ─── Main page ────────────────────────────────────────────────────────────────
 export default function ActivityCenter() {
   const T = useT();
   const muiTheme = useTheme();
@@ -39,6 +36,12 @@ export default function ActivityCenter() {
 
   const [tab, setTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
+
+  const tabIdx = TABS.findIndex((t) => t.id === tab);
+  const swipe = useSwipeNav({
+    onPrev: () => setTab(TABS[Math.max(0, tabIdx - 1)].id),
+    onNext: () => setTab(TABS[Math.min(TABS.length - 1, tabIdx + 1)].id),
+  });
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({
@@ -52,94 +55,52 @@ export default function ActivityCenter() {
   };
 
   return (
-    <Box sx={{
-      bgcolor: T.adminBg, minHeight: '100%',
-      p: { xs: 1.5, sm: 2, md: 3 }, color: T.text,
-    }}>
-      <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
-        {/* ── Header ── */}
-        <Box sx={{ mb: 2, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-          <Box>
-            <Typography sx={{
-              fontWeight: 800, fontSize: { xs: 18, md: 22 },
-              color: T.text, lineHeight: 1.2,
-            }}>
-              Activity &amp; Insights
-            </Typography>
-            <Typography sx={{ fontSize: 12, color: T.textFaint, mt: 0.2 }}>
-              Site-wide overview · live activity · sessions · request log — unified view
-            </Typography>
-          </Box>
-          <Tooltip title="Refresh">
-            <span>
-              <IconButton
-                size="small"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                sx={{
-                  color: T.textFaint,
-                  border: `1px solid ${T.border}`,
-                  bgcolor: T.glass,
-                  '&:hover': { color: T.teal, borderColor: T.teal },
-                }}
-              >
-                <RefreshIcon
-                  fontSize="small"
-                  sx={{
-                    animation: refreshing ? 'activity-refresh-spin .5s linear' : 'none',
-                    '@keyframes activity-refresh-spin': {
-                      from: { transform: 'rotate(0deg)' },
-                      to:   { transform: 'rotate(360deg)' },
-                    },
-                  }}
-                />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
-
-        {/* ── Tab shell ── */}
-        <Box sx={{
-          border: `1px solid ${T.border}`, borderRadius: 2,
-          bgcolor: T.glass, overflow: 'hidden',
-        }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{
+    <AdminPage
+      title="Activity & Insights"
+      subtitle="Site-wide overview · live activity · sessions · request log"
+      icon={InsightsRoundedIcon}
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      maxWidth={1600}
+    >
+      {/* Tabs — pinned to the top of the scroll area (direct AdminPage child) */}
+      <StickyBar sx={{ p: 0, overflow: 'hidden' }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            minHeight: { xs: 44, sm: 48 },
+            px: { xs: 0.5, sm: 1 },
+            '& .MuiTab-root': {
               minHeight: { xs: 44, sm: 48 },
-              borderBottom: `1px solid ${T.border}`,
-              px: { xs: 0.5, sm: 1 },
-              '& .MuiTab-root': {
-                minHeight: { xs: 44, sm: 48 },
-                fontSize: { xs: 12, sm: 13 },
-                fontWeight: 600,
-                textTransform: 'none',
-                color: T.textMuted,
-                minWidth: isMobile ? 'auto' : 120,
-                px: { xs: 1.25, sm: 2 },
-                gap: 0.75,
-              },
-              '& .Mui-selected': { color: `${T.teal} !important` },
-              '& .MuiTabs-indicator': { bgcolor: T.teal, height: 2 },
-            }}
-          >
-            {TABS.map((t) => (
-              <Tab key={t.id} value={t.id} icon={t.icon} iconPosition="start" label={t.label} />
-            ))}
-          </Tabs>
+              fontSize: { xs: 12, sm: 13 },
+              fontWeight: 600,
+              textTransform: 'none',
+              color: T.textMuted,
+              minWidth: isMobile ? 'auto' : 120,
+              px: { xs: 1.25, sm: 2 },
+              gap: 0.75,
+            },
+            '& .Mui-selected': { color: `${T.teal} !important` },
+            '& .MuiTabs-indicator': { bgcolor: T.teal, height: 2 },
+          }}
+        >
+          {TABS.map((t) => (
+            <Tab key={t.id} value={t.id} icon={t.icon} iconPosition="start" label={t.label} />
+          ))}
+        </Tabs>
+      </StickyBar>
 
-          <Box>
-            {tab === 'overview' && <OverviewTab />}
-            {tab === 'live'     && <LiveTab />}
-            {tab === 'sessions' && <SessionsTab />}
-            {tab === 'requests' && <ApiLogsFeed />}
-          </Box>
-        </Box>
+      {/* Tab content (swipe-navigable) — children render their own cards, so this
+          panel adds no card frame (avoids the card-in-card double wrapper). */}
+      <Box {...swipe} sx={{ minHeight: { xs: 380, md: 520 } }}>
+        {tab === 'overview' && <OverviewTab />}
+        {tab === 'sessions' && <SessionsTab />}
+        {tab === 'requests' && <ApiLogsFeed />}
       </Box>
-    </Box>
+    </AdminPage>
   );
 }

@@ -4,6 +4,8 @@ import { Box, Button, CircularProgress, Typography, useMediaQuery, useTheme } fr
 import { useQuery } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { useT } from '@shared/theme';
+import { useAdminHeader } from '@features/admin/adminUi';
+import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
 
 import { useFileManagerStore } from './store/useFileManagerStore';
 import { useLocations } from './hooks/useLocations';
@@ -480,6 +482,10 @@ export default function FileManager() {
     contextMenu, previewItem, infoTargets, moveCopyMode, renameTarget,
     newFolderOpen, locationManagerOpen, confirmDelete, uploadConflict,
   ]);
+
+  // Register the page header into the admin top bar (single-header model). The
+  // explorer body (rail + breadcrumb + toolbar + grid) is unchanged.
+  useAdminHeader({ title: 'File Manager', icon: FolderRoundedIcon, onRefresh: () => refetchDir(), refreshing: dirLoading });
 
   /* ─── Render ─────────────────────────────────────────────────────────── */
 

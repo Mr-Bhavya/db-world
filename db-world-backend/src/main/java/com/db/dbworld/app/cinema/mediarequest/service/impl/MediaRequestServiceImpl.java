@@ -3,6 +3,7 @@ package com.db.dbworld.app.cinema.mediarequest.service.impl;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.dto.VoterSummary;
+import com.db.dbworld.app.cinema.common.support.RequestPushLinks;
 import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestDto;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestVoteResponse;
@@ -14,6 +15,7 @@ import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.mediarequest.service.MediaRequestService;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import com.db.dbworld.core.push.PushService;
 import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
     private final RecordRepository recordRepo;
     private final UserRepository userRepo;
     private final UserNotificationService notifService;
+    private final PushService pushService;
 
     @Override
     @Transactional
@@ -63,6 +66,15 @@ public class MediaRequestServiceImpl implements MediaRequestService {
             request = requestRepo.save(request);
             log.info("Media request created: id={}, recordId={}, kind={}, firstVoter={}",
                     request.getId(), recordId, kind, userId);
+
+            // A brand-new request row → alert admins only. Best-effort; never break the vote.
+            try {
+                pushService.broadcastToAdmins("New request",
+                        record.getName() + " — " + kindLabel(kind),
+                        Map.of("route", "admin/requests"), "admin");
+            } catch (Exception e) {
+                log.debug("New media-request admin push failed for recordId={}: {}", recordId, e.toString());
+            }
 
             return MediaRequestVoteResponse.builder()
                     .recordId(recordId)
@@ -170,6 +182,10 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 request.getVoterUserIds()
         );
 
+        // Targeted "request fulfilled" push to the voters (same recipients as the in-app notification).
+        pushRequestUpdate("Request fulfilled", request.getRecordId(), request.getRecordTitle(),
+                request.getRecordType(), request.getVoterUserIds());
+
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
@@ -203,6 +219,10 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 trimmed,
                 request.getVoterUserIds()
         );
+
+        // Targeted "request dismissed" push to the voters (same recipients as the in-app notification).
+        pushRequestUpdate("Request dismissed", request.getRecordId(), request.getRecordTitle(),
+                request.getRecordType(), request.getVoterUserIds());
 
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
@@ -245,5 +265,33 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     private Map<Long, VoterSummary> loadVoterCache(Collection<Long> userIds) {
         return VoterListSupport.loadVoterCache(userIds, userRepo);
+    }
+
+    private static String kindLabel(MediaRequestKind kind) {
+        return switch (kind) {
+            case NEW_FILES -> "new files";
+            case HIGHER_QUALITY -> "higher quality";
+            case LOWER_QUALITY -> "lower quality";
+        };
+    }
+
+    /**
+     * Best-effort targeted push to a request's voters on the {@code request-updates} channel. Fully
+     * defensive: an empty voter set is a no-op and any failure is swallowed so the underlying
+     * fulfil/dismiss operation can never break on a push hiccup.
+     */
+    private void pushRequestUpdate(String title, Long recordId, String recordTitle,
+                                   String recordType, Collection<Long> voterIds) {
+        if (voterIds == null || voterIds.isEmpty()) {
+            return;
+        }
+        try {
+            pushService.sendToUsers(voterIds, title,
+                    recordTitle == null || recordTitle.isBlank() ? title : recordTitle,
+                    RequestPushLinks.recordDeepLink(recordId, recordTitle, recordType),
+                    "request-updates");
+        } catch (Exception e) {
+            log.debug("Request-update push '{}' failed for recordId={}: {}", title, recordId, e.toString());
+        }
     }
 }

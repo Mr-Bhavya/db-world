@@ -6,7 +6,6 @@ import com.db.dbworld.app.ipo.entity.IpoChangeEventEntity;
 import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
-import com.db.dbworld.app.ipo.entity.IpoSubscriptionHistoryEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
 import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
@@ -23,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,7 +97,7 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)));
+        IpoDto dto = withCloseCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto))));
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -216,9 +216,6 @@ public class IpoIngestService {
         if (dto.gmp() != null && bigDecimalDiffers(entity.getGmp(), dto.gmp())) {
             events.add(event(ipoId, "GMP", toPlainString(entity.getGmp()), toPlainString(dto.gmp()), now));
         }
-        if (dto.subTotal() != null && bigDecimalDiffers(entity.getSubTotal(), dto.subTotal())) {
-            events.add(event(ipoId, "SUBSCRIPTION", toPlainString(entity.getSubTotal()), toPlainString(dto.subTotal()), now));
-        }
         if (dto.allotmentStatus() != null && !Objects.equals(entity.getAllotmentStatus(), dto.allotmentStatus())) {
             events.add(event(ipoId, "ALLOTMENT", entity.getAllotmentStatus(), dto.allotmentStatus(), now));
         }
@@ -260,20 +257,11 @@ public class IpoIngestService {
                         .build());
             }
         }
-        if (dto.subTotal() != null) {
-            BigDecimal lastTotal = subHistoryRepo.findTopByIpoIdOrderByCapturedAtDesc(ipoId)
-                    .map(IpoSubscriptionHistoryEntity::getTotal)
-                    .orElse(null);
-            if (bigDecimalDiffers(lastTotal, dto.subTotal())) {
-                subHistoryRepo.save(IpoSubscriptionHistoryEntity.builder()
-                        .ipoId(ipoId)
-                        .categoriesJson(IpoSubscriptionJson.toJson(dto.subscriptionCategories()))
-                        .total(dto.subTotal())
-                        .source(dto.source())
-                        .capturedAt(now)
-                        .build());
-            }
-        }
+        // NOTE: subscription history is NOT written here. Investorgain owns the subscription series
+        // (InvestorgainGmpService.refreshSubscription) — one authoritative day-wise row per day with
+        // the full category breakdown (QIB/NII/S-NII/B-NII/RII/…). Writing NSE's per-poll snapshots
+        // here too mixed two sources with different capturedAt granularity and category naming
+        // (NSE "Retail" vs investorgain "RII"), so the "current" pick and the day-wise table were wrong.
     }
 
     private static IpoChangeEventEntity event(String ipoId, String eventType, String oldValue, String newValue, Instant now) {
@@ -327,11 +315,34 @@ public class IpoIngestService {
             return dto;
         }
         String derived = IpoStatusCanonicalizer.deriveStatus(
-                dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDate.now(clock.withZone(IST)));
+                dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDateTime.now(clock.withZone(IST)));
         if (derived == null) {
             return dto;
         }
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), derived,
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+    }
+
+    /**
+     * Downgrades an "open" IPO to "closed" once the IST close moment has passed (Indian IPOs close
+     * ~5&nbsp;PM IST on the last day). Both a source's reported status and the date-only
+     * {@link IpoStatusCanonicalizer#deriveStatus} keep returning "open" on the close day itself, so
+     * without this an IPO stayed Open all evening. Applied to the INCOMING dto (before the
+     * change-compare), so once persisted it stays "closed" and never flip-flops back to "open".
+     */
+    private IpoDto withCloseCutoff(IpoDto dto) {
+        if (!"open".equals(dto.status())
+                || !IpoStatusCanonicalizer.isPastClose(dto.closeDate(), LocalDateTime.now(clock.withZone(IST)))) {
+            return dto;
+        }
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), "closed",
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),

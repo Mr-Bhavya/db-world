@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import {
-  Box, Tab, Tabs, Typography, Chip,
-} from '@mui/material';
-import { Inbox } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { Box, Tab, Tabs, Chip } from '@mui/material';
+import { MoveToInboxRounded } from '@mui/icons-material';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useT } from '@shared/theme';
+import { AdminPage, SectionCard, useSwipeNav } from '@features/admin/adminUi';
 import {
   fetchAdminMediaRequests,
   fetchAdminCatalogRequests,
@@ -16,6 +15,12 @@ import CatalogRequestsPanel from '@features/admin/catalog-requests';
 const TABS = [
   { key: 'media',   label: 'Media Files' },
   { key: 'catalog', label: 'New Titles' },
+];
+
+// Query key prefixes shared with the child panels + the pending badges — a
+// refresh invalidates all of them so the visible panel and badges refetch.
+const REQUEST_QUERY_KEYS = [
+  'admin-media-requests', 'admin-catalog-requests', 'admin-requests-pending-count',
 ];
 
 // Pending count badge rendered next to each tab label. Shares TanStack Query
@@ -39,9 +44,11 @@ function PendingBadge({ count }) {
 
 export default function RequestsAdminPage() {
   const T = useT();
+  const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const initialTab = TABS.find(t => t.key === params.get('tab'))?.key ?? 'media';
   const [tab, setTab] = useState(initialTab);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Keep ?tab= in sync so the chosen tab survives a refresh / shared link.
   useEffect(() => {
@@ -52,6 +59,23 @@ export default function RequestsAdminPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  const tabIdx = TABS.findIndex((t) => t.key === tab);
+  const swipe = useSwipeNav({
+    onPrev: () => setTab(TABS[Math.max(0, tabIdx - 1)].key),
+    onNext: () => setTab(TABS[Math.min(TABS.length - 1, tabIdx + 1)].key),
+  });
+
+  const handleRefresh = () => {
+    qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey?.[0];
+        return typeof k === 'string' && REQUEST_QUERY_KEYS.includes(k);
+      },
+    });
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 500);
+  };
 
   // Pending counts — keys match what each panel uses for its own list query,
   // so React Query dedupes when the active panel is the same status.
@@ -67,50 +91,55 @@ export default function RequestsAdminPage() {
   });
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-        <Inbox sx={{ color: T.teal, fontSize: 26 }} />
-        <Typography variant="h5" sx={{ fontWeight: 800, color: T.text, letterSpacing: '-0.01em' }}>
-          Requests
-        </Typography>
+    <AdminPage
+      title="Requests"
+      subtitle="Media-file requests (existing catalog) and catalog ingest requests (titles not yet in the catalog), in one place."
+      icon={MoveToInboxRounded}
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+    >
+      <SectionCard padding={false} sx={{ mb: 2 }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{
+            minHeight: { xs: 44, sm: 48 },
+            px: { xs: 0.5, sm: 1 },
+            '& .MuiTab-root': {
+              minHeight: { xs: 44, sm: 48 },
+              textTransform: 'none',
+              fontWeight: 700,
+              color: T.textMuted,
+            },
+            '& .Mui-selected': { color: `${T.teal} !important` },
+            '& .MuiTabs-indicator': { bgcolor: T.teal, height: 2 },
+          }}
+        >
+          <Tab
+            value="media"
+            label={
+              <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                Media Files
+                <PendingBadge count={mediaPending.length} />
+              </Box>
+            }
+          />
+          <Tab
+            value="catalog"
+            label={
+              <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                New Titles
+                <PendingBadge count={catalogPending.length} />
+              </Box>
+            }
+          />
+        </Tabs>
+      </SectionCard>
+
+      <Box {...swipe}>
+        {tab === 'media' && <MediaRequestsPanel />}
+        {tab === 'catalog' && <CatalogRequestsPanel />}
       </Box>
-      <Typography variant="body2" sx={{ color: T.textMuted, mb: 2 }}>
-        Everything users have asked for, in one place. Switch between media-file
-        requests (existing catalog) and catalog ingest requests (titles not yet
-        in the catalog).
-      </Typography>
-
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        sx={{
-          mb: 2,
-          borderBottom: `1px solid ${T.glassBorder}`,
-          '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, minHeight: 44 },
-        }}
-      >
-        <Tab
-          value="media"
-          label={
-            <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-              Media Files
-              <PendingBadge count={mediaPending.length} />
-            </Box>
-          }
-        />
-        <Tab
-          value="catalog"
-          label={
-            <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-              New Titles
-              <PendingBadge count={catalogPending.length} />
-            </Box>
-          }
-        />
-      </Tabs>
-
-      {tab === 'media' && <MediaRequestsPanel />}
-      {tab === 'catalog' && <CatalogRequestsPanel />}
-    </Box>
+    </AdminPage>
   );
 }

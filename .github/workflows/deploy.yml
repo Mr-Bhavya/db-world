@@ -177,7 +177,10 @@ jobs:
             fi
           fi
           NAME="${NAME#v}"
-          CODE="$(date -u +%y%m%d%H%M)"   # monotonic UTC timestamp
+          # Minutes since the Unix epoch: monotonic + minute-granular AND stays inside Android's
+          # signed-int versionCode (~29.7M now). The old yymmddHHmm was 10 digits (~2.6B) and
+          # overflowed int → "For input string" build failure.
+          CODE="$(( $(date -u +%s) / 60 ))"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Resolved v$NAME (versionCode $CODE)"

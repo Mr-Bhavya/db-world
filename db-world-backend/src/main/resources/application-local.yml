@@ -66,6 +66,11 @@ springdoc:
   swagger-ui:
     enabled: true
 
+dbworld:
+  ipo:
+    sample-data:
+      enabled: false
+
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
 #https://api.themoviedb.org/3/movie/721048?api_key=${TMDB_API_KEY}&append_to_response=videos

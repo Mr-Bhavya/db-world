@@ -3,7 +3,7 @@ import {
   daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
   averageSubscription, computeQuickStats, shortFinancialLabel, websiteDomain,
-  orderSubscriptionCategories, subscriptionCategoryColor,
+  orderSubscriptionCategories, subscriptionCategoryColor, computeLotBreakdown,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -524,6 +524,33 @@ describe('subscriptionCategoryColor', () => {
 
   it('cycles the fallback palette by index for an unrecognized category', () => {
     expect(subscriptionCategoryColor('SomeNewCategory', 0)).not.toBe(subscriptionCategoryColor('SomeNewCategory', 1));
+  });
+});
+
+describe('computeLotBreakdown', () => {
+  it('reproduces the mainboard tiers exactly (lot 34 @ ₹425)', () => {
+    const { minBidShares, tiers } = computeLotBreakdown(34, 425, 'mainboard');
+    expect(minBidShares).toBe(34);
+    expect(tiers).toEqual([
+      { label: 'Retail (Min)', group: 'retail', lots: 1, shares: 34, amount: 14450 },
+      { label: 'Retail (Max)', group: 'retail', lots: 13, shares: 442, amount: 187850 },
+      { label: 'S-HNI (Min)', group: 'hni', lots: 14, shares: 476, amount: 202300 },
+      { label: 'S-HNI (Max)', group: 'hni', lots: 69, shares: 2346, amount: 997050 },
+      { label: 'B-HNI (Min)', group: 'hni', lots: 70, shares: 2380, amount: 1011500 },
+    ]);
+  });
+
+  it('gives SME a single HNI tier above the retail cap (no 2L/10L split)', () => {
+    const { tiers } = computeLotBreakdown(1200, 100, 'sme'); // lot value ₹1,20,000
+    expect(tiers.map((t) => t.label)).toEqual(['Retail (Min)', 'Retail (Max)', 'HNI (Min)']);
+    expect(tiers[1]).toMatchObject({ lots: 1 });   // 1 lot = ₹1,20,000 ≤ ₹2L, 2 lots > ₹2L
+    expect(tiers[2]).toMatchObject({ lots: 2 });
+  });
+
+  it('is null when lot size or price is missing/zero', () => {
+    expect(computeLotBreakdown(null, 425, 'mainboard')).toBeNull();
+    expect(computeLotBreakdown(34, 0, 'mainboard')).toBeNull();
+    expect(computeLotBreakdown(0, 425, 'mainboard')).toBeNull();
   });
 });
 

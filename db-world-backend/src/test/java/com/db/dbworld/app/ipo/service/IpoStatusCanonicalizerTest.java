@@ -3,12 +3,56 @@ package com.db.dbworld.app.ipo.service;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class IpoStatusCanonicalizerTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 26);
+
+    // ── Time-aware transitions (open/listing at 10:00 IST, close at 17:00 IST) ────────────────────
+
+    @Test
+    void deriveStatus_openDayBeforeTenAm_isStillUpcoming() {
+        LocalDate open = LocalDate.of(2026, 7, 26);
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                open, open.plusDays(3), null, open.atTime(9, 0))).isEqualTo("upcoming");
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                open, open.plusDays(3), null, open.atTime(10, 0))).isEqualTo("open"); // exactly 10:00 → open
+    }
+
+    @Test
+    void deriveStatus_closeDayBeforeFivePm_isOpen_afterIsClosed() {
+        LocalDate close = LocalDate.of(2026, 7, 27);
+        LocalDate open = close.minusDays(2);
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                open, close, null, close.atTime(16, 30))).isEqualTo("open");
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                open, close, null, close.atTime(17, 0))).isEqualTo("closed"); // exactly 17:00 → closed
+    }
+
+    @Test
+    void deriveStatus_listingDayBeforeTenAm_isClosed_afterIsListed() {
+        LocalDate listing = LocalDate.of(2026, 7, 30);
+        LocalDate close = listing.minusDays(3);
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                close.minusDays(2), close, listing, listing.atTime(9, 30))).isEqualTo("closed");
+        assertThat(IpoStatusCanonicalizer.deriveStatus(
+                close.minusDays(2), close, listing, listing.atTime(10, 0))).isEqualTo("listed");
+    }
+
+    @Test
+    void isPastCutoffs_matchTheirIstTimes() {
+        LocalDate day = LocalDate.of(2026, 7, 27);
+        assertThat(IpoStatusCanonicalizer.isPastOpen(day, day.atTime(9, 59))).isFalse();
+        assertThat(IpoStatusCanonicalizer.isPastOpen(day, day.atTime(10, 0))).isTrue();
+        assertThat(IpoStatusCanonicalizer.isPastClose(day, day.atTime(16, 59))).isFalse();
+        assertThat(IpoStatusCanonicalizer.isPastClose(day, day.atTime(17, 0))).isTrue();
+        assertThat(IpoStatusCanonicalizer.isPastClose(day, day.minusDays(1).atTime(23, 0))).isFalse();
+        assertThat(IpoStatusCanonicalizer.isPastClose(day, day.plusDays(1).atTime(0, 1))).isTrue();
+        assertThat(IpoStatusCanonicalizer.isPastClose(null, LocalDateTime.now())).isFalse();
+    }
 
     @Test
     void deriveStatus_beforeOpen_isUpcoming() {
@@ -51,7 +95,7 @@ class IpoStatusCanonicalizerTest {
     @Test
     void deriveStatus_noDates_returnsNull() {
         assertThat(IpoStatusCanonicalizer.deriveStatus(null, null, null, TODAY)).isNull();
-        assertThat(IpoStatusCanonicalizer.deriveStatus(LocalDate.of(2026, 7, 20), null, null, null)).isNull();
+        assertThat(IpoStatusCanonicalizer.deriveStatus(LocalDate.of(2026, 7, 20), null, null, (LocalDate) null)).isNull();
     }
 
     @Test
