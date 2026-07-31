@@ -3,6 +3,7 @@ import {
   Avatar, Box, Popover, Typography, List, ListItem, ListItemAvatar, ListItemText, Divider,
 } from '@mui/material';
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 
 /**
  * Click-to-reveal voter list for the admin requests tables. Shows a colour-coded
@@ -15,15 +16,16 @@ import { useT } from '@shared/theme';
  */
 export default function VotersPopover({ voters, voteCount }) {
   const T = useT();
+  const S = adminSurface(T);
   const [anchor, setAnchor] = useState(null);
   const list = Array.isArray(voters) ? voters : [];
   const count = voteCount ?? list.length;
   const interactive = list.length > 0;
 
   const tone =
-    count >= 5 ? { bg: '#10b98122', fg: '#10b981' } :
-    count >= 2 ? { bg: '#f59e0b22', fg: '#f59e0b' } :
-                 { bg: `${T.text}11`, fg: T.textMuted };
+    count >= 5 ? { bg: T.successBg, fg: T.success } :
+    count >= 2 ? { bg: T.warningBg, fg: T.warning } :
+                 { bg: S.inset, fg: T.textMuted };
 
   return (
     <>
@@ -55,9 +57,8 @@ export default function VotersPopover({ voters, voteCount }) {
             sx: {
               mt: 0.75,
               minWidth: 260, maxWidth: 360, maxHeight: 320,
-              border: `1px solid ${T.glassBorder}`,
-              bgcolor: T.glass,
-              backdropFilter: 'blur(14px)',
+              border: `1px solid ${S.border}`,
+              bgcolor: S.card,
               borderRadius: 2,
               boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
             },
@@ -72,7 +73,7 @@ export default function VotersPopover({ voters, voteCount }) {
             Voters ({count})
           </Typography>
         </Box>
-        <Divider sx={{ borderColor: T.glassBorder }} />
+        <Divider sx={{ borderColor: S.divider }} />
         <List dense disablePadding sx={{ py: 0.5, maxHeight: 250, overflowY: 'auto' }}>
           {list.map((v) => (
             <ListItem key={v.userId} sx={{ py: 0.5 }}>

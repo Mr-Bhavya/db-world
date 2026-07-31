@@ -157,6 +157,15 @@ weather:
     base-url: https://api.openweathermap.org/data/2.5
 
 # =========================================================
+# logo.dev — brand/site search proxy (SECRET key, server-side only).
+# Leave LOGODEV_SECRET_KEY unset to disable online site suggestions;
+# the vault still works, just without public search results.
+# =========================================================
+logodev:
+  secret-key: ${LOGODEV_SECRET_KEY:}
+  base-url: https://api.logo.dev
+
+# =========================================================
 # Swagger
 # =========================================================
 springdoc:

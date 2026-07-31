@@ -7,16 +7,19 @@ import {
   ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack, Grow,
 } from '@mui/material';
 import {
-  Schedule, PlayArrow, Refresh, CheckCircle,
+  Schedule, ScheduleRounded, PlayArrow, CheckCircle,
   Error as ErrorIcon, History, Timer, Code,
   Edit as EditIcon, DragIndicator, Close as CloseIcon,
-  Autorenew, Sync, StickyNote2,
+  Autorenew, Sync, StickyNote2, SaveRounded,
 } from '@mui/icons-material';
 import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
 import { useT } from '@shared/theme';
+import {
+  AdminPage, SectionCard, AdminActionButton, EmptyState, adminSurface,
+} from '@features/admin/adminUi';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -128,6 +131,7 @@ const DOW_OPTIONS = [
  */
 function CronBuilder({ value, onChange, color }) {
   const T = useT();
+  const S = adminSurface(T);
   const [parsed, setParsed] = useState(() => parseCron(value));
 
   // Reconcile if parent value changes externally (e.g. when the dialog re-opens).
@@ -145,8 +149,8 @@ function CronBuilder({ value, onChange, color }) {
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-      '& fieldset':             { borderColor: T.glassBorder },
+      bgcolor: T.inputBg, color: T.textPrimary,
+      '& fieldset':             { borderColor: S.border },
       '&:hover fieldset':       { borderColor: color },
       '&.Mui-focused fieldset': { borderColor: color },
     },
@@ -231,9 +235,9 @@ function CronBuilder({ value, onChange, color }) {
                     update({ ...parsed, days: next.length ? next : ['MON'] });
                   }}
                   sx={{ fontSize: '0.72rem', height: 26,
-                    bgcolor: on ? `${color}22` : T.glass,
+                    bgcolor: on ? `${color}22` : S.inset,
                     color:   on ? color : T.textMuted,
-                    border: `1px solid ${on ? color + '55' : T.border}` }} />
+                    border: `1px solid ${on ? color + '55' : S.border}` }} />
               );
             })}
           </Stack>
@@ -285,7 +289,7 @@ function CronBuilder({ value, onChange, color }) {
       )}
 
       {/* Preview */}
-      <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 1, p: 1 }}>
+      <Box sx={{ bgcolor: S.inset, border: `1px solid ${S.border}`, borderRadius: 1, p: 1 }}>
         <Typography sx={{ fontSize: '0.66rem', color: T.textFaint, textTransform: 'uppercase',
           letterSpacing: '0.08em', mb: 0.25 }}>
           Result
@@ -304,10 +308,11 @@ function CronBuilder({ value, onChange, color }) {
 // ─── Shared settings section (displayName + notes) ────────────────────────────
 function SettingsSection({ displayName, notes, defaultName, onDisplayName, onNotes, color }) {
   const T = useT();
+  const S = adminSurface(T);
   const inputSx = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-      '& fieldset':             { borderColor: T.glassBorder },
+      bgcolor: T.inputBg, color: T.textPrimary,
+      '& fieldset':             { borderColor: S.border },
       '&:hover fieldset':       { borderColor: color },
       '&.Mui-focused fieldset': { borderColor: color },
     },
@@ -333,6 +338,7 @@ function SettingsSection({ displayName, notes, defaultName, onDisplayName, onNot
 // ─── Edit Cron Dialog (CRON jobs only) ────────────────────────────────────────
 function EditCronDialog({ open, job, onClose, onSave }) {
   const T = useT();
+  const S = adminSurface(T);
   const [cron, setCron]               = useState('');
   const [tz, setTz]                   = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -378,7 +384,7 @@ function EditCronDialog({ open, job, onClose, onSave }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
-      PaperProps={{ sx: { bgcolor: T.sidebar ?? T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2 } }}>
+      PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Schedule sx={{ color: meta.color, fontSize: 20 }} />
@@ -398,8 +404,8 @@ function EditCronDialog({ open, job, onClose, onSave }) {
           placeholder="Asia/Kolkata"
           helperText="Leave blank to keep current timezone"
           sx={{
-            '& .MuiOutlinedInput-root': { bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-              '& fieldset': { borderColor: T.glassBorder },
+            '& .MuiOutlinedInput-root': { bgcolor: T.inputBg, color: T.textPrimary,
+              '& fieldset': { borderColor: S.border },
               '&:hover fieldset': { borderColor: meta.color },
               '&.Mui-focused fieldset': { borderColor: meta.color } },
             '& .MuiInputLabel-root': { color: T.textMuted },
@@ -414,8 +420,8 @@ function EditCronDialog({ open, job, onClose, onSave }) {
             helperText={error
               || 'Skip a record re-checked within this many hours, even if TMDB re-lists it. Keep it below the run frequency (e.g. 20 for a daily run) so a genuine later change still syncs.'}
             sx={{
-              '& .MuiOutlinedInput-root': { bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-                '& fieldset': { borderColor: T.glassBorder },
+              '& .MuiOutlinedInput-root': { bgcolor: T.inputBg, color: T.textPrimary,
+                '& fieldset': { borderColor: S.border },
                 '&:hover fieldset': { borderColor: meta.color },
                 '&.Mui-focused fieldset': { borderColor: meta.color } },
               '& .MuiInputLabel-root': { color: T.textMuted },
@@ -424,7 +430,7 @@ function EditCronDialog({ open, job, onClose, onSave }) {
             }} />
         )}
 
-        <Divider sx={{ borderColor: T.border }} />
+        <Divider sx={{ borderColor: S.divider }} />
 
         <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
           letterSpacing: '0.08em', fontWeight: 700 }}>Labels</Typography>
@@ -450,6 +456,7 @@ function EditCronDialog({ open, job, onClose, onSave }) {
 // ─── Edit Interval Dialog (FIXED_DELAY jobs only) ─────────────────────────────
 function EditIntervalDialog({ open, job, onClose, onSave }) {
   const T = useT();
+  const S = adminSurface(T);
   const [seconds, setSeconds]             = useState(60);
   const [stability, setStability]         = useState(5);
   const [displayName, setDisplayName]     = useState('');
@@ -485,8 +492,8 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-      '& fieldset':             { borderColor: T.glassBorder },
+      bgcolor: T.inputBg, color: T.textPrimary,
+      '& fieldset':             { borderColor: S.border },
       '&:hover fieldset':       { borderColor: meta.color },
       '&.Mui-focused fieldset': { borderColor: meta.color },
     },
@@ -508,7 +515,7 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
-      PaperProps={{ sx: { bgcolor: T.sidebar ?? T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2 } }}>
+      PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Autorenew sx={{ color: meta.color, fontSize: 20 }} />
@@ -537,9 +544,9 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
             <Chip key={s} label={`${s}s`} size="small" clickable
               onClick={() => { setSeconds(s); setError(''); }}
               sx={{
-                bgcolor: parseInt(seconds, 10) === s ? `${meta.color}22` : T.glass,
+                bgcolor: parseInt(seconds, 10) === s ? `${meta.color}22` : S.inset,
                 color:   parseInt(seconds, 10) === s ? meta.color : T.textMuted,
-                border: `1px solid ${parseInt(seconds, 10) === s ? meta.color + '55' : T.border}`,
+                border: `1px solid ${parseInt(seconds, 10) === s ? meta.color + '55' : S.border}`,
                 fontSize: '0.7rem', height: 22,
                 '&:hover': { bgcolor: `${meta.color}18` },
               }} />
@@ -561,7 +568,7 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
           </>
         )}
 
-        <Divider sx={{ borderColor: T.border }} />
+        <Divider sx={{ borderColor: S.divider }} />
 
         <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
           letterSpacing: '0.08em', fontWeight: 700 }}>Labels</Typography>
@@ -596,6 +603,7 @@ const GrowTransition = React.forwardRef(function GrowTransition(props, ref) {
 
 function HistoryModal({ job, onClose }) {
   const T = useT();
+  const S = adminSurface(T);
   const open = !!job;
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['scheduler-job-history', job?.id],
@@ -617,16 +625,13 @@ function HistoryModal({ job, onClose }) {
       TransitionComponent={GrowTransition}
       PaperProps={{
         sx: {
-          bgcolor: T.bg, color: T.text,
-          border: `1px solid ${T.border}`,
+          bgcolor: S.card, color: T.text,
+          border: `1px solid ${S.border}`,
           borderRadius: 2,
           // Cap height so a long history is internally scrollable rather than
           // pushing the dialog off-screen.
           maxHeight: { xs: '92vh', sm: '85vh' },
-          // Subtle coloured ring matching the job's accent — reinforces which
-          // job's history you're looking at when the modal floats over the
-          // panel.
-          boxShadow: `0 0 0 1px ${alpha(meta.color, 0.18)}, 0 24px 60px rgba(0,0,0,0.45)`,
+          boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
           m: { xs: 1, sm: 2 },
         },
       }}
@@ -634,7 +639,6 @@ function HistoryModal({ job, onClose }) {
         backdrop: {
           sx: {
             backgroundColor: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(2px)',
           },
         },
       }}
@@ -644,14 +648,14 @@ function HistoryModal({ job, onClose }) {
           {/* Header */}
           <Box sx={{
             p: 2,
-            borderBottom: `1px solid ${T.border}`,
+            borderBottom: `1px solid ${S.divider}`,
             display: 'flex', alignItems: 'center', gap: 1.5,
             // Faint accent stripe at top to echo the job color.
             position: 'relative',
             '&::before': {
               content: '""',
               position: 'absolute', left: 0, right: 0, top: 0, height: 2,
-              background: `linear-gradient(90deg, ${meta.color}, ${alpha(meta.color, 0)})`,
+              bgcolor: meta.color,
             },
           }}>
             <History sx={{ color: meta.color, fontSize: 22 }} />
@@ -686,10 +690,10 @@ function HistoryModal({ job, onClose }) {
                 <TableHead>
                   <TableRow sx={{
                     '& th': {
-                      bgcolor: T.glass, color: T.textFaint,
+                      bgcolor: S.inset, color: T.textFaint,
                       fontSize: '0.66rem', fontWeight: 700,
                       textTransform: 'uppercase', letterSpacing: '0.08em',
-                      borderColor: T.border, py: 1.25,
+                      borderColor: S.divider, py: 1.25,
                       position: 'sticky', top: 0, zIndex: 1,
                     },
                   }}>
@@ -702,8 +706,8 @@ function HistoryModal({ job, onClose }) {
                   {rows.map((row, i) => (
                     <React.Fragment key={i}>
                       <TableRow sx={{
-                        '& td': { color: T.textMuted, fontSize: '0.78rem', borderColor: T.border },
-                        '&:hover': { bgcolor: T.glassHover },
+                        '& td': { color: T.textMuted, fontSize: '0.78rem', borderColor: S.divider },
+                        '&:hover': { bgcolor: S.cardHover },
                       }}>
                         <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.72rem !important' }}>
                           {fmt(row.startedAt)}
@@ -727,7 +731,7 @@ function HistoryModal({ job, onClose }) {
                                 '& .MuiChip-icon': { color: T.error, ml: 0.5 } }} />
                           ) : (
                             <Chip label={row.status ?? '—'} size="small"
-                              sx={{ bgcolor: T.glassHover, color: T.textMuted, height: 18, fontSize: '0.62rem' }} />
+                              sx={{ bgcolor: S.inset, color: T.textMuted, height: 18, fontSize: '0.62rem' }} />
                           )}
                         </TableCell>
                       </TableRow>
@@ -754,6 +758,7 @@ function HistoryModal({ job, onClose }) {
 // ─── Draggable Job Card ───────────────────────────────────────────────────────
 function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, triggering }) {
   const T            = useT();
+  const S            = adminSurface(T);
   const dragControls = useDragControls();
   const meta         = JOB_META[job.id] ?? { color: T.teal, label: job.name, icon: Schedule };
   const Icon         = meta.icon ?? Schedule;
@@ -769,8 +774,8 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
       layout
     >
       <Card sx={{
-        bgcolor: T.glass,
-        border: `1px solid ${isRunning ? meta.color + '55' : T.border}`,
+        bgcolor: S.card,
+        border: `1px solid ${isRunning ? meta.color + '55' : S.border}`,
         borderRadius: 2,
         mb: 1.5,
         transition: 'border-color 0.2s',
@@ -865,12 +870,12 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
                   sx={{ bgcolor: T.errorBg, color: T.error, height: 20, fontSize: '0.65rem', '& .MuiChip-icon': { color: T.error, ml: 0.5 } }} />
               ) : (
                 <Chip label="Idle" size="small"
-                  sx={{ bgcolor: T.glassHover, color: T.textMuted, height: 20, fontSize: '0.65rem' }} />
+                  sx={{ bgcolor: S.inset, color: T.textMuted, height: 20, fontSize: '0.65rem' }} />
               )}
             </Box>
 
             {isRunning && (
-              <LinearProgress sx={{ height: 2, borderRadius: 1, bgcolor: T.glassHover,
+              <LinearProgress sx={{ height: 2, borderRadius: 1, bgcolor: S.inset,
                 '& .MuiLinearProgress-bar': { bgcolor: meta.color } }} />
             )}
 
@@ -892,7 +897,6 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 export default function SchedulerPanel() {
-  const T  = useT();
   const qc = useQueryClient();
 
   // ── Data ────────────────────────────────────────────────────────────────────
@@ -1004,69 +1008,46 @@ export default function SchedulerPanel() {
   const isLoading = jobsLoading;
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, bgcolor: T.bg, minHeight: '100%', color: T.text }}>
-
-      {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: { xs: 2, sm: 3 }, flexWrap: 'wrap' }}>
-        <Schedule sx={{ color: T.teal, fontSize: { xs: 22, sm: 26 } }} />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: { xs: '1rem', sm: '1.15rem' }, fontWeight: 800, color: T.text, lineHeight: 1.2 }}>
-            Scheduler
-          </Typography>
-          <Typography sx={{ fontSize: { xs: '0.72rem', sm: '0.78rem' }, color: T.textFaint }}>
-            Background jobs · drag to reorder · history button opens per-job log
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {orderDirty && (
-            <Button size="small" variant="contained"
-              onClick={handleSaveOrder}
-              disabled={reorderMutation.isPending}
-              sx={{ fontSize: '0.72rem', bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover ?? T.teal }, fontWeight: 700 }}>
-              {reorderMutation.isPending ? <CircularProgress size={14} color="inherit" /> : 'Save Order'}
-            </Button>
-          )}
-          <Tooltip title="Refresh">
-            <IconButton size="small" disabled={isLoading}
-              onClick={() => qc.invalidateQueries({ queryKey: ['scheduler-jobs'] })}
-              sx={{ color: T.textFaint, border: `1px solid ${T.border}`, '&:hover': { color: T.teal, borderColor: T.teal } }}>
-              {isLoading ? <CircularProgress size={16} sx={{ color: T.teal }} /> : <Refresh sx={{ fontSize: 18 }} />}
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
-      {/* ── Draggable Job Cards ── */}
-      <Typography sx={{
-        fontSize: '0.7rem', fontWeight: 700, color: T.textFaint,
-        textTransform: 'uppercase', letterSpacing: '0.1em', mb: 1.5,
-      }}>
-        Scheduled Jobs
-      </Typography>
-
-      {orderedJobs.length === 0 && !jobsLoading && (
-        <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Schedule sx={{ fontSize: 40, color: T.textFaint, mb: 1 }} />
-          <Typography sx={{ color: T.textMuted, fontSize: '0.85rem' }}>No scheduler jobs registered</Typography>
-        </Box>
+    <AdminPage
+      title="Scheduler"
+      subtitle="Background jobs · drag to reorder · history button opens per-job log"
+      icon={ScheduleRounded}
+      onRefresh={() => qc.invalidateQueries({ queryKey: ['scheduler-jobs'] })}
+      refreshing={isLoading}
+      actions={orderDirty && (
+        <AdminActionButton
+          icon={SaveRounded}
+          variant="primary"
+          onClick={handleSaveOrder}
+          loading={reorderMutation.isPending}
+        >
+          Save Order
+        </AdminActionButton>
       )}
+    >
+      {/* ── Draggable Job Cards ── */}
+      <SectionCard title="Scheduled Jobs" flushMobile>
+        {orderedJobs.length === 0 && !jobsLoading && (
+          <EmptyState icon={Schedule} title="No scheduler jobs registered" />
+        )}
 
-      <Reorder.Group axis="y" values={orderedJobs} onReorder={handleReorder}
-        style={{ padding: 0, margin: 0 }}>
-        <AnimatePresence>
-          {orderedJobs.map((job) => (
-            <DraggableJobCard
-              key={job.id}
-              job={job}
-              triggering={triggeringId === job.id}
-              onTrigger={(j) => triggerMutation.mutate(j)}
-              onToggle={(j) => toggleMutation.mutate(j)}
-              onEdit={(j) => setEditJob(j)}
-              onShowHistory={(j) => setHistoryJob(j)}
-            />
-          ))}
-        </AnimatePresence>
-      </Reorder.Group>
+        <Reorder.Group axis="y" values={orderedJobs} onReorder={handleReorder}
+          style={{ padding: 0, margin: 0 }}>
+          <AnimatePresence>
+            {orderedJobs.map((job) => (
+              <DraggableJobCard
+                key={job.id}
+                job={job}
+                triggering={triggeringId === job.id}
+                onTrigger={(j) => triggerMutation.mutate(j)}
+                onToggle={(j) => toggleMutation.mutate(j)}
+                onEdit={(j) => setEditJob(j)}
+                onShowHistory={(j) => setHistoryJob(j)}
+              />
+            ))}
+          </AnimatePresence>
+        </Reorder.Group>
+      </SectionCard>
 
       {/* ── Edit dialog — branches on jobType, single save mutation ── */}
       <EditCronDialog
@@ -1087,6 +1068,6 @@ export default function SchedulerPanel() {
         job={historyJob}
         onClose={() => setHistoryJob(null)}
       />
-    </Box>
+    </AdminPage>
   );
 }

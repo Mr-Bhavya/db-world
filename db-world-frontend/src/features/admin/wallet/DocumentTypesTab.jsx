@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Box, Button, Chip } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import { AddRounded } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from 'material-ui-confirm';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import { SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
 import { fetchTypes, deleteType } from './adminWalletApi';
 import TypeUpsertDialog from './TypeUpsertDialog';
 
 export default function DocumentTypesTab() {
   const T = useT();
+  const S = adminSurface(T);
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data: types = [], isLoading } = useQuery({ queryKey: ['wallet-admin', 'types'], queryFn: fetchTypes });
@@ -38,16 +40,20 @@ export default function DocumentTypesTab() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-        <Button startIcon={<AddIcon />} variant="contained" onClick={() => setDialog({ open: true, item: null })}
-          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>New type</Button>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+        <AdminActionButton icon={AddRounded} onClick={() => setDialog({ open: true, item: null })}>
+          New type
+        </AdminActionButton>
       </Box>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Box sx={{ height: 480, minWidth: 600 }}>
-          <DataGrid rows={types} columns={columns} loading={isLoading} getRowId={(r) => r.id}
-            disableRowSelectionOnClick density="compact" />
+      <SectionCard padding={false}>
+        <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          <Box sx={{ height: 480, minWidth: 600 }}>
+            <DataGrid rows={types} columns={columns} loading={isLoading} getRowId={(r) => r.id}
+              disableRowSelectionOnClick density="compact"
+              sx={{ border: 'none', '& .MuiDataGrid-columnHeaders': { bgcolor: S.inset } }} />
+          </Box>
         </Box>
-      </Box>
+      </SectionCard>
       <TypeUpsertDialog open={dialog.open} editItem={dialog.item} onClose={() => setDialog({ open: false, item: null })} />
     </Box>
   );

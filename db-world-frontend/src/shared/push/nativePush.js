@@ -14,6 +14,27 @@ const mapPermission = (receive) => {
 };
 
 /**
+ * Per-category Android notification channels. Each becomes a toggle the user can
+ * turn on/off in the OS app-settings → Notifications; the backend tags every push
+ * with the matching `channel_id`, so a disabled channel simply isn't shown.
+ * importance: 4 = HIGH (heads-up), 3 = DEFAULT. Android-only (no-op elsewhere).
+ */
+export const PUSH_CHANNELS = [
+  { id: 'ipo',             name: 'IPO Tracker',     description: 'IPO open, closing, allotment & listing alerts', importance: 4 },
+  { id: 'cinema',          name: 'New content',     description: 'New movies & series added to the catalog',      importance: 3 },
+  { id: 'admin',           name: 'Admin',           description: 'New requests & media ingestion status',         importance: 4 },
+  { id: 'request-updates', name: 'Request updates', description: 'When your requests are fulfilled or dismissed', importance: 3 },
+];
+
+/** Create/refresh the notification channels (Android). Safe to call repeatedly; no-op on web/iOS. */
+export async function nativeCreateChannels() {
+  if (typeof PushNotifications.createChannel !== 'function') return;
+  await Promise.all(
+    PUSH_CHANNELS.map((c) => PushNotifications.createChannel({ ...c, visibility: 1 }).catch(() => {})),
+  );
+}
+
+/**
  * Reject if a native bridge call doesn't settle in `ms`, naming the `stage`. A Capacitor plugin
  * call that never resolves (e.g. an unregistered/misbehaving native plugin) would otherwise leave
  * the Enable button spinning forever; this turns that into a surfaced "push stalled at: <stage>"
@@ -42,6 +63,9 @@ export async function nativeCheckPermission() {
  * Returns the (mapped) resulting permission.
  */
 export async function nativeSetup({ request = false, onToken, onMessage, onAction } = {}) {
+  // Define the per-category channels up front so incoming pushes land on the
+  // right (user-toggleable) channel. Best-effort; never blocks setup.
+  await nativeCreateChannels().catch(() => {});
   await withTimeout(PushNotifications.removeAllListeners(), 5000, 'remove-listeners');
   await withTimeout(PushNotifications.addListener('registration', (t) => onToken?.(t?.value ?? null)), 5000, 'listen-registration');
   await withTimeout(PushNotifications.addListener('registrationError', () => onToken?.(null)), 5000, 'listen-registration-error');

@@ -1,197 +1,318 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Box, Typography, Container, Grid } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Box, Typography, Container, Skeleton } from '@mui/material';
 import {
   VpnKey as KeyIcon,
-  Visibility as ViewIcon,
-  AddCircle as AddIcon,
-  Shield as ShieldIcon,
-  Security as SecurityIcon,
-  Lock as LockIcon,
-  ArrowForward as ArrowIcon,
+  AddCircleOutline as AddIcon,
+  GridViewRounded as ViewIcon,
+  ShieldMoon as ShieldIcon,
+  ArrowForwardRounded as ArrowIcon,
+  WarningAmberRounded as WarnIcon,
+  ContentCopyRounded as ReuseIcon,
+  LanguageRounded as SiteIcon,
+  KeyRounded as CredIcon,
 } from '@mui/icons-material';
 import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { useT, getGlowProps } from '@shared/theme';
+import { useT } from '@shared/theme';
+import { getCredential } from '@shared/services/ApiServices';
+import { useAuth } from '@features/auth/context/Authentication';
+import { analyzeVault } from './passwordUtils';
+import { VaultAurora, SecurityRing, GlassPanel, useScrollTop } from './vaultShared';
 
-const FEATURES = [
-  {
-    id: 'generate',
-    title: 'Generate Password',
-    description: 'Create cryptographically secure passwords with custom length, symbols, numbers and mixed case.',
-    icon: KeyIcon,
-    route: Constants.DB_GENERATE_PASSWORD_ROUTE,
-    cta: 'Generate Password',
-  },
-  {
-    id: 'save',
-    title: 'Save Credential',
-    description: 'Store credentials in AES-256 encrypted vault. Zero-knowledge architecture — only you can decrypt.',
-    icon: AddIcon,
-    route: Constants.DB_ADD_PASSWORD_ROUTE,
-    cta: 'Save Credential',
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ACTIONS = [
   {
     id: 'view',
-    title: 'View Vault',
-    description: 'Browse, search, edit and delete your stored credentials. Grouped by host with quick copy.',
+    title: 'Open Vault',
+    description: 'Browse, search and copy every saved credential.',
     icon: ViewIcon,
+    accent: '#0d9488',
     route: Constants.DB_VIEW_PASSWORD_ROUTE,
-    cta: 'Open Vault',
+  },
+  {
+    id: 'add',
+    title: 'Add Credential',
+    description: 'Save a new login to your encrypted vault.',
+    icon: AddIcon,
+    accent: '#7c3aed',
+    route: Constants.DB_ADD_PASSWORD_ROUTE,
+  },
+  {
+    id: 'generate',
+    title: 'Generate',
+    description: 'Create strong passwords & memorable passphrases.',
+    icon: KeyIcon,
+    accent: '#f59e0b',
+    route: Constants.DB_GENERATE_PASSWORD_ROUTE,
   },
 ];
 
-const BADGES = [
-  { icon: ShieldIcon,   label: 'AES-256 Encrypted' },
-  { icon: SecurityIcon, label: 'Zero-Knowledge' },
-  { icon: LockIcon,     label: 'End-to-End Secure' },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Stat tile
+// ─────────────────────────────────────────────────────────────────────────────
 
-const FeatureCard = ({ feature, index }) => {
-  const T = useT();
+const StatTile = ({ icon: Icon, label, value, tone, T }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.25,
+      px: { xs: 1.5, sm: 1.75 },
+      py: { xs: 1.25, sm: 1.5 },
+      bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+      border: `1px solid ${T.glassBorder}`,
+      borderRadius: 3,
+      minWidth: 0,
+    }}
+  >
+    <Box
+      sx={{
+        width: 38,
+        height: 38,
+        flexShrink: 0,
+        borderRadius: 2,
+        display: 'grid',
+        placeItems: 'center',
+        bgcolor: `${tone}1f`,
+        color: tone,
+      }}
+    >
+      <Icon sx={{ fontSize: 20 }} />
+    </Box>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography sx={{ fontSize: 'clamp(1.1rem, 4vw, 1.35rem)', fontWeight: 900, lineHeight: 1.1, color: T.textPrimary, fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </Typography>
+      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {label}
+      </Typography>
+    </Box>
+  </Box>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action tile
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ActionTile = ({ action, index, T, reduce }) => {
   const navigate = useNavigate();
-  const Icon = feature.icon;
+  const Icon = action.icon;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={reduce ? false : { opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.1 }}
-      whileHover={{ y: -4 }}
+      transition={{ duration: 0.45, delay: 0.15 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={reduce ? undefined : { y: -5 }}
+      whileTap={{ scale: 0.98 }}
       style={{ height: '100%' }}
     >
-      <Box
-        onClick={() => navigate(feature.route)}
+      <GlassPanel
+        hover
+        onClick={() => navigate(action.route)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(action.route)}
+        aria-label={action.title}
         sx={{
           height: '100%',
-          minHeight: 220,
-          p: 3.5,
-          bgcolor: T.glass,
-          border: `1px solid ${T.glassBorder}`,
-          borderRadius: 3,
-          cursor: 'pointer',
+          p: { xs: 2.25, sm: 2.5 },
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
-          '&:hover': {
-            bgcolor: T.glassHover,
-            borderColor: T.glassBorderHover,
-            boxShadow: `0 0 32px ${T.tealGlow}`,
-          },
+          gap: 1.5,
+          outline: 'none',
+          '&:focus-visible': { boxShadow: `0 0 0 2px ${action.accent}` },
+          '&:hover .arrow': { transform: 'translateX(4px)', opacity: 1 },
         }}
       >
-        <Box sx={{
-          width: 48, height: 48, borderRadius: 2,
-          bgcolor: T.tealBg,
-          border: `1px solid ${T.tealBg}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <Icon sx={{ fontSize: 24, color: T.teal }} />
+        <Box
+          sx={{
+            width: 52,
+            height: 52,
+            borderRadius: 3,
+            display: 'grid',
+            placeItems: 'center',
+            color: action.accent,
+            bgcolor: `${action.accent}1a`,
+            border: `1px solid ${action.accent}33`,
+            boxShadow: `inset 0 0 20px ${action.accent}12`,
+          }}
+        >
+          <Icon sx={{ fontSize: 26 }} />
         </Box>
 
         <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.textPrimary, mb: 0.75 }}>
-            {feature.title}
+          <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: T.textPrimary, mb: 0.5 }}>
+            {action.title}
           </Typography>
-          <Typography sx={{ fontSize: '0.82rem', color: T.textMuted, lineHeight: 1.6 }}>
-            {feature.description}
+          <Typography sx={{ fontSize: '0.83rem', color: T.textMuted, lineHeight: 1.55 }}>
+            {action.description}
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: T.teal }}>
-            {feature.cta}
-          </Typography>
-          <ArrowIcon sx={{ fontSize: 15, color: T.teal }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: action.accent }}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 800 }}>Open</Typography>
+          <ArrowIcon className="arrow" sx={{ fontSize: 17, opacity: 0.7, transition: 'transform .25s ease, opacity .25s ease' }} />
         </Box>
-      </Box>
+      </GlassPanel>
     </motion.div>
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PasswordManagement = () => {
   usePageMeta('Vault', { description: 'Your AES-256 encrypted password vault on DB World.' });
+  useScrollTop();
 
-  const T    = useT();
-  const GLOW = getGlowProps(T);
+  const T = useT();
+  const reduce = useReducedMotion();
+  const { auth } = useAuth();
+
+  // Gated on auth: the hub is a public route, but the vault endpoint is
+  // protected — firing it while logged out would 401 and trip the refresh flow.
+  const { data: vault = [], isLoading } = useQuery({
+    queryKey: ['pm-vault'],
+    queryFn: async () => (await getCredential()).data ?? [],
+    staleTime: 2 * 60 * 1000,
+    enabled: auth.isAuthenticated,
+  });
+
+  const { health, total, weak, reused, sites } = useMemo(() => {
+    const a = analyzeVault(vault);
+    return { ...a, sites: vault.length };
+  }, [vault]);
+
+  const stats = [
+    { icon: SiteIcon,  label: 'Sites',       value: sites,  tone: '#0d9488' },
+    { icon: CredIcon,  label: 'Credentials', value: total,  tone: '#38bdf8' },
+    { icon: WarnIcon,  label: 'Weak',        value: weak,   tone: weak > 0 ? '#f59e0b' : T.textMuted },
+    { icon: ReuseIcon, label: 'Reused',      value: reused, tone: reused > 0 ? '#ef4444' : T.textMuted },
+  ];
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div {...GLOW} />
+    <Box sx={{ position: 'relative', bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary, pt: { xs: '56px', md: '64px' }, overflowX: 'hidden' }}>
+      <VaultAurora />
 
-      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 5, md: 8 } }}>
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Box sx={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 56, height: 56, borderRadius: 2.5, mb: 2.5,
-              bgcolor: T.tealBg, border: `1px solid ${T.tealBg}`,
-            }}>
-              <LockIcon sx={{ fontSize: 28, color: T.teal }} />
+      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, sm: 5, md: 7 }, px: { xs: 2, sm: 3 } }}>
+        {/* Hero header */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mb: { xs: 3, md: 4 } }}>
+            <Box
+              sx={{
+                width: { xs: 52, sm: 60 },
+                height: { xs: 52, sm: 60 },
+                flexShrink: 0,
+                borderRadius: 3.5,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: T.tealBg,
+                border: `1px solid ${T.teal}44`,
+                boxShadow: `0 0 34px ${T.tealGlow}`,
+              }}
+            >
+              <ShieldIcon sx={{ fontSize: { xs: 26, sm: 30 }, color: T.teal }} />
             </Box>
-
-            <Typography sx={{
-              fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15,
-              fontSize: { xs: '2rem', md: '2.75rem' }, color: T.textPrimary,
-            }}>
-              Password Vault
-            </Typography>
-            <Typography sx={{ mt: 1.5, fontSize: '1rem', color: T.textMuted, maxWidth: 480, mx: 'auto' }}>
-              Military-grade encrypted password management — only you hold the key.
-            </Typography>
-
-            {/* Security badges */}
-            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap', mt: 3 }}>
-              {BADGES.map(({ icon: Icon, label }, i) => (
-                <motion.div
-                  key={label}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 + i * 0.08 }}
-                >
-                  <Box sx={{
-                    display: 'flex', alignItems: 'center', gap: 0.75,
-                    px: 1.5, py: 0.6,
-                    bgcolor: T.tealBg,
-                    border: `1px solid ${T.tealBg}`,
-                    borderRadius: 5,
-                  }}>
-                    <Icon sx={{ fontSize: 14, color: T.teal }} />
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.teal }}>
-                      {label}
-                    </Typography>
-                  </Box>
-                </motion.div>
-              ))}
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: 'clamp(1.6rem, 6vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.05, color: T.textPrimary }}>
+                Password Vault
+              </Typography>
+              <Typography sx={{ fontSize: 'clamp(0.85rem, 2.6vw, 1rem)', color: T.textMuted, mt: 0.5 }}>
+                Encrypted end-to-end — only you hold the key.
+              </Typography>
             </Box>
           </Box>
         </motion.div>
 
-        {/* Feature cards */}
-        <Grid container spacing={2.5}>
-          {FEATURES.map((feature, i) => (
-            <Grid key={feature.id} item xs={12} sm={4}>
-              <FeatureCard feature={feature} index={i} />
-            </Grid>
-          ))}
-        </Grid>
+        {/* Security overview */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <GlassPanel sx={{ p: { xs: 2.25, sm: 3 }, mb: { xs: 2.5, md: 3 } }}>
+            {isLoading ? (
+              <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Skeleton variant="circular" width={132} height={132} sx={{ bgcolor: T.glassBorder }} />
+                <Box sx={{ flex: 1, minWidth: 220, display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} variant="rounded" height={66} sx={{ bgcolor: T.glassBorder, borderRadius: 3 }} />
+                  ))}
+                </Box>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' },
+                  alignItems: 'center',
+                  gap: { xs: 2.5, sm: 3, md: 4 },
+                }}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, justifySelf: { xs: 'center', sm: 'start' } }}>
+                  <SecurityRing value={total === 0 ? 0 : health} />
+                  <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: T.textMuted, textAlign: 'center', maxWidth: 150 }}>
+                    {total === 0
+                      ? 'Add a credential to start'
+                      : health >= 80
+                      ? 'Your vault looks healthy'
+                      : weak + reused > 0
+                      ? 'Some logins need attention'
+                      : 'Keep it up'}
+                  </Typography>
+                </Box>
 
-        {/* Footer note */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
-          <Box sx={{
-            mt: 6, p: 2, textAlign: 'center',
-            bgcolor: T.glass, border: `1px solid ${T.glassBorder}`,
-            borderRadius: 2,
-          }}>
-            <Typography sx={{ fontSize: '0.8rem', color: T.textFaint }}>
-              Your data is encrypted end-to-end and never stored in plain text.
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+                    gap: { xs: 1.25, sm: 1.5 },
+                  }}
+                >
+                  {stats.map((s) => (
+                    <StatTile key={s.label} {...s} T={T} />
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </GlassPanel>
+        </motion.div>
+
+        {/* Actions */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+            gap: { xs: 1.75, sm: 2 },
+          }}
+        >
+          {ACTIONS.map((a, i) => (
+            <ActionTile key={a.id} action={a} index={i} T={T} reduce={reduce} />
+          ))}
+        </Box>
+
+        {/* Reassurance */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: { xs: 3, md: 4 } }}>
+            <ShieldIcon sx={{ fontSize: 16, color: T.teal }} />
+            <Typography sx={{ fontSize: '0.78rem', color: T.textFaint, textAlign: 'center' }}>
+              AES-256 encrypted · zero-knowledge · never stored in plain text
             </Typography>
           </Box>
         </motion.div>

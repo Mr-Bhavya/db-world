@@ -1,265 +1,327 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Button, Chip, CircularProgress, Container, Dialog,
-  DialogActions, DialogContent, DialogContentText, DialogTitle,
-  Divider, Grid, IconButton, InputAdornment, TextField, Typography,
+  Box, Button, Chip, CircularProgress, Container, Dialog, DialogActions,
+  DialogContent, IconButton, InputAdornment, TextField, Typography,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import {
-  LocationOn, Refresh, Search, GpsFixed, MapOutlined,
+  LocationOnRounded, SearchRounded, MyLocationRounded, RefreshRounded, MapRounded,
+  WbSunnyRounded, DarkModeRounded, CloudRounded, WbCloudyRounded, GrainRounded,
+  BoltRounded, AcUnitRounded, BlurOnRounded, FilterDramaRounded, GpsFixedRounded,
+  ThermostatRounded, WaterDropRounded, AirRounded, SpeedRounded,
+  WbTwilightRounded, VisibilityRounded, NightlightRounded,
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import CommonServices from '@shared/services/CommonServices';
 import Map from './Map';
 import { notify } from '@shared/notify';
-import { useT, getFieldSx, getGlowProps } from '@shared/theme';
+import { useT, getFieldSx } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { Aurora, GlassPanel } from '@shared/ui/surfaces';
 
-const WEATHER_ICONS = {
-  '01d': '☀️', '01n': '🌙',
-  '02d': '⛅', '02n': '⛅',
-  '03d': '☁️', '03n': '☁️',
-  '04d': '☁️', '04n': '☁️',
-  '09d': '🌧️', '09n': '🌧️',
-  '10d': '🌦️', '10n': '🌦️',
-  '11d': '⛈️', '11n': '⛈️',
-  '13d': '❄️', '13n': '❄️',
-  '50d': '🌫️', '50n': '🌫️',
+const kelvinToC = (k) => Math.round(k - 273.15);
+
+// OpenWeather icon code → MUI icon + accent colour (SVG, not emoji).
+const weatherIcon = (code = '') => {
+  const c = code.slice(0, 2);
+  const night = code.endsWith('n');
+  switch (c) {
+    case '01': return night ? { Icon: DarkModeRounded, color: '#818cf8' } : { Icon: WbSunnyRounded, color: '#fbbf24' };
+    case '02': return night ? { Icon: NightlightRounded, color: '#a5b4fc' } : { Icon: WbCloudyRounded, color: '#fbbf24' };
+    case '03': return { Icon: CloudRounded, color: '#94a3b8' };
+    case '04': return { Icon: FilterDramaRounded, color: '#94a3b8' };
+    case '09':
+    case '10': return { Icon: GrainRounded, color: '#38bdf8' };
+    case '11': return { Icon: BoltRounded, color: '#fbbf24' };
+    case '13': return { Icon: AcUnitRounded, color: '#7dd3fc' };
+    case '50': return { Icon: BlurOnRounded, color: '#94a3b8' };
+    default:   return { Icon: WbCloudyRounded, color: '#2dd4bf' };
+  }
 };
 
-const kelvinToCelsius = (k) => Math.round(k - 273.15);
-
-const StatCard = ({ emoji, label, value, unit }) => {
-  const T = useT();
-  return (
-    <Box sx={{
-      p: 2, textAlign: 'center',
-      bgcolor: T.glass,
+// ─────────────────────────────────────────────────────────────────────────────
+// Stat tile
+// ─────────────────────────────────────────────────────────────────────────────
+const StatTile = ({ icon: Icon, label, value, unit, T }) => (
+  <Box
+    sx={{
+      p: { xs: 1.5, sm: 1.75 },
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.25,
+      borderRadius: 3,
+      bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
       border: `1px solid ${T.glassBorder}`,
-      borderRadius: 2,
-    }}>
-      <Typography sx={{ fontSize: '1.4rem', mb: 0.5 }}>{emoji}</Typography>
-      <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, mb: 0.25 }}>{label}</Typography>
-      <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: T.textPrimary }}>
-        {value}{unit && <Box component="span" sx={{ fontSize: '0.75rem', color: T.textMuted, ml: 0.25 }}>{unit}</Box>}
+      minWidth: 0,
+    }}
+  >
+    <Box sx={{ width: 34, height: 34, flexShrink: 0, borderRadius: 2, display: 'grid', placeItems: 'center', bgcolor: T.tealBg, color: T.teal }}>
+      <Icon sx={{ fontSize: 19 }} />
+    </Box>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap' }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, color: T.textPrimary, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {value}{unit && <Box component="span" sx={{ fontSize: '0.72rem', color: T.textMuted, ml: 0.35 }}>{unit}</Box>}
       </Typography>
     </Box>
+  </Box>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Location permission modal (works for web + Android)
+// ─────────────────────────────────────────────────────────────────────────────
+const PermissionModal = ({ open, denied, onAllow, onSkip, T }) => {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onSkip}
+      fullScreen={fullScreen}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          bgcolor: T.bg,
+          backgroundImage: 'none',
+          border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`,
+          borderRadius: fullScreen ? 0 : 4,
+          m: fullScreen ? 0 : 2,
+        },
+      }}
+    >
+      <DialogContent sx={{ textAlign: 'center', px: { xs: 3, sm: 4 }, pt: { xs: 5, sm: 4 }, pb: 1 }}>
+        <Box
+          component={motion.div}
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+          sx={{
+            width: 76, height: 76, mx: 'auto', mb: 2.5, borderRadius: '50%',
+            display: 'grid', placeItems: 'center',
+            bgcolor: T.tealBg, border: `1px solid ${T.teal}44`,
+            boxShadow: `0 0 40px ${T.tealGlow}`,
+          }}
+        >
+          <GpsFixedRounded sx={{ fontSize: 36, color: T.teal }} />
+        </Box>
+
+        <Typography sx={{ fontSize: '1.25rem', fontWeight: 900, color: T.textPrimary, mb: 1 }}>
+          {denied ? 'Location is blocked' : 'Use your location?'}
+        </Typography>
+        <Typography sx={{ fontSize: '0.9rem', color: T.textMuted, lineHeight: 1.6, maxWidth: 320, mx: 'auto' }}>
+          {denied
+            ? 'Location access is turned off. Enable it in your device or browser settings, or just search by city below.'
+            : 'Allow location access for accurate weather where you are. You can always search by city instead — your location is never stored.'}
+        </Typography>
+      </DialogContent>
+
+      <DialogActions sx={{ flexDirection: 'column', gap: 1, px: { xs: 3, sm: 4 }, pb: { xs: 4, sm: 3.5 }, pt: 2, '& > button': { width: '100%', m: '0 !important' } }}>
+        {!denied && (
+          <Button
+            onClick={onAllow}
+            variant="contained"
+            startIcon={<MyLocationRounded />}
+            sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, minHeight: 48, borderRadius: 2.5, boxShadow: `0 10px 30px ${T.tealGlow}`, '&:hover': { bgcolor: '#0f766e' } }}
+          >
+            Allow Location
+          </Button>
+        )}
+        <Button onClick={onSkip} sx={{ color: T.textMuted, fontWeight: 700, minHeight: 44, '&:hover': { color: T.textPrimary, bgcolor: T.hoverBg } }}>
+          {denied ? 'Search by city instead' : 'Not now'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main
+// ─────────────────────────────────────────────────────────────────────────────
 function Weather() {
   usePageMeta('Weather', { description: 'Live local weather, current conditions and forecast on DB World.' });
 
-  const T     = useT();
+  const T = useT();
   const FIELD = getFieldSx(T);
-  const GLOW  = getGlowProps(T);
+  const reduce = useReducedMotion();
 
-  const [weatherData,      setWeatherData]      = useState(null);
-  const [city,             setCity]             = useState('Pune');
-  const [loading,          setLoading]          = useState(true);
-  const [refreshing,       setRefreshing]       = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
-  const [showDialog,       setShowDialog]       = useState(false);
+  const [weatherData, setWeatherData] = useState(null);
+  const [city, setCity] = useState('Pune');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [permState, setPermState] = useState('prompt'); // granted | denied | prompt
+  const [showModal, setShowModal] = useState(false);
 
-  // Backend proxy at /api/weather hides the OpenWeather API key (which used
-  // to ship in the JS bundle) and caches responses for 5 min. Response shape
-  // matches OpenWeatherMap's so the rest of this component is unchanged.
   const fetchWeather = async (params) => {
     const res = await axiosInstance.get('/api/weather', { params });
     return res.data?.data ?? res.data;
   };
 
-  const fetchByCity = async () => {
+  const fetchByCity = useCallback(async (name) => {
+    const q = name ?? city;
     setRefreshing(true);
     try {
-      setWeatherData(await fetchWeather({ city }));
+      setWeatherData(await fetchWeather({ city: q }));
     } catch (err) {
-      if (err?.response?.status === 404) {
-        notify.error('City not found. Please try another location.');
-      } else {
-        notify.error('Failed to fetch weather data. Please check your connection.');
-      }
+      if (err?.response?.status === 404) notify.error('City not found. Please try another.');
+      else notify.error('Failed to fetch weather. Check your connection.');
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
     }
-    setRefreshing(false);
-    setLoading(false);
-  };
+  }, [city]);
 
-  const fetchByCoords = async (coords) => {
-    setLoading(true);
+  const fetchByCoords = useCallback(async ({ latitude, longitude }) => {
+    setRefreshing(true);
     try {
-      setWeatherData(await fetchWeather({ lat: coords.latitude, lon: coords.longitude }));
-      setPermissionDenied(false);
+      setWeatherData(await fetchWeather({ lat: latitude, lon: longitude }));
     } catch {
-      notify.error('Failed to fetch location data.');
-      fetchByCity();
+      notify.error('Failed to fetch weather for your location.');
+      await fetchByCity();
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [fetchByCity]);
 
-  const checkPermission = async () => {
-    if (!navigator.permissions) return 'prompt';
+  const readPermState = async () => {
     try {
-      const result = await navigator.permissions.query({ name: 'geolocation' });
-      return result.state;
+      const s = await Geolocation.checkPermissions();
+      return s.location; // granted | denied | prompt | prompt-with-rationale
     } catch {
       return 'prompt';
     }
   };
 
-  const getLocation = async (forcePrompt = false) => {
-    if (!navigator.geolocation) { notify.error('Geolocation not supported.'); fetchByCity(); return; }
-    const state = await checkPermission();
-    if (state === 'denied' && !forcePrompt) {
-      setPermissionDenied(true);
-      setShowDialog(true);
+  // Request permission (native) / trigger the browser prompt (web), then locate.
+  const acquireAndFetch = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const perm = await Geolocation.requestPermissions();
+        const ok = perm.location === 'granted' || perm.coarseLocation === 'granted';
+        if (!ok) { setPermState('denied'); notify.error('Location permission denied.'); setRefreshing(false); return; }
+      }
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      setPermState('granted');
+      await fetchByCoords(pos.coords);
+    } catch {
+      setPermState('denied');
+      notify.error('Could not get your location. Showing a default city.');
       fetchByCity();
-      return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => fetchByCoords(pos.coords),
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) { setPermissionDenied(true); setShowDialog(true); }
-        else notify.error('Failed to get location. Using default city.');
+  }, [fetchByCoords, fetchByCity]);
+
+  // On mount: show a default city right away, then prime for geolocation.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const state = await readPermState();
+      if (cancelled) return;
+      setPermState(state);
+      if (state === 'granted') {
+        acquireAndFetch();
+      } else {
         fetchByCity();
-      },
-      { timeout: 10000 }
-    );
+        if (state !== 'denied') setShowModal(true);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = (e) => { e.preventDefault(); if (city.trim()) fetchByCity(); };
+
+  const onLocateClick = () => {
+    if (permState === 'denied') setShowModal(true);
+    else acquireAndFetch();
   };
 
-  useEffect(() => { getLocation(); }, []);
-
-  const handleSearch = (e) => { e.preventDefault(); fetchByCity(); };
-
+  // ── Loading screen ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Box sx={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '100vh', gap: 2,
-        bgcolor: T.bg,
-      }}>
-        <CircularProgress sx={{ color: T.teal }} size={48} />
-        <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>Loading weather data...</Typography>
+      <Box sx={{ position: 'relative', bgcolor: T.bg, minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <Aurora />
+        <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <CircularProgress sx={{ color: T.teal }} size={46} />
+          <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>Loading weather…</Typography>
+        </Box>
       </Box>
     );
   }
 
+  const hero = weatherData ? weatherIcon(weatherData.weather?.[0]?.icon) : null;
+
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div {...GLOW} />
+    <Box sx={{ position: 'relative', bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary, pt: { xs: '56px', md: '64px' }, overflowX: 'hidden' }}>
+      <Aurora />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 } }}>
+      <PermissionModal
+        open={showModal}
+        denied={permState === 'denied'}
+        onAllow={() => { setShowModal(false); acquireAndFetch(); }}
+        onSkip={() => setShowModal(false)}
+        T={T}
+      />
 
-        {/* Location permission dialog */}
-        <Dialog
-          open={showDialog}
-          onClose={() => setShowDialog(false)}
-          PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3, color: T.textPrimary } }}
-        >
-          <DialogTitle sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pb: 1 }}>
-            <GpsFixed sx={{ fontSize: 36, color: T.teal }} />
-            <Typography sx={{ fontWeight: 700, color: T.textPrimary }}>Location Access</Typography>
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ color: T.textMuted, textAlign: 'center', fontSize: '0.875rem' }}>
-              Allow location access for accurate local weather. You can also search by city name manually.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions sx={{ justifyContent: 'center', pb: 3, gap: 1 }}>
-            <Button onClick={() => setShowDialog(false)} sx={{ color: T.textMuted, '&:hover': { color: T.textPrimary } }}>
-              Skip
-            </Button>
-            <Button
-              onClick={() => { setShowDialog(false); getLocation(true); }}
-              variant="contained"
-              sx={{ bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover } }}
-            >
-              Allow Location
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Title */}
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Typography sx={{
-              fontWeight: 800, fontSize: { xs: '1.75rem', md: '2.25rem' },
-              letterSpacing: '-0.02em', color: T.textPrimary,
-            }}>
-              🌤️ Weather
-            </Typography>
-            <Typography sx={{ color: T.textMuted, fontSize: '0.9rem', mt: 0.5 }}>
-              Real-time weather for any location
-            </Typography>
+      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, sm: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+        {/* Header */}
+        <motion.div initial={reduce ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: { xs: 2.5, md: 3 } }}>
+            <Box sx={{ width: { xs: 48, sm: 54 }, height: { xs: 48, sm: 54 }, flexShrink: 0, borderRadius: 3, display: 'grid', placeItems: 'center', bgcolor: T.tealBg, border: `1px solid ${T.teal}44`, boxShadow: `0 0 30px ${T.tealGlow}` }}>
+              <WbSunnyRounded sx={{ fontSize: { xs: 24, sm: 27 }, color: T.teal }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 'clamp(1.5rem, 6vw, 2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.05, color: T.textPrimary }}>
+                Weather
+              </Typography>
+              <Typography sx={{ fontSize: 'clamp(0.82rem, 2.6vw, 0.95rem)', color: T.textMuted, mt: 0.35 }}>
+                Live conditions for any location
+              </Typography>
+            </Box>
           </Box>
         </motion.div>
 
-        {/* Search bar */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Box
-            component="form"
-            onSubmit={handleSearch}
-            sx={{
-              display: 'flex', gap: 1, mb: 4,
-              p: 2.5,
-              bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3,
-              flexWrap: { xs: 'wrap', sm: 'nowrap' },
-            }}
-          >
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Enter city name..."
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search sx={{ fontSize: 18, color: T.textMuted }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={FIELD}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={refreshing}
-              sx={{
-                bgcolor: T.teal, color: '#fff', fontWeight: 600, px: 3,
-                whiteSpace: 'nowrap', borderRadius: 1.5,
-                '&:hover': { bgcolor: T.tealHover },
-                '&:disabled': { bgcolor: T.tealBg },
-              }}
-            >
-              {refreshing ? <CircularProgress size={16} color="inherit" /> : 'Search'}
-            </Button>
-            <IconButton
-              onClick={() => getLocation(true)}
-              disabled={refreshing}
-              title="Use current location"
-              sx={{
-                border: `1px solid ${permissionDenied ? T.error : T.teal}`,
-                color: permissionDenied ? T.error : T.teal,
-                borderRadius: 1.5,
-                '&:hover': { bgcolor: T.tealBg },
-              }}
-            >
-              <LocationOn sx={{ fontSize: 20 }} />
-            </IconButton>
-            {permissionDenied && (
-              <Chip
-                label="Location denied"
+        {/* Search */}
+        <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+          <GlassPanel sx={{ p: { xs: 1.25, sm: 1.5 }, mb: { xs: 2.5, md: 3 } }}>
+            <Box component="form" onSubmit={handleSearch} sx={{ display: 'flex', gap: 1, alignItems: 'stretch' }}>
+              <TextField
+                fullWidth
                 size="small"
-                sx={{
-                  bgcolor: T.errorBg, color: T.error,
-                  border: `1px solid ${T.error}44`, alignSelf: 'center',
-                }}
+                placeholder="Search a city…"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                InputProps={{ startAdornment: (<InputAdornment position="start"><SearchRounded sx={{ fontSize: 19, color: T.textMuted }} /></InputAdornment>) }}
+                sx={FIELD}
               />
+              <Button type="submit" variant="contained" disabled={refreshing} sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, px: { xs: 2, sm: 2.5 }, minHeight: 44, borderRadius: 2, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#0f766e' }, '&.Mui-disabled': { bgcolor: T.tealBg } }}>
+                {refreshing ? <CircularProgress size={16} color="inherit" /> : 'Search'}
+              </Button>
+              <IconButton
+                onClick={onLocateClick}
+                disabled={refreshing}
+                aria-label="Use my location"
+                title="Use my location"
+                sx={{ width: 44, height: 44, borderRadius: 2, border: `1px solid ${permState === 'denied' ? T.error : T.teal}`, color: permState === 'denied' ? T.error : T.teal, '&:hover': { bgcolor: T.tealBg } }}
+              >
+                <MyLocationRounded sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Box>
+
+            {permState === 'denied' && (
+              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, px: 0.5 }}>
+                <Chip size="small" icon={<LocationOnRounded sx={{ fontSize: 15 }} />} label="Location off" sx={{ bgcolor: T.errorBg, color: T.error, border: `1px solid ${T.error}44`, fontWeight: 700, '& .MuiChip-icon': { color: T.error } }} />
+                <Typography sx={{ fontSize: '0.76rem', color: T.textMuted }}>Searching by city — enable location to auto-detect.</Typography>
+              </Box>
             )}
-          </Box>
+          </GlassPanel>
         </motion.div>
 
         {/* Weather card */}
@@ -267,125 +329,85 @@ function Weather() {
           {weatherData && (
             <motion.div
               key={weatherData.name}
-              initial={{ opacity: 0, y: 20 }}
+              initial={reduce ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={reduce ? undefined : { opacity: 0, y: -16 }}
               transition={{ duration: 0.4 }}
             >
-              <Box sx={{
-                p: { xs: 3, md: 4 },
-                bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3,
-                mb: 3,
-              }}>
-                {/* Location + main temp */}
-                <Grid container spacing={3} alignItems="center">
-                  <Grid item xs={12} md={7}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                      <LocationOn sx={{ fontSize: 18, color: T.teal }} />
-                      <Typography sx={{ fontSize: { xs: '1.25rem', md: '1.5rem' }, fontWeight: 700, color: T.textPrimary }}>
-                        {weatherData.name}, {weatherData.sys.country}
+              <GlassPanel sx={{ p: { xs: 2.5, sm: 3, md: 3.5 }, mb: { xs: 2.5, md: 3 }, overflow: 'hidden' }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+                      <LocationOnRounded sx={{ fontSize: 18, color: T.teal }} />
+                      <Typography sx={{ fontSize: 'clamp(1.1rem, 4vw, 1.4rem)', fontWeight: 800, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {weatherData.name}{weatherData.sys?.country ? `, ${weatherData.sys.country}` : ''}
                       </Typography>
                     </Box>
+                    <Typography sx={{ fontSize: 'clamp(3rem, 15vw, 4.5rem)', fontWeight: 900, color: T.teal, lineHeight: 0.95, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>
+                      {kelvinToC(weatherData.main.temp)}°
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.95rem', color: T.textMuted, textTransform: 'capitalize', mt: 0.5 }}>
+                      {weatherData.weather?.[0]?.description}
+                    </Typography>
+                    <Chip size="small" label={CommonServices.getTimeDateFromTimeStamp(weatherData.dt * 1000).date} sx={{ mt: 1.5, bgcolor: T.tealBg, color: T.teal, border: `1px solid ${T.teal}33`, fontWeight: 700 }} />
+                  </Box>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                      <Typography sx={{ fontSize: '3.5rem', lineHeight: 1 }}>
-                        {WEATHER_ICONS[weatherData.weather[0].icon] || '🌤️'}
-                      </Typography>
-                      <Box>
-                        <Typography sx={{ fontSize: { xs: '2.5rem', md: '3rem' }, fontWeight: 800, color: T.teal, lineHeight: 1 }}>
-                          {kelvinToCelsius(weatherData.main.temp)}°C
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.9rem', color: T.textMuted, textTransform: 'capitalize' }}>
-                          {weatherData.weather[0].description}
-                        </Typography>
-                      </Box>
+                  {hero && (
+                    <Box
+                      component={motion.div}
+                      initial={reduce ? false : { scale: 0.7, opacity: 0, rotate: -8 }}
+                      animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.1 }}
+                      sx={{ ml: 'auto' }}
+                    >
+                      <hero.Icon sx={{ fontSize: 'clamp(76px, 22vw, 132px)', color: hero.color, filter: `drop-shadow(0 0 26px ${hero.color}55)` }} />
                     </Box>
+                  )}
+                </Box>
 
-                    <Chip
-                      label={CommonServices.getTimeDateFromTimeStamp(weatherData.dt * 1000).date}
-                      size="small"
-                      sx={{
-                        bgcolor: T.tealBg, color: T.teal,
-                        border: `1px solid ${T.tealBg}`, fontWeight: 600,
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={5} sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <img
-                      src={`https://openweathermap.org/img/w/${weatherData.weather[0].icon}.png`}
-                      alt={weatherData.weather[0].description}
-                      style={{
-                        width: 100, height: 100,
-                        filter: 'drop-shadow(0 0 12px rgba(13,148,136,0.4))',
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-
-                <Divider sx={{ my: 3, borderColor: T.border }} />
-
-                {/* Stats grid */}
-                <Grid container spacing={1.5}>
+                {/* Stats */}
+                <Box sx={{ mt: { xs: 2.5, md: 3 }, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: { xs: 1.25, sm: 1.5 } }}>
                   {[
-                    { emoji: '🌡️', label: 'Feels Like', value: kelvinToCelsius(weatherData.main.feels_like), unit: '°C'  },
-                    { emoji: '💧', label: 'Humidity',   value: weatherData.main.humidity,                     unit: '%'   },
-                    { emoji: '💨', label: 'Wind',        value: weatherData.wind.speed,                        unit: 'm/s' },
-                    { emoji: '📊', label: 'Pressure',    value: weatherData.main.pressure,                     unit: 'hPa' },
-                    { emoji: '🌅', label: 'Sunrise',     value: CommonServices.getTimeDateFromTimeStamp(weatherData.sys.sunrise * 1000).time, unit: '' },
-                    { emoji: '🌇', label: 'Sunset',      value: CommonServices.getTimeDateFromTimeStamp(weatherData.sys.sunset  * 1000).time, unit: '' },
-                    { emoji: '👀', label: 'Visibility',  value: (weatherData.visibility / 1000).toFixed(1),    unit: 'km'  },
-                    { emoji: '☁️', label: 'Cloudiness',  value: weatherData.clouds?.all ?? 0,                  unit: '%'   },
+                    { icon: ThermostatRounded, label: 'Feels', value: kelvinToC(weatherData.main.feels_like), unit: '°C' },
+                    { icon: WaterDropRounded,  label: 'Humidity', value: weatherData.main.humidity, unit: '%' },
+                    { icon: AirRounded,        label: 'Wind', value: weatherData.wind?.speed ?? 0, unit: 'm/s' },
+                    { icon: SpeedRounded,      label: 'Pressure', value: weatherData.main.pressure, unit: 'hPa' },
+                    { icon: WbTwilightRounded, label: 'Sunrise', value: CommonServices.getTimeDateFromTimeStamp(weatherData.sys.sunrise * 1000).time },
+                    { icon: NightlightRounded, label: 'Sunset', value: CommonServices.getTimeDateFromTimeStamp(weatherData.sys.sunset * 1000).time },
+                    { icon: VisibilityRounded, label: 'Visibility', value: (weatherData.visibility / 1000).toFixed(1), unit: 'km' },
+                    { icon: CloudRounded,      label: 'Clouds', value: weatherData.clouds?.all ?? 0, unit: '%' },
                   ].map((s) => (
-                    <Grid key={s.label} item xs={6} sm={3}>
-                      <StatCard {...s} />
-                    </Grid>
+                    <StatTile key={s.label} {...s} T={T} />
                   ))}
-                </Grid>
+                </Box>
 
-                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'center' }}>
                   <Button
-                    variant="outlined"
-                    startIcon={refreshing ? <CircularProgress size={14} color="inherit" /> : <Refresh />}
-                    onClick={() => getLocation(true)}
+                    startIcon={refreshing ? <CircularProgress size={14} color="inherit" /> : <RefreshRounded />}
+                    onClick={() => (permState === 'granted' ? acquireAndFetch() : fetchByCity())}
                     disabled={refreshing}
-                    sx={{
-                      borderColor: T.glassBorder, color: T.textMuted,
-                      '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
-                    }}
+                    sx={{ color: T.textMuted, fontWeight: 700, minHeight: 44, borderRadius: 2, px: 2, border: `1px solid ${T.glassBorder}`, '&:hover': { color: T.teal, borderColor: T.teal, bgcolor: T.tealBg } }}
                   >
                     Refresh
                   </Button>
                 </Box>
-              </Box>
+              </GlassPanel>
 
               {/* Map */}
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Box sx={{
-                  p: { xs: 2, md: 3 },
-                  bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3,
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <MapOutlined sx={{ fontSize: 18, color: T.teal }} />
-                    <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.textPrimary }}>
-                      Location on Map
-                    </Typography>
-                  </Box>
-                  <Map lat={weatherData.coord.lat} lon={weatherData.coord.lon} name={weatherData.name} />
-                </Box>
-              </motion.div>
+              {weatherData.coord && (
+                <motion.div initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <GlassPanel sx={{ p: { xs: 2, md: 2.5 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <MapRounded sx={{ fontSize: 18, color: T.teal }} />
+                      <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: T.textPrimary }}>Location on map</Typography>
+                    </Box>
+                    <Map lat={weatherData.coord.lat} lon={weatherData.coord.lon} name={weatherData.name} />
+                  </GlassPanel>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Note */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-          <Box sx={{ mt: 3, p: 2, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2 }}>
-            <Typography sx={{ fontSize: '0.78rem', color: T.textFaint }}>
-              Allow location permissions in your browser for accurate local weather data.
-            </Typography>
-          </Box>
-        </motion.div>
       </Container>
     </Box>
   );

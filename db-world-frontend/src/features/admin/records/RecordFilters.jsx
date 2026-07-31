@@ -5,6 +5,7 @@ import FilterListOffIcon from '@mui/icons-material/FilterListOff';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import SortIcon from '@mui/icons-material/Sort';
 import { useT, getSelectMenuProps } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
 
 const SORT_OPTIONS = [
@@ -21,6 +22,7 @@ const SORT_OPTIONS = [
 
 export default function RecordFilters() {
   const T = useT();
+  const S = adminSurface(T);
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const { filters, setFilter, clearFilters, sortModel, setSortModel } = useRecordStore();
@@ -47,25 +49,23 @@ export default function RecordFilters() {
   const inputSx = {
     minWidth: 110,
     '& .MuiOutlinedInput-root': {
-      bgcolor: T.inputBg, color: T.textPrimary, borderRadius: 1.5,
-      '& fieldset':             { borderColor: T.glassBorder },
-      '&:hover fieldset':       { borderColor: T.borderHover },
+      bgcolor: S.inset, color: T.text, borderRadius: 2,
+      '& fieldset':             { borderColor: S.border },
+      '&:hover fieldset':       { borderColor: T.teal },
       '&.Mui-focused fieldset': { borderColor: T.teal },
     },
     '& .MuiInputLabel-root':             { color: T.textMuted, fontSize: 12 },
     '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
     '& .MuiSelect-icon':                 { color: T.textMuted },
-    '& .MuiInputBase-input':             { color: T.textPrimary },
+    '& .MuiInputBase-input':             { color: T.text },
   };
 
+  // Bare flex row — the surrounding <StickyBar> supplies the solid card surface,
+  // border and padding, so this component adds none of its own.
   return (
     <Box sx={{
       display: 'flex', flexWrap: 'wrap', gap: 1,
-      p: { xs: '8px 12px', md: '10px 16px' },
-      borderBottom: `1px solid ${T.border}`,
       alignItems: 'center',
-      bgcolor: T.sidebar,
-      flexShrink: 0,
     }}>
       <TextField size="small" placeholder="Search name…" defaultValue={filters.name}
         onChange={e => debouncedSet('name', e.target.value)} sx={{ ...inputSx, flex: '1 1 160px' }}
@@ -113,7 +113,7 @@ export default function RecordFilters() {
             anchorEl={moreAnchor}
             onClose={() => setMoreAnchor(null)}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-            PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, p: 1.5, mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 220 } }}
+            PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, p: 1.5, mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 220 } }}
           >
             <TextField size="small" label="Year" type="number" defaultValue={filters.year}
               onChange={e => debouncedSet('year', e.target.value)} sx={inputSx}
@@ -138,10 +138,11 @@ export default function RecordFilters() {
         onChange={handleSortChange}
         startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5, display: { xs: 'none', sm: 'inline-flex' } }} />}
         sx={{
-          color: T.textPrimary, fontSize: 12, height: 40,
+          color: T.text, fontSize: 12, height: 40,
           minWidth: { xs: 90, sm: 120 },
-          bgcolor: T.inputBg,
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
+          borderRadius: 2,
+          bgcolor: S.inset,
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: S.border },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
           '& .MuiSelect-icon': { color: T.textMuted },
         }}

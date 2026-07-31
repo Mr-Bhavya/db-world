@@ -1,23 +1,30 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
-  Box, Typography, useMediaQuery, useTheme, Button,
-  CircularProgress, Skeleton, LinearProgress, IconButton, Tooltip,
-  Select, MenuItem,
+  Box, Typography, useMediaQuery, useTheme,
+  CircularProgress, IconButton, Tooltip, Select, MenuItem,
 } from '@mui/material';
-import AddIcon              from '@mui/icons-material/Add';
-import ListIcon             from '@mui/icons-material/List';
-import SyncIcon             from '@mui/icons-material/Sync';
-import VisibilityIcon       from '@mui/icons-material/Visibility';
-import VisibilityOffIcon    from '@mui/icons-material/VisibilityOff';
-import DeleteIcon           from '@mui/icons-material/Delete';
-import CloseIcon            from '@mui/icons-material/Close';
-import FirstPageIcon        from '@mui/icons-material/FirstPage';
-import LastPageIcon         from '@mui/icons-material/LastPage';
-import ChevronLeftIcon      from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon     from '@mui/icons-material/ChevronRight';
+import AddIcon                 from '@mui/icons-material/Add';
+import MovieIcon               from '@mui/icons-material/MovieRounded';
+import ListIcon                from '@mui/icons-material/List';
+import CheckCircleIcon         from '@mui/icons-material/CheckCircle';
+import ErrorIcon               from '@mui/icons-material/Error';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import SyncIcon                from '@mui/icons-material/Sync';
+import VisibilityIcon          from '@mui/icons-material/Visibility';
+import VisibilityOffIcon       from '@mui/icons-material/VisibilityOff';
+import DeleteIcon              from '@mui/icons-material/Delete';
+import CloseIcon              from '@mui/icons-material/Close';
+import FirstPageIcon          from '@mui/icons-material/FirstPage';
+import LastPageIcon           from '@mui/icons-material/LastPage';
+import ChevronLeftIcon        from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon       from '@mui/icons-material/ChevronRight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import {
+  AdminPage, SectionCard, StatCard, StatGrid, StickyBar,
+  AdminActionButton, TableSkeleton, ErrorState, adminSurface,
+} from '@features/admin/adminUi';
 import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb, setRecordVisibility } from '../api/adminApi';
 import { useRecordStore } from '../stores/useRecordStore';
 import RecordFilters      from './RecordFilters';
@@ -27,17 +34,22 @@ import RecordDetailDrawer from './RecordDetailDrawer';
 import RecordCreateModal  from './RecordCreateModal';
 import RecordEditModal    from './RecordEditModal';
 
-// Sync-health chips — double as the status filter (click to toggle). Colors match
-// the former standalone TMDB Sync page so the visual language carries over.
+// Sync-health metadata — the four status cards double as the status filter (click
+// to toggle). Colors match the former standalone TMDB Sync page so the visual
+// language carries over.
 const SYNC_CHIPS = [
-  { value: 'SUCCESS', key: 'success', label: 'Success', color: '#10b981' },
-  { value: 'FAILED',  key: 'failed',  label: 'Failed',  color: '#ef4444' },
-  { value: 'SKIPPED', key: 'skipped', label: 'Skipped', color: '#6b7280' },
-  { value: 'RUNNING', key: 'running', label: 'Running', color: '#f59e0b' },
+  { value: 'SUCCESS', key: 'success', label: 'Success', color: '#10b981', icon: CheckCircleIcon },
+  { value: 'FAILED',  key: 'failed',  label: 'Failed',  color: '#ef4444', icon: ErrorIcon },
+  { value: 'SKIPPED', key: 'skipped', label: 'Skipped', color: '#6b7280', icon: RemoveCircleOutlineIcon },
+  { value: 'RUNNING', key: 'running', label: 'Running', color: '#f59e0b', icon: SyncIcon },
 ];
+
+const fmtSyncDate = (iso) =>
+  new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 // ── Bulk action bar — shown when rows are selected ──────────────────────────────
 function BulkBar({ count, busy, onResync, onShow, onHide, onDelete, onClear, T }) {
+  const S = adminSurface(T);
   const action = (icon, label, onClick, danger) => (
     <Box onClick={busy ? undefined : onClick}
       sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: busy ? 'default' : 'pointer',
@@ -49,8 +61,8 @@ function BulkBar({ count, busy, onResync, onShow, onHide, onDelete, onClear, T }
   );
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap',
-      px: { xs: 1.5, md: 3 }, py: 0.75, flexShrink: 0,
-      bgcolor: T.tealBg, borderBottom: `1px solid ${T.border}` }}>
+      px: { xs: 1.5, md: 2.5 }, py: 0.75, flexShrink: 0,
+      bgcolor: T.tealBg, borderBottom: `1px solid ${S.divider}` }}>
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.teal, mr: 1 }}>{count} selected</Typography>
       {busy && <CircularProgress size={14} sx={{ color: T.teal, mr: 1 }} />}
       {action(<SyncIcon sx={{ fontSize: 16 }} />, 'Re-sync', onResync)}
@@ -69,6 +81,7 @@ function BulkBar({ count, busy, onResync, onShow, onHide, onDelete, onClear, T }
 
 // ── Pagination bar ────────────────────────────────────────────────────────────
 function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPageSize, isFetching, T }) {
+  const S = adminSurface(T);
   const start = totalElements === 0 ? 0 : page * pageSize + 1;
   const end   = Math.min((page + 1) * pageSize, totalElements);
 
@@ -88,7 +101,7 @@ function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPa
   return (
     <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap',
       gap: { xs: 0.5, sm: 1 }, px: { xs: 1.5, sm: 2.5, md: 3 }, py: 1,
-      borderTop: `1px solid ${T.border}`, bgcolor: T.adminBg }}>
+      borderTop: `1px solid ${S.border}`, bgcolor: S.card }}>
 
       {/* Record range */}
       <Typography sx={{ fontSize: 12, color: T.textMuted, mr: { xs: 0, sm: 1 } }}>
@@ -100,11 +113,11 @@ function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPa
         <Typography sx={{ fontSize: 11, color: T.textFaint }}>per page</Typography>
         <Select value={pageSize} size="small"
           onChange={e => { onPageSize(Number(e.target.value)); onPage(0); }}
-          sx={{ height: 28, fontSize: 11, color: T.textPrimary,
-            '.MuiOutlinedInput-notchedOutline': { borderColor: T.border },
+          sx={{ height: 28, fontSize: 11, color: T.text, borderRadius: 2,
+            '.MuiOutlinedInput-notchedOutline': { borderColor: S.border },
             '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
             '.MuiSvgIcon-root': { color: T.textFaint },
-            bgcolor: T.inputBg }}>
+            bgcolor: S.inset }}>
           {[10, 25, 50, 100].map(n => <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>{n}</MenuItem>)}
         </Select>
       </Box>
@@ -172,18 +185,6 @@ function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPa
           </span>
         </Tooltip>
       </Box>
-    </Box>
-  );
-}
-
-// ── Skeleton rows loader ───────────────────────────────────────────────────────
-function SkeletonRows({ T }) {
-  return (
-    <Box sx={{ px: { xs: 1, md: 2 }, py: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {[...Array(10)].map((_, i) => (
-        <Skeleton key={i} variant="rectangular" height={42}
-          sx={{ borderRadius: 1, bgcolor: T.glass, width: '100%' }} />
-      ))}
     </Box>
   );
 }
@@ -298,127 +299,94 @@ export default function RecordManagementV2() {
   [rows, editRecordId]);
 
   return (
-    <Box sx={{ height: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column',
-      bgcolor: T.adminBg, color: T.textPrimary, overflow: 'hidden' }}>
-
-      {/* Header */}
-      <Box sx={{ px: { xs: 1.5, md: 3 }, pt: { xs: 1.5, md: 2 }, pb: 0.75,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 }, color: T.textPrimary }}>
-            Records
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.25, display: { xs: 'none', sm: 'block' } }}>
-            Manage the catalog and its TMDB sync state
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
-          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600,
-            px: { xs: 1.5, sm: 2 }, whiteSpace: 'nowrap' }}>
-          {isMobile ? 'Add' : 'Add record'}
-        </Button>
-      </Box>
-
-      {/* Sync-health strip — Total (true count) + clickable status filters + last sync */}
-      <Box sx={{ display: 'flex', gap: 1, px: { xs: 1.5, md: 3 }, py: 0.5,
-        flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
-        borderBottom: `1px solid ${T.border}` }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mr: 0.5 }}>
-          <ListIcon sx={{ fontSize: 14, color: T.teal }} />
-          <Typography sx={{ fontSize: 12, color: T.textMuted }}>Total:</Typography>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: T.teal }}>{totalElements}</Typography>
-        </Box>
-
-        {SYNC_CHIPS.map(c => {
+    <AdminPage
+      title="Records"
+      subtitle="Manage the catalog and its TMDB sync state"
+      icon={MovieIcon}
+      actions={<AdminActionButton icon={AddIcon} onClick={() => openModal('create')}>Add Record</AdminActionButton>}
+      onRefresh={refetch}
+      refreshing={isFetching}
+    >
+      {/* Sync-health stats — the four status cards double as the status filter (click to toggle) */}
+      <StatGrid min={150} sx={{ mb: 2.5 }}>
+        <StatCard
+          index={0}
+          icon={ListIcon}
+          label="Total records"
+          value={totalElements}
+          accent={T.teal}
+          sub={syncStats?.lastSyncedAt ? `Last synced ${fmtSyncDate(syncStats.lastSyncedAt)}` : undefined}
+          loading={isLoading}
+        />
+        {SYNC_CHIPS.map((c, i) => {
           const active = filters.status === c.value;
           return (
-            <Box key={c.value}
+            <StatCard
+              key={c.value}
+              index={i + 1}
+              icon={c.icon}
+              label={c.label}
+              value={syncStats?.[c.key] ?? 0}
+              accent={c.color}
+              badge={active ? 'ON' : undefined}
               onClick={() => setFilter('status', active ? '' : c.value)}
-              title={`Filter by ${c.label.toLowerCase()} sync status`}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer',
-                px: 1, py: 0.25, borderRadius: 1,
-                border: `1px solid ${active ? c.color : 'transparent'}`,
-                bgcolor: active ? `${c.color}22` : 'transparent',
-                '&:hover': { bgcolor: `${c.color}18` } }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: c.color, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 12, color: active ? c.color : T.textMuted }}>{c.label}</Typography>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: c.color }}>{syncStats?.[c.key] ?? 0}</Typography>
-            </Box>
+              loading={!syncStats}
+            />
           );
         })}
+      </StatGrid>
 
-        <Box sx={{ flex: 1 }} />
+      {/* Sticky filters / sort — pins to the top on scroll */}
+      <StickyBar>
+        <RecordFilters />
+      </StickyBar>
 
-        {syncStats?.lastSyncedAt && (
-          <Typography sx={{ fontSize: 11, color: T.textFaint }}>
-            Last synced {new Date(syncStats.lastSyncedAt).toLocaleString('en-IN',
-              { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-          </Typography>
+      {/* Table */}
+      <SectionCard padding={false} flushMobile>
+        {/* Bulk action bar — appears when rows are checked */}
+        {selectedRows.length > 0 && (
+          <BulkBar
+            count={selectedRows.length}
+            busy={bulkBusy}
+            onResync={() => runBulk('Re-synced', id => refreshRecordFromTmdb(id))}
+            onShow={() => runBulk('Updated', id => setRecordVisibility(id, false))}
+            onHide={() => runBulk('Updated', id => setRecordVisibility(id, true))}
+            onDelete={handleBulkDelete}
+            onClear={clearSelection}
+            T={T}
+          />
         )}
-      </Box>
 
-      {/* Filters */}
-      <RecordFilters />
-
-      {/* Bulk action bar — appears when rows are checked */}
-      {selectedRows.length > 0 && (
-        <BulkBar
-          count={selectedRows.length}
-          busy={bulkBusy}
-          onResync={() => runBulk('Re-synced', id => refreshRecordFromTmdb(id))}
-          onShow={() => runBulk('Updated', id => setRecordVisibility(id, false))}
-          onHide={() => runBulk('Updated', id => setRecordVisibility(id, true))}
-          onDelete={handleBulkDelete}
-          onClear={clearSelection}
-          T={T}
-        />
-      )}
-
-      {/* Loading bar — shown when fetching (not initial skeleton) */}
-      {isFetching && !isLoading && (
-        <LinearProgress sx={{ height: 2, flexShrink: 0,
-          bgcolor: T.tealBg, '& .MuiLinearProgress-bar': { bgcolor: T.teal } }} />
-      )}
-
-      {/* Error */}
-      {error && (
-        <Box sx={{ px: 2, py: 1, flexShrink: 0 }}>
-          <Box sx={{ bgcolor: T.errorBg, border: `1px solid ${T.error}40`,
-            borderRadius: 2, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ color: T.error, fontSize: 13 }}>Failed to load records</Typography>
-            <Button size="small" onClick={refetch} sx={{ color: T.error }}>Retry</Button>
+        {error ? (
+          <ErrorState message="Failed to load records" onRetry={refetch} />
+        ) : isLoading ? (
+          <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+            <TableSkeleton rows={10} />
           </Box>
-        </Box>
-      )}
+        ) : isMobile ? (
+          <RecordMobileList rows={rows} onDelete={handleDelete} />
+        ) : (
+          <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />
+        )}
 
-      {/* Data */}
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0,
-        '&::-webkit-scrollbar': { width: 6 },
-        '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
-        {isLoading
-          ? <SkeletonRows T={T} />
-          : isMobile
-            ? <RecordMobileList rows={rows} onDelete={handleDelete} />
-            : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />}
-      </Box>
-
-      {/* Pagination */}
-      {!isLoading && totalElements > 0 && (
-        <PaginationBar
-          page={page}
-          totalPages={totalPages}
-          totalElements={totalElements}
-          pageSize={pageSize}
-          onPage={setPage}
-          onPageSize={setPageSize}
-          isFetching={isFetching}
-          T={T}
-        />
-      )}
+        {/* Pagination */}
+        {!isLoading && !error && totalElements > 0 && (
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalElements={totalElements}
+            pageSize={pageSize}
+            onPage={setPage}
+            onPageSize={setPageSize}
+            isFetching={isFetching}
+            T={T}
+          />
+        )}
+      </SectionCard>
 
       <RecordDetailDrawer rows={rows} />
       <RecordCreateModal    open={modalState === 'create'} onClose={closeModal} />
       <RecordEditModal      open={modalState === 'edit'}   record={editRecord} onClose={closeModal} />
-    </Box>
+    </AdminPage>
   );
 }

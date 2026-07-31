@@ -8,6 +8,7 @@ import com.db.dbworld.app.media.ingestion.spi.*;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.*;
 import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
+import com.db.dbworld.core.push.PushService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
@@ -16,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +54,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final IngestionJobStore  jobStore;
     private final IngestionDownloadQueue downloadQueue;
     private final RecordRepository   recordRepository;
+    private final PushService        pushService;
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -75,6 +78,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         jobStore.register(jobId, request);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
         ctx.setLogCollector(trackingService.getLogCollector(jobId));
+
+        notifyAdmins("Ingestion queued", resolveRecordName(request.getRecordId()), request);
 
         log.info("[{}] Pipeline submitted — uri={}, recordId={}",
                 jobId,
@@ -200,6 +205,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             trackingService.fail(jobId, e.getMessage());
             ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
             safeRepositorySave(ctx);
+            notifyAdmins("Ingestion failed", recordName, ctx.getRequest());
         } finally {
             if (ctx.isQueueManaged()) {
                 downloadQueue.signalComplete(jobId);
@@ -264,6 +270,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 trackingService.complete(jobId);
                 ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
                 repository.save(ctx);
+                notifyAdmins("Ingestion complete", recordName, ctx.getRequest());
             } finally {
                 if (recordLock != null) recordLock.release();
             }
@@ -322,5 +329,32 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private void updateStep(IngestionContext ctx, PipelineStepType step) {
         ctx.setCurrentStep(step);
         trackingService.updateStep(ctx.getJobId(), step);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Admin push notifications — fired only on the three job state transitions
+    // (queued / complete / failed), never on progress ticks. Fully best-effort:
+    // a push hiccup must never affect the job.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void notifyAdmins(String title, String recordName, IngestionRequest request) {
+        try {
+            pushService.broadcastToAdmins(title, ingestionTargetName(recordName, request),
+                    Map.of("route", "admin/ingestion"), "admin");
+        } catch (Exception e) {
+            log.debug("[push] admin ingestion notify '{}' failed: {}", title, e.toString());
+        }
+    }
+
+    /** A concise, human display name for the job's target (record name → file → folder → uri). */
+    private static String ingestionTargetName(String recordName, IngestionRequest req) {
+        if (recordName != null && !recordName.isBlank()) return recordName;
+        if (req != null) {
+            if (req.getFileName() != null && !req.getFileName().isBlank()) return req.getFileName();
+            if (req.getFolderName() != null && !req.getFolderName().isBlank()) return req.getFolderName();
+            if (req.getUri() != null && !req.getUri().isBlank()) return req.getUri();
+            if (req.getLocalFilePath() != null && !req.getLocalFilePath().isBlank()) return req.getLocalFilePath();
+        }
+        return "media job";
     }
 }

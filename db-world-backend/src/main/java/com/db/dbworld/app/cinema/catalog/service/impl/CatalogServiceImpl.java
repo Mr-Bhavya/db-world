@@ -26,6 +26,7 @@ import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbRecordSyncService;
+import com.db.dbworld.core.push.PushService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
@@ -64,6 +65,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final TmdbRecordSyncService tmdbRecordSyncService;
     private final ApplicationEventPublisher publisher;
     private final RecordMapper recordMapper;
+    private final PushService pushService;
 
     private static final String RECORD_NOT_FOUND = "Record not found: ";
     private static final String TMDB_ALREADY_EXISTS = "Record already exists for TMDB id: ";
@@ -101,6 +103,25 @@ public class CatalogServiceImpl implements CatalogService {
 
         log.info("Record created; recordId={}, tmdbId={}, type={}",
                 record.getId(), request.getTmdbId(), request.getType());
+
+        // Notify EVERYONE a new title landed. Only reached via genuine admin creation — the admin
+        // "create record" endpoint and the admin catalog-ingest approval; TMDB sync / media
+        // ingestion never create records through this method, so there's no batch/auto spam.
+        // Best-effort: a push failure must never break record creation.
+        try {
+            // Full deep-link path so a tapped notification opens the record detail
+            // (the frontend prefers data.link; route/recordId kept as a fallback).
+            String slug = record.getName() == null ? ""
+                    : record.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+            String kind = record.getType() == RecordType.MOVIE ? "movie" : "series";
+            String link = "/db-world/db-cinema/" + kind + "/" + record.getId()
+                    + (slug.isBlank() ? "" : "-" + slug);
+            pushService.broadcast("New on DB World", record.getName(),
+                    Map.of("route", "record", "recordId", String.valueOf(record.getId()), "link", link),
+                    "cinema");
+        } catch (Exception e) {
+            log.debug("New-record push failed for recordId={}: {}", record.getId(), e.toString());
+        }
 
         return dto;
     }

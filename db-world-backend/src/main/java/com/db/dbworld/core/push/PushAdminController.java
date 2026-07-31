@@ -42,7 +42,8 @@ public class PushAdminController {
         Map<String, String> data = req != null && notBlank(req.link())
                 ? Map.of("link", req.link().trim()) : Map.of();
 
-        pushService.broadcast(title, body, data);
+        // Generic diagnostic push — no app-specific channel, so use the device default.
+        pushService.broadcast(title, body, data, null);
         return ApiResponse.success("Test push sent to topic '" + pushService.topic() + "' (enabled="
                 + pushService.isEnabled() + ", transportReady=" + pushService.isTransportReady()
                 + "). It only arrives on devices that have enabled notifications.");

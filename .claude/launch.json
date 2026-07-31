@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "db-world-frontend", "run", "dev", "--", "--port", "3017", "--strictPort"],
+      "autoPort": false,
+      "port": 3017
+    }
+  ]
+}

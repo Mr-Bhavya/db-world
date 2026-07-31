@@ -40,6 +40,7 @@ public class FcmPushSender implements PushSender {
     private static final String FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
     private static final String SEND_URL = "https://fcm.googleapis.com/v1/projects/%s/messages:send";
     private static final String IID_BATCH_ADD_URL = "https://iid.googleapis.com/iid/v1:batchAdd";
+    private static final String IID_BATCH_REMOVE_URL = "https://iid.googleapis.com/iid/v1:batchRemove";
 
     private final GoogleCredentials credentials; // null ⇒ inactive
     private final String projectId;
@@ -72,23 +73,55 @@ public class FcmPushSender implements PushSender {
     }
 
     @Override
-    public void sendToTopic(String topic, String title, String body, Map<String, String> data) {
+    public void sendToTopic(String topic, String title, String body, Map<String, String> data, String channelId) {
         if (!isReady()) {
-            log.debug("[push:inactive] would broadcast to topic='{}' title='{}'", topic, title);
+            log.debug("[push:inactive] would broadcast to topic='{}' channel='{}' title='{}'", topic, channelId, title);
             return;
         }
+        sendMessage("topic", topic, title, body, data, channelId, "topic '" + topic + "'");
+    }
+
+    @Override
+    public void sendToTokens(List<String> tokens, String title, String body, Map<String, String> data, String channelId) {
+        if (!isReady() || tokens == null || tokens.isEmpty()) {
+            return;
+        }
+        // One message per token — the FCM HTTP v1 send API targets a single token per call. Fully
+        // best-effort: sendMessage swallows per-token failures so one bad token never aborts the rest.
+        for (String token : tokens) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            sendMessage("token", token.trim(), title, body, data, channelId, "token");
+        }
+    }
+
+    /**
+     * Build + POST one FCM HTTP v1 message. {@code targetKey}/{@code targetValue} selects the
+     * recipient ({@code "topic"}/{@code "token"}). Best-effort — every failure is logged, never
+     * thrown, so a push hiccup can't break the caller.
+     */
+    private void sendMessage(String targetKey, String targetValue, String title, String body,
+                             Map<String, String> data, String channelId, String targetLabel) {
         try {
             JsonObject notification = new JsonObject();
             notification.addProperty("title", title);
             notification.addProperty("body", body);
 
             JsonObject message = new JsonObject();
-            message.addProperty("topic", topic);
+            message.addProperty(targetKey, targetValue);
             message.add("notification", notification);
             if (data != null && !data.isEmpty()) {
                 JsonObject dataObj = new JsonObject();
                 data.forEach(dataObj::addProperty);
                 message.add("data", dataObj);
+            }
+            if (channelId != null && !channelId.isBlank()) {
+                JsonObject androidNotification = new JsonObject();
+                androidNotification.addProperty("channel_id", channelId.trim());
+                JsonObject android = new JsonObject();
+                android.add("notification", androidNotification);
+                message.add("android", android);
             }
 
             JsonObject payload = new JsonObject();
@@ -101,9 +134,9 @@ public class FcmPushSender implements PushSender {
                     .body(gson.toJson(payload))
                     .retrieve()
                     .toBodilessEntity();
-            log.info("FCM broadcast → topic '{}': {}", topic, title);
+            log.info("FCM send → {}: {}", targetLabel, title);
         } catch (Exception e) {
-            log.warn("FCM broadcast to topic '{}' failed: {}", topic, e.toString());
+            log.warn("FCM send to {} failed: {}", targetLabel, e.toString());
         }
     }
 
@@ -131,6 +164,33 @@ public class FcmPushSender implements PushSender {
             log.debug("Subscribed {} token(s) to topic '{}'", tokens.size(), topic);
         } catch (Exception e) {
             log.warn("FCM topic-subscribe (topic '{}') failed: {}", topic, e.toString());
+        }
+    }
+
+    @Override
+    public void unsubscribeFromTopic(List<String> tokens, String topic) {
+        if (!isReady() || tokens == null || tokens.isEmpty()) {
+            return;
+        }
+        try {
+            JsonArray registrationTokens = new JsonArray();
+            tokens.forEach(registrationTokens::add);
+
+            JsonObject payload = new JsonObject();
+            payload.addProperty("to", "/topics/" + topic);
+            payload.add("registration_tokens", registrationTokens);
+
+            http.post()
+                    .uri(IID_BATCH_REMOVE_URL)
+                    .header("Authorization", "Bearer " + accessToken())
+                    .header("access_token_auth", "true")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(gson.toJson(payload))
+                    .retrieve()
+                    .toBodilessEntity();
+            log.debug("Unsubscribed {} token(s) from topic '{}'", tokens.size(), topic);
+        } catch (Exception e) {
+            log.warn("FCM topic-unsubscribe (topic '{}') failed: {}", topic, e.toString());
         }
     }
 

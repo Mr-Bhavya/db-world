@@ -9,6 +9,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
 import { useRecordVisibility } from './useRecordVisibility';
 import { useRecordSync } from './useRecordSync';
@@ -34,6 +35,7 @@ const fmtSize = (b) => {
 // nothing is cut off and there's no horizontal scroll.
 export default function RecordMobileList({ rows, onDelete }) {
   const T = useT();
+  const S = adminSurface(T);
   const { selectedRows, setSelectedRows, openModal, openMediaFiles, openDrawer } = useRecordStore();
   const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
@@ -59,8 +61,8 @@ export default function RecordMobileList({ rows, onDelete }) {
         const syncing = syncMut.isPending && syncMut.variables === row.recordId;
         return (
           <Box key={row.recordId}
-            sx={{ borderRadius: 2, p: 1.25, border: `1px solid ${sel ? T.teal : T.border}`,
-              bgcolor: sel ? T.tealBg : T.sidebar, transition: 'border-color .15s, background .15s' }}>
+            sx={{ borderRadius: 2, p: 1.25, border: `1px solid ${sel ? T.teal : S.border}`,
+              bgcolor: sel ? T.tealBg : S.card, transition: 'border-color .15s, background .15s' }}>
 
             {/* Title row: checkbox · title (tap → drawer) · actions */}
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>

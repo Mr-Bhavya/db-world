@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, Box, Button, Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab, InputAdornment, Tooltip, Typography, useMediaQuery, useTheme as useMuiTheme } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, Box, Button, GridLegacy as Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab, InputAdornment, Tooltip, Typography, useMediaQuery, useTheme as useMuiTheme } from '@mui/material';
 import CloseIcon        from '@mui/icons-material/Close';
 import VisibilityIcon   from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';

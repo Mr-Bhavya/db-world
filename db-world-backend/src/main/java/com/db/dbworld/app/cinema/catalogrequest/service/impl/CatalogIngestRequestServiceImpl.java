@@ -13,6 +13,7 @@ import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestStatu
 import com.db.dbworld.app.cinema.catalogrequest.repository.CatalogIngestRequestRepository;
 import com.db.dbworld.app.cinema.catalogrequest.service.CatalogIngestRequestService;
 import com.db.dbworld.app.cinema.common.dto.VoterSummary;
+import com.db.dbworld.app.cinema.common.support.RequestPushLinks;
 import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
@@ -24,6 +25,7 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import com.db.dbworld.core.push.PushService;
 import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
     private final TmdbIngestionService ingestionService;
     private final UserNotificationService notifService;
     private final UserRepository userRepo;
+    private final PushService pushService;
 
     @Override
     @Transactional
@@ -91,6 +94,15 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
             request = requestRepo.save(request);
             log.info("Catalog ingest request created: id={}, tmdbId={}, mediaType={}, firstVoter={}",
                     request.getId(), body.getTmdbId(), body.getMediaType(), userId);
+
+            // A brand-new catalog-ingest request row → alert admins only. Best-effort.
+            try {
+                pushService.broadcastToAdmins("New request",
+                        request.getTitle() + " — new title",
+                        Map.of("route", "admin/requests"), "admin");
+            } catch (Exception e) {
+                log.debug("New catalog-ingest admin push failed for tmdbId={}: {}", body.getTmdbId(), e.toString());
+            }
 
             return CatalogIngestRequestVoteResponse.builder()
                     .tmdbId(body.getTmdbId())
@@ -221,6 +233,11 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
+        // Targeted "request fulfilled" push to the voters (same recipients as the in-app notification).
+        // A record now exists, so this deep-links straight to it.
+        pushRequestUpdate("Request fulfilled", createdRecordId, request.getTitle(),
+                request.getMediaType().name(), request.getVoterUserIds());
+
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
@@ -340,6 +357,11 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
+        // Targeted "request fulfilled" push to the voters. No RecordEntity was created here
+        // (fulfilled by search), so the deep-link falls back to the admin requests view.
+        pushRequestUpdate("Request fulfilled", null, request.getTitle(),
+                request.getMediaType().name(), request.getVoterUserIds());
+
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
@@ -378,6 +400,11 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 trimmed,
                 request.getVoterUserIds()
         );
+
+        // Targeted "request dismissed" push to the voters. No record exists (the title was never
+        // ingested), so the deep-link falls back to the admin requests view.
+        pushRequestUpdate("Request dismissed", null, request.getTitle(),
+                request.getMediaType().name(), request.getVoterUserIds());
 
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
@@ -424,6 +451,26 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
     private Map<Long, VoterSummary> loadVoterCache(Collection<Long> userIds) {
         return VoterListSupport.loadVoterCache(userIds, userRepo);
+    }
+
+    /**
+     * Best-effort targeted push to a request's voters on the {@code request-updates} channel. Fully
+     * defensive: an empty voter set is a no-op and any failure is swallowed so the underlying
+     * ingest/dismiss operation can never break on a push hiccup.
+     */
+    private void pushRequestUpdate(String title, Long recordId, String recordTitle,
+                                   String recordType, Collection<Long> voterIds) {
+        if (voterIds == null || voterIds.isEmpty()) {
+            return;
+        }
+        try {
+            pushService.sendToUsers(voterIds, title,
+                    recordTitle == null || recordTitle.isBlank() ? title : recordTitle,
+                    RequestPushLinks.recordDeepLink(recordId, recordTitle, recordType),
+                    "request-updates");
+        } catch (Exception e) {
+            log.debug("Request-update push '{}' failed for tmdb request title='{}': {}", title, recordTitle, e.toString());
+        }
     }
 
     private static String safeTitle(String raw) {

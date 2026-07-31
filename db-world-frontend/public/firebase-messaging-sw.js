@@ -29,12 +29,25 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-// Tapping a notification deep-links to wherever `data.link` points (each notification sets its
-// own — e.g. an IPO detail path), falling back to the app home. Focuses an existing tab if open.
+// Route-key → path map for pushes that carry `data.route` (admin request/ingestion).
+// Pushes needing an id/slug (records, IPOs) send a full `data.link` instead, which wins.
+// KEEP IN SYNC with src/shared/push/deepLink.js (this SW can't import that ESM module).
+function resolveTarget(data) {
+  if (data && typeof data.link === 'string' && data.link.charAt(0) === '/') return data.link;
+  const ROUTE_MAP = {
+    'admin/requests': '/db-world/admin/requests',
+    'admin/ingestion': '/db-world/admin/ingestion',
+  };
+  if (data && ROUTE_MAP[data.route]) return ROUTE_MAP[data.route];
+  return '/db-world';
+}
+
+// Tapping a notification deep-links per its data payload (full `data.link` or a known
+// `data.route`), falling back to the app home. Focuses an existing tab if open.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const target = data.link || '/db-world';
+  const target = resolveTarget(data);
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {

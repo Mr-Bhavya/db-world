@@ -13,6 +13,7 @@ import LockOpenIcon    from '@mui/icons-material/LockOpen';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
 import { useT }        from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { useUserStore } from '../stores/useUserStore';
 
 const ROLE_COLOR = { OWNER: '#f59e0b', ADMIN: '#3b82f6', VIEWER: '#10b981' };
@@ -31,16 +32,18 @@ function statusOf(u) {
 }
 
 function UserAvatar({ user, size = 36 }) {
+  const T = useT();
   const role = user.userRole?.name ?? 'VIEWER';
   return (
-    <Avatar sx={{ width: size, height: size, bgcolor: ROLE_COLOR[role] ?? '#0d9488', fontSize: size * 0.36, fontWeight: 700, flexShrink: 0, color: '#fff' }}>
+    <Avatar sx={{ width: size, height: size, bgcolor: ROLE_COLOR[role] ?? T.teal, fontSize: size * 0.36, fontWeight: 700, flexShrink: 0, color: '#fff' }}>
       {initialsOf(user)}
     </Avatar>
   );
 }
 
 function RoleChip({ role }) {
-  const c = ROLE_COLOR[role] ?? '#0d9488';
+  const T = useT();
+  const c = ROLE_COLOR[role] ?? T.teal;
   return <Chip label={role} size="small" sx={{ bgcolor: `${c}18`, color: c, border: `1px solid ${c}33`, fontWeight: 700, fontSize: 10, height: 20 }} />;
 }
 
@@ -89,9 +92,10 @@ function RowMenu({ user, onView, onEdit, onToggleStatus, onDelete }) {
 }
 
 function DesktopTable({ users, loading, size, T, actions }) {
+  const S = adminSurface(T);
   const HEAD = ['User', 'Role', 'Mobile', 'Logins', 'Last Login', 'Status', ''];
-  const headSx = { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: T.textFaint, bgcolor: T.glass, borderColor: T.border, whiteSpace: 'nowrap' };
-  const cellSx = { borderColor: T.border, color: T.text, fontSize: 13, py: 1, px: 1.5 };
+  const headSx = { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: T.textFaint, bgcolor: S.inset, borderColor: S.border, whiteSpace: 'nowrap' };
+  const cellSx = { borderColor: S.border, color: T.text, fontSize: 13, py: 1, px: 1.5 };
   return (
     <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
       <Table size="small" stickyHeader sx={{ minWidth: 720 }}>
@@ -108,12 +112,12 @@ function DesktopTable({ users, loading, size, T, actions }) {
           ))}
 
           {!loading && users.length === 0 && (
-            <TableRow><TableCell colSpan={HEAD.length} align="center" sx={{ py: 8, color: T.textFaint, fontSize: 13, borderColor: T.border }}>No users found</TableCell></TableRow>
+            <TableRow><TableCell colSpan={HEAD.length} align="center" sx={{ py: 8, color: T.textFaint, fontSize: 13, borderColor: S.border }}>No users found</TableCell></TableRow>
           )}
 
           {!loading && users.map(user => (
             <TableRow key={user.userId} hover onClick={() => actions.onView(user.userId)}
-              sx={{ cursor: 'pointer', '& td': { borderColor: T.border }, '&:hover': { bgcolor: `${T.border}40` } }}>
+              sx={{ cursor: 'pointer', '& td': { borderColor: S.border }, '&:hover': { bgcolor: S.cardHover } }}>
               <TableCell sx={{ ...cellSx, minWidth: 220 }}>
                 <Stack direction="row" alignItems="center" spacing={1.25}>
                   <UserAvatar user={user} />
@@ -144,11 +148,12 @@ function DesktopTable({ users, loading, size, T, actions }) {
 }
 
 function MobileCards({ users, loading, T, actions }) {
+  const S = adminSurface(T);
   if (loading) {
     return (
       <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
         {Array.from({ length: 6 }).map((_, i) => (
-          <Paper key={i} variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: T.border, bgcolor: T.glass }}>
+          <Paper key={i} variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: S.border, bgcolor: S.card }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Skeleton variant="circular" width={40} height={40} />
               <Box sx={{ flex: 1 }}><Skeleton width="60%" height={16} /><Skeleton width="40%" height={12} /></Box>
@@ -165,7 +170,7 @@ function MobileCards({ users, loading, T, actions }) {
     <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
       {users.map(user => (
         <Paper key={user.userId} variant="outlined" onClick={() => actions.onView(user.userId)}
-          sx={{ p: 1.25, borderRadius: 2, borderColor: T.border, bgcolor: T.glass, cursor: 'pointer', '&:active': { bgcolor: `${T.border}40` } }}>
+          sx={{ p: 1.25, borderRadius: 2, borderColor: S.border, bgcolor: S.card, cursor: 'pointer', '&:active': { bgcolor: S.cardHover } }}>
           <Stack direction="row" spacing={1.25} alignItems="flex-start">
             <UserAvatar user={user} size={40} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -193,6 +198,7 @@ function MobileCards({ users, loading, T, actions }) {
 
 export default function UserTable({ users, loading, isMobile, total, page, size, onPageChange, onPageSizeChange, onDelete, onToggleStatus }) {
   const T = useT();
+  const S = adminSurface(T);
   const { openDrawer, openModal } = useUserStore();
   const actions = { onView: openDrawer, onEdit: (id) => openModal('edit', id), onToggleStatus, onDelete };
 
@@ -212,7 +218,7 @@ export default function UserTable({ users, loading, isMobile, total, page, size,
         onRowsPerPageChange={e => onPageSizeChange(Number(e.target.value))}
         labelRowsPerPage={isMobile ? '' : 'Rows:'}
         sx={{
-          borderTop: `1px solid ${T.border}`, color: T.textMuted, flexShrink: 0, bgcolor: T.glass,
+          borderTop: `1px solid ${S.divider}`, color: T.textMuted, flexShrink: 0, bgcolor: S.card,
           '& .MuiIconButton-root': { color: T.textMuted },
           '& .MuiSelect-icon':     { color: T.textMuted },
           '& .MuiTablePagination-select': { color: T.text },

@@ -1,7 +1,6 @@
 /**
- * Publishable Logo.dev token used to fetch company logos by domain (`CompanyLogo`).
- * This is a PUBLISHABLE key (not a secret) — Logo.dev's publishable tokens are designed
- * to be embedded in client-side code, same as e.g. a Stripe publishable key. Safe to ship
- * in the FE bundle.
+ * Publishable Logo.dev token — now lives in the shared brand module. Re-exported
+ * here so existing IPO imports (`import { LOGODEV_TOKEN } from '../config'`) and
+ * the CompanyLogo unit test keep resolving unchanged.
  */
-export const LOGODEV_TOKEN = 'pk_HJMOHJjgQpOOileyHqQMug';
+export { LOGODEV_TOKEN } from '@shared/brand/logoDev';

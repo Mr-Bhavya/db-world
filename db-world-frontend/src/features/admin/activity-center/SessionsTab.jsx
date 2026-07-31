@@ -11,7 +11,8 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useT } from '@shared/theme/ThemeContext';
+import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { fetchSessions, fetchActivityUsers } from './activityApi';
 import SessionDetailModal from './SessionDetailModal';
 
@@ -109,10 +110,11 @@ function ChannelClientChip({ channel, clientApp }) {
 
 function ProgressBar({ pct, width, label }) {
   const T = useT();
+  const S = adminSurface(T);
   const v = fmtPct(pct);
   return (
     <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: width ?? 96 }}>
-      <Box sx={{ flex: 1, height: 5, borderRadius: 3, bgcolor: alpha(T.text, 0.1), overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, height: 5, borderRadius: 3, bgcolor: S.inset, overflow: 'hidden' }}>
         <Box sx={{
           width: `${v}%`, height: '100%', borderRadius: 3,
           bgcolor: v >= 100 ? '#10b981' : T.teal,
@@ -198,10 +200,11 @@ function SessionRow({ session, isLg, isXl, onOpen }) {
 
 function SessionCard({ session, onOpen }) {
   const T = useT();
+  const S = adminSurface(T);
   return (
     <Paper variant="outlined" onClick={() => onOpen(session)}
       sx={{
-        borderRadius: 2, p: 1.25, cursor: 'pointer', borderColor: T.border, bgcolor: T.glass,
+        borderRadius: 2, p: 1.25, cursor: 'pointer', borderColor: S.border, bgcolor: S.card,
         transition: 'border-color .15s', '&:active': { borderColor: T.teal },
       }}>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
@@ -293,6 +296,7 @@ function SkeletonCard() {
 
 export default function SessionsTab() {
   const T = useT();
+  const S = adminSurface(T);
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const isLg = useMediaQuery(muiTheme.breakpoints.up('lg'));
@@ -361,7 +365,7 @@ export default function SessionsTab() {
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
       {/* ── Filter bar ── */}
-      <Box sx={{ border: `1px solid ${T.border}`, borderRadius: 2, bgcolor: T.glass, overflow: 'hidden' }}>
+      <Box sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.card, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, flexWrap: 'wrap' }}>
           <Tooltip title={showFilters ? 'Hide filters' : 'Show filters'}>
             <IconButton size="small" onClick={() => setShowFilters((f) => !f)}
@@ -402,7 +406,7 @@ export default function SessionsTab() {
               <Box sx={{
                 display: 'grid', gap: 1,
                 gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
-                px: 1.5, pb: 1.5, borderTop: `1px solid ${T.border}`, pt: 1.5,
+                px: 1.5, pb: 1.5, borderTop: `1px solid ${S.divider}`, pt: 1.5,
               }}>
                 <Autocomplete
                   size="small"
@@ -509,7 +513,7 @@ export default function SessionsTab() {
       ) : (
         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflowX: 'auto' }}>
           {isFetching && <LinearProgress sx={{ height: 2 }} />}
-          <Table size="small" stickyHeader sx={{ minWidth: 900, '& td, & th': { borderColor: alpha(T.border, 0.6) } }}>
+          <Table size="small" stickyHeader sx={{ minWidth: 900, '& td, & th': { borderColor: S.divider } }}>
             <TableHead>
               <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '.04em', color: 'text.secondary', bgcolor: 'background.paper' } }}>
                 <TableCell>User</TableCell>
@@ -544,7 +548,7 @@ export default function SessionsTab() {
           onRowsPerPageChange={(e) => { setSize(+e.target.value); setPage(0); }}
           rowsPerPageOptions={[10, 25, 50, 100]}
           sx={{
-            color: T.textMuted, borderTop: `1px solid ${T.border}`, fontSize: '0.75rem',
+            color: T.textMuted, borderTop: `1px solid ${S.border}`, fontSize: '0.75rem',
             '& .MuiTablePagination-selectIcon, & .MuiIconButton-root': { color: T.textMuted },
           }}
         />

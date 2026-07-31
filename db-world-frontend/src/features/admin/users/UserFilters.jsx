@@ -3,6 +3,7 @@ import { Box, TextField, InputAdornment, IconButton, MenuItem } from '@mui/mater
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon  from '@mui/icons-material/Clear';
 import { useT, getSelectMenuProps } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 
 const ROLE_OPTIONS = ['ALL', 'OWNER', 'ADMIN', 'VIEWER'];
 const SORT_OPTIONS = [
@@ -16,6 +17,7 @@ const SORT_OPTIONS = [
 
 export default function UserFilters({ search, role, sortBy, sortDir, onSearch, onRole, onSort }) {
   const T        = useT();
+  const S        = adminSurface(T);
   const timerRef = useRef(null);
 
   const handleSearch = (e) => {
@@ -29,10 +31,6 @@ export default function UserFilters({ search, role, sortBy, sortDir, onSearch, o
   return (
     <Box sx={{
       display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center',
-      px: { xs: 1.5, md: 3 }, py: 1.25,
-      borderBottom: `1px solid ${T.border}`,
-      bgcolor: T.glass,
-      position: 'sticky', top: 0, zIndex: 3,
     }}>
       {/* Search */}
       <TextField
@@ -43,10 +41,10 @@ export default function UserFilters({ search, role, sortBy, sortDir, onSearch, o
         sx={{
           flex: '1 1 200px', minWidth: 0,
           '& .MuiOutlinedInput-root': {
-            bgcolor: T.bg, borderRadius: 2, color: T.text,
-            '& fieldset':             { borderColor: T.border },
-            '&:hover fieldset':       { borderColor: '#0d9488' },
-            '&.Mui-focused fieldset': { borderColor: '#0d9488' },
+            bgcolor: S.inset, borderRadius: 2, color: T.text,
+            '& fieldset':             { borderColor: S.border },
+            '&:hover fieldset':       { borderColor: T.teal },
+            '&.Mui-focused fieldset': { borderColor: T.teal },
           },
           '& input': { color: T.text, fontSize: 13 },
         }}
@@ -71,12 +69,12 @@ export default function UserFilters({ search, role, sortBy, sortDir, onSearch, o
         {ROLE_OPTIONS.map(r => (
           <Box key={r} onClick={() => onRole(r)} sx={{
             px: 1.5, py: 0.4, borderRadius: 99, border: '1px solid',
-            borderColor: role === r ? '#0d9488' : T.border,
-            color:       role === r ? '#0d9488' : T.textMuted,
-            bgcolor:     role === r ? '#0d948818' : 'transparent',
+            borderColor: role === r ? T.teal : S.border,
+            color:       role === r ? T.teal : T.textMuted,
+            bgcolor:     role === r ? T.tealBg : 'transparent',
             cursor: 'pointer', fontSize: 12, fontWeight: 600,
             userSelect: 'none', transition: 'all .15s',
-            '&:hover': { borderColor: '#0d9488', color: '#0d9488' },
+            '&:hover': { borderColor: T.teal, color: T.teal },
           }}>
             {r}
           </Box>
@@ -91,10 +89,10 @@ export default function UserFilters({ search, role, sortBy, sortDir, onSearch, o
         sx={{
           minWidth: 150, ml: { xs: 0, sm: 'auto' },
           '& .MuiOutlinedInput-root': {
-            bgcolor: T.bg, borderRadius: 2, color: T.text,
-            '& fieldset': { borderColor: T.border },
-            '&:hover fieldset': { borderColor: '#0d9488' },
-            '&.Mui-focused fieldset': { borderColor: '#0d9488' },
+            bgcolor: S.inset, borderRadius: 2, color: T.text,
+            '& fieldset': { borderColor: S.border },
+            '&:hover fieldset': { borderColor: T.teal },
+            '&.Mui-focused fieldset': { borderColor: T.teal },
           },
           '& .MuiSelect-select': { fontSize: 13, color: T.text, py: 1 },
           '& .MuiSelect-icon': { color: T.textMuted },
