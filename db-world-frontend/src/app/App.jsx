@@ -48,24 +48,11 @@ const queryClient = new QueryClient({
 
 // Admin layout + pages
 import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
+// Admin module route components come from the single registry (auto-wires
+// sidebar + dashboard + router). Add a module there, not here.
+import { ADMIN_MODULES } from '@features/admin/adminModules';
 
 // Lazy load heavy components for better performance
-const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
-const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
-const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
-const LazyRequestsAdmin        = lazy(() => import('@features/admin/requests'));
-const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
-const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
-const LazyRedisManager         = lazy(() => import('@features/admin/redis'));
-const LazyFileManager          = lazy(() => import('@features/admin/filemanager'));
-const LazySchedulerPanel       = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
-const LazySettingsPanel        = lazy(() => import('@features/admin/settings/SettingsPanel.jsx'));
-const LazyUserManagement       = lazy(() => import('@features/admin/users'));
-const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
-const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
-const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
-const LazyWalletAdmin          = lazy(() => import('@features/admin/wallet'));
-const LazyIpoAdmin             = lazy(() => import('@features/admin/ipo'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
@@ -392,31 +379,18 @@ const ThemedApp = () => {
                 <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                   <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
                     <Route index element={<Navigate to="dashboard" replace />} />
-                    <Route path="dashboard"     element={<LazyAdminDashboard />} />
-                    <Route path="users"         element={<LazyUserManagement />} />
-                    <Route path="activity-center" element={<LazyActivityCenter />} />
-                    {/* legacy redirects */}
-                    <Route path="activity-logs"  element={<Navigate to="../activity-center" replace />} />
-                    <Route path="user-activity"  element={<Navigate to="../activity-center" replace />} />
-                    <Route path="analytics"      element={<Navigate to="../activity-center" replace />} />
-                    <Route path="records"       element={<LazyRecordManagement />} />
-                    <Route path="media-files"   element={<LazyMediaFilesManagement />} />
-                    <Route path="requests"       element={<LazyRequestsAdmin />} />
-                    {/* legacy redirects — keep links to the old split pages working */}
+                    {/* All module routes come from the registry — one source of truth. */}
+                    {ADMIN_MODULES.map((m) => {
+                      const El = m.element;
+                      return <Route key={m.id} path={m.path} element={<El />} />;
+                    })}
+                    {/* Legacy redirects — keep old links working */}
+                    <Route path="activity-logs"    element={<Navigate to="../activity-center" replace />} />
+                    <Route path="user-activity"    element={<Navigate to="../activity-center" replace />} />
+                    <Route path="analytics"        element={<Navigate to="../activity-center" replace />} />
                     <Route path="media-requests"   element={<Navigate to="../requests?tab=media" replace />} />
                     <Route path="catalog-requests" element={<Navigate to="../requests?tab=catalog" replace />} />
-                    <Route path="tag-management" element={<LazyTagManagement />} />
-                    {/* TMDB Sync merged into Records — redirect old links there */}
-                    <Route path="tmdb-sync"     element={<Navigate to="../records" replace />} />
-                    <Route path="ingestion"     element={<LazyIngestionPage />} />
-                    <Route path="system-info"   element={<LazyServerInfo />} />
-                    <Route path="logs"          element={<LazyLogViewer />} />
-                    <Route path="redis"         element={<LazyRedisManager />} />
-                    <Route path="files"         element={<LazyFileManager />} />
-                    <Route path="scheduler"     element={<LazySchedulerPanel />} />
-                    <Route path="settings"      element={<LazySettingsPanel />} />
-                    <Route path="document-wallet" element={<LazyWalletAdmin />} />
-                    <Route path="ipo"            element={<LazyIpoAdmin />} />
+                    <Route path="tmdb-sync"        element={<Navigate to="../records" replace />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<ErrorPage />} />

@@ -34,5 +34,7 @@ public interface PasswordManagerMapper {
     @Mapping(target = "credential", ignore = true)
     CustomFieldEntity toEntity(CustomFieldDto dto);
 
+    // url is not part of the edit payload — preserve the value stored at add time.
+    @Mapping(target = "url", ignore = true)
     void updateEntityFromDto(CredentialDto dto, @MappingTarget CredentialEntity entity);
 }

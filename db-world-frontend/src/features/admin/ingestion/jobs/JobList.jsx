@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
-  alpha,
   Alert,
   Box,
   Chip,
@@ -13,19 +12,21 @@ import {
   useTheme,
 } from '@mui/material';
 import {
-  AllInclusive,
-  CheckCircle,
-  CloudDownload,
-  Error as ErrorIcon,
-  Pause,
-  PlayArrow,
-  Queue,
-  Speed,
-  Sync,
-  WifiOff,
+  AllInclusiveRounded as AllInclusive,
+  CheckCircleRounded as CheckCircle,
+  CloudDownloadRounded as CloudDownload,
+  ErrorRounded as ErrorIcon,
+  PauseRounded as Pause,
+  PlayArrowRounded as PlayArrow,
+  QueueRounded as Queue,
+  SpeedRounded as Speed,
+  SyncRounded as Sync,
+  WifiOffRounded as WifiOff,
 } from '@mui/icons-material';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import JobCard from './JobCard';
 import useIngestionStore from '../store/ingestionStore';
 import JobCardPreview from './JobCardPreview';
@@ -162,7 +163,8 @@ const FilterBar = memo(function FilterBar({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EmptyState = memo(function EmptyState({ wsStatus, filter, isMobile }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const info = getWsEmptyMessage(wsStatus, filter);
 
   return (
@@ -170,13 +172,13 @@ const EmptyState = memo(function EmptyState({ wsStatus, filter, isMobile }) {
       elevation={0}
       variant={isMobile ? undefined : 'outlined'}
       sx={{
-        borderRadius: isMobile ? 3 : 4,
+        borderRadius: 3,
         py: { xs: 2.1, md: 6 },
         px: isMobile ? 1.1 : 2,
         textAlign: 'center',
         borderStyle: isMobile ? 'none' : 'dashed',
-        borderColor: alpha(theme.palette.divider, 0.85),
-        bgcolor: alpha(theme.palette.primary.main, isMobile ? 0.015 : 0.02),
+        borderColor: S.border,
+        bgcolor: isMobile ? 'transparent' : S.inset,
         boxShadow: 'none',
       }}
     >
@@ -188,8 +190,8 @@ const EmptyState = memo(function EmptyState({ wsStatus, filter, isMobile }) {
             borderRadius: '50%',
             display: 'grid',
             placeItems: 'center',
-            bgcolor: alpha(theme.palette.primary.main, 0.08),
-            color: 'primary.main',
+            bgcolor: T.tealBg,
+            color: T.teal,
           }}
         >
           {info.icon}

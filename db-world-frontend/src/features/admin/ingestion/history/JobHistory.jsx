@@ -14,27 +14,27 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useTheme,
 } from '@mui/material';
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import {
-  Article,
-  Delete,
-  Folder,
-  Http,
-  Refresh,
-  Replay,
-  Tune,
-  Search,
+  ArticleRounded as Article,
+  DeleteRounded as Delete,
+  FolderRounded as Folder,
+  HttpRounded as Http,
+  RefreshRounded as Refresh,
+  ReplayRounded as Replay,
+  TuneRounded as Tune,
+  SearchRounded as Search,
   YouTube,
-  Link as LinkIcon,
-  CheckCircle,
-  Error as ErrorIcon,
-  History as HistoryIcon,
-  Pause,
-  CloudDownload,
-  FilterAltOff,
-  Close,
+  LinkRounded as LinkIcon,
+  CheckCircleRounded as CheckCircle,
+  ErrorRounded as ErrorIcon,
+  HistoryRounded as HistoryIcon,
+  PauseRounded as Pause,
+  CloudDownloadRounded as CloudDownload,
+  FilterAltOffRounded as FilterAltOff,
+  CloseRounded as Close,
 } from '@mui/icons-material';
 import { notify } from '@shared/notify';
 import { useQueryClient } from '@tanstack/react-query';
@@ -163,7 +163,8 @@ function HistoryActionButton({
 }
 
 const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
 
   return (
     <Box
@@ -181,9 +182,10 @@ const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
           py: 4,
           maxWidth: 420,
           textAlign: 'center',
-          borderRadius: 4,
+          borderRadius: 3,
           borderStyle: 'dashed',
-          bgcolor: alpha(theme.palette.primary.main, 0.02),
+          borderColor: S.border,
+          bgcolor: S.inset,
         }}
       >
         <Stack spacing={1.25} alignItems="center">
@@ -194,8 +196,8 @@ const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
               borderRadius: '50%',
               display: 'grid',
               placeItems: 'center',
-              bgcolor: alpha(theme.palette.primary.main, 0.08),
-              color: 'primary.main',
+              bgcolor: T.tealBg,
+              color: T.teal,
             }}
           >
             <HistoryIcon sx={{ fontSize: 26 }} />
@@ -252,7 +254,7 @@ const GridLoadingOverlay = memo(function GridLoadingOverlay() {
 
 export default function JobHistory() {
   const T = useT();
-  const theme = useTheme();
+  const S = adminSurface(T);
 
   const qc = useQueryClient();
 
@@ -341,6 +343,7 @@ export default function JobHistory() {
         headerAlign: 'center',
         renderCell: ({ value }) => {
           const Icon = SOURCE_ICONS[value] ?? Http;
+          const isYt = value === 'YOUTUBE';
           return (
             <Box
               sx={{
@@ -349,18 +352,13 @@ export default function JobHistory() {
                 display: 'grid',
                 placeItems: 'center',
                 borderRadius: 2,
-                bgcolor: alpha(
-                  value === 'YOUTUBE'
-                    ? theme.palette.error.main
-                    : theme.palette.text.primary,
-                  0.06
-                ),
+                bgcolor: isYt ? T.errorBg : S.inset,
               }}
             >
               <Icon
                 sx={{
                   fontSize: 17,
-                  color: value === 'YOUTUBE' ? 'error.main' : 'text.secondary',
+                  color: isYt ? T.error : T.textMuted,
                 }}
               />
             </Box>
@@ -524,7 +522,7 @@ export default function JobHistory() {
         },
       },
     ],
-    [act, busy, theme]
+    [act, busy, T, S]
   );
 
   return (
@@ -600,8 +598,11 @@ export default function JobHistory() {
           elevation={0}
           variant="outlined"
           sx={{
-            borderRadius: 4,
+            borderRadius: 3,
             overflow: 'hidden',
+            borderColor: S.border,
+            bgcolor: S.card,
+            boxShadow: 'none',
           }}
         >
           <Box sx={{ height: { xs: 560, md: 620 } }}>
@@ -630,10 +631,7 @@ export default function JobHistory() {
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-columnHeaders': {
-                  bgcolor:
-                    theme.palette.mode === 'dark'
-                      ? alpha(theme.palette.common.white, 0.025)
-                      : alpha(theme.palette.primary.main, 0.03),
+                  bgcolor: S.inset,
                   borderBottom: `1px solid ${alpha(T.border, 0.9)}`,
                 },
                 '& .MuiDataGrid-cell': {

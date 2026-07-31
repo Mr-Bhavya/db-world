@@ -1,18 +1,14 @@
-import React, { useState, useCallback, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, Suspense } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText,
+  Box, SwipeableDrawer, List, ListItemButton, ListItemIcon, ListItemText,
   Typography, Divider, IconButton, Tooltip, Avatar, Chip,
   useTheme, useMediaQuery, Collapse
 } from '@mui/material';
-import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
-  Dashboard, Movie, VideoLibrary,
-  LocalOffer, Computer, Analytics,
-  Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
-  AdminPanelSettings, ExpandLess, ExpandMore, Logout,
-  Circle, ManageAccounts, Home,
-  Insights, Inbox, Tune, AccountBalanceWallet, TrendingUp,
+  Menu as MenuIcon, ChevronLeft, AdminPanelSettings,
+  ExpandLess, ExpandMore, Logout, Home, RefreshRounded,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -22,56 +18,12 @@ import usePageMeta from '@shared/hooks/usePageMeta';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
+import { groupedAdminModules } from '@features/admin/adminModules';
+import { useAdminMuiTheme, useAdminHeaderValue } from '@features/admin/adminUi';
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
-
-const NAV = [
-  {
-    id: 'overview',
-    items: [
-      { id: 'dashboard', label: 'Dashboard', icon: <Dashboard />, path: 'dashboard' },
-    ],
-  },
-  {
-    id: 'users',
-    label: 'Users',
-    items: [
-      { id: 'users', label: 'User Management', icon: <ManageAccounts />, path: 'users' },
-    ],
-  },
-  {
-    id: 'content',
-    label: 'Content',
-    items: [
-      { id: 'records',     label: 'Records',       icon: <Movie />,        path: 'records' },
-      { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
-      { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
-      { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
-    ],
-  },
-  {
-    id: 'activity',
-    label: 'Activity',
-    items: [
-      { id: 'ingestion',        label: 'Media Ingestion',  icon: <Folder />,      path: 'ingestion' },
-      { id: 'activity-center',  label: 'Activity & Insights', icon: <Insights />, path: 'activity-center', badge: 'Live' },
-    ],
-  },
-  {
-    id: 'system',
-    label: 'System',
-    items: [
-      { id: 'system-info', label: 'System Info',   icon: <Computer />,  path: 'system-info' },
-      { id: 'logs',        label: 'Log Viewer',    icon: <Analytics />, path: 'logs' },
-      { id: 'redis',       label: 'Redis Cache',   icon: <Storage />,   path: 'redis' },
-      { id: 'files',       label: 'File Manager',  icon: <Folder />,    path: 'files' },
-      { id: 'scheduler',   label: 'Scheduler',     icon: <Schedule />,  path: 'scheduler' },
-      { id: 'settings',    label: 'Settings',      icon: <Tune />,      path: 'settings' },
-      { id: 'document-wallet', label: 'Document Wallet', icon: <AccountBalanceWallet />, path: 'document-wallet' },
-      { id: 'ipo-admin', label: 'IPO Tracker', icon: <TrendingUp />, path: 'ipo' },
-    ],
-  },
-];
+// Sidebar sections are derived from the single admin module registry — add a
+// module there and it appears here (and in the dashboard + router) automatically.
+const NAV = groupedAdminModules();
 
 const SIDEBAR_W      = 240;
 const SIDEBAR_MINI_W = 60;
@@ -126,6 +78,10 @@ const AdminLayoutInner = () => {
   // the 'Requests' sidebar item so admins notice new requests without opening the page.
   const { total: pendingRequests } = usePendingRequestCounts();
 
+  // Active page header (single-header model) — pages register it via AdminPage.
+  const header = useAdminHeaderValue();
+  const HeaderIcon = header?.icon;
+
   const handleNav = useCallback((path) => {
     navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/${path}`);
     if (isMobile) setMobileOpen(false);
@@ -174,28 +130,28 @@ const AdminLayoutInner = () => {
         '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 2 },
       }}>
         {NAV.map((section) => (
-          <Box key={section.id}>
-            {/* Section label */}
-            {showFull && section.label && (
+          <Box key={section.group}>
+            {/* Section label — the 'Overview' group renders without a header */}
+            {showFull && section.group !== 'Overview' && (
               <Box
                 sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   px: 2, pt: 2, pb: 0.5, cursor: 'pointer' }}
-                onClick={() => toggleSection(section.id)}
+                onClick={() => toggleSection(section.group)}
               >
                 <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: T.textFaint,
                   textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  {section.label}
+                  {section.group}
                 </Typography>
-                {collapsed[section.id]
+                {collapsed[section.group]
                   ? <ExpandMore sx={{ fontSize: 14, color: T.textFaint }} />
                   : <ExpandLess sx={{ fontSize: 14, color: T.textFaint }} />}
               </Box>
             )}
-            {!showFull && section.label && (
+            {!showFull && section.group !== 'Overview' && (
               <Divider sx={{ borderColor: T.border, mx: 1, my: 0.5 }} />
             )}
 
-            <Collapse in={!collapsed[section.id]} timeout="auto">
+            <Collapse in={!collapsed[section.group]} timeout="auto">
               <List dense disablePadding sx={{ px: showFull ? 1 : 0.5 }}>
                 {section.items.map((item) => {
                   const active = currentPath === item.path || location.pathname.endsWith('/' + item.path);
@@ -220,7 +176,7 @@ const AdminLayoutInner = () => {
                       }}
                     >
                       <ListItemIcon sx={{ minWidth: 34, color: active ? T.teal : T.textMuted }}>
-                        {React.cloneElement(item.icon, { sx: { fontSize: 18 } })}
+                        <item.icon sx={{ fontSize: 18 }} />
                       </ListItemIcon>
                       <ListItemText
                         primary={item.label}
@@ -270,7 +226,7 @@ const AdminLayoutInner = () => {
                           '&.Mui-selected': { bgcolor: T.tealBg },
                         }}
                       >
-                        {React.cloneElement(item.icon, { sx: { fontSize: 20 } })}
+                        <item.icon sx={{ fontSize: 20 }} />
                         {isCountBadge && (
                           <Box sx={{
                             position: 'absolute', top: 6, right: 8,
@@ -336,15 +292,20 @@ const AdminLayoutInner = () => {
         </Box>
       )}
 
-      {/* ── Mobile drawer ───────────────────────────────────────────────────── */}
+      {/* ── Mobile drawer (swipe from the left edge to open, swipe to close) ──── */}
       {isMobile && (
-        <Drawer
+        <SwipeableDrawer
           open={mobileOpen}
+          onOpen={() => setMobileOpen(true)}
           onClose={() => setMobileOpen(false)}
+          disableBackdropTransition
+          disableDiscovery
+          swipeAreaWidth={24}
+          ModalProps={{ keepMounted: true }}
           PaperProps={{ sx: { width: SIDEBAR_W, bgcolor: T.sidebar, border: 'none' } }}
         >
           {sidebarContent}
-        </Drawer>
+        </SwipeableDrawer>
       )}
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
@@ -376,34 +337,64 @@ const AdminLayoutInner = () => {
               <Home sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
-          {/* Breadcrumb */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          {/* Breadcrumb + page title — the single header lives here */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flex: 1 }}>
             <Typography
               onClick={() => handleNav('dashboard')}
-              sx={{ fontSize: '0.78rem', color: T.textFaint, cursor: 'pointer',
-                '&:hover': { color: T.teal } }}
+              sx={{ fontSize: '0.78rem', color: T.textFaint, cursor: 'pointer', flexShrink: 0,
+                display: { xs: 'none', sm: 'block' }, '&:hover': { color: T.teal } }}
             >
               Admin
             </Typography>
-            {currentPath && currentPath !== 'admin' && <>
-              <Typography sx={{ fontSize: '0.78rem', color: T.textFaint }}>/</Typography>
-              <Typography sx={{ fontSize: '0.78rem', color: T.text, fontWeight: 600, textTransform: 'capitalize' }}>
-                {currentPath.replace(/-/g, ' ')}
-              </Typography>
-            </>}
+            <Typography sx={{ fontSize: '0.78rem', color: T.textFaint, display: { xs: 'none', sm: 'block' } }}>/</Typography>
+            {HeaderIcon && (
+              <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: T.tealBg, color: T.teal, flexShrink: 0 }}>
+                <HeaderIcon sx={{ fontSize: 17 }} />
+              </Box>
+            )}
+            <Typography
+              title={header?.subtitle || undefined}
+              sx={{ fontSize: '0.92rem', color: T.text, fontWeight: 800, letterSpacing: '-0.01em', textTransform: 'capitalize',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+            >
+              {header?.title ?? (currentPath && currentPath !== 'admin' ? currentPath.replace(/-/g, ' ') : 'Admin')}
+            </Typography>
           </Box>
-          <Box sx={{ flex: 1 }} />
+
+          {/* Page actions (desktop) + refresh — registered by AdminPage */}
+          {header?.actions && (
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              {header.actions}
+            </Box>
+          )}
+          {header?.onRefresh && (
+            <Tooltip title="Refresh">
+              <IconButton size="small" onClick={header.onRefresh} disabled={header.refreshing} aria-label="Refresh"
+                sx={{ color: T.textMuted, flexShrink: 0, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+                <RefreshRounded sx={{ fontSize: 18, animation: header.refreshing ? 'adminTopSpin 1s linear infinite' : 'none', '@keyframes adminTopSpin': { to: { transform: 'rotate(360deg)' } } }} />
+              </IconButton>
+            </Tooltip>
+          )}
           <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             <IconButton size="small" onClick={toggleMode}
-              sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+              sx={{ color: T.textMuted, flexShrink: 0, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
               {mode === 'dark' ? <LightModeIcon sx={{ fontSize: 18 }} /> : <DarkModeIcon sx={{ fontSize: 18 }} />}
             </IconButton>
           </Tooltip>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Circle sx={{ fontSize: 8, color: '#10b981' }} />
-            <Typography sx={{ fontSize: '0.7rem', color: '#10b981' }}>Online</Typography>
-          </Box>
         </Box>
+
+        {/* Mobile action bar — page actions don't fit the top bar on phones, so
+            they get their own slim scrollable row here (only when a page has any). */}
+        {isMobile && header?.actions && (
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1,
+            px: 2, py: 1, flexShrink: 0,
+            borderBottom: `1px solid ${T.border}`, bgcolor: T.topbar,
+            overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' },
+          }}>
+            {header.actions}
+          </Box>
+        )}
 
         {/* Page content */}
         <Box sx={{
@@ -413,11 +404,13 @@ const AdminLayoutInner = () => {
         }}>
           <Suspense fallback={<ContentLoader />}>
             <AnimatePresence mode="wait">
+              {/* Opacity-only (no transform): a transformed ancestor would break
+                  position:sticky filter/sort bars inside pages. */}
               <motion.div
                 key={location.pathname}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
                 style={{ minHeight: '100%' }}
               >
@@ -436,21 +429,7 @@ const AdminLayoutInner = () => {
  *  matching the admin toggle — not the global dark-default MUI theme.
  */
 const AdminMuiThemeWrapper = ({ children }) => {
-  const { mode } = useThemeMode();
-  const muiTheme = useMemo(() => createTheme({
-    palette: {
-      mode,
-      ...(mode === 'light' ? {
-        background: { default: '#f8fafc', paper: '#ffffff' },
-        text: { primary: '#000000', secondary: 'rgba(0,0,0,0.55)' },
-      } : {
-        // Use opaque dark values — rgba glass tokens are NOT suitable for
-        // MUI Drawer/Select/Autocomplete popup backgrounds (they appear transparent)
-        background: { default: '#000000', paper: '#111111' },
-        text: { primary: '#ffffff', secondary: 'rgba(255,255,255,0.55)' },
-      }),
-    },
-  }), [mode]);
+  const muiTheme = useAdminMuiTheme();
   return <MuiThemeProvider theme={muiTheme}>{children}</MuiThemeProvider>;
 };
 

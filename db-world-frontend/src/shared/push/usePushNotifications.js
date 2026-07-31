@@ -6,6 +6,8 @@ import { notify } from '@shared/notify';
 import { getFcmToken, isPushConfigured, onForegroundMessage } from './firebaseMessaging';
 import { nativeCheckPermission, nativeSetup } from './nativePush';
 import { registerPushToken } from './pushApi';
+import { resolveDeepLink } from './deepLink';
+import { notifyRequestsChanged } from '@features/admin/requests/hooks/usePendingRequestCounts';
 
 const isNative = () => Capacitor.isNativePlatform();
 const webPermission = () => (typeof Notification !== 'undefined' ? Notification.permission : 'denied');
@@ -14,8 +16,6 @@ const platform = () => (isNative() ? 'android' : 'web');
 /** Web push needs the Notification API + service worker + provisioned config; native needs Capacitor. */
 const webSupported = () =>
   typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && isPushConfigured();
-
-const deepLink = (data) => data?.link || '/db-world';
 
 const toastMessage = (title, body) => {
   if (title) notify.info(body ? `${title} — ${body}` : title);
@@ -40,8 +40,15 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
     if (token) registerPushToken(token, platform()).catch(() => {});
   }, []);
 
-  const onMessage = useCallback((n) => toastMessage(n?.title, n?.body), []);
-  const onAction = useCallback((n) => window.location.assign(deepLink(n?.data)), []);
+  const onMessage = useCallback((n) => {
+    toastMessage(n?.title, n?.body);
+    // A request push arriving while the app is open → refresh the sidebar badge
+    // live (event-driven, no polling). Tapped pushes navigate + refetch anyway.
+    if (n?.data?.route === 'admin/requests') notifyRequestsChanged();
+  }, []);
+  // A tapped notification deep-links to the route in its data payload (admin
+  // request/ingestion, a record, an IPO, …), falling back to the app home.
+  const onAction = useCallback((n) => window.location.assign(resolveDeepLink(n?.data)), []);
 
   // Native permission resolves asynchronously — read it once on mount.
   useEffect(() => {
@@ -63,7 +70,7 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
     let unsubscribe = () => {};
     let active = true;
     getFcmToken().then(persist).catch(() => {});
-    onForegroundMessage((payload) => onMessage(payload?.notification))
+    onForegroundMessage((payload) => onMessage({ ...payload?.notification, data: payload?.data }))
       .then((u) => { if (active) unsubscribe = u; else u(); })
       .catch(() => {});
     return () => { active = false; unsubscribe(); };

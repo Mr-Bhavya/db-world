@@ -2,6 +2,8 @@ package com.db.dbworld.core.push;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PushDeviceTokenRepository extends JpaRepository<PushDeviceTokenEntity, Long> {
@@ -9,4 +11,7 @@ public interface PushDeviceTokenRepository extends JpaRepository<PushDeviceToken
     Optional<PushDeviceTokenEntity> findByToken(String token);
 
     void deleteByToken(String token);
+
+    /** Every device token belonging to any of the given users — for targeted (per-user) pushes. */
+    List<PushDeviceTokenEntity> findByUserIdIn(Collection<Long> userIds);
 }

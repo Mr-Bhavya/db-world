@@ -28,22 +28,23 @@ import {
   useTheme,
 } from '@mui/material';
 import {
-  CheckBox,
-  CheckBoxOutlineBlank,
-  Clear,
-  Folder as FolderIcon,
-  FolderOpen,
-  InsertDriveFile,
-  Send,
-  Theaters,
-  AutoAwesome,
-  Storage,
-  CheckCircle,
+  CheckBoxRounded as CheckBox,
+  CheckBoxOutlineBlankRounded as CheckBoxOutlineBlank,
+  ClearRounded as Clear,
+  FolderRounded as FolderIcon,
+  FolderOpenRounded as FolderOpen,
+  InsertDriveFileRounded as InsertDriveFile,
+  SendRounded as Send,
+  TheatersRounded as Theaters,
+  AutoAwesomeRounded as AutoAwesome,
+  StorageRounded as Storage,
+  CheckCircleRounded as CheckCircle,
 } from '@mui/icons-material';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import RecordSearch from '../form/RecordSearch';
 import FileBrowserDialog from './FileBrowserDialog';
 import { linkExistingFile } from '../services/ingestionApi';
@@ -91,28 +92,23 @@ function boolChipColor(active) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
-  const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
 
   return (
     <Paper
       elevation={0}
       variant="outlined"
       sx={{
-        borderRadius: { xs: 3, sm: 4 },
+        borderRadius: 3,
         overflow: 'hidden',
-        borderColor: alpha(theme.palette.divider, 0.7),
-        background:
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.018) 100%)'
-            : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
-        boxShadow:
-          theme.palette.mode === 'dark'
-            ? '0 8px 26px rgba(0,0,0,0.16)'
-            : '0 8px 26px rgba(15, 23, 42, 0.045)',
+        borderColor: S.border,
+        bgcolor: S.card,
+        boxShadow: 'none',
         ...sx,
       }}
     >
-      <Box sx={{ px: { xs: 1.25, sm: 1.75, md: 2.1 }, py: { xs: 1.25, sm: 1.5 } }}>
+      <Box sx={{ px: { xs: 1.25, sm: 1.75, md: 2 }, py: { xs: 1.25, sm: 1.5 } }}>
         <Stack
           direction="row"
           spacing={1.1}
@@ -125,11 +121,11 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
               sx={{
                 width: 36,
                 height: 36,
-                borderRadius: 2.25,
+                borderRadius: 2,
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: (t) => alpha(t.palette.primary.main, 0.1),
-                color: 'primary.main',
+                bgcolor: T.tealBg,
+                color: T.teal,
                 flexShrink: 0,
               }}
             >
@@ -240,6 +236,8 @@ function FileModeForm() {
   const qc = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const [browserOpen, setBrowserOpen] = useState(false);
 
@@ -352,12 +350,13 @@ function FileModeForm() {
                       mt: 0.5,
                       p: 1.15,
                       borderRadius: 3,
-                      bgcolor: alpha(theme.palette.primary.main, 0.03),
+                      borderColor: S.border,
+                      bgcolor: S.inset,
                     }}
                   >
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
                       <Stack direction="row" spacing={1} alignItems="center" minWidth={0} sx={{ flex: 1 }}>
-                        <InsertDriveFile sx={{ fontSize: 17, color: 'primary.main' }} />
+                        <InsertDriveFile sx={{ fontSize: 17, color: T.teal }} />
                         <Typography variant="body2" fontWeight={700} sx={{ wordBreak: 'break-word' }}>
                           {fileName}
                         </Typography>
@@ -582,6 +581,8 @@ const FileListPanel = memo(function FileListPanel({
 
 function FolderModeForm() {
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const qc = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
@@ -815,7 +816,7 @@ function FolderModeForm() {
         ) : null}
 
         {checkedFiles.length > 0 ? (
-          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <Card variant="outlined" sx={{ borderRadius: 3, borderColor: S.border, bgcolor: S.inset, boxShadow: 'none' }}>
             <CardContent sx={{ p: '12px !important' }}>
               <Stack spacing={0.75}>
                 <Typography variant="caption" color="text.secondary">
@@ -861,22 +862,22 @@ function FolderModeForm() {
 
 export default function LinkFileForm() {
   const theme = useTheme();
+  const T = useT();
+  const S = adminSurface(T);
   const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
   const [mode, setMode] = useState('file');
 
   return (
-    <Box sx={{ maxWidth: 1480, mx: 'auto', px: { xs: 0.25, sm: 0.5, lg: 1 } }}>
+    <Box>
       <Paper
         elevation={0}
         variant="outlined"
         sx={{
           mb: { xs: 1.5, sm: 2 },
-          borderRadius: { xs: 3, sm: 4 },
-          borderColor: alpha(theme.palette.divider, 0.7),
-          background:
-            theme.palette.mode === 'dark'
-              ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.16)} 0%, rgba(255,255,255,0.02) 100%)`
-              : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, rgba(255,255,255,0.95) 100%)`,
+          borderRadius: 3,
+          borderColor: S.border,
+          bgcolor: S.card,
+          boxShadow: 'none',
         }}
       >
         <Box sx={{ p: { xs: 1.25, sm: 1.6, md: 2 } }}>

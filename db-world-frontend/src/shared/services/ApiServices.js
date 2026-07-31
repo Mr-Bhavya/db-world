@@ -521,6 +521,19 @@ export const findAllHost = async () => {
   }
 };
 
+// Public brand/site search (logo.dev proxy) — for the "add credential" URL field
+// when a site/app isn't already in the vault. Returns [] on any failure so the
+// caller degrades gracefully to no suggestions.
+export const searchBrands = async (q) => {
+  try {
+    const response = await axiosInstance.get('/api/brand/search', { params: { q } });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching brands:', error);
+    return { data: [] };
+  }
+};
+
 export const deleteHostById = async (pmId) => {
   try {
     const response = await axiosInstance.delete(`/api/pm/${pmId}`);

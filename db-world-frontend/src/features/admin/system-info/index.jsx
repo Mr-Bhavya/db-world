@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Grid, Card, CardContent, Chip, CircularProgress, LinearProgress, Tab, Tabs, Paper,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, Divider
+  Box, Typography, GridLegacy as Grid, Card, CardContent, Chip, LinearProgress, Tab, Tabs,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider
 } from '@mui/material';
 import {
-  Monitor, Refresh, Memory, Storage, Speed,
+  Monitor, MonitorHeartRounded, Memory, Storage, Speed,
   CheckCircle, Warning, Error as ErrorIcon,
   FiberManualRecord, ArrowDownward, ArrowUpward, Thermostat
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import { AdminPage, SectionCard, StatGrid, adminSurface, useSwipeNav } from '@features/admin/adminUi';
 import {
   getServerInfo,
   getServerInfoQuick,
@@ -50,8 +50,9 @@ const bytes = (n) => {
 
 function MiniStatCard({ label, value, pctValue, color, icon }) {
   const T = useT();
+  const S = adminSurface(T);
   return (
-    <Card sx={{ border: `1px solid ${color}22`, borderRadius: 2, bgcolor: T.glass }}>
+    <Card elevation={0} sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.card }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
           <Box sx={{ color, display: 'flex' }}>{icon}</Box>
@@ -295,6 +296,7 @@ function MemoryTab({ info, quick }) {
 
 function StorageTab({ info }) {
   const T = useT();
+  const S = adminSurface(T);
   const disk = info?.disk;
   if (!disk?.drives?.length) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No disk data</Typography>;
 
@@ -311,7 +313,7 @@ function StorageTab({ info }) {
       {disk.drives.map((d, i) => {
         const usedPct = parseFloat(d.usedPercent) || 0;
         return (
-          <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
+          <Card key={i} elevation={0} sx={{ mb: 1.5, border: `1px solid ${S.border}`, bgcolor: S.inset, borderRadius: 2 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Storage sx={{ fontSize: 16, color: T.teal }} />
@@ -347,6 +349,7 @@ function StorageTab({ info }) {
 
 function NetworkTab({ info }) {
   const T = useT();
+  const S = adminSurface(T);
   const net = info?.network;
   if (!net) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No network data</Typography>;
 
@@ -381,7 +384,7 @@ function NetworkTab({ info }) {
         const rxTotal = a.bytesReceived ?? a.rxBytesTotal;
         const txTotal = a.bytesSent ?? a.txBytesTotal;
         return (
-          <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
+          <Card key={i} elevation={0} sx={{ mb: 1.5, border: `1px solid ${S.border}`, bgcolor: S.inset, borderRadius: 2 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <FiberManualRecord sx={{ fontSize: 10, color: isOnline ? '#10b981' : '#6b7280' }} />
@@ -415,6 +418,7 @@ function NetworkTab({ info }) {
 
 function ProcessesTab({ info }) {
   const T = useT();
+  const S = adminSurface(T);
   const procs = info?.processes;
   if (!procs?.length) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No process data</Typography>;
 
@@ -424,8 +428,8 @@ function ProcessesTab({ info }) {
     <TableContainer>
       <Table size="small">
         <TableHead>
-          <TableRow sx={{ '& th': { bgcolor: T.adminBg, color: T.textMuted, fontSize: '0.68rem', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.07em', borderColor: T.border, py: 1 } }}>
+          <TableRow sx={{ '& th': { bgcolor: S.inset, color: T.textMuted, fontSize: '0.68rem', fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.07em', borderColor: S.border, py: 1 } }}>
             <TableCell>PID</TableCell>
             <TableCell>Name</TableCell>
             <TableCell>User</TableCell>
@@ -439,7 +443,7 @@ function ProcessesTab({ info }) {
           {sorted.map((p) => {
             const cpuColor = loadColor(p.cpuUsage ?? 0);
             return (
-              <TableRow key={p.pid} sx={{ '& td': { borderColor: T.border, py: 0.75 }, '&:hover': { bgcolor: T.glassHover } }}>
+              <TableRow key={p.pid} sx={{ '& td': { borderColor: S.border, py: 0.75 }, '&:hover': { bgcolor: S.cardHover } }}>
                 <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.72rem', color: T.textFaint }}>{p.pid}</TableCell>
                 <TableCell sx={{ fontSize: '0.78rem', color: T.text, maxWidth: 180 }}>
                   <Typography sx={{ fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
@@ -470,6 +474,7 @@ function ProcessesTab({ info }) {
 
 function HealthTab({ health }) {
   const T = useT();
+  const S = adminSurface(T);
   if (!health) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No health data</Typography>;
 
   const meta   = HEALTH_META[health.level] ?? HEALTH_META.FAIR;
@@ -478,7 +483,7 @@ function HealthTab({ health }) {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} md={4}>
-        <Card sx={{ border: `1px solid ${meta.color}33`, borderRadius: 2, bgcolor: T.glass, textAlign: 'center', p: 3 }}>
+        <Card elevation={0} sx={{ border: `1px solid ${meta.color}33`, borderRadius: 2, bgcolor: S.inset, textAlign: 'center', p: 3 }}>
           <Typography sx={{ fontSize: '4rem', fontWeight: 900, color: meta.color, lineHeight: 1 }}>{score}</Typography>
           <Typography sx={{ fontSize: '0.7rem', color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', mb: 1 }}>Health Score</Typography>
           <Chip
@@ -532,6 +537,10 @@ export default function SystemInfoPage() {
   const T = useT();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
+  const swipe = useSwipeNav({
+    onPrev: () => setTab((t) => Math.max(0, t - 1)),
+    onNext: () => setTab((t) => Math.min(TABS.length - 1, t + 1)),
+  });
 
   /* ── Queries ── */
 
@@ -599,48 +608,27 @@ export default function SystemInfoPage() {
   /* ── Render ── */
 
   return (
-    <Box sx={{ p: 3 }}>
-
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <Monitor sx={{ color: T.teal, fontSize: 28 }} />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontSize: '1.15rem', fontWeight: 700, color: T.text }}>
-              System Information
-            </Typography>
-            {osLabel !== 'Unknown' && (
-              <Chip label={osLabel} size="small"
-                sx={{ height: 18, fontSize: '0.62rem', bgcolor: T.tealBg, color: T.teal }} />
-            )}
-            {health?.level && (
-              <Chip
-                label={health.level}
-                icon={healthMeta.icon}
-                size="small"
-                sx={{ height: 18, fontSize: '0.62rem', bgcolor: `${healthMeta.color}18`, color: healthMeta.color,
-                  '& .MuiChip-icon': { color: healthMeta.color, fontSize: 11, ml: 0.5 } }}
-              />
-            )}
-          </Box>
-          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>
-            {si?.hostname ?? 'Loading...'} · {si?.osName ?? ''}
-          </Typography>
+    <AdminPage
+      title="System Info"
+      subtitle={`${si?.hostname ?? 'Loading…'}${si?.osName ? ` · ${si.osName}` : ''}`}
+      icon={MonitorHeartRounded}
+      onRefresh={() => refreshMutation.mutate()}
+      refreshing={isBusy}
+      actions={
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {osLabel !== 'Unknown' && (
+            <Chip label={osLabel} size="small" sx={{ height: 22, fontSize: '0.62rem', fontWeight: 700, bgcolor: T.tealBg, color: T.teal }} />
+          )}
+          {health?.level && (
+            <Chip label={health.level} icon={healthMeta.icon} size="small"
+              sx={{ height: 22, fontSize: '0.62rem', bgcolor: `${healthMeta.color}18`, color: healthMeta.color,
+                '& .MuiChip-icon': { color: healthMeta.color, fontSize: 11, ml: 0.5 } }} />
+          )}
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={isBusy ? <CircularProgress size={12} /> : <Refresh />}
-          disabled={isBusy}
-          onClick={() => refreshMutation.mutate()}
-          sx={{ borderColor: T.border, color: T.textMuted, '&:hover': { borderColor: T.teal, color: T.teal } }}
-        >
-          Refresh Cache
-        </Button>
-      </Box>
-
+      }
+    >
       {/* Live stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <StatGrid min={150} sx={{ mb: 3 }}>
         {[
           { label: 'CPU',        value: `${Number(cpuPct).toFixed(1)}%`,                       pctValue: cpuPct,  color: loadColor(cpuPct),  icon: <Speed /> },
           { label: 'Memory',     value: memValue,                                              pctValue: memPct, color: loadColor(memPct), icon: <Memory /> },
@@ -649,15 +637,13 @@ export default function SystemInfoPage() {
           { label: 'Net ↑',      value: netTx ?? '—',                                          pctValue: null, color: '#6366f1', icon: <ArrowUpward /> },
           { label: 'Temperature', value: tempC != null ? `${tempC.toFixed(1)}°C` : '—',        pctValue: tempC != null ? Math.min(tempC, 100) : null, color: tempColor, icon: <Thermostat /> },
           { label: 'Uptime',     value: quick?.performance?.uptime ?? info?.performance?.uptime ?? si?.uptime ?? '—', pctValue: null, color: '#8b5cf6', icon: <Monitor /> },
-        ].map((s) => (
-          <Grid item xs={6} sm={4} md={3} lg={12/7} key={s.label}>
-            <MiniStatCard {...s} />
-          </Grid>
+        ].map((sItem) => (
+          <MiniStatCard key={sItem.label} {...sItem} />
         ))}
-      </Grid>
+      </StatGrid>
 
       {/* Tabs */}
-      <Paper elevation={0} sx={{ border: `1px solid ${T.border}`, borderRadius: 2, bgcolor: T.glass, overflow: 'hidden' }}>
+      <SectionCard padding={false}>
         {infoLoading && (
           <LinearProgress sx={{ bgcolor: `${T.teal}22`, '& .MuiLinearProgress-bar': { bgcolor: T.teal } }} />
         )}
@@ -676,7 +662,7 @@ export default function SystemInfoPage() {
           {TABS.map((t) => <Tab key={t} label={t} />)}
         </Tabs>
 
-        <Box sx={{ p: 2.5 }}>
+        <Box {...swipe} sx={{ p: 2.5 }}>
           {tab === 0 && <OverviewTab info={info} />}
           {tab === 1 && <CpuTab info={info} quick={quick} />}
           {tab === 2 && <MemoryTab info={info} quick={quick} />}
@@ -685,7 +671,7 @@ export default function SystemInfoPage() {
           {tab === 5 && <ProcessesTab info={info} />}
           {tab === 6 && <HealthTab health={health} />}
         </Box>
-      </Paper>
-    </Box>
+      </SectionCard>
+    </AdminPage>
   );
 }

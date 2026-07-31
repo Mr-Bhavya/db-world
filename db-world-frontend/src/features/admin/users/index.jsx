@@ -1,16 +1,14 @@
 import { useState, useCallback, useMemo } from 'react';
-import {
-  Box, Typography, Button, Alert, IconButton, Tooltip, CircularProgress,
-  createTheme, ThemeProvider, useMediaQuery, useTheme as useMuiTheme,
-} from '@mui/material';
+import { useMediaQuery, useTheme as useMuiTheme } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccountsRounded';
 import GroupIcon from '@mui/icons-material/Group';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
-import { useT, useThemeMode } from '@shared/theme';
+import { useT } from '@shared/theme';
+import { AdminPage, SectionCard, StatCard, StatGrid, ErrorState, AdminActionButton, StickyBar } from '@features/admin/adminUi';
 import { getAllUsers, deleteUser, setUserStatus } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
 import UserTable from './UserTable';
@@ -22,27 +20,10 @@ import UserBulkModal from './UserBulkModal';
 
 export default function UserManagementV2() {
   const T  = useT();
-  const { mode } = useThemeMode();
   const qc = useQueryClient();
   const { modalState, editUserId, openModal, closeModal } = useUserStore();
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
-
-  // Scope MUI's palette to the admin theme so surfaces/text stay correct on the
-  // white theme (the global MUI theme follows the cinema light/dark mode).
-  const adminMuiTheme = useMemo(() => createTheme({
-    palette: {
-      mode,
-      primary: { main: '#0d9488', contrastText: '#ffffff' },
-      secondary: { main: '#4db6ac' },
-      background: {
-        default: mode === 'dark' ? '#000000' : '#ffffff',
-        paper: mode === 'dark' ? '#111111' : '#ffffff',
-      },
-    },
-    shape: { borderRadius: 8 },
-    typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
-  }), [mode]);
 
   // ── Server-side state ─────────────────────────────────────────────────────
   const [params, setParams] = useState({
@@ -100,104 +81,68 @@ export default function UserManagementV2() {
     viewers: users.filter(u => u.userRole?.name === 'VIEWER').length,
   }), [users, totalElements]);
 
-  const statItems = [
-    { label: 'Total',   value: stats.total,   icon: GroupIcon,               color: '#0d9488' },
-    { label: 'Admins',  value: stats.admins,  icon: AdminPanelSettingsIcon,  color: '#f59e0b' },
-    { label: 'Viewers', value: stats.viewers, icon: PersonIcon,              color: '#10b981' },
-  ];
+  // Page-level action registered into the admin top bar (labeled on all sizes).
+  const addAction = (
+    <AdminActionButton icon={AddIcon} onClick={() => openModal('create')}>Add User</AdminActionButton>
+  );
 
   return (
-    <ThemeProvider theme={adminMuiTheme}>
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: T.bg, color: T.text, minHeight: 0 }}>
-
-      {/* Header — compact on mobile, single Add action */}
-      <Box sx={{ px: { xs: 1.5, md: 3 }, pt: { xs: 1.5, md: 2.5 }, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: { xs: 17, md: 22 }, color: T.text, lineHeight: 1.15, letterSpacing: '-0.02em' }} noWrap>
-            User Management
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: T.textFaint, mt: 0.2 }} noWrap>
-            Manage all platform users
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
-          <Tooltip title="Refresh"><span>
-            <IconButton size="small" onClick={refetch} disabled={isFetching}
-              sx={{ border: 1, borderColor: T.border, borderRadius: 1.5, color: T.textMuted }}>
-              {isFetching ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
-            </IconButton>
-          </span></Tooltip>
-          {isMobile ? (
-            <Tooltip title="Add User">
-              <IconButton size="small" onClick={() => openModal('create')}
-                sx={{ bgcolor: '#0d9488', color: '#fff', borderRadius: 1.5, '&:hover': { bgcolor: '#0f766e' } }}>
-                <AddIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          ) : (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
-              sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' }, fontWeight: 600 }}>
-              Add User
-            </Button>
-          )}
-        </Box>
-      </Box>
-
+    <AdminPage
+      title="User Management"
+      subtitle="Manage all platform users"
+      icon={ManageAccountsIcon}
+      actions={addAction}
+      onRefresh={refetch}
+      refreshing={isFetching}
+    >
       {/* Stats */}
-      <Box sx={{ display: 'flex', gap: { xs: 2, md: 2.5 }, px: { xs: 1.5, md: 3 }, py: 0.75, flexWrap: 'wrap' }}>
-        {statItems.map(s => (
-          <Box key={s.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-            <s.icon sx={{ fontSize: 14, color: s.color }} />
-            <Typography sx={{ fontSize: 12, color: T.textMuted }}>{s.label}:</Typography>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value}</Typography>
-          </Box>
-        ))}
-      </Box>
+      <StatGrid min={150} sx={{ mb: 3 }}>
+        <StatCard index={0} icon={GroupIcon}              label="Total Users" value={stats.total}   accent={T.teal}   loading={isLoading} />
+        <StatCard index={1} icon={AdminPanelSettingsIcon} label="Admins"      value={stats.admins}  accent="#f59e0b" loading={isLoading} />
+        <StatCard index={2} icon={PersonIcon}             label="Viewers"     value={stats.viewers} accent="#10b981" loading={isLoading} />
+      </StatGrid>
 
-      {/* Filters / toolbar (no duplicate Add button) */}
-      <UserFilters
-        search={params.search}
-        role={params.role}
-        sortBy={params.sortBy}
-        sortDir={params.sortDir}
-        onSearch={handleSearch}
-        onRole={handleRole}
-        onSort={handleSort}
-      />
-
-      {error && (
-        <Box sx={{ px: 2, py: 1 }}>
-          <Alert severity="error" action={<Button size="small" onClick={refetch}>Retry</Button>}>
-            Failed to load users
-          </Alert>
-        </Box>
-      )}
-
-      {/* Table / cards */}
-      <Box sx={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        <UserTable
-          users={users}
-          loading={isLoading}
-          isMobile={isMobile}
-          total={totalElements}
-          page={params.page}
-          size={params.size}
+      {/* Sticky filters / sort — pins to the top on scroll */}
+      <StickyBar>
+        <UserFilters
+          search={params.search}
+          role={params.role}
           sortBy={params.sortBy}
           sortDir={params.sortDir}
+          onSearch={handleSearch}
+          onRole={handleRole}
           onSort={handleSort}
-          onPageChange={handlePage}
-          onPageSizeChange={handlePageSize}
-          onDelete={handleDelete}
-          onToggleStatus={handleToggleStatus}
         />
-      </Box>
+      </StickyBar>
+
+      {/* Table */}
+      <SectionCard padding={false} flushMobile>
+        {error ? (
+          <ErrorState message="Failed to load users" onRetry={refetch} />
+        ) : (
+          <UserTable
+            users={users}
+            loading={isLoading}
+            isMobile={isMobile}
+            total={totalElements}
+            page={params.page}
+            size={params.size}
+            sortBy={params.sortBy}
+            sortDir={params.sortDir}
+            onSort={handleSort}
+            onPageChange={handlePage}
+            onPageSizeChange={handlePageSize}
+            onDelete={handleDelete}
+            onToggleStatus={handleToggleStatus}
+          />
+        )}
+      </SectionCard>
 
       {/* Modals */}
       <UserDetailDrawer />
       <UserCreateModal open={modalState === 'create'} onClose={closeModal} />
       <UserEditModal   open={modalState === 'edit'}   userId={editUserId} onClose={closeModal} />
       <UserBulkModal   open={modalState === 'bulk'}   onClose={closeModal} />
-    </Box>
-    </ThemeProvider>
+    </AdminPage>
   );
 }

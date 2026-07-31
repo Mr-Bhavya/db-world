@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Box, Chip, IconButton, Tooltip } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -11,6 +10,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
+import { AdminDataTable, adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
 import { useRecordVisibility } from './useRecordVisibility';
 import { useRecordSync } from './useRecordSync';
@@ -46,6 +46,7 @@ const fmtSize = (b) => {
 
 export default function RecordTable({ rows, totalElements, loading, onDelete }) {
   const T = useT();
+  const S = adminSurface(T);
   const { sortModel, setSortModel, selectedRows, setSelectedRows, openModal, openMediaFiles, openDrawer } = useRecordStore();
 
   // DataGrid v8 selection model is { type, ids:Set }. Keep it controlled off the
@@ -71,101 +72,42 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
   const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
 
-  const gridSx = useMemo(() => ({
-    // v8 CSS variables override container/pinned backgrounds
-    '--DataGrid-containerBackground': T.sidebar,
-    '--DataGrid-pinnedBackground':    T.sidebar,
-    border: 'none',
-    color: T.textPrimary,
-    bgcolor: T.adminBg,
-
-    // Column header — neutral band (no heavy teal), force via !important to beat v8 CSS vars
-    '& .MuiDataGrid-columnHeaders': {
-      backgroundColor: `${T.sidebar} !important`,
-      borderBottom: `1px solid ${T.border}`,
-    },
-    '& .MuiDataGrid-columnHeader': {
-      backgroundColor: `${T.sidebar} !important`,
-      color: `${T.textMuted} !important`,
-      '&:focus, &:focus-within': { outline: 'none' },
-    },
-    '& .MuiDataGrid-columnHeaderTitle': {
-      fontWeight: 700, color: `${T.textMuted} !important`,
-      fontSize: 11, textTransform: 'uppercase', letterSpacing: .5,
-    },
-    '& .MuiDataGrid-columnHeaderTitleContainer': { color: T.textMuted },
-    '& .MuiDataGrid-iconSeparator':  { color: T.border },
-    '& .MuiDataGrid-sortIcon':       { color: T.teal },
-    '& .MuiDataGrid-menuIconButton': { color: T.textMuted },
-
-    // Rows
-    '& .MuiDataGrid-row': {
-      borderBottom: `1px solid ${T.border}`,
-      backgroundColor: T.adminBg,
-      '&:hover': { backgroundColor: `${T.tealBg} !important` },
-    },
-    '& .MuiDataGrid-cell': {
-      borderBottom: 'none', color: T.textPrimary, fontSize: 13,
-      display: 'flex', alignItems: 'center',
-      '&:focus, &:focus-within': { outline: 'none' },
-    },
-
-    // Scrollable area + overlay
-    '& .MuiDataGrid-virtualScroller':        { backgroundColor: T.adminBg },
-    '& .MuiDataGrid-virtualScrollerContent': { backgroundColor: T.adminBg },
-    '& .MuiDataGrid-overlay':                { backgroundColor: T.adminBg },
-
-    // Footer
-    '& .MuiDataGrid-footerContainer': {
-      borderTop: `1px solid ${T.border}`,
-      backgroundColor: `${T.sidebar} !important`,
-      color: T.textMuted,
-    },
-    '& .MuiDataGrid-selectedRowCount': { color: T.teal },
-    '& .MuiTablePagination-root':       { color: T.textMuted },
-    '& .MuiTablePagination-selectIcon': { color: T.textMuted },
-    '& .MuiTablePagination-displayedRows': { color: T.textMuted },
-
-    // Checkbox
-    '& .MuiCheckbox-root': { color: T.textFaint },
-  }), [T]);
-
   // The column-menu ("Sort by / Hide / Manage columns") and the "Manage columns"
-  // panel are portaled to <body>, so gridSx above can't reach them — they'd fall
-  // back to the wrong MUI palette (white labels on the light theme). Theme them
-  // explicitly so they're legible in both modes.
+  // panel are portaled to <body>, so AdminDataTable's grid sx can't reach them —
+  // they'd fall back to the wrong MUI palette (white labels on the light theme).
+  // Theme them explicitly with the flat admin surface so they're legible in both modes.
   const panelSx = useMemo(() => ({
     '& .MuiPaper-root, & .MuiDataGrid-paper': {
-      backgroundColor: T.sidebar,
-      color: T.textPrimary,
-      border: `1px solid ${T.border}`,
+      backgroundColor: S.card,
+      color: T.text,
+      border: `1px solid ${S.border}`,
       boxShadow: '0 8px 32px rgba(0,0,0,0.24)',
     },
-    '& .MuiDataGrid-columnsManagement':        { color: T.textPrimary },
+    '& .MuiDataGrid-columnsManagement':        { color: T.text },
     '& .MuiDataGrid-columnsManagementHeader':  { color: T.textMuted },
-    '& .MuiDataGrid-columnsManagementFooter':  { borderTop: `1px solid ${T.border}` },
-    '& .MuiFormControlLabel-label':            { color: T.textPrimary, fontSize: 13 },
+    '& .MuiDataGrid-columnsManagementFooter':  { borderTop: `1px solid ${S.border}` },
+    '& .MuiFormControlLabel-label':            { color: T.text, fontSize: 13 },
     '& .MuiCheckbox-root':                     { color: T.textFaint, '&.Mui-checked': { color: T.teal } },
-    '& .MuiInputBase-input':                   { color: T.textPrimary },
-    '& .MuiInput-underline:before':            { borderBottomColor: T.border },
+    '& .MuiInputBase-input':                   { color: T.text },
+    '& .MuiInput-underline:before':            { borderBottomColor: S.border },
     '& .MuiInput-underline:hover:before':      { borderBottomColor: T.borderHover },
     '& .MuiInput-underline:after':             { borderBottomColor: T.teal },
     '& .MuiSvgIcon-root':                      { color: T.textMuted },
     '& .MuiButton-root':                       { color: T.teal },
-  }), [T]);
+  }), [T, S]);
 
   const columnMenuSx = useMemo(() => ({
     '& .MuiPaper-root': {
-      backgroundColor: T.sidebar,
-      color: T.textPrimary,
-      border: `1px solid ${T.border}`,
+      backgroundColor: S.card,
+      color: T.text,
+      border: `1px solid ${S.border}`,
     },
-    '& .MuiMenuItem-root, & .MuiListItemText-primary': { color: T.textPrimary },
+    '& .MuiMenuItem-root, & .MuiListItemText-primary': { color: T.text },
     '& .MuiMenuItem-root:hover':                       { backgroundColor: T.tealBg },
     '& .MuiListItemIcon-root .MuiSvgIcon-root':        { color: T.textMuted },
-    '& .MuiDivider-root':                              { borderColor: T.border },
-    '& .MuiInputBase-input':                           { color: T.textPrimary },
-  }), [T]);
+    '& .MuiDivider-root':                              { borderColor: S.border },
+    '& .MuiInputBase-input':                           { color: T.text },
+  }), [T, S]);
 
   const handleSortChange = useCallback((model) => {
     setSortModel(model.map(s => ({ ...s, field: SORT_FIELD_MAP[s.field] ?? s.field })));
@@ -294,17 +236,20 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
   ], [T, onDelete, openModal, openMediaFiles, openDrawer, visibilityMut, syncMut]);
 
   return (
-    <DataGrid
+    <AdminDataTable
       rows={rows}
       columns={columns}
       getRowId={r => r.recordId}
       loading={loading}
+      autoHeight
+      emptyIcon={MovieIcon}
+      emptyTitle="No records found"
+      emptyMessage="Try adjusting your filters."
       rowCount={totalElements}
       sortingMode="server"
       sortModel={displaySortModel}
       onSortModelChange={handleSortChange}
       checkboxSelection
-      disableRowSelectionOnClick
       rowSelectionModel={rowSelectionModel}
       onRowSelectionModelChange={handleSelectionChange}
       columnVisibilityModel={columnVisibilityModel}
@@ -312,13 +257,16 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       rowHeight={58}
       columnHeaderHeight={44}
       hideFooter
-      sx={gridSx}
+      keepNonExistentRowsSelected
+      // Sits flush inside the table's SectionCard — drop AdminDataTable's own
+      // outer border/radius so there's no double frame. minHeight keeps the
+      // empty-state overlay from collapsing when a filter returns nothing.
+      sx={{ border: 'none', borderRadius: 0, minHeight: 320 }}
       slotProps={{
         loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' },
         panel: { sx: panelSx },
         columnMenu: { sx: columnMenuSx },
       }}
-      keepNonExistentRowsSelected
     />
   );
 }

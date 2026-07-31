@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Chip, IconButton, Tooltip, TextField,
   ToggleButton, ToggleButtonGroup, CircularProgress, Button,
-  Stack, Collapse, Skeleton, Fab, Drawer, Divider, Badge, Snackbar, Alert,
+  Stack, Collapse, Skeleton, Fab, Badge, Snackbar, Alert,
 } from '@mui/material';
 import PlayArrowIcon         from '@mui/icons-material/PlayArrow';
 import PauseIcon             from '@mui/icons-material/Pause';
@@ -24,8 +24,10 @@ import TuneIcon              from '@mui/icons-material/Tune';
 import SpeedIcon             from '@mui/icons-material/Speed';
 import ContentCopyIcon       from '@mui/icons-material/ContentCopy';
 import FilterAltOffIcon      from '@mui/icons-material/FilterAltOff';
+import TerminalRoundedIcon   from '@mui/icons-material/TerminalRounded';
 import { useQuery }     from '@tanstack/react-query';
 import { useThemeMode } from '@shared/theme';
+import { useAdminHeader } from '@features/admin/adminUi';
 import {
   LOG_SOURCES_CONFIG, getSourceConfig, fetchLogs, fetchAvailableDates,
 } from './logApi';
@@ -1030,6 +1032,7 @@ export default function LogViewer() {
 
   // ── Shared sx ──
   const iconBtnSx = {
+    width: 40, height: 40,
     color: T.textFaint,
     '&:hover': { color: T.teal, bgcolor: T.tealBg },
   };
@@ -1046,12 +1049,22 @@ export default function LogViewer() {
     colorScheme: mode === 'dark' ? 'dark' : 'light',
   };
 
+  // Register the page title into the admin TOP BAR (single-header model). The
+  // terminal body below stays its own always-dark self; only the header moves up.
+  useAdminHeader({
+    title: 'Log Viewer',
+    icon: TerminalRoundedIcon,
+    subtitle: live
+      ? (connected ? `Live · ${sourceId}/${subType}` : 'Connecting…')
+      : `${displayed.length} / ${allEntries.length} · ${selDate ?? 'today'}`,
+  });
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <Box sx={{
-      height: 'calc(100vh - 52px)',
+      height: '100%',
       display: 'flex', flexDirection: 'column',
       bgcolor: T.adminBg, color: T.textPrimary,
       overflow: 'hidden',
@@ -1060,21 +1073,17 @@ export default function LogViewer() {
       {/* ╭───────────── Header ─────────────╮ */}
       <Box sx={{ px: { xs: 1.5, sm: 2.5, md: 3 }, pt: { xs: 1.25, md: 1.75 }, pb: 0.75,
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: { xs: 15, md: 18 }, color: T.textPrimary, lineHeight: 1.2 }}>
-            Log Viewer
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: T.textFaint, mt: 0.15,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {live
-              ? (connected ? `Live · ${sourceId}/${subType}` : 'Connecting…')
-              : <>
-                  <Box component="span" sx={{ color: T.text }}>{displayed.length}</Box>
-                  {` / ${allEntries.length} · ${selDate ?? 'today'}`}
-                  {hasActive && <Box component="span" sx={{ color: T.teal, ml: 0.5 }}>· filtered</Box>}
-                </>}
-          </Typography>
-        </Box>
+        {/* Title now lives in the admin top bar; keep a compact status line here. */}
+        <Typography sx={{ minWidth: 0, flex: 1, fontSize: 11, color: T.textFaint,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {live
+            ? (connected ? `Live · ${sourceId}/${subType}` : 'Connecting…')
+            : <>
+                <Box component="span" sx={{ color: T.text }}>{displayed.length}</Box>
+                {` / ${allEntries.length} · ${selDate ?? 'today'}`}
+                {hasActive && <Box component="span" sx={{ color: T.teal, ml: 0.5 }}>· filtered</Box>}
+              </>}
+        </Typography>
 
         {/* Live status pill (when live) */}
         {live && <LiveDot connected={connected} count={allLiveEntries.length} T={T} />}
@@ -1086,6 +1095,7 @@ export default function LogViewer() {
               size="small"
               onClick={() => { setLive(v => !v); if (live) { setLiveLines([]); setLivePreload([]); } }}
               sx={{
+                width: 40, height: 40,
                 color: live ? '#fff' : T.textMuted,
                 bgcolor: live ? T.error : T.glass,
                 border: `1px solid ${live ? T.error : T.border}`,
@@ -1126,9 +1136,11 @@ export default function LogViewer() {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Filters & settings" arrow>
-            <IconButton size="small" onClick={() => setPanelOpen(true)}
+          <Tooltip title={panelOpen ? 'Hide filters & settings' : 'Filters & settings'} arrow>
+            <IconButton size="small" onClick={() => setPanelOpen(p => !p)}
+              aria-expanded={panelOpen}
               sx={{
+                width: 40, height: 40,
                 color: panelOpen || activeFilterCount > 0 ? T.teal : T.textMuted,
                 bgcolor: panelOpen || activeFilterCount > 0 ? T.tealBg : T.glass,
                 border: `1px solid ${panelOpen || activeFilterCount > 0 ? T.teal + '55' : T.border}`,
@@ -1235,6 +1247,172 @@ export default function LogViewer() {
             ) : null,
           }} />
       </Box>
+
+      {/* ╭───────────── Inline filters & settings (collapsible, in place) ─────────────╮ */}
+      <Collapse in={panelOpen} unmountOnExit sx={{ flexShrink: 0 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2.5, md: 3 }, pb: 1 }}>
+          <Box sx={{
+            bgcolor: T.glass,
+            border: `1px solid ${T.border}`,
+            borderRadius: 1.25,
+            p: { xs: 1.25, sm: 1.75 },
+          }}>
+            {/* Panel header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <TuneIcon sx={{ fontSize: 16, color: T.teal }} />
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, flex: 1, color: T.text }}>
+                Filters &amp; settings
+              </Typography>
+              <Button size="small" onClick={resetFilters} disabled={!hasActive}
+                startIcon={<FilterAltOffIcon sx={{ fontSize: 14 }} />}
+                sx={{ fontSize: 11, color: T.textMuted, textTransform: 'none',
+                  '&:hover': { color: T.error, bgcolor: `${T.error}11` },
+                  '&.Mui-disabled': { color: T.textFaint, opacity: 0.5 } }}>
+                Clear filters
+              </Button>
+              <IconButton size="small" onClick={() => setPanelOpen(false)}
+                aria-label="Hide filters" sx={{ ...iconBtnSx, width: 32, height: 32 }}>
+                <ClearIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
+
+            {/* Controls — responsive auto-fit grid (1 col on phones, rows on desktop) */}
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(190px, 1fr))' },
+              gap: { xs: 1.5, sm: 1.75 },
+              alignItems: 'start',
+            }}>
+              {/* ── Filters (JSON only) ── */}
+              {fmt === 'JSON' && (
+                <Typography sx={{ gridColumn: '1 / -1', fontSize: 10, color: T.textFaint,
+                  textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+                  Filters
+                </Typography>
+              )}
+
+              {fmt === 'JSON' && presentLevels.length > 0 && (
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Level</Typography>
+                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+                    {presentLevels.map(lvl => {
+                      const c = LC[lvl];
+                      const on = levelFilter.includes(lvl);
+                      return (
+                        <Chip key={lvl} label={lvl} size="small" clickable
+                          onClick={() => addFilter({ type: 'level', value: lvl })}
+                          sx={{ fontSize: 11, fontWeight: 700, height: 26,
+                            bgcolor: on ? c.bg : T.glass,
+                            color: on ? c.text : T.textMuted,
+                            border: `1px solid ${on ? c.border : T.border}` }} />
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              )}
+
+              {fmt === 'JSON' && (
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Performance</Typography>
+                  <Chip
+                    size="small" clickable
+                    icon={<SpeedIcon sx={{ fontSize: 14 }} />}
+                    onClick={() => setSlowOnly(v => !v)}
+                    label={`Slow only (≥${SLOW_THRESHOLD_MS}ms)`}
+                    sx={{ fontSize: 11, fontWeight: 600, height: 26,
+                      bgcolor: slowOnly ? 'rgba(245,158,11,0.18)' : T.glass,
+                      color: slowOnly ? '#fbbf24' : T.textMuted,
+                      border: `1px solid ${slowOnly ? 'rgba(245,158,11,0.4)' : T.border}` }} />
+                </Box>
+              )}
+
+              {fmt === 'JSON' && uniqueUsers.length > 0 && (
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>User</Typography>
+                  <TextField select fullWidth size="small" value={userFilter}
+                    onChange={e => setUserFilter(e.target.value)}
+                    SelectProps={{ native: true }}
+                    sx={fieldSx}>
+                    <option value="">All users</option>
+                    {uniqueUsers.map(u => <option key={u} value={u}>{u}</option>)}
+                  </TextField>
+                </Box>
+              )}
+
+              {fmt === 'JSON' && (methodFilter || statusFilter || traceFilter) && (
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>
+                    Set by clicking in rows
+                  </Typography>
+                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+                    {methodFilter && <ActivePill label="method" value={methodFilter}
+                                        color={METHOD_C[methodFilter]}
+                                        onRemove={() => setMethodFilter('')} T={T} />}
+                    {statusFilter && <ActivePill label="status" value={statusFilter}
+                                        onRemove={() => setStatusFilter('')} T={T} />}
+                    {traceFilter  && <ActivePill label="trace"
+                                        value={traceFilter.length > 14 ? traceFilter.slice(0, 14) + '…' : traceFilter}
+                                        color="#a5b4fc"
+                                        onRemove={() => setTraceFilter('')} T={T} />}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* ── Display ── */}
+              <Typography sx={{ gridColumn: '1 / -1', fontSize: 10, color: T.textFaint,
+                textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700,
+                mt: fmt === 'JSON' ? 0.5 : 0 }}>
+                Display
+              </Typography>
+
+              {!live && (
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Lines per load</Typography>
+                  <TextField select fullWidth size="small" value={lines}
+                    onChange={e => { setLines(Number(e.target.value)); isLoadingMore.current = false; }}
+                    SelectProps={{ native: true }}
+                    sx={fieldSx}>
+                    {[100, 250, 500, 1000, 2000, 5000].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </TextField>
+                </Box>
+              )}
+
+              <Box>
+                <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Order</Typography>
+                <ToggleButtonGroup value={sortDesc ? 'desc' : 'asc'} exclusive
+                  onChange={(_, v) => v && setSortDesc(v === 'desc')} size="small" fullWidth>
+                  <ToggleButton value="asc"
+                    sx={{ fontSize: 11, py: 0.5, textTransform: 'none', color: T.textMuted,
+                      border: `1px solid ${T.border} !important`,
+                      '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55 !important` } }}>
+                    <ArrowUpwardIcon sx={{ fontSize: 14, mr: 0.5 }} />Oldest
+                  </ToggleButton>
+                  <ToggleButton value="desc"
+                    sx={{ fontSize: 11, py: 0.5, textTransform: 'none', color: T.textMuted,
+                      border: `1px solid ${T.border} !important`,
+                      '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55 !important` } }}>
+                    <ArrowDownwardIcon sx={{ fontSize: 14, mr: 0.5 }} />Newest
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Duplicates</Typography>
+                <Chip
+                  size="small" clickable
+                  onClick={() => setCollapseBursts(v => !v)}
+                  label={collapseBursts ? 'Collapsed (× N)' : 'Show every line'}
+                  sx={{ fontSize: 11, fontWeight: 600, height: 26,
+                    bgcolor: collapseBursts ? T.tealBg : T.glass,
+                    color: collapseBursts ? T.teal : T.textMuted,
+                    border: `1px solid ${collapseBursts ? T.teal + '55' : T.border}` }} />
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      </Collapse>
 
       {/* ╭───────────── Active-filter pills (only when any) ─────────────╮ */}
       {hasActive && (
@@ -1404,179 +1582,6 @@ export default function LogViewer() {
           </Box>
         )}
       </Box>
-
-      {/* ╭───────────── Filter / settings drawer (right on md+, bottom on xs) ─────────────╮ */}
-      <Drawer
-        anchor="right"
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        PaperProps={{
-          sx: {
-            bgcolor: T.adminBg, color: T.textPrimary,
-            width: { xs: '100%', sm: 360 },
-            borderLeft: `1px solid ${T.border}`,
-          },
-        }}>
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2.5,
-          height: '100%', overflowY: 'auto' }}>
-
-          {/* Drawer header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TuneIcon sx={{ fontSize: 18, color: T.teal }} />
-            <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>Filters &amp; settings</Typography>
-            <IconButton size="small" onClick={() => setPanelOpen(false)} sx={iconBtnSx}>
-              <ClearIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Box>
-
-          {/* ── Filters section ── */}
-          {fmt === 'JSON' && (
-            <Box>
-              <Typography sx={{ fontSize: 10, color: T.textFaint, mb: 1,
-                textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Filters</Typography>
-
-              {presentLevels.length > 0 && (
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Level</Typography>
-                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-                    {presentLevels.map(lvl => {
-                      const c = LC[lvl];
-                      const on = levelFilter.includes(lvl);
-                      return (
-                        <Chip key={lvl} label={lvl} size="small" clickable
-                          onClick={() => addFilter({ type: 'level', value: lvl })}
-                          sx={{ fontSize: 11, fontWeight: 700, height: 26,
-                            bgcolor: on ? c.bg : T.glass,
-                            color: on ? c.text : T.textMuted,
-                            border: `1px solid ${on ? c.border : T.border}` }} />
-                      );
-                    })}
-                  </Stack>
-                </Box>
-              )}
-
-              <Box sx={{ mb: 1.5 }}>
-                <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Performance</Typography>
-                <Chip
-                  size="small" clickable
-                  icon={<SpeedIcon sx={{ fontSize: 14 }} />}
-                  onClick={() => setSlowOnly(v => !v)}
-                  label={`Slow only (≥${SLOW_THRESHOLD_MS}ms)`}
-                  sx={{ fontSize: 11, fontWeight: 600, height: 26,
-                    bgcolor: slowOnly ? 'rgba(245,158,11,0.18)' : T.glass,
-                    color: slowOnly ? '#fbbf24' : T.textMuted,
-                    border: `1px solid ${slowOnly ? 'rgba(245,158,11,0.4)' : T.border}` }} />
-              </Box>
-
-              {uniqueUsers.length > 0 && (
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>User</Typography>
-                  <TextField select fullWidth size="small" value={userFilter}
-                    onChange={e => setUserFilter(e.target.value)}
-                    SelectProps={{ native: true }}
-                    sx={fieldSx}>
-                    <option value="">All users</option>
-                    {uniqueUsers.map(u => <option key={u} value={u}>{u}</option>)}
-                  </TextField>
-                </Box>
-              )}
-
-              {(methodFilter || statusFilter || traceFilter) && (
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>
-                    Set by clicking in rows
-                  </Typography>
-                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-                    {methodFilter && <ActivePill label="method" value={methodFilter}
-                                        color={METHOD_C[methodFilter]}
-                                        onRemove={() => setMethodFilter('')} T={T} />}
-                    {statusFilter && <ActivePill label="status" value={statusFilter}
-                                        onRemove={() => setStatusFilter('')} T={T} />}
-                    {traceFilter  && <ActivePill label="trace"
-                                        value={traceFilter.length > 14 ? traceFilter.slice(0, 14) + '…' : traceFilter}
-                                        color="#a5b4fc"
-                                        onRemove={() => setTraceFilter('')} T={T} />}
-                  </Stack>
-                </Box>
-              )}
-            </Box>
-          )}
-
-          <Divider sx={{ borderColor: T.border }} />
-
-          {/* ── Display section ── */}
-          <Box>
-            <Typography sx={{ fontSize: 10, color: T.textFaint, mb: 1,
-              textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Display</Typography>
-
-            {!live && (
-              <Box sx={{ mb: 1.5 }}>
-                <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Lines per load</Typography>
-                <TextField select fullWidth size="small" value={lines}
-                  onChange={e => { setLines(Number(e.target.value)); isLoadingMore.current = false; }}
-                  SelectProps={{ native: true }}
-                  sx={fieldSx}>
-                  {[100, 250, 500, 1000, 2000, 5000].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </TextField>
-              </Box>
-            )}
-
-            <Box sx={{ mb: 1.5 }}>
-              <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Order</Typography>
-              <ToggleButtonGroup value={sortDesc ? 'desc' : 'asc'} exclusive
-                onChange={(_, v) => v && setSortDesc(v === 'desc')} size="small" fullWidth>
-                <ToggleButton value="asc"
-                  sx={{ fontSize: 11, py: 0.5, textTransform: 'none', color: T.textMuted,
-                    border: `1px solid ${T.border} !important`,
-                    '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55 !important` } }}>
-                  <ArrowUpwardIcon sx={{ fontSize: 14, mr: 0.5 }} />Oldest first
-                </ToggleButton>
-                <ToggleButton value="desc"
-                  sx={{ fontSize: 11, py: 0.5, textTransform: 'none', color: T.textMuted,
-                    border: `1px solid ${T.border} !important`,
-                    '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55 !important` } }}>
-                  <ArrowDownwardIcon sx={{ fontSize: 14, mr: 0.5 }} />Newest first
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            <Box>
-              <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 0.5 }}>Duplicates</Typography>
-              <Chip
-                size="small" clickable
-                onClick={() => setCollapseBursts(v => !v)}
-                label={collapseBursts ? 'Collapsed (× N)' : 'Show every line'}
-                sx={{ fontSize: 11, fontWeight: 600, height: 26,
-                  bgcolor: collapseBursts ? T.tealBg : T.glass,
-                  color: collapseBursts ? T.teal : T.textMuted,
-                  border: `1px solid ${collapseBursts ? T.teal + '55' : T.border}` }} />
-            </Box>
-          </Box>
-
-          {/* Footer actions */}
-          <Box sx={{ mt: 'auto' }}>
-            <Divider sx={{ borderColor: T.border, mb: 1.5 }} />
-            <Stack direction="row" sx={{ gap: 1 }}>
-              <Button fullWidth onClick={resetFilters}
-                disabled={!hasActive}
-                startIcon={<FilterAltOffIcon sx={{ fontSize: 14 }} />}
-                variant="outlined"
-                sx={{ borderColor: T.border, color: T.textMuted, textTransform: 'none',
-                  fontSize: 12,
-                  '&:hover': { borderColor: T.error, color: T.error, bgcolor: `${T.error}11` } }}>
-                Clear filters
-              </Button>
-              <Button fullWidth onClick={() => setPanelOpen(false)} variant="contained"
-                sx={{ bgcolor: T.teal, textTransform: 'none', fontSize: 12,
-                  '&:hover': { bgcolor: T.tealHover } }}>
-                Done
-              </Button>
-            </Stack>
-          </Box>
-        </Box>
-      </Drawer>
     </Box>
   );
 }

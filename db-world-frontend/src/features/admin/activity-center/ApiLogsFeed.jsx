@@ -13,7 +13,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ClearIcon       from '@mui/icons-material/Clear';
 import RefreshIcon     from '@mui/icons-material/Refresh';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useT }        from '@shared/theme/ThemeContext';
+import { useT }        from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import {
   fetchApiLogs, HTTP_METHODS, METHOD_COLOR, fmtAgo, fmtDuration, statusColor,
 } from './activityApi';
@@ -123,11 +124,12 @@ function CodeBlock({ label, text }) {
 // ─── Expanded detail body (shared by table row + mobile card) ────────────────
 function ExpandedDetails({ log }) {
   const T = useT();
+  const S = adminSurface(T);
   return (
     <Box sx={{
-      bgcolor: T.hoverBg, px: { xs: 1.5, sm: 2.5 }, py: 1.75,
+      bgcolor: S.inset, px: { xs: 1.5, sm: 2.5 }, py: 1.75,
       display: 'flex', flexDirection: 'column', gap: 1.5,
-      borderTop: `1px solid ${T.border}`,
+      borderTop: `1px solid ${S.divider}`,
     }}>
       <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(auto-fit, minmax(140px, 1fr))' } }}>
         <Field label="User">{log.username}</Field>
@@ -225,6 +227,7 @@ function LogRow({ log }) {
 // ─── Mobile log card ─────────────────────────────────────────────────────────
 function LogCard({ log, index }) {
   const T = useT();
+  const S = adminSurface(T);
   const [open, setOpen] = useState(false);
   return (
     <Box
@@ -233,8 +236,8 @@ function LogCard({ log, index }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, delay: Math.min(index * 0.02, 0.2) }}
       sx={{
-        border: `1px solid ${T.border}`, borderRadius: 2, overflow: 'hidden',
-        bgcolor: T.glass, transition: 'border-color .15s',
+        border: `1px solid ${S.border}`, borderRadius: 2, overflow: 'hidden',
+        bgcolor: S.card, transition: 'border-color .15s',
         '&:active': { borderColor: T.teal },
       }}
     >
@@ -279,11 +282,12 @@ function LogCard({ log, index }) {
 // ─── Sortable header cell ─────────────────────────────────────────────────────
 function SortTH({ children, field, sort, onSort, sx = {} }) {
   const T = useT();
+  const S = adminSurface(T);
   const active = sort.field === field;
   return (
     <TableCell sx={{
       fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
-      color: T.textFaint, bgcolor: T.glass, borderColor: T.border,
+      color: T.textFaint, bgcolor: S.card, borderColor: S.border,
       whiteSpace: 'nowrap', userSelect: 'none',
       ...sx,
     }}>
@@ -331,6 +335,7 @@ function StatusClassPill({ option, active, onClick }) {
 // ─── ApiLogsFeed ──────────────────────────────────────────────────────────────
 export default function ApiLogsFeed() {
   const T = useT();
+  const S = adminSurface(T);
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
 
@@ -425,12 +430,11 @@ export default function ApiLogsFeed() {
 
   return (
     <Box>
-      {/* ── Toolbar (sticky) ── */}
+      {/* ── Toolbar ── (not sticky: the tab bar above is already sticky; two
+          sticky top:0 elements would overlap/overwrite each other) */}
       <Box sx={{
-        position: 'sticky', top: 0, zIndex: 3,
-        bgcolor: T.glass,
-        borderBottom: `1px solid ${T.border}`,
-        backdropFilter: 'blur(8px)',
+        bgcolor: S.card,
+        borderBottom: `1px solid ${S.border}`,
       }}>
         <Box sx={{
           display: 'flex', alignItems: 'center', gap: 1,
@@ -581,7 +585,7 @@ export default function ApiLogsFeed() {
       {isMobile ? (
         <Box sx={{ p: { xs: 1.25, sm: 2 }, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {loading && Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={82} sx={{ bgcolor: T.glass }} />
+            <Skeleton key={i} variant="rounded" height={82} sx={{ bgcolor: S.inset }} />
           ))}
           {!loading && visibleLogs.length === 0 && (
             <Box sx={{ py: 6, textAlign: 'center' }}>
@@ -604,7 +608,7 @@ export default function ApiLogsFeed() {
                 <SortTH field="userEmail" sort={sort} onSort={handleSort} sx={{ minWidth: 120 }}>User</SortTH>
                 <SortTH field="duration"  sort={sort} onSort={handleSort} sx={{ minWidth: 78 }}>Duration</SortTH>
                 <SortTH field="timestamp" sort={sort} onSort={handleSort} sx={{ minWidth: 76 }}>When</SortTH>
-                <TableCell sx={{ bgcolor: T.glass, borderColor: T.border, width: 32 }} />
+                <TableCell sx={{ bgcolor: S.card, borderColor: S.border, width: 32 }} />
               </TableRow>
             </TableHead>
             <TableBody>

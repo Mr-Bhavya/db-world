@@ -1,13 +1,15 @@
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import CandlestickChartRoundedIcon from '@mui/icons-material/CandlestickChartRounded';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import { AdminPage, SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
 import { useSourceHealth, useIpoChanges, useRepoll, useSendTestPush, usePushStatus } from '../hooks/useIpoAdmin';
 
 const SOURCE_LABEL = {
@@ -26,9 +28,9 @@ const fmtIst = (iso) => {
 };
 
 /** Health tier for a source row: never polled (unknown) / healthy / warning (a few failures) / failing. */
-function healthTier(row, T) {
+function healthTier(row, T, S) {
   if (!row.lastPolledAt) {
-    return { label: 'Never polled', color: T.textFaint, bg: T.glassHover, Icon: HelpOutlineIcon };
+    return { label: 'Never polled', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
   }
   if (row.consecutiveFailures === 0 && row.lastStatus === 'OK') {
     return { label: 'Healthy', color: T.success, bg: T.successBg, Icon: CheckCircleIcon };
@@ -39,16 +41,16 @@ function healthTier(row, T) {
   return { label: 'Failing', color: T.error, bg: T.errorBg, Icon: ErrorIcon };
 }
 
-function SourceHealthCard({ T, row }) {
-  const tier = healthTier(row, T);
+function SourceHealthCard({ T, S, row }) {
+  const tier = healthTier(row, T, S);
   const label = SOURCE_LABEL[row.source] ?? row.source;
   return (
     <Box sx={{
-      bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2, p: 2,
-      flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 1,
+      bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 3, p: 2,
+      display: 'flex', flexDirection: 'column', gap: 1,
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography sx={{ fontSize: 14, fontWeight: 700, color: T.textPrimary }}>{label}</Typography>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, color: T.text }}>{label}</Typography>
         <Box sx={{
           display: 'flex', alignItems: 'center', gap: 0.5, px: 0.9, py: 0.25, borderRadius: 5,
           bgcolor: tier.bg, color: tier.color,
@@ -78,12 +80,15 @@ function Row({ label, value, T }) {
 
 export default function IpoAdminPage() {
   const T = useT();
+  const S = adminSurface(T);
   const navigate = useNavigate();
-  const { data: sources = [], isLoading: sourcesLoading } = useSourceHealth();
-  const { data: changes = [], isLoading: changesLoading } = useIpoChanges();
+  const { data: sources = [], isLoading: sourcesLoading, refetch: refetchSources } = useSourceHealth();
+  const { data: changes = [], isLoading: changesLoading, refetch: refetchChanges } = useIpoChanges();
   const repollMutation = useRepoll();
   const testPush = useSendTestPush();
   const { data: pushStatus } = usePushStatus();
+
+  const handleRefresh = () => { refetchSources(); refetchChanges(); };
 
   const columns = [
     {
@@ -101,40 +106,43 @@ export default function IpoAdminPage() {
   const rows = changes.map((c, i) => ({ id: `${c.ipoId}-${c.eventType}-${c.createdAt}-${i}`, ...c }));
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, color: T.textPrimary }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-        <Typography sx={{ fontSize: 20, fontWeight: 800 }}>IPO Tracker</Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            variant="outlined"
-            startIcon={testPush.isPending ? <CircularProgress size={14} color="inherit" /> : <NotificationsActiveIcon />}
-            disabled={testPush.isPending}
+    <AdminPage
+      title="IPO Tracker"
+      subtitle="Source health, recent change feed and push diagnostics for the IPO pipeline."
+      icon={CandlestickChartRoundedIcon}
+      onRefresh={handleRefresh}
+      refreshing={sourcesLoading || changesLoading}
+      actions={
+        <>
+          <AdminActionButton
+            variant="secondary"
+            icon={NotificationsActiveIcon}
             onClick={() => testPush.mutate({})}
-            sx={{ borderColor: T.teal, color: T.teal, '&:hover': { borderColor: T.tealHover, bgcolor: T.tealBg } }}
+            loading={testPush.isPending}
           >
-            {testPush.isPending ? 'Sending…' : 'Send test push'}
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={repollMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-            disabled={repollMutation.isPending}
+            Send test push
+          </AdminActionButton>
+          <AdminActionButton
+            variant="primary"
+            icon={RefreshIcon}
             onClick={() => repollMutation.mutate()}
-            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}
+            loading={repollMutation.isPending}
           >
-            {repollMutation.isPending ? 'Re-polling…' : 'Re-poll now'}
-          </Button>
-        </Box>
-      </Box>
-
+            Re-poll now
+          </AdminActionButton>
+        </>
+      }
+    >
+      {/* Meta: scheduler hint + push diagnostics */}
       <Typography
         onClick={() => navigate(Constants.DB_ADMIN_SCHEDULER_ROUTE)}
-        sx={{ fontSize: 12, color: T.textFaint, mb: 2, cursor: 'pointer', width: 'fit-content', '&:hover': { color: T.teal } }}
+        sx={{ fontSize: 12, color: T.textFaint, mb: 1, cursor: 'pointer', width: 'fit-content', '&:hover': { color: T.teal } }}
       >
         Adjust the poll schedule on the Scheduler page →
       </Typography>
 
       {pushStatus && (
-        <Typography sx={{ fontSize: 12, color: T.textFaint, mb: 2 }}>
+        <Typography sx={{ fontSize: 12, color: T.textFaint, mb: 3 }}>
           Push: {pushStatus.enabled ? 'enabled' : 'disabled'} · transport{' '}
           {pushStatus.transportReady ? 'ready (FCM)' : 'not ready'} · topic {pushStatus.topic}
           {' '}— reaches only devices that enabled notifications.
@@ -144,35 +152,38 @@ export default function IpoAdminPage() {
       <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
         Source health
       </Typography>
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+      <Box sx={{
+        display: 'grid', gap: 2, mb: 3,
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(240px, 1fr))' },
+      }}>
         {sourcesLoading && sources.length === 0 ? (
           <Typography sx={{ color: T.textMuted, fontSize: 13 }}>Loading…</Typography>
         ) : sources.length === 0 ? (
           <Typography sx={{ color: T.textMuted, fontSize: 13 }}>No sources polled yet.</Typography>
         ) : (
-          sources.map((row) => <SourceHealthCard key={row.source} T={T} row={row} />)
+          sources.map((row) => <SourceHealthCard key={row.source} T={T} S={S} row={row} />)
         )}
       </Box>
 
-      <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
-        Recent changes
-      </Typography>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Box sx={{ height: 480, minWidth: 640 }}>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            loading={changesLoading}
-            disableRowSelectionOnClick
-            density="compact"
-            initialState={{
-              sorting: { sortModel: [{ field: 'createdAt', sort: 'desc' }] },
-              pagination: { paginationModel: { pageSize: 25 } },
-            }}
-            pageSizeOptions={[25, 50, 100]}
-          />
+      <SectionCard title="Recent changes" padding={false}>
+        <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          <Box sx={{ height: 480, minWidth: 640 }}>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              loading={changesLoading}
+              disableRowSelectionOnClick
+              density="compact"
+              initialState={{
+                sorting: { sortModel: [{ field: 'createdAt', sort: 'desc' }] },
+                pagination: { paginationModel: { pageSize: 25 } },
+              }}
+              pageSizeOptions={[25, 50, 100]}
+              sx={{ border: 'none', '& .MuiDataGrid-columnHeaders': { bgcolor: S.inset } }}
+            />
+          </Box>
         </Box>
-      </Box>
-    </Box>
+      </SectionCard>
+    </AdminPage>
   );
 }

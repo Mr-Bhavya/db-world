@@ -7,7 +7,8 @@ import {
 import BoltIcon from '@mui/icons-material/Bolt';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { useQuery } from '@tanstack/react-query';
-import { useT } from '@shared/theme/ThemeContext';
+import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { fetchLiveSessions } from './activityApi';
 
 const WITHIN_MINUTES = 30;
@@ -112,10 +113,11 @@ function ChannelClientChip({ channel, clientApp }) {
 
 function ProgressBar({ pct, width, label }) {
   const T = useT();
+  const S = adminSurface(T);
   const v = fmtPct(pct);
   return (
     <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: width ?? 96 }}>
-      <Box sx={{ flex: 1, height: 5, borderRadius: 3, bgcolor: alpha(T.text, 0.1), overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, height: 5, borderRadius: 3, bgcolor: S.inset, overflow: 'hidden' }}>
         <Box sx={{
           width: `${v}%`, height: '100%', borderRadius: 3,
           bgcolor: v >= 100 ? '#10b981' : T.teal,
@@ -217,8 +219,9 @@ function LiveRow({ session, isLg, isXl }) {
 
 function LiveCard({ session }) {
   const T = useT();
+  const S = adminSurface(T);
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 2, p: 1.25, borderColor: T.border, bgcolor: T.glass }}>
+    <Paper variant="outlined" sx={{ borderRadius: 2, p: 1.25, borderColor: S.border, bgcolor: S.card }}>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="body2" fontWeight={600} title={session.title}
@@ -285,6 +288,7 @@ function SkeletonCard() {
 
 export default function LiveTab() {
   const T = useT();
+  const S = adminSurface(T);
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const isLg = useMediaQuery(muiTheme.breakpoints.up('lg'));
@@ -308,7 +312,6 @@ export default function LiveTab() {
 
   return (
     <Box sx={{
-      p: { xs: 1.5, sm: 2, md: 2.5 },
       display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 },
     }}>
       <Box sx={{
@@ -344,7 +347,7 @@ export default function LiveTab() {
       ) : (
         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           {isFetching && <LinearProgress sx={{ height: 2 }} />}
-          <Table size="small" stickyHeader sx={{ '& td, & th': { borderColor: alpha(T.border, 0.6) } }}>
+          <Table size="small" stickyHeader sx={{ '& td, & th': { borderColor: S.divider } }}>
             <TableHead>
               <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '.04em', color: 'text.secondary', bgcolor: 'background.paper' } }}>
                 <TableCell>User</TableCell>

@@ -1,16 +1,18 @@
 import { useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, IconButton, Grid, TextField, FormControlLabel, Switch } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, IconButton, GridLegacy as Grid, TextField, FormControlLabel, Switch } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import { typeSchema } from './typeSchemas';
 import { createType, updateType } from './adminWalletApi';
 
 export default function TypeUpsertDialog({ open, onClose, editItem }) {
   const T = useT();
+  const S = adminSurface(T);
   const qc = useQueryClient();
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(typeSchema),
@@ -26,7 +28,7 @@ export default function TypeUpsertDialog({ open, onClose, editItem }) {
   const sx = { '& .MuiInputBase-root': { color: T.textPrimary }, '& label': { color: T.textMuted } };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: T.sidebar } }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', color: T.textPrimary }}>
         {editItem ? 'Edit document type' : 'New document type'}
         <IconButton onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>

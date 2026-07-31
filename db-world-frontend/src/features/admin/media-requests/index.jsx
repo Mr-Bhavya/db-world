@@ -2,18 +2,20 @@ import { useMemo, useState } from 'react';
 import {
   Box, Typography, Chip, IconButton, Tooltip, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  ToggleButton, ToggleButtonGroup,
+  ToggleButton, ToggleButtonGroup, useMediaQuery,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import {
-  CheckCircle, Cancel, Movie, LiveTv,
-  HourglassEmpty, DoneAll, Block, OpenInNew, Restore,
-  HighQuality, MobileFriendly, AddCircleOutline,
+  CheckCircleRounded, CancelRounded, MovieRounded, LiveTvRounded,
+  HourglassEmptyRounded, DoneAllRounded, BlockRounded, OpenInNewRounded, RestoreRounded,
+  HighQualityRounded, MobileFriendlyRounded, AddCircleOutlineRounded,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
+import { adminSurface } from '@features/admin/adminUi';
 import Constants from '@shared/constants';
 import {
   fetchAdminMediaRequests, fulfillMediaRequest, dismissMediaRequest, reopenMediaRequest,
@@ -21,15 +23,15 @@ import {
 import VotersPopover from '@features/admin/requests/components/VotersPopover';
 
 const STATUS_META = {
-  PENDING:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: <HourglassEmpty sx={{ fontSize: 13 }} />, label: 'Pending' },
-  FULFILLED: { color: '#10b981', bg: 'rgba(16,185,129,0.12)', icon: <DoneAll sx={{ fontSize: 13 }} />,        label: 'Fulfilled' },
-  DISMISSED: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', icon: <Block sx={{ fontSize: 13 }} />,         label: 'Dismissed' },
+  PENDING:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: <HourglassEmptyRounded sx={{ fontSize: 13 }} />, label: 'Pending' },
+  FULFILLED: { color: '#10b981', bg: 'rgba(16,185,129,0.12)', icon: <DoneAllRounded sx={{ fontSize: 13 }} />,        label: 'Fulfilled' },
+  DISMISSED: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', icon: <BlockRounded sx={{ fontSize: 13 }} />,         label: 'Dismissed' },
 };
 
 const KIND_META = {
-  NEW_FILES:      { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: <AddCircleOutline sx={{ fontSize: 13 }} />, label: 'Needs files' },
-  HIGHER_QUALITY: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)',  icon: <HighQuality sx={{ fontSize: 13 }} />,      label: 'Higher quality' },
-  LOWER_QUALITY:  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <MobileFriendly sx={{ fontSize: 13 }} />,   label: 'Lower quality' },
+  NEW_FILES:      { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: <AddCircleOutlineRounded sx={{ fontSize: 13 }} />, label: 'Needs files' },
+  HIGHER_QUALITY: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)',  icon: <HighQualityRounded sx={{ fontSize: 13 }} />,      label: 'Higher quality' },
+  LOWER_QUALITY:  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <MobileFriendlyRounded sx={{ fontSize: 13 }} />,   label: 'Lower quality' },
 };
 
 function StatusChip({ status }) {
@@ -50,6 +52,17 @@ function KindChip({ kind }) {
   );
 }
 
+function TypeChip({ isMovie, T, S }) {
+  return (
+    <Chip
+      size="small"
+      icon={isMovie ? <MovieRounded sx={{ fontSize: 13 }} /> : <LiveTvRounded sx={{ fontSize: 13 }} />}
+      label={isMovie ? 'Movie' : 'TV'}
+      sx={{ height: 22, fontWeight: 600, bgcolor: 'transparent', border: `1px solid ${S.border}`, color: T.textMuted }}
+    />
+  );
+}
+
 function formatRelative(iso) {
   if (!iso) return '—';
   const then = new Date(iso).getTime();
@@ -64,6 +77,9 @@ function formatRelative(iso) {
 
 export default function MediaRequestsAdminPage() {
   const T = useT();
+  const S = adminSurface(T);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -119,6 +135,123 @@ export default function MediaRequestsAdminPage() {
     navigate(base.replace(':title', `${req.recordId}-${slug}`));
   };
 
+  // Action buttons for a row — shared by the desktop table and the mobile cards
+  // so the fulfill/dismiss/reopen logic stays in one place.
+  const renderActions = (r) => {
+    if (r.status === 'PENDING') {
+      return (
+        <>
+          <Tooltip title="Mark fulfilled & notify voters">
+            <span>
+              <IconButton size="small" disabled={fulfillMut.isPending} onClick={() => fulfillMut.mutate(r.id)} sx={{ color: '#10b981' }}>
+                <CheckCircleRounded sx={{ fontSize: 20 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Dismiss (with optional message to voters)">
+            <span>
+              <IconButton size="small" disabled={dismissMut.isPending} onClick={() => { setDismissTarget(r); setDismissReason(''); }} sx={{ color: T.textMuted }}>
+                <CancelRounded sx={{ fontSize: 20 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </>
+      );
+    }
+    if (r.status === 'FULFILLED') {
+      return (
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+          {r.fulfilledByUsername && (
+            <Typography variant="caption" sx={{ color: T.textFaint }}>
+              by {r.fulfilledByUsername}
+            </Typography>
+          )}
+          <Tooltip title="Reopen (undo fulfill)">
+            <span>
+              <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
+                <RestoreRounded sx={{ fontSize: 18 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+      );
+    }
+    if (r.status === 'DISMISSED') {
+      return (
+        <Tooltip title="Reopen (undo dismiss)">
+          <span>
+            <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
+              <RestoreRounded sx={{ fontSize: 18 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      );
+    }
+    return null;
+  };
+
+  const renderMobileList = () => (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {isLoading && (
+        <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
+          <CircularProgress size={28} />
+        </Box>
+      )}
+      {!isLoading && requests.length === 0 && (
+        <Box sx={{ py: 6, textAlign: 'center', color: T.textFaint, fontSize: 13 }}>
+          No {statusFilter.toLowerCase()} requests.
+        </Box>
+      )}
+      {!isLoading && requests.map((r) => {
+        const isMovie = r.recordType === 'MOVIE';
+        return (
+          <Box key={r.id} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${S.border}`, bgcolor: S.card }}>
+            {/* Title row: open-record · title · status */}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Tooltip title="Open record">
+                <IconButton size="small" onClick={() => openRecord(r)} sx={{ color: T.teal, mt: -0.25 }}>
+                  <OpenInNewRounded sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: T.text }}>
+                  {r.recordTitle}
+                </Typography>
+                {r.status === 'DISMISSED' && r.dismissReason && (
+                  <Typography variant="caption" sx={{ color: T.textFaint, fontStyle: 'italic', display: 'block' }}>
+                    “{r.dismissReason}”
+                  </Typography>
+                )}
+              </Box>
+              <StatusChip status={r.status} />
+            </Box>
+
+            {/* Meta row: type · kind · voters */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 1, pl: 4.5 }}>
+              <TypeChip isMovie={isMovie} T={T} S={S} />
+              <KindChip kind={r.kind} />
+              <Box component="span" sx={{ display: 'inline-flex' }}>
+                <VotersPopover voters={r.voters} voteCount={r.voteCount} />
+              </Box>
+            </Box>
+
+            {/* Footer row: created · actions */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mt: 1, pl: 4.5 }}>
+              <Tooltip title={r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}>
+                <Typography variant="caption" sx={{ color: T.textMuted }}>
+                  {formatRelative(r.createdAt)}
+                </Typography>
+              </Tooltip>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {renderActions(r)}
+              </Box>
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+
   return (
     <Box>
       <Typography variant="body2" sx={{ color: T.textMuted, mb: 2 }}>
@@ -137,134 +270,91 @@ export default function MediaRequestsAdminPage() {
         <ToggleButton value="DISMISSED">Dismissed</ToggleButton>
       </ToggleButtonGroup>
 
-      <TableContainer component={Paper} sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2, boxShadow: 'none' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.textMuted, borderBottom: `1px solid ${T.glassBorder}` } }}>
-              <TableCell>Title</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Request</TableCell>
-              <TableCell align="center">Voters</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right" sx={{ width: 140 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                  <CircularProgress size={28} />
-                </TableCell>
+      {isMobile ? (
+        renderMobileList()
+      ) : (
+        <TableContainer component={Paper} sx={{ bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2, boxShadow: 'none' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.textMuted, bgcolor: S.inset, borderBottom: `1px solid ${S.border}` } }}>
+                <TableCell>Title</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Request</TableCell>
+                <TableCell align="center">Voters</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right" sx={{ width: 140 }}>Actions</TableCell>
               </TableRow>
-            )}
-            {!isLoading && requests.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6, color: T.textFaint }}>
-                  No {statusFilter.toLowerCase()} requests.
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && requests.map((r) => {
-              const isMovie = r.recordType === 'MOVIE';
-              return (
-                <TableRow key={r.id} hover sx={{ '& td': { borderBottom: `1px solid ${T.glassBorder}` } }}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                      <Tooltip title="Open record">
-                        <IconButton size="small" onClick={() => openRecord(r)} sx={{ color: T.teal }}>
-                          <OpenInNew sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: T.text }}>
-                          {r.recordTitle}
-                        </Typography>
-                        {r.status === 'DISMISSED' && r.dismissReason && (
-                          <Typography variant="caption" sx={{
-                            color: T.textFaint, fontStyle: 'italic', display: 'block',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            maxWidth: 320,
-                          }}>
-                            “{r.dismissReason}”
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      icon={isMovie ? <Movie sx={{ fontSize: 13 }} /> : <LiveTv sx={{ fontSize: 13 }} />}
-                      label={isMovie ? 'Movie' : 'TV'}
-                      sx={{ height: 22, fontWeight: 600, bgcolor: 'transparent', border: `1px solid ${T.glassBorder}`, color: T.textMuted }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <KindChip kind={r.kind} />
-                  </TableCell>
-                  <TableCell align="center">
-                    <VotersPopover voters={r.voters} voteCount={r.voteCount} />
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title={r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}>
-                      <Typography variant="caption" sx={{ color: T.textMuted }}>
-                        {formatRelative(r.createdAt)}
-                      </Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell><StatusChip status={r.status} /></TableCell>
-                  <TableCell align="right">
-                    {r.status === 'PENDING' && (
-                      <>
-                        <Tooltip title="Mark fulfilled & notify voters">
-                          <span>
-                            <IconButton size="small" disabled={fulfillMut.isPending} onClick={() => fulfillMut.mutate(r.id)} sx={{ color: '#10b981' }}>
-                              <CheckCircle sx={{ fontSize: 20 }} />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title="Dismiss (with optional message to voters)">
-                          <span>
-                            <IconButton size="small" disabled={dismissMut.isPending} onClick={() => { setDismissTarget(r); setDismissReason(''); }} sx={{ color: T.textMuted }}>
-                              <Cancel sx={{ fontSize: 20 }} />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </>
-                    )}
-                    {r.status === 'FULFILLED' && (
-                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                        {r.fulfilledByUsername && (
-                          <Typography variant="caption" sx={{ color: T.textFaint }}>
-                            by {r.fulfilledByUsername}
-                          </Typography>
-                        )}
-                        <Tooltip title="Reopen (undo fulfill)">
-                          <span>
-                            <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
-                              <Restore sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </Box>
-                    )}
-                    {r.status === 'DISMISSED' && (
-                      <Tooltip title="Reopen (undo dismiss)">
-                        <span>
-                          <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
-                            <Restore sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    )}
+            </TableHead>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={28} />
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              )}
+              {!isLoading && requests.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: T.textFaint }}>
+                    No {statusFilter.toLowerCase()} requests.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && requests.map((r) => {
+                const isMovie = r.recordType === 'MOVIE';
+                return (
+                  <TableRow key={r.id} hover sx={{ '& td': { borderBottom: `1px solid ${S.divider}` } }}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                        <Tooltip title="Open record">
+                          <IconButton size="small" onClick={() => openRecord(r)} sx={{ color: T.teal }}>
+                            <OpenInNewRounded sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: T.text }}>
+                            {r.recordTitle}
+                          </Typography>
+                          {r.status === 'DISMISSED' && r.dismissReason && (
+                            <Typography variant="caption" sx={{
+                              color: T.textFaint, fontStyle: 'italic', display: 'block',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              maxWidth: 320,
+                            }}>
+                              “{r.dismissReason}”
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <TypeChip isMovie={isMovie} T={T} S={S} />
+                    </TableCell>
+                    <TableCell>
+                      <KindChip kind={r.kind} />
+                    </TableCell>
+                    <TableCell align="center">
+                      <VotersPopover voters={r.voters} voteCount={r.voteCount} />
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}>
+                        <Typography variant="caption" sx={{ color: T.textMuted }}>
+                          {formatRelative(r.createdAt)}
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell><StatusChip status={r.status} /></TableCell>
+                    <TableCell align="right">
+                      {renderActions(r)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* Dismiss dialog */}
       <Dialog
