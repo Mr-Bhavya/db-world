@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
 import { isBiometricEnabled } from '@platform/android/biometric';
+import { clearAllOfflineVault } from '@features/password-manager/offline/vaultCache';
 import constants from '@shared/constants';
 
 const AuthContext = createContext(null);
@@ -76,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       // Intentionally swallowed — client-side cleanup always runs.
     } finally {
       localStorage.clear();
+      clearAllOfflineVault(); // wipe the encrypted offline snapshot + device keypair
       setAuth({ ...INITIAL_AUTH, loading: false });
     }
   }, []);
@@ -85,6 +87,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const handler = () => {
       // The interceptor already cleared localStorage.
+      clearAllOfflineVault(); // dead session → drop the encrypted offline snapshot too
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
     window.addEventListener('auth:force-logout', handler);

@@ -1,24 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Box, Button, Dialog, LinearProgress, Typography } from '@mui/material';
-import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
-import { useT } from '@shared/theme/ThemeContext';
+import SystemUpdateAltRoundedIcon from '@mui/icons-material/SystemUpdateAltRounded';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
+import AppPromoDialog from '@shared/components/AppPromoDialog';
 
 const AppUpdate = registerPlugin('AppUpdate');
+
+// Pretty-print the release size when the backend reports it (0 / missing → hidden).
+function formatSize(bytes) {
+  if (!bytes || bytes < 1024) return null;
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
 
 /**
  * Self-update gate for the sideloaded Android app. On launch it asks the
  * backend for the latest published build (GET /api/app/version) and, if newer
- * than the installed versionCode, shows an update dialog. Tapping Update
- * downloads the APK and hands off to the system installer (native AppUpdate
- * plugin). A `mandatory` release (or installed build below minSupportedCode)
- * renders the dialog non-dismissable. No-op on web.
+ * than the installed versionCode, shows the shared AppPromoDialog. Tapping
+ * Update downloads the APK and hands off to the system installer (native
+ * AppUpdate plugin). A `mandatory` release (or installed build below
+ * minSupportedCode) renders the dialog non-dismissable. No-op on web.
  */
 export default function AppUpdateGate() {
-  const T = useT();
   const [info, setInfo] = useState(null);     // latest build + computed `mandatory`
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,64 +82,35 @@ export default function AppUpdateGate() {
 
   if (!open || !info) return null;
 
+  const size = formatSize(info.sizeBytes);
+  const chip = [info.versionName && `v${info.versionName}`, size].filter(Boolean).join(' · ') || null;
+
+  // One inline status line: hard error > permission hint > mandatory notice.
+  const note = error
+    ? { tone: 'error', text: error }
+    : needsPerm
+      ? { tone: 'warning', text: 'Allow “Install unknown apps” for DB-World in the settings that just opened, then tap Update again.' }
+      : info.mandatory
+        ? { tone: 'warning', text: 'This update is required to keep using the app.' }
+        : null;
+
   return (
-    <Dialog
+    <AppPromoDialog
       open
-      disableEscapeKeyDown={info.mandatory}
-      onClose={(_e, reason) => {
-        if (info.mandatory) return;
-        if (reason === 'backdropClick') return;
-        setOpen(false);
-      }}
-      PaperProps={{ sx: { bgcolor: T.bg, color: T.text, borderRadius: 3, maxWidth: 420, m: 2 } }}
-    >
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <SystemUpdateAltIcon sx={{ fontSize: 44, color: T.teal, mb: 1 }} />
-        <Typography variant="h6" sx={{ fontWeight: 800 }}>Update available</Typography>
-        <Typography sx={{ color: T.textMuted, mt: 0.5 }}>Version {info.versionName}</Typography>
-
-        {info.changelog && (
-          <Typography variant="body2" sx={{ color: T.textMuted, mt: 2, whiteSpace: 'pre-wrap', textAlign: 'left' }}>
-            {info.changelog}
-          </Typography>
-        )}
-
-        {info.mandatory && (
-          <Typography variant="caption" sx={{ color: T.warning, display: 'block', mt: 2, fontWeight: 600 }}>
-            This update is required to continue using the app.
-          </Typography>
-        )}
-        {needsPerm && (
-          <Typography variant="caption" sx={{ color: T.warning, display: 'block', mt: 2 }}>
-            Allow &ldquo;Install unknown apps&rdquo; for DB World in the settings that just opened, then tap Update again.
-          </Typography>
-        )}
-        {error && (
-          <Typography variant="caption" sx={{ color: T.error, display: 'block', mt: 2 }}>{error}</Typography>
-        )}
-
-        {progress != null && (
-          <Box sx={{ mt: 2.5 }}>
-            <LinearProgress variant="determinate" value={progress}
-              sx={{ borderRadius: 2, height: 6, bgcolor: 'rgba(255,255,255,.1)', '& .MuiLinearProgress-bar': { bgcolor: T.teal } }} />
-            <Typography variant="caption" sx={{ color: T.textFaint, mt: 0.5, display: 'block' }}>{progress}%</Typography>
-          </Box>
-        )}
-
-        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 3 }}>
-          {!info.mandatory && !busy && (
-            <Button onClick={() => setOpen(false)} sx={{ color: T.textMuted, textTransform: 'none' }}>Later</Button>
-          )}
-          <Button
-            onClick={startUpdate}
-            disabled={busy}
-            variant="contained"
-            sx={{ bgcolor: T.teal, textTransform: 'none', fontWeight: 700, px: 3, '&:hover': { bgcolor: T.tealHover } }}
-          >
-            {busy ? (progress != null ? `Downloading ${progress}%` : 'Starting…') : (needsPerm ? 'Try again' : 'Update now')}
-          </Button>
-        </Box>
-      </Box>
-    </Dialog>
+      dismissible={!info.mandatory}
+      onClose={() => setOpen(false)}
+      icon={<SystemUpdateAltRoundedIcon />}
+      title="Update available"
+      chip={chip}
+      subtitle="A newer version of DB-World is ready to install."
+      body={info.changelog || null}
+      note={note}
+      progress={progress}
+      busy={busy}
+      primaryLabel={needsPerm ? 'Try again' : busy ? 'Starting…' : 'Update now'}
+      onPrimary={startUpdate}
+      secondaryLabel={info.mandatory ? undefined : 'Later'}
+      onSecondary={() => setOpen(false)}
+    />
   );
 }
