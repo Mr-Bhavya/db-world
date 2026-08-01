@@ -80,9 +80,10 @@ export default function LogViewer() {
 
   const dataFacets = useMemo(() => facets(rawEntries), [rawEntries]);
   const filtered = useMemo(() => applyFilters(rawEntries, filters), [rawEntries, filters]);
-  // Live = "tail -f": always chronological, newest at the bottom. Static = user sort.
+  // Respect the Newest/Oldest toggle in both modes. Live always orders by time
+  // (newest at top for desc, bottom for asc) so the tail follows the chosen end.
   const displayed = useMemo(
-    () => (live ? filtered : sortEntries(filtered, sort.key, sort.dir)),
+    () => sortEntries(filtered, live ? 'time' : sort.key, sort.dir),
     [filtered, live, sort.key, sort.dir],
   );
 
@@ -170,6 +171,7 @@ export default function LogViewer() {
         entries={displayed} mode={mode} sortKey={sort.key} sortDir={sort.dir}
         onSort={onSort} onSelect={(e) => setSelected(e)} live={live} compact={isMobile}
         canLoadMore={canLoadMore} onReachOlderEdge={loadMore}
+        viewKey={`${source}|${subType}|${format}|${date}|${live}`}
       />
     );
   }

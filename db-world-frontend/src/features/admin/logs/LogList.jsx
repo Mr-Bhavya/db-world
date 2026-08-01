@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box, Button } from '@mui/material';
 import { FixedSizeList } from 'react-window';
 import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
@@ -147,67 +147,93 @@ const Row = memo(({ index, style, data }) => {
 Row.displayName = 'LogRow';
 
 /** The virtualized log stream + (request mode) sortable column header + live jump-to-latest. */
-export default function LogList({ entries, mode, sortKey, sortDir, onSort, onSelect, live, compact, canLoadMore, onReachOlderEdge }) {
+export default function LogList({ entries, mode, sortKey, sortDir, onSort, onSelect, live, compact, canLoadMore, onReachOlderEdge, viewKey }) {
   const T = useT();
   const S = adminSurface(T);
   const dark = T.bg === '#000000';
   const listRef = useRef(null);
   const outerRef = useRef(null);
+  const atTop = useRef(true);
   const atBottom = useRef(true);
   const scrollOffsetRef = useRef(0);
-  const anchorRef = useRef(null); // { prevCount, offset } while an oldest-first (top) load is in flight
+  const anchorRef = useRef(null);           // { edge:'top'|'bottom', offset } while a load-older is in flight
+  const prevCountRef = useRef(entries.length);
+  const inited = useRef(false);
   const [showJump, setShowJump] = useState(false);
   const [sizeRef, size] = useSize();
 
   const template = compact ? TEMPLATES[mode].compact : TEMPLATES[mode].full;
+  // desc = newest first → newest at the TOP; asc = oldest first → newest at the BOTTOM.
+  const newestAtTop = sortDir === 'desc';
 
-  // Live tail: stick to the bottom unless the user scrolled up.
+  const scrollToNewest = useCallback(() => {
+    if (!listRef.current || !entries.length) return;
+    if (newestAtTop) listRef.current.scrollTo(0);
+    else listRef.current.scrollToItem(entries.length - 1, 'end');
+    atTop.current = newestAtTop;
+    atBottom.current = !newestAtTop;
+    setShowJump(false);
+  }, [newestAtTop, entries.length]);
+
+  // Fresh context (source/subtype/date/format) → jump to the newest edge once data lands.
+  useEffect(() => { inited.current = false; }, [viewKey]);
   useEffect(() => {
-    if (live && atBottom.current && listRef.current && entries.length) {
-      listRef.current.scrollToItem(entries.length - 1, 'end');
+    if (!size.height || !entries.length || inited.current) return;
+    inited.current = true;
+    scrollToNewest();
+  }, [size.height, entries.length, scrollToNewest]);
+  // Direction flip → jump to wherever the newest logs now are.
+  useEffect(() => { if (inited.current) scrollToNewest(); }, [newestAtTop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // New rows arrived. A load-older keeps its place (anchored) and doesn't follow;
+  // newer logs (live tail / refresh) follow the newest edge when we're parked there,
+  // otherwise the view is preserved so it doesn't jump under the reader.
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    const curr = entries.length;
+    prevCountRef.current = curr;
+    if (curr <= prev) return;
+    const added = curr - prev;
+
+    if (anchorRef.current) {
+      const a = anchorRef.current;
+      anchorRef.current = null;
+      if (a.edge === 'top') listRef.current?.scrollTo(a.offset + added * ROW_H); // older prepended → keep place
+      return; // edge 'bottom': older appended below the view, top unchanged
     }
-  }, [entries.length, live]);
+
+    if (newestAtTop) {
+      if (atTop.current) listRef.current?.scrollTo(0);                          // follow (newest at top)
+      else listRef.current?.scrollTo(scrollOffsetRef.current + added * ROW_H);  // preserve (prepended)
+    } else if (atBottom.current) {
+      listRef.current?.scrollToItem(curr - 1, 'end');                          // follow (newest at bottom)
+    }
+  }, [entries.length, newestAtTop]);
 
   const handleScroll = ({ scrollOffset, scrollUpdateWasRequested }) => {
     scrollOffsetRef.current = scrollOffset;
     if (scrollUpdateWasRequested) return;
     const el = outerRef.current;
     if (!el) return;
-    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    setShowJump(live && !atBottom.current);
+    atTop.current = scrollOffset <= 4;
+    atBottom.current = el.scrollHeight - scrollOffset - el.clientHeight < 48;
+    setShowJump(!(newestAtTop ? atTop.current : atBottom.current));
   };
 
-  // Oldest-first loads OLDER rows at the top, which would keep us at the trigger
-  // edge and loop forever. When the older rows arrive, scroll down by their height
-  // so our view stays put and we're no longer at the top edge.
-  useEffect(() => {
-    const a = anchorRef.current;
-    if (a && entries.length > a.prevCount) {
-      const added = entries.length - a.prevCount;
-      listRef.current?.scrollTo(a.offset + added * ROW_H);
-      anchorRef.current = null;
-    }
-  }, [entries.length]);
-
-  const jump = () => {
-    atBottom.current = true;
-    setShowJump(false);
-    listRef.current?.scrollToItem(entries.length - 1, 'end');
-  };
-
-  // Infinite "load older" when the visible window reaches the older edge. Which
-  // edge is "older" depends on the sort: time-asc = top, otherwise bottom.
+  // Infinite "load older" when the visible window reaches the OLDER edge. Which edge
+  // is older depends on the sort: time-asc = top, otherwise bottom.
   const handleItemsRendered = ({ visibleStartIndex, visibleStopIndex }) => {
     if (live || !canLoadMore || !onReachOlderEdge || anchorRef.current) return;
     const count = entries.length;
-    // Don't auto-load when everything already fits (nothing to scroll toward).
-    if (count * ROW_H <= size.height + ROW_H) return;
-    const ascTop = sortKey === 'time' && sortDir === 'asc';
-    const older = ascTop ? visibleStartIndex <= 8 : visibleStopIndex >= count - 8;
+    if (count * ROW_H <= size.height + ROW_H) return; // everything fits → nothing to scroll toward
+    const olderAtTop = sortKey === 'time' && sortDir === 'asc';
+    const older = olderAtTop ? visibleStartIndex <= 8 : visibleStopIndex >= count - 8;
     if (!older) return;
-    if (ascTop) anchorRef.current = { prevCount: count, offset: scrollOffsetRef.current };
+    anchorRef.current = { edge: olderAtTop ? 'top' : 'bottom', offset: scrollOffsetRef.current };
     onReachOlderEdge();
   };
+
+  const jump = () => scrollToNewest();
 
   const itemData = { entries, mode, dark, compact, template, onSelect, T, S };
 
@@ -252,14 +278,16 @@ export default function LogList({ entries, mode, sortKey, sortDir, onSort, onSel
 
         {showJump && (
           <Button
-            onClick={jump} size="small" startIcon={<ArrowDownwardRoundedIcon />}
+            onClick={jump} size="small"
+            startIcon={newestAtTop ? <ArrowUpwardRoundedIcon /> : <ArrowDownwardRoundedIcon />}
             sx={{
-              position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+              position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+              ...(newestAtTop ? { top: 14 } : { bottom: 14 }),
               bgcolor: T.teal, color: '#fff', textTransform: 'none', fontWeight: 800, fontSize: '0.74rem',
               borderRadius: 999, px: 1.75, boxShadow: `0 8px 22px ${T.tealGlow}`, '&:hover': { bgcolor: T.tealHover },
             }}
           >
-            Jump to latest
+            Jump to newest
           </Button>
         )}
       </Box>
