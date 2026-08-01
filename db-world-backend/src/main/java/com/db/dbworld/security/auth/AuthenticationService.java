@@ -90,7 +90,16 @@ public class AuthenticationService {
         // Track access-token refresh activity for this session (last-used + count).
         entity.setLastUsed(Instant.now());
         entity.setRefreshCount((entity.getRefreshCount() == null ? 0 : entity.getRefreshCount()) + 1);
-        refreshTokenRepository.save(entity);
+        try {
+            refreshTokenRepository.save(entity);
+        } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+            // The row was revoked/rotated by a concurrent request (e.g. a logout landing
+            // between our lookup and this update) — the UPDATE hits 0 rows. Treat it as an
+            // invalid refresh (clean 401) instead of bubbling a 500 DB error.
+            log.warn("Refresh token vanished mid-update (concurrent revoke?) — rejecting (token ref={})",
+                    tokenRef(refreshToken));
+            throw new BadCredentialsException("Invalid or expired refresh token");
+        }
 
         String newAccessToken = jwtService.generateToken(user);
         log.info("Access token refreshed for user [{}] (session refreshes={})", user.getEmail(), entity.getRefreshCount());
