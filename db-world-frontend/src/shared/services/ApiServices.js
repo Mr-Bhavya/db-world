@@ -50,9 +50,20 @@ export const deleteUser = async (userId) => {
   return await response?.data;
 }
 
-export const updateDobForUser = async (dob) => {
+// Set the signed-in user's date of birth. The backend update endpoint is a full
+// PUT /api/user/{userId} (firstName/lastName/gender/mobileNo are required), so we
+// resend those existing profile fields alongside the new dob — the same shape the
+// profile edit uses.
+export const updateDobForUser = async (user, dob) => {
   try {
-    const response = await axiosInstance.put(`/api/user/dob=${dob}`);
+    const response = await axiosInstance.put(`/api/user/${user.userId}`, {
+      userId: user.userId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      gender: user.gender,
+      mobileNo: Number(user.mobileNo),
+      dob,
+    });
     return response.data;
   } catch (error) {
     console.error('Error updating DOB:', error);

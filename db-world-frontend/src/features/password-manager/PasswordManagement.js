@@ -21,6 +21,7 @@ import { getCredential } from '@shared/services/ApiServices';
 import { useAuth } from '@features/auth/context/Authentication';
 import { analyzeVault } from './passwordUtils';
 import { VaultAurora, SecurityRing, GlassPanel, useScrollTop } from './vaultShared';
+import { cacheVault } from './offline/vaultCache';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -179,9 +180,14 @@ const PasswordManagement = () => {
 
   // Gated on auth: the hub is a public route, but the vault endpoint is
   // protected — firing it while logged out would 401 and trip the refresh flow.
+  const userId = auth?.user?.id ?? auth?.user?.userId ?? auth?.user?.username ?? auth?.user?.email ?? null;
   const { data: vault = [], isLoading } = useQuery({
     queryKey: ['pm-vault'],
-    queryFn: async () => (await getCredential()).data ?? [],
+    queryFn: async () => {
+      const data = (await getCredential()).data ?? [];
+      cacheVault(userId, data); // keep the offline snapshot fresh (native only, no prompt)
+      return data;
+    },
     staleTime: 2 * 60 * 1000,
     enabled: auth.isAuthenticated,
   });
