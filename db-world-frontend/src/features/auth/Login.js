@@ -33,6 +33,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 
 import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { updateDobForUser } from '@shared/services/ApiServices';
 import Constants from '@shared/constants';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -139,6 +140,7 @@ const Login = () => {
   const [dobError, setDobError] = useState(false);
   const [dobOpen, setDobOpen] = useState(false);
   const [dobLoading, setDobLoading] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null); // logged-in user awaiting a DOB
 
   // ───────────────────────────────────────────────────────────────────────────
   // Validation
@@ -226,6 +228,7 @@ const Login = () => {
         login(payload.token, payload.user, role);
 
         if (!payload.user.dob) {
+          setPendingUser(payload.user);
           setDobOpen(true);
           return;
         }
@@ -257,7 +260,12 @@ const Login = () => {
     setDobLoading(true);
 
     try {
-      await axiosInstance.put(`/api/user/dob=${dob}`);
+      await updateDobForUser(pendingUser, dob);
+      // Keep the cached user in sync so the DOB prompt doesn't reappear this session.
+      try {
+        const stored = JSON.parse(localStorage.getItem('user') || 'null');
+        if (stored) { stored.dob = dob; localStorage.setItem('user', JSON.stringify(stored)); }
+      } catch { /* ignore */ }
       setDobOpen(false);
       navigate(destination, { replace: true });
     } catch {
@@ -265,7 +273,7 @@ const Login = () => {
     } finally {
       setDobLoading(false);
     }
-  }, [destination, dob, dobLoading, navigate, validateField]);
+  }, [destination, dob, dobLoading, navigate, pendingUser, validateField]);
 
   const handleDobClose = useCallback(() => {
     /*
