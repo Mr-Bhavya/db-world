@@ -96,6 +96,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // Streaming responses (SSE live-log /follow, text/event-stream) must NOT be
+        // wrapped: copyBodyToResponse() in the finally block runs the instant the
+        // async emitter is handed to Spring (doFilter returns immediately), which
+        // flushes + finalises the response and kills the live stream right after the
+        // handshake. Pass straight through — auth still runs in the chain — and skip
+        // the response-MD5 + request log for these long-lived connections.
+        if (isStreamingResponse(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // Never tee the request body for uploads (multipart / octet-stream / oversized): buffering
         // 8 MiB chunks is wasteful and must not sit between the client and the upload handler
         // (it also produced binary that blew past the request_body log column). Only wrap when we
@@ -238,6 +249,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean isStreamUri(String uri) {
         return uri.startsWith("/api/stream/watch")
                 || uri.startsWith("/api/stream/download");
+    }
+
+    /**
+     * SSE / event-stream endpoints must bypass response caching — wrapping them in a
+     * ContentCachingResponseWrapper buffers the body and breaks the live stream.
+     */
+    private boolean isStreamingResponse(HttpServletRequest request) {
+        if (request.getRequestURI().endsWith("/follow")) return true;
+        String accept = request.getHeader("Accept");
+        return accept != null && accept.contains("text/event-stream");
     }
 
     private String getRequestBody(HttpServletRequest request) {
