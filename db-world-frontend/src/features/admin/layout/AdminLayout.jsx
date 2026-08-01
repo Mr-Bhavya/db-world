@@ -292,7 +292,9 @@ const AdminLayoutInner = () => {
         </Box>
       )}
 
-      {/* ── Mobile drawer (swipe from the left edge to open, swipe to close) ──── */}
+      {/* ── Mobile drawer (open via the menu button; swipe to close) ──────────── */}
+      {/* disableSwipeToOpen: the left-edge open gesture collided with the
+          browser's back-navigation swipe. Open with the hamburger instead. */}
       {isMobile && (
         <SwipeableDrawer
           open={mobileOpen}
@@ -300,7 +302,8 @@ const AdminLayoutInner = () => {
           onClose={() => setMobileOpen(false)}
           disableBackdropTransition
           disableDiscovery
-          swipeAreaWidth={24}
+          disableSwipeToOpen
+          swipeAreaWidth={0}
           ModalProps={{ keepMounted: true }}
           PaperProps={{ sx: { width: SIDEBAR_W, bgcolor: T.sidebar, border: 'none' } }}
         >
