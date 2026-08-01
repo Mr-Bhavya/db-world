@@ -8,8 +8,8 @@ import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 import AppPromoDialog from '@shared/components/AppPromoDialog';
 
 const DISMISS_KEY = 'dbworld_install_prompt_dismissed';
-const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000; // re-offer after a week
-const SHOW_DELAY_MS = 1200;                 // let the page settle before inviting
+const SNOOZE_MS = 24 * 60 * 60 * 1000; // dismiss hides it for 24h, then it shows again
+const SHOW_DELAY_MS = 1200;            // let the page settle before inviting
 
 // Android browser, NOT the installed app. iOS can't sideload an APK, so we never
 // prompt there. A tablet on Android web still benefits, so we key off the UA, not
@@ -40,7 +40,8 @@ function snooze() {
  * "Install the app" invite for Android mobile-web visitors. Uses the shared
  * AppPromoDialog (same look as the in-app update prompt) and downloads the APK
  * through the public /api/app/download endpoint (302 → GitHub release asset).
- * Shown once, then snoozed for a week; never on iOS, the installed app, or an
+ * ✕ and "Not now" just close it (it returns on the next reload); the separate
+ * "Dismiss for 24 hours" link snoozes it. Never on iOS, the installed app, or an
  * already-installed PWA. Web-only, so this is a no-op inside the native app.
  */
 export default function InstallAppPrompt() {
@@ -53,7 +54,11 @@ export default function InstallAppPrompt() {
     return () => clearTimeout(t);
   }, []);
 
-  const close = () => { snooze(); setOpen(false); };
+  // ✕ / "Not now" — a normal close: it comes back on the next page reload.
+  const close = () => setOpen(false);
+
+  // Explicit opt-out — persist a timestamp so it stays hidden for 24h.
+  const dismiss24h = () => { snooze(); setOpen(false); };
 
   const download = () => {
     const url = `${getApiBaseUrl()}/api/app/download`;
@@ -94,6 +99,8 @@ export default function InstallAppPrompt() {
       onPrimary={started ? close : download}
       secondaryLabel={started ? undefined : 'Not now'}
       onSecondary={close}
+      dismissLongLabel={started ? undefined : 'Dismiss for 24 hours'}
+      onDismissLong={dismiss24h}
     />
   );
 }
