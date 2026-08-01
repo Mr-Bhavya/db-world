@@ -3,6 +3,7 @@ package com.db.dbworld.app.appupdate.service;
 import com.db.dbworld.app.appupdate.model.AppVersionInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Resolves the latest published Android build for the in-app updater
@@ -55,6 +59,20 @@ public class AppUpdateService {
     private volatile Snapshot cached;
     private volatile long nextFetchAt;   // don't hit GitHub again until this time (success OR failure)
 
+    /** Guards a single in-flight background refresh so bursts don't fan out to GitHub. */
+    private final AtomicBoolean refreshing = new AtomicBoolean(false);
+    private final ExecutorService refreshExec = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "app-update-refresh");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Warm the cache at startup (in the background) so the first real request is instant. */
+    @PostConstruct
+    void warm() {
+        snapshot();
+    }
+
     /** @return latest build metadata (with a relative apkUrl), or {@code null}. */
     public AppVersionInfo getLatest() {
         Snapshot s = snapshot();
@@ -69,22 +87,29 @@ public class AppUpdateService {
 
     private Snapshot snapshot() {
         long now = System.currentTimeMillis();
-        if (now < nextFetchAt) {
-            return cached;
+        // Refresh in the BACKGROUND — never block the request thread on the GitHub
+        // round-trip. An unreachable GitHub (e.g. no egress in dev) was hanging
+        // /api/app/download for ~80s before 404ing; now every request returns the
+        // last cached value (or null) instantly and the refresh happens off-thread.
+        if (now >= nextFetchAt && refreshing.compareAndSet(false, true)) {
+            // Back off for the full TTL immediately, success OR failure — otherwise a
+            // failing fetch leaves the window "expired" and every request re-triggers,
+            // burning GitHub's 60/hr unauthenticated rate limit.
+            nextFetchAt = now + CACHE_TTL_MS;
+            refreshExec.submit(() -> {
+                try {
+                    Snapshot s = fetchFromGitHub();
+                    if (s != null) {
+                        cached = s; // keep the previous good value if a refresh returns nothing
+                    }
+                } catch (Exception e) {
+                    log.warn("GitHub release lookup failed: {} — keeping last cached value", e.toString());
+                } finally {
+                    refreshing.set(false);
+                }
+            });
         }
-        try {
-            Snapshot s = fetchFromGitHub();
-            if (s != null) {
-                cached = s; // refresh; keep the previous good value if a refresh returns nothing
-            }
-        } catch (Exception e) {
-            log.warn("GitHub release lookup failed: {} — keeping last cached value", e.toString());
-        }
-        // Back off for the full TTL whether the fetch SUCCEEDED or FAILED — otherwise a
-        // failing fetch leaves the window "expired" and every request re-hits GitHub,
-        // burning the 60/hr unauthenticated rate limit and freezing on stale data.
-        nextFetchAt = now + CACHE_TTL_MS;
-        return cached; // may be null (never published, or first lookup failed)
+        return cached; // may be null (never published, or first lookup hasn't completed yet)
     }
 
     private Snapshot fetchFromGitHub() throws Exception {
