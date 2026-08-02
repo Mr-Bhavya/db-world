@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,10 +63,14 @@ fun PlayerSheet(title: String, onDismiss: () -> Unit, content: @Composable Colum
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // Tappable grab handle — a tap on it dismisses, like a real bottom sheet.
                 Box(
-                    Modifier.padding(bottom = 10.dp).width(36.dp).height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF)),
-                )
+                    Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onDismiss)
+                        .padding(horizontal = 22.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x59FFFFFF)))
+                }
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     Text(title, color = PlayerTheme.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 6.dp))
@@ -126,9 +131,12 @@ fun AudioSubtitleSheet(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
-                    Modifier.padding(bottom = 10.dp).width(36.dp).height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF)),
-                )
+                    Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onDismiss)
+                        .padding(horizontal = 22.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x59FFFFFF)))
+                }
                 Text("Audio & Subtitles", color = PlayerTheme.Text, fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
                 Row(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
@@ -139,7 +147,8 @@ fun AudioSubtitleSheet(
                         }
                         state.audioTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedAudioId) { onSelectAudio(t.id) } }
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 4.dp).background(Color(0x1FFFFFFF)))
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         SheetSection("Subtitles")
                         SheetRow("Off", state.selectedSubtitleId < 0) { onSelectSubtitle(-1) }

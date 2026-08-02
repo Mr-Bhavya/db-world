@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +109,11 @@ fun PlayerControls(
     if (!state.controlsVisible) return
 
     var sheet by remember { mutableStateOf<String?>(null) }
+
+    // Tell the gesture layer (which sits under the modal) to stand down while a sheet is open,
+    // so scrolling a list doesn't leak into brightness/volume swipes.
+    LaunchedEffect(sheet) { state.sheetOpen = sheet != null }
+    DisposableEffect(Unit) { onDispose { state.sheetOpen = false } }
 
     // Auto-hide after 3s while playing — paused whenever a sheet is open.
     LaunchedEffect(state.controlsVisible, state.isPlaying, sheet) {
@@ -185,7 +193,8 @@ fun PlayerControls(
             }
             FlowRow(
                 Modifier.fillMaxWidth().padding(top = 14.dp),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                 CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
@@ -207,9 +216,11 @@ fun PlayerControls(
                 onSetDecoder = { onSetDecoder(it) },
                 onDismiss = { sheet = null },
             )
-            "episodes" -> PlayerSheet("Episodes", { sheet = null }) {
-                state.episodes.forEach { ep -> SheetRow(ep.label, ep.fileId == state.currentFileId) { onSelectEpisode(ep.fileId); sheet = null } }
-            }
+            "episodes" -> EpisodeSheet(
+                state = state,
+                onSelect = { onSelectEpisode(it); sheet = null },
+                onDismiss = { sheet = null },
+            )
             "quality" -> PlayerSheet("Quality", { sheet = null }) {
                 state.variants.forEach { v -> SheetRow(v.label, false) { onSelectQuality(v.url); sheet = null } }
             }
@@ -221,10 +232,13 @@ fun PlayerControls(
 /** Teal progress bar: track → buffered → played fill, with a draggable thumb and tap-to-seek. */
 @Composable
 private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
+    // Until the real duration is known, show an empty bar — otherwise a resume position over
+    // duration 0 reads as 100% for a frame, then snaps back.
+    val hasDur = state.durationMs > 0
     val dur = state.durationMs.coerceAtLeast(1)
     var dragFrac by remember { mutableStateOf<Float?>(null) }
-    val frac = (dragFrac ?: (state.positionMs.toFloat() / dur)).coerceIn(0f, 1f)
-    val bufFrac = (state.bufferedMs.toFloat() / dur).coerceIn(0f, 1f)
+    val frac = (dragFrac ?: (if (hasDur) state.positionMs.toFloat() / dur else 0f)).coerceIn(0f, 1f)
+    val bufFrac = (if (hasDur) state.bufferedMs.toFloat() / dur else 0f).coerceIn(0f, 1f)
     BoxWithConstraints(
         Modifier.fillMaxWidth().height(24.dp)
             .pointerInput(dur) {
@@ -253,15 +267,19 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
     }
 }
 
-/** Icon-over-label control-row button; teal when active. */
+/** Pill control-row button: label left of icon on a subtle chip; teal when active. */
 @Composable
 private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val tint = if (active) PlayerTheme.Teal else Color.White
+    Row(
+        Modifier.clip(RoundedCornerShape(20.dp))
+            .background(if (active) PlayerTheme.Teal.copy(alpha = 0.16f) else Color(0x1FFFFFFF))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = label, tint = if (active) PlayerTheme.Teal else Color.White)
-        Text(label, color = if (active) PlayerTheme.Teal else PlayerTheme.TextDim, fontSize = 11.sp,
-            modifier = Modifier.padding(top = 2.dp))
+        Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Spacer(Modifier.width(7.dp))
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp))
     }
 }

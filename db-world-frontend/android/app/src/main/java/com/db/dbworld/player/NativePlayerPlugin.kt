@@ -33,6 +33,7 @@ class NativePlayerPlugin : Plugin() {
     private var inPip = false
     private var videoW = 0
     private var videoH = 0
+    private var fillMode = true   // true = crop-to-fill (full screen), false = letterbox-fit
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -85,6 +86,7 @@ class NativePlayerPlugin : Plugin() {
         h.mountCompose {
             com.db.dbworld.player.ui.GestureLayer(
                 locked = uiState.locked,
+                sheetOpen = uiState.sheetOpen,
                 onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
                 onDoubleSeek = { fwd ->
                     player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
@@ -92,7 +94,7 @@ class NativePlayerPlugin : Plugin() {
                 },
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
-                onZoom = { fill -> host?.setFill(fill) },
+                onZoom = { fill -> fillMode = fill; applyScaling() },
                 onDragEnd = { clearHud() },
             ) {
                 Box(Modifier.fillMaxSize()) {
@@ -132,6 +134,7 @@ class NativePlayerPlugin : Plugin() {
             player = it; it.addListener(listener)
         }
         p.setVideoSurfaceView(surface)
+        applyScaling()
         toneMapApplied = false
         uiState.ended = false
         uiState.errorMessage = null
@@ -158,7 +161,14 @@ class NativePlayerPlugin : Plugin() {
         if (arr == null) return out
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(PlayerEpisode(o.optString("fileId"), o.optString("label")))
+            out.add(PlayerEpisode(
+                fileId = o.optString("fileId"),
+                label = o.optString("label"),
+                name = o.optString("name"),
+                overview = o.optString("overview"),
+                still = o.optString("still"),
+                runtime = o.optString("runtime"),
+            ))
         }
         return out
     }
@@ -342,6 +352,13 @@ class NativePlayerPlugin : Plugin() {
     /** Hide the brightness/volume HUD (called when a swipe gesture ends). */
     fun clearHud() = activity.runOnUiThread { uiState.hudKind = null }
 
+    /** Apply the current fill/fit choice via ExoPlayer's scaling mode (full-screen SurfaceView). */
+    private fun applyScaling() {
+        player?.videoScalingMode =
+            if (fillMode) C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+            else C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+    }
+
     /** Toggle between sensor-landscape and sensor-portrait. */
     fun rotate() = activity.runOnUiThread {
         activity.requestedOrientation =
@@ -392,8 +409,7 @@ class NativePlayerPlugin : Plugin() {
         override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
             videoW = size.width; videoH = size.height
             uiState.videoWidth = size.width; uiState.videoHeight = size.height
-            val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
-            if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
+            // Scaling is handled by ExoPlayer's videoScalingMode on a full-screen SurfaceView.
         }
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
             host?.setCues(cueGroup.cues)

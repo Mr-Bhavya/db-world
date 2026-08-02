@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -95,9 +96,10 @@ fun SeekFlash(state: PlayerUiState) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = shown,
+            // Sit right beside the center Replay10 / Forward10 buttons, not out at the screen edge.
             modifier = Modifier
-                .align(if (state.seekForward) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = 40.dp),
+                .align(Alignment.Center)
+                .offset(x = if (state.seekForward) 104.dp else (-104).dp),
             enter = scaleIn(initialScale = 0.6f) + fadeIn(),
             exit = fadeOut(),
         ) {

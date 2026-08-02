@@ -116,6 +116,9 @@ dependencies {
     // PictureInPictureAlt/ScreenRotation/Lock/Speed/Audiotrack/HighQuality etc. that are NOT
     // in -core. (-extended supersets -core.)
     implementation 'androidx.compose.material:material-icons-extended'
+    // Async image loading for episode-list thumbnails (TMDB stills). 2.5.0 targets
+    // Compose 1.5.x / Kotlin 1.9.x, matching the pinned BOM above.
+    implementation 'io.coil-kt:coil-compose:2.5.0'
     implementation "androidx.activity:activity-compose:$androidxActivityVersion"
     debugImplementation 'androidx.compose.ui:ui-tooling'
     // BiometricPrompt with device-credential fallback for the offline-vault

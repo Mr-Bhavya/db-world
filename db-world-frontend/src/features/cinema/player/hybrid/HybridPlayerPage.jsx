@@ -15,7 +15,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { buildMediaFromFileId } from '../../media/playerLaunch';
-import { addWatched } from '../../api/cinemaApi';
+import { addWatched, tmdbImg } from '../../api/cinemaApi';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
@@ -40,6 +40,7 @@ export default function HybridPlayerPage() {
   const navigate  = useNavigate();
   const qc        = useQueryClient();
   const watchedMarkedRef = useRef(new Set()); // record ids already auto-marked Watched this session
+  const closedRef = useRef(false);            // guard: navigate back only once on native close
 
   // media: from route state (fast in-app launch) or resolved from the URL id (refresh /
   // deep-link / instant Continue-Watching). Resolving happens behind the loading screen.
@@ -120,11 +121,28 @@ export default function HybridPlayerPage() {
     if (!isNativePlayerEnabled() || !cur) return;
     const eps = (episodes || []).map((e) => ({
       fileId: String(e.fileId),
-      label: e.name ? `${e.label} · ${e.name}` : e.label,
+      label: e.label || '',
+      name: e.name || '',
+      overview: e.overview || '',
+      still: tmdbImg(e.stillPath, 'w300') || '',
+      runtime: e.runtime ? `${e.runtime}m` : '',
     }));
     const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
     NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId), title: showTitle }).catch(() => {});
   }, [episodes, cur, media, showTitle]);
+
+  // Native player: when the user closes it from the native X (which fires playerClosed),
+  // pop this route so the WebView doesn't linger on the hidden headless player (white screen).
+  useEffect(() => {
+    if (!isNativePlayerEnabled()) return undefined;
+    let handle;
+    NativePlayer.addListener('playerClosed', () => {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      navigate(-1);
+    }).then((h) => { handle = h; });
+    return () => handle?.remove?.();
+  }, [navigate]);
 
   useEffect(() => {
     if (!isNativePlayerEnabled()) return undefined;

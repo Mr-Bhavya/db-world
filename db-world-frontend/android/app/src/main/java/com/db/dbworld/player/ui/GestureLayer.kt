@@ -14,11 +14,16 @@ import kotlin.math.abs
  * Full-screen gesture surface UNDER the controls. One custom detector cleanly separates a
  * 1-finger vertical drag (LEFT half = brightness, RIGHT half = volume; [onDragEnd] hides the HUD)
  * from a 2-finger pinch (out = fill, in = fit via [onZoom]); a second detector handles tap
- * (toggle controls) and double-tap (±10s seek). When [locked] only the tap works.
+ * (toggle controls) and double-tap (±10s seek).
+ *
+ * When [locked] only the tap works. When [sheetOpen] the drag/pinch detector stands down entirely
+ * so scrolling inside a bottom-sheet never leaks into brightness/volume. As a second guard, any
+ * pointer change already consumed by a child (a scrollable list, the seek bar) is ignored.
  */
 @Composable
 fun GestureLayer(
     locked: Boolean,
+    sheetOpen: Boolean,
     onTapToggle: () -> Unit,
     onDoubleSeek: (forward: Boolean) -> Unit,
     onBrightnessDelta: (Float) -> Unit,
@@ -30,14 +35,14 @@ fun GestureLayer(
     Box(
         Modifier
             .fillMaxSize()
-            .pointerInput(locked) {
+            .pointerInput(locked, sheetOpen) {
                 detectTapGestures(
-                    onTap = { onTapToggle() },
-                    onDoubleTap = { pos -> if (!locked) onDoubleSeek(pos.x > size.width / 2f) },
+                    onTap = { if (!sheetOpen) onTapToggle() },
+                    onDoubleTap = { pos -> if (!locked && !sheetOpen) onDoubleSeek(pos.x > size.width / 2f) },
                 )
             }
-            .pointerInput(locked) {
-                if (locked) return@pointerInput
+            .pointerInput(locked, sheetOpen) {
+                if (locked || sheetOpen) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val onRight = down.position.x > size.width / 2f
@@ -58,13 +63,17 @@ fun GestureLayer(
                             pressed.forEach { it.consume() }
                         } else if (mode != 2) {
                             val c = pressed[0]
-                            if (mode == 1 || abs(c.position.y - down.position.y) > 14f) {
+                            // A child already handled this move (list scroll, seek-bar drag) — leave it be.
+                            if (c.isConsumed) { lastY = c.position.y }
+                            else if (mode == 1 || abs(c.position.y - down.position.y) > 10f) {
                                 mode = 1
                                 val frac = (c.position.y - lastY) / size.height
                                 if (onRight) onVolumeDelta(-frac) else onBrightnessDelta(-frac)
                                 c.consume()
+                                lastY = c.position.y
+                            } else {
+                                lastY = c.position.y
                             }
-                            lastY = c.position.y
                         }
                     }
                     if (mode != 0) onDragEnd()

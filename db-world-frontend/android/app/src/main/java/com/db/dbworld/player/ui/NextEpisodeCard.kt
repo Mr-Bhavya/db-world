@@ -53,7 +53,10 @@ fun NextEpisodeCard(
                 .clip(RoundedCornerShape(12.dp)).background(Color(0xF21B1B1F)).padding(16.dp),
         ) {
             Text("Up next", color = Color(0xFF9AA0A6), fontSize = 12.sp)
-            Text(next.label, color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(
+                if (next.name.isNotEmpty()) "${next.label} · ${next.name}" else next.label,
+                color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(vertical = 4.dp),
+            )
             Text("Playing in $secs", color = Color(0xFF9AA0A6), fontSize = 13.sp)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White) }
