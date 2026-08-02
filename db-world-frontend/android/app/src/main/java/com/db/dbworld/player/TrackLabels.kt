@@ -80,9 +80,9 @@ fun videoCodecName(mime: String?): String {
 
 /** SDR / HDR10 / HLG from a Media3 colorTransfer (C.COLOR_TRANSFER_*). */
 fun dynamicRangeName(colorTransfer: Int?): String = when (colorTransfer) {
+    null, androidx.media3.common.Format.NO_VALUE -> "—"
     androidx.media3.common.C.COLOR_TRANSFER_ST2084 -> "HDR10"
     androidx.media3.common.C.COLOR_TRANSFER_HLG -> "HLG"
-    null, androidx.media3.common.C.COLOR_TRANSFER_UNSET -> "—"
     else -> "SDR"
 }
 
