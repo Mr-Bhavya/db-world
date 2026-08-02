@@ -52,12 +52,21 @@ class NativePlayerPlugin : Plugin() {
                 val h = host ?: PlayerSurfaceHost(activity, bridge.webView).also { host = it }
                 val surface = h.attach()
                 h.mountCompose {
-                    com.db.dbworld.player.ui.PlayerControls(
-                        state = uiState,
-                        onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
-                        onSeek = { ms -> player?.seekTo(ms) },
-                        onClose = { dismissInternal() },
-                    )
+                    com.db.dbworld.player.ui.GestureLayer(
+                        onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
+                        onDoubleSeek = { fwd ->
+                            player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
+                        },
+                        onBrightnessDelta = { adjustBrightness(it) },
+                        onVolumeDelta = { adjustVolume(it) },
+                    ) {
+                        com.db.dbworld.player.ui.PlayerControls(
+                            state = uiState,
+                            onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
+                            onSeek = { ms -> player?.seekTo(ms) },
+                            onClose = { dismissInternal() },
+                        )
+                    }
                 }
                 val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
                     player = it; it.addListener(listener)
@@ -118,6 +127,27 @@ class NativePlayerPlugin : Plugin() {
             }
             return
         }
+    }
+
+    private val audioManager by lazy {
+        context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+    }
+
+    /** delta in [-1,1] as a fraction of full range; positive = brighter. */
+    fun adjustBrightness(delta: Float) = activity.runOnUiThread {
+        val w = activity.window
+        val lp = w.attributes
+        val cur = if (lp.screenBrightness in 0f..1f) lp.screenBrightness else 0.5f
+        lp.screenBrightness = (cur + delta).coerceIn(0.01f, 1f)
+        w.attributes = lp
+    }
+
+    /** delta in [-1,1] as a fraction of full range; positive = louder. STREAM_MUSIC (system bar stays in sync). */
+    fun adjustVolume(delta: Float) = activity.runOnUiThread {
+        val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+        val cur = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+        val next = (cur + Math.round(delta * max)).coerceIn(0, max)
+        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, next, 0)
     }
 
     private val listener = object : Player.Listener {
