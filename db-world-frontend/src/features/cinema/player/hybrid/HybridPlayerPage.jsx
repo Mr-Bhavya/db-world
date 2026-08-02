@@ -123,8 +123,8 @@ export default function HybridPlayerPage() {
       label: e.name ? `${e.label} · ${e.name}` : e.label,
     }));
     const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
-    NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId) }).catch(() => {});
-  }, [episodes, cur, media]);
+    NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId), title: showTitle }).catch(() => {});
+  }, [episodes, cur, media, showTitle]);
 
   useEffect(() => {
     if (!isNativePlayerEnabled()) return undefined;

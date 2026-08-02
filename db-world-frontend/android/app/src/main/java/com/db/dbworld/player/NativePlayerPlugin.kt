@@ -74,26 +74,31 @@ class NativePlayerPlugin : Plugin() {
         val surface = h.attach()
         h.mountCompose {
             com.db.dbworld.player.ui.GestureLayer(
+                locked = uiState.locked,
                 onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
                 onDoubleSeek = { fwd ->
                     player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
                 },
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
+                onDragEnd = { clearHud() },
             ) {
                 Box(Modifier.fillMaxSize()) {
                     com.db.dbworld.player.ui.PlayerControls(
                         state = uiState,
                         onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
                         onSeek = { ms -> player?.seekTo(ms) },
+                        onSeekBy = { d -> player?.let { it.seekTo((it.currentPosition + d).coerceAtLeast(0)) } },
                         onClose = { dismissInternal() },
+                        onEnterPip = { enterPip() },
+                        onRotate = { rotate() },
+                        onToggleLock = { uiState.locked = !uiState.locked },
                         onSelectAudio = { selectAudio(it) },
                         onSelectSubtitle = { selectSubtitle(it) },
                         onSetSpeed = { setSpeedNative(it) },
                         onSetDecoder = { setDecoderModeNative(it) },
                         onSelectEpisode = { requestEpisode(it) },
                         onSelectQuality = { selectQuality(it) },
-                        onEnterPip = { enterPip() },
                     )
                     com.db.dbworld.player.ui.NextEpisodeCard(
                         state = uiState,
@@ -105,6 +110,7 @@ class NativePlayerPlugin : Plugin() {
                         onRetry = { retryPlayback() },
                         onClose = { dismissInternal() },
                     )
+                    com.db.dbworld.player.ui.HudOverlay(state = uiState)
                 }
             }
         }
@@ -157,10 +163,12 @@ class NativePlayerPlugin : Plugin() {
     fun setPlaylist(call: PluginCall) {
         val eps = call.getArray("episodes"); val vars = call.getArray("variants")
         val cur = call.getString("currentFileId") ?: ""
+        val playlistTitle = call.getString("title") ?: ""
         activity.runOnUiThread {
             uiState.episodes = parseEpisodes(eps)
             uiState.variants = parseVariants(vars)
             uiState.currentFileId = cur
+            uiState.title = playlistTitle
         }
         call.resolve()
     }
@@ -290,21 +298,35 @@ class NativePlayerPlugin : Plugin() {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
     }
 
-    /** delta in [-1,1] as a fraction of full range; positive = brighter. */
+    /** delta in [-1,1] as a fraction of full range; positive = brighter. Updates the HUD. */
     fun adjustBrightness(delta: Float) = activity.runOnUiThread {
         val w = activity.window
         val lp = w.attributes
         val cur = if (lp.screenBrightness in 0f..1f) lp.screenBrightness else 0.5f
-        lp.screenBrightness = (cur + delta).coerceIn(0.01f, 1f)
+        val next = (cur + delta).coerceIn(0.01f, 1f)
+        lp.screenBrightness = next
         w.attributes = lp
+        uiState.hudKind = "brightness"; uiState.hudValue = next
     }
 
-    /** delta in [-1,1] as a fraction of full range; positive = louder. STREAM_MUSIC (system bar stays in sync). */
+    /** delta in [-1,1] as a fraction of full range; positive = louder. STREAM_MUSIC + HUD. */
     fun adjustVolume(delta: Float) = activity.runOnUiThread {
         val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
         val cur = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
         val next = (cur + Math.round(delta * max)).coerceIn(0, max)
         audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, next, 0)
+        uiState.hudKind = "volume"; uiState.hudValue = if (max > 0) next.toFloat() / max else 0f
+    }
+
+    /** Hide the brightness/volume HUD (called when a swipe gesture ends). */
+    fun clearHud() = activity.runOnUiThread { uiState.hudKind = null }
+
+    /** Toggle between sensor-landscape and sensor-portrait. */
+    fun rotate() = activity.runOnUiThread {
+        activity.requestedOrientation =
+            if (activity.requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     private fun isDecoderError(e: androidx.media3.common.PlaybackException): Boolean {
