@@ -31,6 +31,10 @@ object ExoPlayerFactory {
             .setPreferredAudioLanguage("hin")
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .build()
+        // Auto-pause on transient focus loss (calls, other media) and duck appropriately;
+        // pause when headphones are unplugged.
+        player.setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
+        player.setHandleAudioBecomingNoisy(true)
         return player
     }
 

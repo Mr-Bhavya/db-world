@@ -126,6 +126,13 @@ class NativePlayerPlugin : Plugin() {
         }
     }
 
+    override fun handleOnPause() {
+        // Don't keep audio playing when the app is backgrounded. (PiP, added in Phase 5,
+        // will guard this.) The resulting state change is reported to JS as usual.
+        player?.pause()
+        super.handleOnPause()
+    }
+
     override fun handleOnDestroy() {
         ui.removeCallbacks(ticker)
         player?.release(); player = null
