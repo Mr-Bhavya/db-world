@@ -12,6 +12,7 @@ import androidx.annotation.NonNull;
 import com.db.dbworld.appupdate.AppUpdatePlugin;
 import com.db.dbworld.download.DbWorldDownloadPlugin;
 import com.db.dbworld.player.HybridPlayerPlugin;
+import com.db.dbworld.player.NativePlayerPlugin;
 import com.db.dbworld.vaultcrypto.VaultCryptoPlugin;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
@@ -26,6 +27,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(HybridPlayerPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
         registerPlugin(VaultCryptoPlugin.class);
+        registerPlugin(NativePlayerPlugin.class);
         super.onCreate(savedInstanceState);
         setImmersiveMode();
         handleOpenDownloads(getIntent());
