@@ -24,4 +24,8 @@ class PlayerUiState {
     var selectedSubtitleId by mutableIntStateOf(-1)
     var speed by mutableFloatStateOf(1f)
     var decoderMode by mutableIntStateOf(0)   // 0 auto · 1 hardware · 2 software
+    var episodes by mutableStateOf<List<com.db.dbworld.player.PlayerEpisode>>(emptyList())
+    var variants by mutableStateOf<List<com.db.dbworld.player.PlayerVariant>>(emptyList())
+    var currentFileId by mutableStateOf("")
+    var ended by mutableStateOf(false)
 }

@@ -89,6 +89,7 @@ class NativePlayerPlugin : Plugin() {
         }
         p.setVideoSurfaceView(surface)
         toneMapApplied = false
+        uiState.ended = false
         currentUrl = url
         p.setMediaItem(MediaItem.fromUri(url))
         p.prepare()
@@ -105,6 +106,49 @@ class NativePlayerPlugin : Plugin() {
     }
     @PluginMethod fun setRate(call: PluginCall) {
         val r = call.getDouble("rate")?.toFloat() ?: 1f; onPlayer { it.setPlaybackSpeed(r) }; call.resolve()
+    }
+
+    private fun parseEpisodes(arr: com.getcapacitor.JSArray?): List<PlayerEpisode> {
+        val out = ArrayList<PlayerEpisode>()
+        if (arr == null) return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(PlayerEpisode(o.optString("fileId"), o.optString("label")))
+        }
+        return out
+    }
+
+    private fun parseVariants(arr: com.getcapacitor.JSArray?): List<PlayerVariant> {
+        val out = ArrayList<PlayerVariant>()
+        if (arr == null) return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(PlayerVariant(o.optString("url"), o.optString("label")))
+        }
+        return out
+    }
+
+    @PluginMethod
+    fun setPlaylist(call: PluginCall) {
+        val eps = call.getArray("episodes"); val vars = call.getArray("variants")
+        val cur = call.getString("currentFileId") ?: ""
+        activity.runOnUiThread {
+            uiState.episodes = parseEpisodes(eps)
+            uiState.variants = parseVariants(vars)
+            uiState.currentFileId = cur
+        }
+        call.resolve()
+    }
+
+    /** Ask JS to switch episode (JS owns resolve + telemetry re-arm). */
+    fun requestEpisode(fileId: String) {
+        notifyListeners("playerSelectEpisode", JSObject().put("fileId", fileId))
+    }
+
+    /** Native quality switch — variants already carry resolved URLs, so just reload at pos. */
+    fun selectQuality(url: String) = activity.runOnUiThread {
+        val pos = player?.currentPosition ?: 0L
+        doReload(url, pos)
     }
 
     fun selectAudio(id: Int) = activity.runOnUiThread {
@@ -238,6 +282,7 @@ class NativePlayerPlugin : Plugin() {
         }
         override fun onPlaybackStateChanged(state: Int) {
             notifyListeners("playerState", JSObject().put("state", state))
+            uiState.ended = (state == Player.STATE_ENDED)
             if (state == Player.STATE_ENDED) notifyListeners("playerEnded", JSObject())
         }
         override fun onTracksChanged(tracks: Tracks) {

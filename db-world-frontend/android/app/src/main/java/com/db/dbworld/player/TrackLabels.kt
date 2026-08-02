@@ -62,3 +62,9 @@ fun audioLabel(language: String?, codec: String?, channels: Int, title: String?)
 /** Builds the subtitle-track label. */
 fun subtitleLabel(language: String?, title: String?): String =
     if (!language.isNullOrEmpty()) langName(language) else (title ?: "Subtitle")
+
+/** A selectable episode for the native panel (JS owns the full object; native shows label). */
+data class PlayerEpisode(val fileId: String, val label: String)
+
+/** A quality variant (URL already resolved by JS). */
+data class PlayerVariant(val url: String, val label: String)
