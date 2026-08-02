@@ -7,7 +7,7 @@
 // Route: /db-world/db-cinema/player/:mediaFileId
 //   fast path:    navigate(playerPath(id), { state: { media } })
 //   instant path: navigate(playerPath(id), { state: { resume: { recordId, title, type } } })
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { registerPlugin } from '@capacitor/core';
@@ -60,7 +60,7 @@ export default function HybridPlayerPage() {
     return () => { cancelled = true; };
   }, [routeId, media, state]);
 
-  const episodes  = media?.episodes || [];
+  const episodes  = useMemo(() => media?.episodes || [], [media]);
   // The show/movie name stays constant; per-episode info (S#E# · name) is derived
   // inside the player from `episodes` + `currentEpisodeId`.
   const showTitle = media?.title || media?.fileName || '';
@@ -124,7 +124,7 @@ export default function HybridPlayerPage() {
     }));
     const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
     NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId) }).catch(() => {});
-  }, [episodes, cur, media]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [episodes, cur, media]);
 
   useEffect(() => {
     if (!isNativePlayerEnabled()) return undefined;
@@ -134,7 +134,7 @@ export default function HybridPlayerPage() {
       if (ep) selectEpisode(ep);
     }).then((h) => { handle = h; });
     return () => handle?.remove?.();
-  }, [episodes, selectEpisode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [episodes, selectEpisode]);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
     if (!cur?.fileId) return;
