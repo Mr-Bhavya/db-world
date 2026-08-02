@@ -240,10 +240,10 @@ class NativePlayerPlugin : Plugin() {
         activity.runOnUiThread { player?.let(block) }
 
     /** Enable HDR→SDR tone-map only when content is HDR and the display can't show that HDR type. */
+    @Suppress("DEPRECATION")  // defaultDisplay + hdrCapabilities are deprecated but work across minSdk 23..35
     private fun applyHdrBranch(tracks: Tracks) {
         if (toneMapApplied) return
         val display = activity.windowManager.defaultDisplay
-        @Suppress("DEPRECATION")
         val supported = display.hdrCapabilities?.supportedHdrTypes ?: IntArray(0)
         for (g in tracks.groups) {
             if (g.type != C.TRACK_TYPE_VIDEO) continue
