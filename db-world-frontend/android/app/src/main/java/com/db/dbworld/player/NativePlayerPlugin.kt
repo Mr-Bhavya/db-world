@@ -2,6 +2,9 @@ package com.db.dbworld.player
 
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -72,18 +75,25 @@ class NativePlayerPlugin : Plugin() {
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
             ) {
-                com.db.dbworld.player.ui.PlayerControls(
-                    state = uiState,
-                    onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
-                    onSeek = { ms -> player?.seekTo(ms) },
-                    onClose = { dismissInternal() },
-                    onSelectAudio = { selectAudio(it) },
-                    onSelectSubtitle = { selectSubtitle(it) },
-                    onSetSpeed = { setSpeedNative(it) },
-                    onSetDecoder = { setDecoderModeNative(it) },
-                    onSelectEpisode = { requestEpisode(it) },
-                    onSelectQuality = { selectQuality(it) },
-                )
+                Box(Modifier.fillMaxSize()) {
+                    com.db.dbworld.player.ui.PlayerControls(
+                        state = uiState,
+                        onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
+                        onSeek = { ms -> player?.seekTo(ms) },
+                        onClose = { dismissInternal() },
+                        onSelectAudio = { selectAudio(it) },
+                        onSelectSubtitle = { selectSubtitle(it) },
+                        onSetSpeed = { setSpeedNative(it) },
+                        onSetDecoder = { setDecoderModeNative(it) },
+                        onSelectEpisode = { requestEpisode(it) },
+                        onSelectQuality = { selectQuality(it) },
+                    )
+                    com.db.dbworld.player.ui.NextEpisodeCard(
+                        state = uiState,
+                        onPlayNext = { uiState.ended = false; requestEpisode(it) },
+                        onDismiss = { uiState.ended = false },
+                    )
+                }
             }
         }
         val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
