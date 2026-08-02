@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -75,7 +73,7 @@ fun PlayerControls(
             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
         IconButton(onClick = onEnterPip, modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 8.dp)) {
-            Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "Picture in picture", tint = Color.White)
+            Icon(PipIcon, contentDescription = "Picture in picture", tint = Color.White)
         }
         var menuOpen by remember { mutableStateOf(false) }
         IconButton(onClick = { menuOpen = true }, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
@@ -107,7 +105,7 @@ fun PlayerControls(
         // Center play/pause.
         IconButton(onClick = onPlayPause, modifier = Modifier.align(Alignment.Center).size(72.dp)) {
             Icon(
-                if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                if (state.isPlaying) PauseIcon else Icons.Filled.PlayArrow,
                 contentDescription = if (state.isPlaying) "Pause" else "Play",
                 tint = Color.White,
                 modifier = Modifier.size(56.dp),

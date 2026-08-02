@@ -64,6 +64,11 @@ android {
     }
     kotlinOptions {
         jvmTarget = '21'
+        // NextLib (nextlib-media3ext:1.7.1-0.9.0) is compiled with Kotlin 2.1.0; our compiler is
+        // 1.9.20 (reads metadata up to 2.0.0). We only reference the simple NextRenderersFactory
+        // class from Kotlin, so allow reading its newer metadata instead of forcing a full Kotlin
+        // 2.x migration (which would also require the new Compose compiler Gradle plugin).
+        freeCompilerArgs += ['-Xskip-metadata-version-check']
     }
     buildFeatures {
         compose true
