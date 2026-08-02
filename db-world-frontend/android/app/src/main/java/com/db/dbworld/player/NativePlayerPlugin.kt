@@ -25,6 +25,8 @@ class NativePlayerPlugin : Plugin() {
     private var toneMapApplied = false
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
+    private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
+    private val textGroups = ArrayList<androidx.media3.common.TrackGroup>()
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -129,6 +131,37 @@ class NativePlayerPlugin : Plugin() {
         }
     }
 
+    private fun emitTracks(tracks: androidx.media3.common.Tracks) {
+        audioGroups.clear(); textGroups.clear()
+        val audio = ArrayList<PlayerTrack>()
+        val text = ArrayList<PlayerTrack>()
+        var selAudio = -1; var selText = -1
+        for (g in tracks.groups) {
+            when (g.type) {
+                androidx.media3.common.C.TRACK_TYPE_AUDIO -> {
+                    val id = audioGroups.size
+                    val tg = g.mediaTrackGroup
+                    val f = tg.getFormat(0)
+                    audio.add(PlayerTrack(id, audioLabel(f.language, codecName(f.sampleMimeType), f.channelCount, f.label)))
+                    if (g.isSelected) selAudio = id
+                    audioGroups.add(tg)
+                }
+                androidx.media3.common.C.TRACK_TYPE_TEXT -> {
+                    val id = textGroups.size
+                    val tg = g.mediaTrackGroup
+                    val f = tg.getFormat(0)
+                    text.add(PlayerTrack(id, subtitleLabel(f.language, f.label)))
+                    if (g.isSelected) selText = id
+                    textGroups.add(tg)
+                }
+            }
+        }
+        uiState.audioTracks = audio
+        uiState.subtitleTracks = text
+        uiState.selectedAudioId = selAudio
+        uiState.selectedSubtitleId = selText
+    }
+
     private val audioManager by lazy {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
     }
@@ -161,6 +194,7 @@ class NativePlayerPlugin : Plugin() {
         }
         override fun onTracksChanged(tracks: Tracks) {
             applyHdrBranch(tracks)
+            emitTracks(tracks)
             // Phase-3 emits full playerTracks; Phase-1 emits a minimal presence signal.
             notifyListeners("playerTracks", JSObject())
         }
