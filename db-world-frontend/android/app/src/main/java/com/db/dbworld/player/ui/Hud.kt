@@ -3,6 +3,7 @@ package com.db.dbworld.player.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,14 +97,17 @@ fun SeekFlash(state: PlayerUiState) {
             visible = shown,
             modifier = Modifier
                 .align(if (state.seekForward) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = 56.dp),
-            enter = fadeIn(),
+                .padding(horizontal = 40.dp),
+            enter = scaleIn(initialScale = 0.6f) + fadeIn(),
             exit = fadeOut(),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.clip(CircleShape).background(Color(0x59000000)).padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Icon(
                     if (state.seekForward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
-                    contentDescription = null, tint = Color.White, modifier = Modifier.size(44.dp),
+                    contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp),
                 )
                 Text("10s", color = Color.White, fontSize = 13.sp)
             }

@@ -38,4 +38,6 @@ class PlayerUiState {
     // Double-tap seek flash: seekTick is bumped (to now-ms) on each ±10s seek to trigger the overlay.
     var seekTick by mutableLongStateOf(0L)
     var seekForward by mutableStateOf(false)
+    var videoWidth by mutableIntStateOf(0)        // for the Info sheet
+    var videoHeight by mutableIntStateOf(0)
 }

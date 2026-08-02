@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
@@ -58,7 +59,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
-private val DECODERS = listOf(0 to "Auto", 1 to "Hardware", 2 to "Software")
 
 private fun fmt(ms: Long): String {
     val t = (ms / 1000).coerceAtLeast(0)
@@ -191,6 +191,7 @@ fun PlayerControls(
                 CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
                 if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
                 if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
+                CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
             }
         }
 
@@ -199,23 +200,20 @@ fun PlayerControls(
             "speed" -> PlayerSheet("Playback speed", { sheet = null }) {
                 SPEEDS.forEach { s -> SheetRow(if (s == 1f) "Normal" else "${trimSpeed(s)}×", s == state.speed) { onSetSpeed(s); sheet = null } }
             }
-            "audio" -> PlayerSheet("Audio & Subtitles", { sheet = null }) {
-                if (state.audioTracks.isNotEmpty()) {
-                    SheetSection("Audio")
-                    state.audioTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedAudioId) { onSelectAudio(t.id); sheet = null } }
-                }
-                SheetSection("Subtitles")
-                SheetRow("Off", state.selectedSubtitleId < 0) { onSelectSubtitle(-1); sheet = null }
-                state.subtitleTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedSubtitleId) { onSelectSubtitle(t.id); sheet = null } }
-                SheetSection("Decoder")
-                DECODERS.forEach { (m, name) -> SheetRow(name, m == state.decoderMode) { onSetDecoder(m); sheet = null } }
-            }
+            "audio" -> AudioSubtitleSheet(
+                state = state,
+                onSelectAudio = { onSelectAudio(it) },     // stay open so both can be picked
+                onSelectSubtitle = { onSelectSubtitle(it) },
+                onSetDecoder = { onSetDecoder(it) },
+                onDismiss = { sheet = null },
+            )
             "episodes" -> PlayerSheet("Episodes", { sheet = null }) {
                 state.episodes.forEach { ep -> SheetRow(ep.label, ep.fileId == state.currentFileId) { onSelectEpisode(ep.fileId); sheet = null } }
             }
             "quality" -> PlayerSheet("Quality", { sheet = null }) {
                 state.variants.forEach { v -> SheetRow(v.label, false) { onSelectQuality(v.url); sheet = null } }
             }
+            "info" -> InfoSheet(state = state, onDismiss = { sheet = null })
         }
     }
 }

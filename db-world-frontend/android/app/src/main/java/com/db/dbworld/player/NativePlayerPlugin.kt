@@ -391,6 +391,7 @@ class NativePlayerPlugin : Plugin() {
         }
         override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
             videoW = size.width; videoH = size.height
+            uiState.videoWidth = size.width; uiState.videoHeight = size.height
             val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
             if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
         }
