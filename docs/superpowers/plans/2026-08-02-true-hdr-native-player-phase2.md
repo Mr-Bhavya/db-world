@@ -313,7 +313,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 
 /**
  * Full-screen gesture surface UNDER the controls:
@@ -330,7 +329,7 @@ fun GestureLayer(
     onVolumeDelta: (Float) -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val widthPx = LocalConfiguration.current.screenWidthDp.toFloat()
+    // `size` (IntSize) comes from the PointerInputScope receiver — left/right half split.
     Box(
         Modifier
             .fillMaxSize()
@@ -352,8 +351,6 @@ fun GestureLayer(
                 )
             }
     ) { content() }
-    // widthPx referenced to keep LocalConfiguration read (some devices need a recompose key); no-op use:
-    @Suppress("UNUSED_EXPRESSION") widthPx
 }
 ```
 
