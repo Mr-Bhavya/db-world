@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { registerPlugin } from '@capacitor/core';
 import CircularProgress from '@mui/material/CircularProgress';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
@@ -17,6 +18,9 @@ import { buildMediaFromFileId } from '../../media/playerLaunch';
 import { addWatched } from '../../api/cinemaApi';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
+import { isNativePlayerEnabled } from './nativePlayerFlag';
+
+const NativePlayer = registerPlugin('NativePlayer');
 
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
@@ -109,6 +113,28 @@ export default function HybridPlayerPage() {
       requestId, mediaFileId: ep.mediaFileId || ep.fileId || null, recordId,
     });
   }, [media]);
+
+  // Native player: hand it a flat episode + variant list to display, and route its
+  // episode-tap events back into the existing selectEpisode() (which resolves + reloads).
+  useEffect(() => {
+    if (!isNativePlayerEnabled() || !cur) return;
+    const eps = (episodes || []).map((e) => ({
+      fileId: String(e.fileId),
+      label: e.name ? `${e.label} · ${e.name}` : e.label,
+    }));
+    const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
+    NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId) }).catch(() => {});
+  }, [episodes, cur, media]);
+
+  useEffect(() => {
+    if (!isNativePlayerEnabled()) return undefined;
+    let handle;
+    NativePlayer.addListener('playerSelectEpisode', ({ fileId }) => {
+      const ep = (episodes || []).find((e) => String(e.fileId) === String(fileId));
+      if (ep) selectEpisode(ep);
+    }).then((h) => { handle = h; });
+    return () => handle?.remove?.();
+  }, [episodes, selectEpisode]);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
     if (!cur?.fileId) return;
