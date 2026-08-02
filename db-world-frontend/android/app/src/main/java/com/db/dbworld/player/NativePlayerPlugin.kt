@@ -61,6 +61,16 @@ class NativePlayerPlugin : Plugin() {
         decoderMode = call.getInt("decoderMode", 0)!!
         activity.runOnUiThread {
             try {
+                // Open in landscape full-screen (like a video player should).
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                // Draw edge-to-edge INTO the display cutout, else the video is pushed off the
+                // notch edge leaving a black bar on one side.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val lp = activity.window.attributes
+                    lp.layoutInDisplayCutoutMode =
+                        android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    activity.window.attributes = lp
+                }
                 doReload(url, startMs)
                 call.resolve()
             } catch (t: Throwable) {
@@ -114,6 +124,7 @@ class NativePlayerPlugin : Plugin() {
                     )
                     com.db.dbworld.player.ui.HudOverlay(state = uiState)
                     com.db.dbworld.player.ui.SeekFlash(state = uiState)
+                    com.db.dbworld.player.ui.BufferingSpinner(state = uiState)
                 }
             }
         }
@@ -240,6 +251,13 @@ class NativePlayerPlugin : Plugin() {
 
     private fun dismissInternal() {
         ui.removeCallbacks(ticker)
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val lp = activity.window.attributes
+            lp.layoutInDisplayCutoutMode =
+                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            activity.window.attributes = lp
+        }
         val pos = player?.currentPosition ?: 0L
         val dur = player?.duration?.coerceAtLeast(0) ?: 0L
         player?.release(); player = null
@@ -349,6 +367,7 @@ class NativePlayerPlugin : Plugin() {
         override fun onPlaybackStateChanged(state: Int) {
             notifyListeners("playerState", JSObject().put("state", state))
             uiState.ended = (state == Player.STATE_ENDED)
+            uiState.buffering = (state == Player.STATE_BUFFERING)
             if (state == Player.STATE_ENDED) notifyListeners("playerEnded", JSObject())
         }
         override fun onTracksChanged(tracks: Tracks) {

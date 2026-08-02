@@ -28,6 +28,7 @@ class PlayerUiState {
     var variants by mutableStateOf<List<com.db.dbworld.player.PlayerVariant>>(emptyList())
     var currentFileId by mutableStateOf("")
     var ended by mutableStateOf(false)
+    var buffering by mutableStateOf(false)        // player is BUFFERING (show a spinner)
     var errorMessage by mutableStateOf<String?>(null)
     var title by mutableStateOf("")               // show/movie title for the top bar
     var locked by mutableStateOf(false)           // controls locked (tap does nothing but unlock)

@@ -69,6 +69,17 @@ fun HudOverlay(state: PlayerUiState) {
     }
 }
 
+/** Centered buffering spinner, shown while the player is BUFFERING (and not errored). */
+@Composable
+fun BufferingSpinner(state: PlayerUiState) {
+    if (!state.buffering || state.errorMessage != null) return
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        androidx.compose.material3.CircularProgressIndicator(
+            color = PlayerTheme.Teal, strokeWidth = 3.dp,
+        )
+    }
+}
+
 /** Brief "10s" flash with a rewind/forward icon after a double-tap seek. */
 @Composable
 fun SeekFlash(state: PlayerUiState) {
