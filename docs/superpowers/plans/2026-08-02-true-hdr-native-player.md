@@ -6,7 +6,7 @@
 
 **Architecture:** Video renders to a `SurfaceView` (a real display layer → panel enters HDR mode). Native Compose controls composite *above* it (reliable, unlike a WebView over a SurfaceView). Both are added into the existing `MainActivity`; the Capacitor WebView is set `INVISIBLE` but stays alive so the unchanged React/JS orchestration keeps running, fed by plugin events. A new Kotlin `NativePlayerPlugin` owns ExoPlayer + surface + Compose; the old `HybridPlayerPlugin` stays behind a feature flag until an on-device parity checklist passes.
 
-**Tech Stack:** Kotlin 1.9.20, Jetpack Compose (BOM 2024.02.02, compiler 1.5.4), AndroidX Media3 1.7.1 (`exoplayer`, `ui`, `effect`, `session`), NextLib `nextlib-media3ext` 1.7.1-0.9.0 (FFmpeg HW-fallback decoders), Capacitor plugin bridge, React (web unchanged).
+**Tech Stack:** Kotlin 1.9.20, Jetpack Compose (BOM 2023.10.01 = runtime 1.5.4, compiler 1.5.4 — the matched triple for Kotlin 1.9.20), Java 21, AndroidX Media3 1.7.1 (`exoplayer`, `ui`, `effect`, `session`), NextLib `nextlib-media3ext` 1.7.1-0.9.0 (FFmpeg HW-fallback decoders), Capacitor plugin bridge, React (web unchanged).
 
 **Spec:** `docs/superpowers/specs/2026-08-02-true-hdr-native-player-design.md`
 
@@ -80,9 +80,13 @@ apply plugin: 'org.jetbrains.kotlin.android'
 
 - [ ] **Step 2: Enable Compose + set the JVM/Kotlin target**
 
-Inside the `android { … }` block (after the existing `compileOptions { … }`), add:
+Inside the `android { … }` block, set `compileOptions` to Java 21 (matching the Kotlin `jvmTarget` and the `capacitor.build.gradle` override — KGP 1.9.20 fails on an inconsistent Java/Kotlin JVM target) and add the Kotlin/Compose options after it:
 
 ```groovy
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
     kotlinOptions {
         jvmTarget = '21'
     }
@@ -103,7 +107,7 @@ In the `dependencies { … }` block of `db-world-frontend/android/app/build.grad
     // Match the compiler on the root classpath (1.9.20) for Compose.
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.20"
     // Jetpack Compose (native player UI).
-    def composeBom = platform('androidx.compose:compose-bom:2024.02.02')
+    def composeBom = platform('androidx.compose:compose-bom:2023.10.01')  // runtime 1.5.4 ↔ compiler 1.5.4
     implementation composeBom
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
