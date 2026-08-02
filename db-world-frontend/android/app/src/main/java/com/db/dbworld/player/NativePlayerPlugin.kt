@@ -33,7 +33,8 @@ class NativePlayerPlugin : Plugin() {
     private var inPip = false
     private var videoW = 0
     private var videoH = 0
-    private var fillMode = true   // true = crop-to-fill (full screen), false = letterbox-fit
+    private var fillMode = false  // false = letterbox-fit (default; whole frame, no distortion), true = crop-to-fill
+    private var volFrac = -1f     // continuous volume accumulator for smooth swipe (seeded per gesture)
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -94,10 +95,17 @@ class NativePlayerPlugin : Plugin() {
                 },
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
-                onZoom = { fill -> fillMode = fill; applyScaling() },
+                onZoom = { fill ->
+                    if (fill != fillMode) {
+                        fillMode = fill; applyScaling()
+                        uiState.zoomLabel = if (fill) "Fill screen" else "Fit to screen"
+                        uiState.zoomTick = System.currentTimeMillis()
+                    }
+                },
                 onDragEnd = { clearHud() },
             ) {
                 Box(Modifier.fillMaxSize()) {
+                    com.db.dbworld.player.ui.PauseOverlay(state = uiState)
                     com.db.dbworld.player.ui.PlayerControls(
                         state = uiState,
                         onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
@@ -110,7 +118,6 @@ class NativePlayerPlugin : Plugin() {
                         onSelectAudio = { selectAudio(it) },
                         onSelectSubtitle = { selectSubtitle(it) },
                         onSetSpeed = { setSpeedNative(it) },
-                        onSetDecoder = { setDecoderModeNative(it) },
                         onSelectEpisode = { requestEpisode(it) },
                         onSelectQuality = { selectQuality(it) },
                     )
@@ -126,6 +133,7 @@ class NativePlayerPlugin : Plugin() {
                     )
                     com.db.dbworld.player.ui.HudOverlay(state = uiState)
                     com.db.dbworld.player.ui.SeekFlash(state = uiState)
+                    com.db.dbworld.player.ui.ZoomFlash(state = uiState)
                     com.db.dbworld.player.ui.BufferingSpinner(state = uiState)
                 }
             }
@@ -143,6 +151,7 @@ class NativePlayerPlugin : Plugin() {
         p.prepare()
         if (startMs > 0) p.seekTo(startMs)
         p.playWhenReady = true
+        activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         ui.removeCallbacks(ticker); ui.post(ticker)
     }
 
@@ -188,13 +197,32 @@ class NativePlayerPlugin : Plugin() {
         val eps = call.getArray("episodes"); val vars = call.getArray("variants")
         val cur = call.getString("currentFileId") ?: ""
         val playlistTitle = call.getString("title") ?: ""
+        val playlistOverview = call.getString("overview") ?: ""
+        val sb = call.getObject("storyboard")
         activity.runOnUiThread {
             uiState.episodes = parseEpisodes(eps)
             uiState.variants = parseVariants(vars)
             uiState.currentFileId = cur
             uiState.title = playlistTitle
+            uiState.overview = playlistOverview
+            uiState.storyboard = parseStoryboard(sb)
         }
         call.resolve()
+    }
+
+    private fun parseStoryboard(o: JSObject?): PlayerStoryboard? {
+        if (o == null) return null
+        val url = o.optString("url"); val count = o.optInt("count")
+        if (url.isEmpty() || count <= 0) return null
+        return PlayerStoryboard(
+            url = url,
+            intervalMs = o.optLong("intervalMs", 0L),
+            cols = o.optInt("cols"),
+            rows = o.optInt("rows"),
+            tileW = o.optInt("tileW"),
+            tileH = o.optInt("tileH"),
+            count = count,
+        )
     }
 
     /** Ask JS to switch episode (JS owns resolve + telemetry re-arm). */
@@ -255,12 +283,15 @@ class NativePlayerPlugin : Plugin() {
 
     @PluginMethod
     fun dismiss(call: PluginCall) {
-        activity.runOnUiThread { dismissInternal() }
+        // JS-initiated teardown (unmount / src-change) — NOT a user close, so don't emit
+        // playerClosed (which would navigate the route away mid-episode-switch).
+        activity.runOnUiThread { dismissInternal(userInitiated = false) }
         call.resolve()
     }
 
-    private fun dismissInternal() {
+    private fun dismissInternal(userInitiated: Boolean = true) {
         ui.removeCallbacks(ticker)
+        activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             val lp = activity.window.attributes
@@ -272,7 +303,8 @@ class NativePlayerPlugin : Plugin() {
         val dur = player?.duration?.coerceAtLeast(0) ?: 0L
         player?.release(); player = null
         host?.detach()
-        notifyListeners("playerClosed", JSObject().put("positionMs", pos).put("durationMs", dur))
+        // Only a genuine user close (native X / error dialog) navigates the route back.
+        if (userInitiated) notifyListeners("playerClosed", JSObject().put("positionMs", pos).put("durationMs", dur))
     }
 
     private fun onPlayer(block: (ExoPlayer) -> Unit) =
@@ -317,6 +349,15 @@ class NativePlayerPlugin : Plugin() {
                     if (g.isSelected) selText = id
                     textGroups.add(tg)
                 }
+                androidx.media3.common.C.TRACK_TYPE_VIDEO -> {
+                    // Capture the active video format's tech details for the Info sheet.
+                    if (g.isSelected || uiState.videoCodec.isEmpty()) {
+                        val f = g.mediaTrackGroup.getFormat(0)
+                        uiState.videoCodec = videoCodecName(f.sampleMimeType)
+                        uiState.dynamicRange = dynamicRangeName(f.colorInfo?.colorTransfer)
+                        uiState.frameRate = if (f.frameRate > 0f) f.frameRate else 0f
+                    }
+                }
             }
         }
         uiState.audioTracks = audio
@@ -340,17 +381,24 @@ class NativePlayerPlugin : Plugin() {
         uiState.hudKind = "brightness"; uiState.hudValue = next
     }
 
-    /** delta in [-1,1] as a fraction of full range; positive = louder. STREAM_MUSIC + HUD. */
+    /**
+     * delta in [-1,1] as a fraction of full range; positive = louder. Accumulates into a
+     * CONTINUOUS fraction and only then quantizes to a stream step — otherwise the tiny
+     * per-frame delta rounds to 0 and the volume barely moves (the "swipe many times" bug).
+     */
     fun adjustVolume(delta: Float) = activity.runOnUiThread {
         val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
-        val cur = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
-        val next = (cur + Math.round(delta * max)).coerceIn(0, max)
-        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, next, 0)
-        uiState.hudKind = "volume"; uiState.hudValue = if (max > 0) next.toFloat() / max else 0f
+        // Seed from the real volume at the start of a volume gesture.
+        if (uiState.hudKind != "volume" || volFrac < 0f) {
+            volFrac = if (max > 0) audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / max else 0f
+        }
+        volFrac = (volFrac + delta).coerceIn(0f, 1f)
+        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(volFrac * max), 0)
+        uiState.hudKind = "volume"; uiState.hudValue = volFrac
     }
 
     /** Hide the brightness/volume HUD (called when a swipe gesture ends). */
-    fun clearHud() = activity.runOnUiThread { uiState.hudKind = null }
+    fun clearHud() = activity.runOnUiThread { uiState.hudKind = null; volFrac = -1f }
 
     /** Apply the current fill/fit choice via ExoPlayer's scaling mode (full-screen SurfaceView). */
     private fun applyScaling() {
@@ -380,6 +428,9 @@ class NativePlayerPlugin : Plugin() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             notifyListeners("playerState", JSObject().put("playing", isPlaying))
             uiState.isPlaying = isPlaying
+            // Don't let the screen time out mid-movie; allow it again when paused.
+            if (isPlaying) activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         override fun onPlaybackStateChanged(state: Int) {
             notifyListeners("playerState", JSObject().put("state", state))

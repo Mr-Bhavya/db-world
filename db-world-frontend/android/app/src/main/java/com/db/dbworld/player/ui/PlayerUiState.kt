@@ -41,4 +41,13 @@ class PlayerUiState {
     var seekForward by mutableStateOf(false)
     var videoWidth by mutableIntStateOf(0)        // for the Info sheet
     var videoHeight by mutableIntStateOf(0)
+    var videoCodec by mutableStateOf("")          // "AV1" / "HEVC" / "H.264" …
+    var dynamicRange by mutableStateOf("")        // "HDR10" / "HLG" / "SDR"
+    var frameRate by mutableFloatStateOf(0f)      // fps
+    var overview by mutableStateOf("")            // synopsis for the pause info card
+    // Pinch fit/fill feedback flash.
+    var zoomLabel by mutableStateOf("")
+    var zoomTick by mutableLongStateOf(0L)
+    // Scrub-preview storyboard (null if the file has no sprite).
+    var storyboard by mutableStateOf<com.db.dbworld.player.PlayerStoryboard?>(null)
 }

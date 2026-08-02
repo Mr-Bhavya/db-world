@@ -63,6 +63,29 @@ fun audioLabel(language: String?, codec: String?, channels: Int, title: String?)
 fun subtitleLabel(language: String?, title: String?): String =
     if (!language.isNullOrEmpty()) langName(language) else (title ?: "Subtitle")
 
+/** Short video-codec display name from a sampleMimeType ("video/av01" -> "AV1"). */
+fun videoCodecName(mime: String?): String {
+    if (mime == null) return "—"
+    val m = mime.lowercase()
+    return when {
+        m.contains("av01") || m.contains("av1") -> "AV1"
+        m.contains("hevc") || m.contains("h265") || m.contains("dolby-vision") -> "HEVC"
+        m.contains("avc") || m.contains("h264") -> "H.264"
+        m.contains("vp9") -> "VP9"
+        m.contains("vp8") -> "VP8"
+        m.contains("mp4v") || m.contains("mpeg4") -> "MPEG-4"
+        else -> mime.substringAfter('/', mime).uppercase()
+    }
+}
+
+/** SDR / HDR10 / HLG from a Media3 colorTransfer (C.COLOR_TRANSFER_*). */
+fun dynamicRangeName(colorTransfer: Int?): String = when (colorTransfer) {
+    androidx.media3.common.C.COLOR_TRANSFER_ST2084 -> "HDR10"
+    androidx.media3.common.C.COLOR_TRANSFER_HLG -> "HLG"
+    null, androidx.media3.common.C.COLOR_TRANSFER_UNSET -> "—"
+    else -> "SDR"
+}
+
 /** A selectable episode for the native panel (JS owns the full object; native shows label). */
 data class PlayerEpisode(
     val fileId: String,
@@ -75,3 +98,17 @@ data class PlayerEpisode(
 
 /** A quality variant (URL already resolved by JS). */
 data class PlayerVariant(val url: String, val label: String)
+
+/**
+ * Scrub-preview storyboard: one sprite sheet at [url], a [cols]×[rows] grid of [tileW]×[tileH]
+ * thumbnails, one every [intervalMs] ms, [count] total. Tile index = floor(posMs/intervalMs).
+ */
+data class PlayerStoryboard(
+    val url: String,
+    val intervalMs: Long,
+    val cols: Int,
+    val rows: Int,
+    val tileW: Int,
+    val tileH: Int,
+    val count: Int,
+)

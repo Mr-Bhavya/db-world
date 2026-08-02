@@ -1,6 +1,7 @@
 package com.db.dbworld.player.ui
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,15 +56,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import kotlinx.coroutines.delay
 
-private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f)   // matches the web player
 
 private fun fmt(ms: Long): String {
     val t = (ms / 1000).coerceAtLeast(0)
@@ -91,7 +103,6 @@ fun PlayerControls(
     onSelectAudio: (Int) -> Unit,
     onSelectSubtitle: (Int) -> Unit,
     onSetSpeed: (Float) -> Unit,
-    onSetDecoder: (Int) -> Unit,
     onSelectEpisode: (String) -> Unit,
     onSelectQuality: (String) -> Unit,
 ) {
@@ -115,14 +126,18 @@ fun PlayerControls(
     LaunchedEffect(sheet) { state.sheetOpen = sheet != null }
     DisposableEffect(Unit) { onDispose { state.sheetOpen = false } }
 
-    // Auto-hide after 3s while playing — paused whenever a sheet is open.
-    LaunchedEffect(state.controlsVisible, state.isPlaying, sheet) {
-        if (state.controlsVisible && state.isPlaying && sheet == null) {
-            delay(3000); state.controlsVisible = false
+    // Auto-hide after a few seconds of no interaction — whether playing OR paused (paused just
+    // idles a touch longer, then reveals the pause info card). Held open while a sheet is open
+    // or after playback ended (the next-episode card owns the screen then).
+    LaunchedEffect(state.controlsVisible, state.isPlaying, sheet, state.ended) {
+        if (state.controlsVisible && sheet == null && !state.ended) {
+            delay(if (state.isPlaying) 3000 else 3600); state.controlsVisible = false
         }
     }
 
-    val epLabel = state.episodes.firstOrNull { it.fileId == state.currentFileId }?.label
+    val curIdx = state.episodes.indexOfFirst { it.fileId == state.currentFileId }
+    val epLabel = if (curIdx >= 0) state.episodes[curIdx].label else null
+    val nextEp = if (curIdx >= 0 && curIdx + 1 < state.episodes.size) state.episodes[curIdx + 1] else null
 
     Box(Modifier.fillMaxSize()) {
         // Gradient scrims — stronger at the bottom for the taller control bar.
@@ -198,6 +213,7 @@ fun PlayerControls(
             ) {
                 CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                 CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
+                if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
                 if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
                 if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
                 CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
@@ -206,14 +222,11 @@ fun PlayerControls(
 
         // Bottom-sheet modals.
         when (sheet) {
-            "speed" -> PlayerSheet("Playback speed", { sheet = null }) {
-                SPEEDS.forEach { s -> SheetRow(if (s == 1f) "Normal" else "${trimSpeed(s)}×", s == state.speed) { onSetSpeed(s); sheet = null } }
-            }
+            "speed" -> SpeedSheet(SPEEDS, state.speed, onSelect = { onSetSpeed(it) }, onDismiss = { sheet = null })
             "audio" -> AudioSubtitleSheet(
                 state = state,
                 onSelectAudio = { onSelectAudio(it) },     // stay open so both can be picked
                 onSelectSubtitle = { onSelectSubtitle(it) },
-                onSetDecoder = { onSetDecoder(it) },
                 onDismiss = { sheet = null },
             )
             "episodes" -> EpisodeSheet(
@@ -253,6 +266,31 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
                 detectTapGestures { off -> onSeek(((off.x / size.width).coerceIn(0f, 1f) * dur).toLong()) }
             },
     ) {
+        val sb = state.storyboard
+        // Scrub preview: storyboard thumbnail (if any) + time, above the thumb while dragging.
+        if (dragFrac != null && hasDur) {
+            val previewMs = (frac * dur).toLong()
+            val thumbW = if (sb != null) 148.dp else 66.dp
+            val bubbleX = (maxWidth * frac - thumbW / 2).coerceIn(0.dp, (maxWidth - thumbW).coerceAtLeast(0.dp))
+            val bubbleUp = if (sb != null) 120.dp else 34.dp
+            Column(
+                Modifier.align(Alignment.TopStart).offset(x = bubbleX, y = -bubbleUp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (sb != null && sb.tileW > 0 && sb.tileH > 0) {
+                    StoryboardThumb(
+                        sb, previewMs,
+                        Modifier.width(thumbW).aspectRatio(sb.tileW.toFloat() / sb.tileH)
+                            .clip(RoundedCornerShape(8.dp)).background(Color.Black),
+                    )
+                }
+                Text(
+                    fmt(previewMs), color = Color.White, fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
         Box(
             Modifier.align(Alignment.CenterStart).fillMaxWidth().height(5.dp)
                 .clip(RoundedCornerShape(999.dp)).background(PlayerTheme.Track),
@@ -267,7 +305,39 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
     }
 }
 
-/** Pill control-row button: label left of icon on a subtle chip; teal when active. */
+/** Draws one storyboard tile (cropped from the sprite sheet) for the position being scrubbed to. */
+@Composable
+private fun StoryboardThumb(sb: com.db.dbworld.player.PlayerStoryboard, posMs: Long, modifier: Modifier) {
+    val context = LocalContext.current
+    var image by remember(sb.url) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(sb.url) {
+        try {
+            val req = ImageRequest.Builder(context).data(sb.url).allowHardware(false).build()
+            val res = context.imageLoader.execute(req)
+            (res as? SuccessResult)?.drawable
+                ?.let { it as? android.graphics.drawable.BitmapDrawable }?.bitmap
+                ?.let { image = it.asImageBitmap() }
+        } catch (_: Throwable) { /* time-only preview if the sprite can't load */ }
+    }
+    val img = image
+    val cols = sb.cols.coerceAtLeast(1)
+    val idx = if (sb.intervalMs > 0) (posMs / sb.intervalMs).toInt().coerceIn(0, (sb.count - 1).coerceAtLeast(0)) else 0
+    val col = idx % cols
+    val row = idx / cols
+    Canvas(modifier) {
+        if (img != null) {
+            drawImage(
+                image = img,
+                srcOffset = IntOffset(col * sb.tileW, row * sb.tileH),
+                srcSize = IntSize(sb.tileW, sb.tileH),
+                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                filterQuality = FilterQuality.Low,
+            )
+        }
+    }
+}
+
+/** Pill control-row button: icon then label on a subtle chip; teal when active. */
 @Composable
 private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
     val tint = if (active) PlayerTheme.Teal else Color.White
@@ -278,8 +348,8 @@ private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean, onClick: 
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-        Spacer(Modifier.width(7.dp))
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(7.dp))
+        Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }

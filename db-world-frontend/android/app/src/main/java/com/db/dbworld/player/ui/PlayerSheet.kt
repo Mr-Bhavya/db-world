@@ -105,13 +105,12 @@ fun SheetRow(label: String, selected: Boolean, subtitle: String? = null, onClick
     }
 }
 
-/** Netflix-style Audio & Subtitles panel: two side-by-side columns + a decoder segmented row. */
+/** Netflix-style Audio & Subtitles panel: two side-by-side columns. */
 @Composable
 fun AudioSubtitleSheet(
     state: PlayerUiState,
     onSelectAudio: (Int) -> Unit,
     onSelectSubtitle: (Int) -> Unit,
-    onSetDecoder: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -155,48 +154,78 @@ fun AudioSubtitleSheet(
                         state.subtitleTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedSubtitleId) { onSelectSubtitle(t.id) } }
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0 to "Auto", 1 to "Hardware", 2 to "Software").forEach { (m, name) ->
-                        val sel = m == state.decoderMode
-                        Box(
-                            Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                                .background(if (sel) PlayerTheme.Teal.copy(alpha = 0.22f) else Color(0x14FFFFFF))
-                                .clickable { onSetDecoder(m) }.padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(name, color = if (sel) PlayerTheme.Teal else PlayerTheme.Text, fontSize = 13.sp)
-                        }
-                    }
-                }
             }
         }
     }
 }
 
-/** Read-only media details. */
+/** Playback-speed picker: a horizontal segmented control (web-player style), 1× highlighted. */
+@Composable
+fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, onDismiss: () -> Unit) {
+    PlayerSheet("Playback speed", onDismiss) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            speeds.forEach { s ->
+                val sel = s == current
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                        .background(if (sel) PlayerTheme.Teal else Color(0x1FFFFFFF))
+                        .clickable { onSelect(s) }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (s == 1f) "1×" else "${if (s % 1f == 0f) s.toInt().toString() else s.toString()}×",
+                        color = if (sel) Color(0xFF06201D) else PlayerTheme.Text,
+                        fontSize = 14.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+        Text("1× is normal speed", color = PlayerTheme.TextMuted, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+    }
+}
+
+/** Read-only technical media details, grouped like a spec sheet. */
 @Composable
 fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
     PlayerSheet("Media info", onDismiss) {
         InfoRow("Title", state.title.ifEmpty { "—" })
-        if (state.videoWidth > 0) InfoRow("Resolution", "${state.videoWidth} × ${state.videoHeight}")
-        InfoRow("Audio", state.audioTracks.firstOrNull { it.id == state.selectedAudioId }?.label ?: "—")
+
+        SheetSection("Video")
+        InfoRow("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
+        InfoRow("Codec", state.videoCodec.ifEmpty { "—" })
+        InfoRow("Dynamic range", state.dynamicRange.ifEmpty { "—" })
+        InfoRow("Frame rate", fpsText(state.frameRate))
+
+        SheetSection("Audio")
+        InfoRow("Track", state.audioTracks.firstOrNull { it.id == state.selectedAudioId }?.label ?: "—")
+        InfoRow("Available", if (state.audioTracks.isEmpty()) "—" else "${state.audioTracks.size}")
+
+        SheetSection("Subtitles")
         InfoRow(
-            "Subtitles",
+            "Current",
             if (state.selectedSubtitleId < 0) "Off"
             else state.subtitleTracks.firstOrNull { it.id == state.selectedSubtitleId }?.label ?: "—",
         )
+        InfoRow("Available", if (state.subtitleTracks.isEmpty()) "None" else "${state.subtitleTracks.size}")
+
+        SheetSection("Playback")
         InfoRow("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
-        InfoRow("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software"; else -> "Auto" })
+        InfoRow("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
     }
 }
 
+private fun fpsText(fps: Float): String = when {
+    fps <= 0f -> "—"
+    fps % 1f == 0f -> "${fps.toInt()} fps"
+    else -> "%.3f".format(fps).trimEnd('0').trimEnd('.') + " fps"
+}
+
+/** Fixed-width label + value on the same side, so on big screens they don't drift far apart. */
 @Composable
 private fun InfoRow(label: String, value: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, color = PlayerTheme.TextMuted, fontSize = 14.sp)
-        Text(value, color = PlayerTheme.Text, fontSize = 14.sp)
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
+        Text(label, color = PlayerTheme.TextMuted, fontSize = 13.sp, modifier = Modifier.width(128.dp))
+        Text(value, color = PlayerTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
     }
 }

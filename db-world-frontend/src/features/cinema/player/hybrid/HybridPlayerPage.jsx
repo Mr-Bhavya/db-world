@@ -128,7 +128,14 @@ export default function HybridPlayerPage() {
       runtime: e.runtime ? `${e.runtime}m` : '',
     }));
     const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
-    NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId), title: showTitle }).catch(() => {});
+    NativePlayer.setPlaylist({
+      episodes: eps,
+      variants,
+      currentFileId: String(cur.fileId),
+      title: showTitle,
+      overview: media?.overview || '',
+      storyboard: cur.storyboard || null,
+    }).catch(() => {});
   }, [episodes, cur, media, showTitle]);
 
   // Native player: when the user closes it from the native X (which fires playerClosed),

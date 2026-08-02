@@ -44,9 +44,15 @@ function createNativeAdapter() {
 }
 
 function createNativeControllerAdapter() {
+  // A src change (switch episode / quality) unmounts+remounts the [src] effect, which calls
+  // release() then load() in the same tick. Defer the real dismiss so that a load() arriving
+  // right after cancels it — the native player then just swaps the media item (no teardown,
+  // no orientation thrash). A genuine close (no load follows) fires dismiss after the grace.
+  let dismissTimer = null;
+  const cancelDismiss = () => { if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; } };
   return {
     kind: 'native-controller',
-    load:    (url, startMs = 0) => NativePlayer.present({ url, startMs: Math.max(0, Math.round(startMs)) }),
+    load:    (url, startMs = 0) => { cancelDismiss(); return NativePlayer.present({ url, startMs: Math.max(0, Math.round(startMs)) }); },
     play:    () => NativePlayer.play(),
     pause:   () => NativePlayer.pause(),
     seekTo:  (ms) => NativePlayer.seekTo({ positionMs: Math.max(0, Math.round(ms)) }),
@@ -60,7 +66,7 @@ function createNativeControllerAdapter() {
     setDecoderMode: () => {},     // Phase-3 (plugin has no setDecoderMode yet)
     setOrientation: () => {},     // Phase-2
     enterPip: () => {},           // Phase-2 (plugin has no enterPip yet)
-    release: () => NativePlayer.dismiss(),
+    release: () => { cancelDismiss(); dismissTimer = setTimeout(() => { dismissTimer = null; NativePlayer.dismiss(); }, 80); },
     on: (event, cb) => {
       const name = NATIVE_EVENT_MAP[event];
       if (!name) return () => {};   // ignore events the Phase-1 plugin doesn't emit (info/volume/pip)

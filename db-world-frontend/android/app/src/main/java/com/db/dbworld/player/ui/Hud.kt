@@ -96,10 +96,11 @@ fun SeekFlash(state: PlayerUiState) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = shown,
-            // Sit right beside the center Replay10 / Forward10 buttons, not out at the screen edge.
+            // Just OUTSIDE the center transport cluster (which spans ~±112dp) — near the seek
+            // buttons but not overlapping them.
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(x = if (state.seekForward) 104.dp else (-104).dp),
+                .offset(x = if (state.seekForward) 168.dp else (-168).dp),
             enter = scaleIn(initialScale = 0.6f) + fadeIn(),
             exit = fadeOut(),
         ) {
@@ -113,6 +114,28 @@ fun SeekFlash(state: PlayerUiState) {
                 )
                 Text("10s", color = Color.White, fontSize = 13.sp)
             }
+        }
+    }
+}
+
+/** Brief centered "Fit to screen" / "Fill screen" pill shown after a pinch-zoom mode change. */
+@Composable
+fun ZoomFlash(state: PlayerUiState) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(state.zoomTick) {
+        if (state.zoomTick == 0L) return@LaunchedEffect
+        shown = true
+        delay(800)
+        shown = false
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AnimatedVisibility(visible = shown, enter = fadeIn(), exit = fadeOut()) {
+            Text(
+                state.zoomLabel,
+                color = Color.White, fontSize = 14.sp,
+                modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xB3000000))
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            )
         }
     }
 }
