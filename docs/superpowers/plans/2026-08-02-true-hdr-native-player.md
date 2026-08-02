@@ -797,7 +797,8 @@ git commit -m "feat(android): NativePlayer plugin — present/dismiss, event bri
 **Files:**
 - Create: `db-world-frontend/src/features/cinema/player/hybrid/nativePlayerFlag.js`
 - Modify: `db-world-frontend/src/features/cinema/player/hybrid/playerAdapter.js`
-- Modify: `db-world-frontend/src/features/cinema/player/hybrid/DbWorldVideoPlayer.jsx`
+
+**Why NOT `DbWorldVideoPlayer.jsx` (scope correction from on-file inspection):** the original plan proposed making `DbWorldVideoPlayer` "headless." That is unnecessary and risky for Phase 1. When the native player runs, `PlayerSurfaceHost` sets the Capacitor WebView `INVISIBLE`, so the entire React overlay is already inert. And the regression-critical logic — `usePlayerReporting` (line 277), `onProgress`/`handleProgress` (resume/timestamp), and the `appStateChange` progress-save (line 548) — runs at the component's top level, driven by adapter events, **independent of the visible JSX**. The `<video>` element is web-only (`{!isNative && …}`, line 1016). So `createPlayerAdapter` transparently returning the native controller is enough: the native player plays + hides the WebView, and the untouched hooks keep firing resume/telemetry. Leaving the 1970-line component untouched is the lowest-regression-risk path. (The "don't even render the dead overlay" perf optimization is deferred to Phase 2, once real native controls exist.)
 
 **Interfaces:**
 - Consumes (native plugin `NativePlayer`): `present`, `play`, `pause`, `seekTo`, `setRate`, `dismiss`, events `playerTime/playerState/playerEnded/playerError/playerClosed`.
@@ -842,18 +843,22 @@ function createNativeControllerAdapter() {
     setZoom: () => {},            // Phase-2
     selectAudioTrack: () => {},   // Phase-3
     selectTextTrack: () => {},    // Phase-3
-    setDecoderMode: (mode) => NativePlayer.present ? NativePlayer.setDecoderMode?.({ mode }) : null,
+    setDecoderMode: () => {},     // Phase-3 (plugin has no setDecoderMode yet)
     setOrientation: () => {},     // Phase-2
-    enterPip: () => NativePlayer.enterPip?.(),
+    enterPip: () => {},           // Phase-2 (plugin has no enterPip yet)
     release: () => NativePlayer.dismiss(),
     on: (event, cb) => {
+      const name = NATIVE_EVENT_MAP[event];
+      if (!name) return () => {};   // ignore events the Phase-1 plugin doesn't emit (info/volume/pip)
       let handle;
-      NativePlayer.addListener(NATIVE_EVENT_MAP[event], cb).then(h => { handle = h; });
+      NativePlayer.addListener(name, cb).then(h => { handle = h; });
       return () => handle?.remove?.();
     },
   };
 }
 ```
+
+Stubbing `setDecoderMode`/`enterPip`/etc. as no-ops (rather than optionally calling not-yet-implemented plugin methods) avoids unhandled promise rejections; they're wired for real in Phases 2–3. The `on()` guard prevents `addListener(undefined, …)` for events the component subscribes to but the Phase-1 plugin doesn't emit.
 
 Then update the factory at the bottom:
 
@@ -866,26 +871,28 @@ export function createPlayerAdapter(getVideo) {
 
 Add the import at the top: `import { isNativePlayerEnabled } from './nativePlayerFlag';`
 
-- [ ] **Step 3: Make the Android player headless when the flag is on**
+- [ ] **Step 3: Lint the two files (runnable here — pure JS)**
 
-In `db-world-frontend/src/features/cinema/player/hybrid/DbWorldVideoPlayer.jsx`, when `isNativePlayerEnabled()` is true, skip rendering the overlay controls (native draws them) but keep the effect that wires the adapter to `onProgress`/`usePlayerReporting`/`onSelectEpisode`. Concretely: gate the returned control JSX behind `!native`, while leaving all the reporting hooks and adapter `on('time'|'state'|'ended')` subscriptions running so `handleProgress` (resume/timestamp), `emitStreamEvent` (telemetry), and Watched-marking fire exactly as today. (Preserve the existing hook order — add the `native` check only around the visible JSX, not around hooks.)
+Run: `cd db-world-frontend && npx eslint src/features/cinema/player/hybrid/nativePlayerFlag.js src/features/cinema/player/hybrid/playerAdapter.js`
+Expected: no errors. (Fix any before committing. Unlike the Android tasks, this JS lint runs in the implementation environment.)
 
-- [ ] **Step 4: Verify on-device (user) — the regression-safety gate for Phase 1**
-
-Run: build, install, set `localStorage['dbworld.nativePlayer']='1'`, play a title, then check:
-- Video plays on the native SurfaceView; **HDR title is bright** on the S24 FE.
-- Close/reopen the title → **resume position is correct** (row `GET /api/cinema/progress`).
-- `adb logcat` / network shows `saveWatchProgress` PUTs and `STREAM_START/TICK/STOP` to `/api/track/events` with `clientApp=APP`.
-- Finish a movie/last episode → it drops out of Continue-Watching (`addWatched` fired).
-
-Expected: all true → JS orchestration is preserved with the native surface. If any fails, the JS wiring (not native) is the suspect since that logic is unchanged.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add db-world-frontend/src/features/cinema/player/hybrid/nativePlayerFlag.js db-world-frontend/src/features/cinema/player/hybrid/playerAdapter.js db-world-frontend/src/features/cinema/player/hybrid/DbWorldVideoPlayer.jsx
+git add db-world-frontend/src/features/cinema/player/hybrid/nativePlayerFlag.js db-world-frontend/src/features/cinema/player/hybrid/playerAdapter.js
 git commit -m "feat(player): flag-gated native controller adapter; JS orchestration preserved"
 ```
+
+- [ ] **Step 5: On-device verify (user) — the regression-safety gate for Phase 1**
+
+Build + install, set `localStorage['dbworld.nativePlayer']='1'`, play a title, then check:
+- Video plays on the native SurfaceView; **HDR title is bright** on the S24 FE.
+- Close/reopen the title → **resume position is correct** (`GET /api/cinema/progress`).
+- Network/`adb logcat` shows `saveWatchProgress` PUTs and `STREAM_START/TICK/STOP` to `/api/track/events` with `clientApp=APP`.
+- Finish a movie/last episode → it drops out of Continue-Watching (`addWatched` fired).
+- **Known Phase-1 limitation:** the native player has **no on-screen controls yet** (empty Compose layer — controls arrive in Phase 2), so there is no in-player pause/seek/close. Exit by backing out / killing the app; progress is saved periodically so resume still works. This is expected, not a bug.
+
+Expected: all true → JS orchestration is preserved with the native surface.
 
 ---
 
