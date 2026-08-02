@@ -58,7 +58,7 @@ fun SheetSection(label: String) {
 
 /** A selectable sheet row: label (+ optional subtitle) left, teal check when selected. */
 @Composable
-fun SheetRow(label: String, selected: Boolean, onClick: () -> Unit, subtitle: String? = null) {
+fun SheetRow(label: String, selected: Boolean, subtitle: String? = null, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 12.dp),
