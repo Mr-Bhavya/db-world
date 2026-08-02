@@ -124,7 +124,7 @@ export default function HybridPlayerPage() {
     }));
     const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
     NativePlayer.setPlaylist({ episodes: eps, variants, currentFileId: String(cur.fileId) }).catch(() => {});
-  }, [episodes, cur, media]);
+  }, [episodes, cur, media]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isNativePlayerEnabled()) return undefined;
@@ -134,7 +134,7 @@ export default function HybridPlayerPage() {
       if (ep) selectEpisode(ep);
     }).then((h) => { handle = h; });
     return () => handle?.remove?.();
-  }, [episodes, selectEpisode]);
+  }, [episodes, selectEpisode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
     if (!cur?.fileId) return;
