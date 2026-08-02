@@ -23,6 +23,7 @@ class NativePlayerPlugin : Plugin() {
     private var host: PlayerSurfaceHost? = null
     private var decoderMode = 0
     private var toneMapApplied = false
+    private var currentUrl: String? = null
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -51,40 +52,45 @@ class NativePlayerPlugin : Plugin() {
         decoderMode = call.getInt("decoderMode", 0)!!
         activity.runOnUiThread {
             try {
-                val h = host ?: PlayerSurfaceHost(activity, bridge.webView).also { host = it }
-                val surface = h.attach()
-                h.mountCompose {
-                    com.db.dbworld.player.ui.GestureLayer(
-                        onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
-                        onDoubleSeek = { fwd ->
-                            player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
-                        },
-                        onBrightnessDelta = { adjustBrightness(it) },
-                        onVolumeDelta = { adjustVolume(it) },
-                    ) {
-                        com.db.dbworld.player.ui.PlayerControls(
-                            state = uiState,
-                            onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
-                            onSeek = { ms -> player?.seekTo(ms) },
-                            onClose = { dismissInternal() },
-                        )
-                    }
-                }
-                val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
-                    player = it; it.addListener(listener)
-                }
-                p.setVideoSurfaceView(surface)
-                toneMapApplied = false
-                p.setMediaItem(MediaItem.fromUri(url))
-                p.prepare()
-                if (startMs > 0) p.seekTo(startMs)
-                p.playWhenReady = true
-                ui.removeCallbacks(ticker); ui.post(ticker)
+                doReload(url, startMs)
                 call.resolve()
             } catch (t: Throwable) {
                 call.reject("present failed: ${t.message}")
             }
         }
+    }
+
+    private fun doReload(url: String, startMs: Long) {
+        val h = host ?: PlayerSurfaceHost(activity, bridge.webView).also { host = it }
+        val surface = h.attach()
+        h.mountCompose {
+            com.db.dbworld.player.ui.GestureLayer(
+                onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
+                onDoubleSeek = { fwd ->
+                    player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
+                },
+                onBrightnessDelta = { adjustBrightness(it) },
+                onVolumeDelta = { adjustVolume(it) },
+            ) {
+                com.db.dbworld.player.ui.PlayerControls(
+                    state = uiState,
+                    onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
+                    onSeek = { ms -> player?.seekTo(ms) },
+                    onClose = { dismissInternal() },
+                )
+            }
+        }
+        val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
+            player = it; it.addListener(listener)
+        }
+        p.setVideoSurfaceView(surface)
+        toneMapApplied = false
+        currentUrl = url
+        p.setMediaItem(MediaItem.fromUri(url))
+        p.prepare()
+        if (startMs > 0) p.seekTo(startMs)
+        p.playWhenReady = true
+        ui.removeCallbacks(ticker); ui.post(ticker)
     }
 
     @PluginMethod fun play(call: PluginCall) { onPlayer { it.playWhenReady = true }; call.resolve() }
@@ -95,6 +101,44 @@ class NativePlayerPlugin : Plugin() {
     }
     @PluginMethod fun setRate(call: PluginCall) {
         val r = call.getDouble("rate")?.toFloat() ?: 1f; onPlayer { it.setPlaybackSpeed(r) }; call.resolve()
+    }
+
+    fun selectAudio(id: Int) = activity.runOnUiThread {
+        val p = player ?: return@runOnUiThread
+        if (id in audioGroups.indices) {
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setOverrideForType(androidx.media3.common.TrackSelectionOverride(audioGroups[id], 0))
+                .build()
+            uiState.selectedAudioId = id
+        }
+    }
+
+    fun selectSubtitle(id: Int) = activity.runOnUiThread {
+        val p = player ?: return@runOnUiThread
+        p.trackSelectionParameters = if (id < 0) {
+            p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build()
+        } else if (id in textGroups.indices) {
+            p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                .setOverrideForType(androidx.media3.common.TrackSelectionOverride(textGroups[id], 0)).build()
+        } else return@runOnUiThread
+        uiState.selectedSubtitleId = id
+    }
+
+    fun setSpeedNative(rate: Float) = activity.runOnUiThread {
+        player?.setPlaybackSpeed(rate); uiState.speed = rate
+    }
+
+    /** Live-recreate the player with a different decoder preference (ported from HybridPlayerPlugin). */
+    fun setDecoderModeNative(mode: Int) = activity.runOnUiThread {
+        if (mode == decoderMode || currentUrl == null) return@runOnUiThread
+        decoderMode = mode
+        uiState.decoderMode = mode
+        val pos = player?.currentPosition ?: 0L
+        val url = currentUrl!!
+        player?.release(); player = null
+        doReload(url, pos)
     }
 
     @PluginMethod
