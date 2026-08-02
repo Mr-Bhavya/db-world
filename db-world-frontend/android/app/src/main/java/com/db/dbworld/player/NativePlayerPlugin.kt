@@ -51,7 +51,14 @@ class NativePlayerPlugin : Plugin() {
             try {
                 val h = host ?: PlayerSurfaceHost(activity, bridge.webView).also { host = it }
                 val surface = h.attach()
-                h.mountCompose { /* Phase 2+ controls mount here */ }
+                h.mountCompose {
+                    com.db.dbworld.player.ui.PlayerControls(
+                        state = uiState,
+                        onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
+                        onSeek = { ms -> player?.seekTo(ms) },
+                        onClose = { dismissInternal() },
+                    )
+                }
                 val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
                     player = it; it.addListener(listener)
                 }
@@ -81,15 +88,17 @@ class NativePlayerPlugin : Plugin() {
 
     @PluginMethod
     fun dismiss(call: PluginCall) {
-        activity.runOnUiThread {
-            ui.removeCallbacks(ticker)
-            val pos = player?.currentPosition ?: 0L
-            val dur = player?.duration?.coerceAtLeast(0) ?: 0L
-            player?.release(); player = null
-            host?.detach()
-            notifyListeners("playerClosed", JSObject().put("positionMs", pos).put("durationMs", dur))
-            call.resolve()
-        }
+        activity.runOnUiThread { dismissInternal() }
+        call.resolve()
+    }
+
+    private fun dismissInternal() {
+        ui.removeCallbacks(ticker)
+        val pos = player?.currentPosition ?: 0L
+        val dur = player?.duration?.coerceAtLeast(0) ?: 0L
+        player?.release(); player = null
+        host?.detach()
+        notifyListeners("playerClosed", JSObject().put("positionMs", pos).put("durationMs", dur))
     }
 
     private fun onPlayer(block: (ExoPlayer) -> Unit) =
