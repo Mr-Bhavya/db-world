@@ -212,8 +212,9 @@ fun PlayerControls(
 ) {
     if (!state.controlsVisible) return
 
-    // Auto-hide while playing.
-    LaunchedEffect(state.controlsVisible, state.isPlaying, state.positionMs) {
+    // Auto-hide while playing. Keys are only controlsVisible + isPlaying — do NOT add positionMs
+    // (the ~4Hz ticker mutates it and would restart the delay every 250ms → never hides).
+    LaunchedEffect(state.controlsVisible, state.isPlaying) {
         if (state.controlsVisible && state.isPlaying) {
             delay(3000)
             state.controlsVisible = false
