@@ -20,6 +20,7 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
     private var surface: SurfaceView? = null
     private var compose: ComposeView? = null
     private var frame: androidx.media3.ui.AspectRatioFrameLayout? = null
+    private var subtitles: androidx.media3.ui.SubtitleView? = null
     private val parent: ViewGroup get() = webView.parent as ViewGroup
 
     fun attach(): SurfaceView {
@@ -34,6 +35,11 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             surface = sv
             frame = f
+            subtitles = androidx.media3.ui.SubtitleView(activity).apply {
+                setUserDefaultStyle(); setUserDefaultTextSize()
+            }
+            parent.addView(subtitles, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             compose = ComposeView(activity).also {
                 parent.addView(it, ViewGroup.LayoutParams(   // above the surface
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -61,8 +67,11 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
         else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
+    fun setCues(cues: List<androidx.media3.common.text.Cue>) { subtitles?.setCues(cues) }
+
     fun detach() {
         compose?.let { parent.removeView(it) }; compose = null
+        subtitles?.let { parent.removeView(it) }; subtitles = null
         frame?.let { parent.removeView(it) }; frame = null; surface = null
         parent.setBackgroundColor(Color.TRANSPARENT)
         webView.setBackgroundColor(Color.WHITE)

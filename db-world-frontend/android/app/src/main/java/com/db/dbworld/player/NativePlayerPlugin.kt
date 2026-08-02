@@ -250,6 +250,9 @@ class NativePlayerPlugin : Plugin() {
             val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
             if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
         }
+        override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+            host?.setCues(cueGroup.cues)
+        }
     }
 
     override fun handleOnPause() {
