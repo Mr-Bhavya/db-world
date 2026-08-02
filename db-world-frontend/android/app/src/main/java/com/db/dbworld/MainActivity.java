@@ -87,6 +87,12 @@ public class MainActivity extends BridgeActivity {
                 ((HybridPlayerPlugin) h.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
             }
         } catch (Exception ignored) {}
+        try {
+            PluginHandle nh = getBridge().getPlugin("NativePlayer");
+            if (nh != null && nh.getInstance() instanceof NativePlayerPlugin) {
+                ((NativePlayerPlugin) nh.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

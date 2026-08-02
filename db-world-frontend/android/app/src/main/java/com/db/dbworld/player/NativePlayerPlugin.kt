@@ -1,7 +1,10 @@
 package com.db.dbworld.player
 
+import android.app.PictureInPictureParams
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Rational
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -27,6 +30,9 @@ class NativePlayerPlugin : Plugin() {
     private var decoderMode = 0
     private var toneMapApplied = false
     private var currentUrl: String? = null
+    private var inPip = false
+    private var videoW = 0
+    private var videoH = 0
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -87,6 +93,7 @@ class NativePlayerPlugin : Plugin() {
                         onSetDecoder = { setDecoderModeNative(it) },
                         onSelectEpisode = { requestEpisode(it) },
                         onSelectQuality = { selectQuality(it) },
+                        onEnterPip = { enterPip() },
                     )
                     com.db.dbworld.player.ui.NextEpisodeCard(
                         state = uiState,
@@ -339,6 +346,7 @@ class NativePlayerPlugin : Plugin() {
             notifyListeners("playerError", JSObject().put("code", error.errorCode).put("message", error.message))
         }
         override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+            videoW = size.width; videoH = size.height
             val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
             if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
         }
@@ -347,10 +355,29 @@ class NativePlayerPlugin : Plugin() {
         }
     }
 
+    /** Shrink into a floating PiP window, sized to the real video aspect ratio. */
+    fun enterPip() = activity.runOnUiThread {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@runOnUiThread
+        uiState.controlsVisible = false
+        val w = if (videoW > 0) videoW else 16
+        val h = if (videoH > 0) videoH else 9
+        // Android rejects extreme ratios (~0.42..2.39) — clamp.
+        val ratio = (w.toDouble() / h).coerceIn(0.42, 2.38)
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
+            .build()
+        try { activity.enterPictureInPictureMode(params) } catch (e: Exception) {}
+    }
+
+    /** Called by MainActivity.onPictureInPictureModeChanged. */
+    fun handlePipModeChanged(isInPip: Boolean) {
+        inPip = isInPip
+    }
+
     override fun handleOnPause() {
-        // Don't keep audio playing when the app is backgrounded. (PiP, added in Phase 5,
-        // will guard this.) The resulting state change is reported to JS as usual.
-        player?.pause()
+        // Don't keep audio playing when the app is backgrounded — unless we're in PiP,
+        // where playback should keep going in the floating window.
+        if (!inPip) player?.pause()
         super.handleOnPause()
     }
 

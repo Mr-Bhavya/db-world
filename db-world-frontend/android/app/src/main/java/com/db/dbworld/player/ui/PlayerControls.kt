@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -54,6 +55,7 @@ fun PlayerControls(
     onSetDecoder: (Int) -> Unit,
     onSelectEpisode: (String) -> Unit,
     onSelectQuality: (String) -> Unit,
+    onEnterPip: () -> Unit,
 ) {
     if (!state.controlsVisible) return
 
@@ -71,6 +73,9 @@ fun PlayerControls(
         // Top bar: back.
         IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+        }
+        IconButton(onClick = onEnterPip, modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 8.dp)) {
+            Icon(Icons.Filled.PictureInPictureAlt, contentDescription = "Picture in picture", tint = Color.White)
         }
         var menuOpen by remember { mutableStateOf(false) }
         IconButton(onClick = { menuOpen = true }, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
