@@ -93,6 +93,11 @@ class NativePlayerPlugin : Plugin() {
                         onPlayNext = { uiState.ended = false; requestEpisode(it) },
                         onDismiss = { uiState.ended = false },
                     )
+                    com.db.dbworld.player.ui.ErrorOverlay(
+                        state = uiState,
+                        onRetry = { retryPlayback() },
+                        onClose = { dismissInternal() },
+                    )
                 }
             }
         }
@@ -102,6 +107,7 @@ class NativePlayerPlugin : Plugin() {
         p.setVideoSurfaceView(surface)
         toneMapApplied = false
         uiState.ended = false
+        uiState.errorMessage = null
         currentUrl = url
         p.setMediaItem(MediaItem.fromUri(url))
         p.prepare()
@@ -201,6 +207,13 @@ class NativePlayerPlugin : Plugin() {
         doReload(url, pos)
     }
 
+    fun retryPlayback() = activity.runOnUiThread {
+        val url = currentUrl ?: return@runOnUiThread
+        val pos = player?.currentPosition ?: 0L
+        player?.release(); player = null
+        doReload(url, pos)
+    }
+
     @PluginMethod
     fun dismiss(call: PluginCall) {
         activity.runOnUiThread { dismissInternal() }
@@ -287,6 +300,15 @@ class NativePlayerPlugin : Plugin() {
         audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, next, 0)
     }
 
+    private fun isDecoderError(e: androidx.media3.common.PlaybackException): Boolean {
+        val c = e.errorCode
+        return c == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+               c == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
+               c == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
+               c == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
+               c == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             notifyListeners("playerState", JSObject().put("playing", isPlaying))
@@ -304,8 +326,17 @@ class NativePlayerPlugin : Plugin() {
             notifyListeners("playerTracks", JSObject())
         }
         override fun onPlayerError(error: PlaybackException) {
-            notifyListeners("playerError", JSObject()
-                .put("code", error.errorCode).put("message", error.message))
+            // A hardware/decoder failure retries once with software decoders (ported from HybridPlayerPlugin).
+            if (isDecoderError(error) && decoderMode != 2 && currentUrl != null) {
+                val pos = player?.currentPosition ?: 0L
+                val url = currentUrl!!
+                decoderMode = 2; uiState.decoderMode = 2
+                player?.release(); player = null
+                doReload(url, pos)
+                return
+            }
+            uiState.errorMessage = error.message ?: "Playback error"
+            notifyListeners("playerError", JSObject().put("code", error.errorCode).put("message", error.message))
         }
         override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
             val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f

@@ -28,4 +28,5 @@ class PlayerUiState {
     var variants by mutableStateOf<List<com.db.dbworld.player.PlayerVariant>>(emptyList())
     var currentFileId by mutableStateOf("")
     var ended by mutableStateOf(false)
+    var errorMessage by mutableStateOf<String?>(null)
 }

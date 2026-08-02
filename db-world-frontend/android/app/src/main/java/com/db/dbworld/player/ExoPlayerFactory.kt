@@ -35,6 +35,9 @@ object ExoPlayerFactory {
         // pause when headphones are unplugged.
         player.setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
         player.setHandleAudioBecomingNoisy(true)
+        // Keyframe (fast) seeking — big win on low-end HEVC/AV1 where exact seek decodes
+        // from the previous keyframe and can take seconds.
+        player.setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
         return player
     }
 
