@@ -23,6 +23,7 @@ class NativePlayerPlugin : Plugin() {
     private var host: PlayerSurfaceHost? = null
     private var decoderMode = 0
     private var toneMapApplied = false
+    private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
 
     private val ticker = object : Runnable {
@@ -33,6 +34,9 @@ class NativePlayerPlugin : Plugin() {
                 .put("durationMs", if (p.duration > 0) p.duration else 0)
                 .put("bufferedMs", maxOf(0, p.bufferedPosition))
             notifyListeners("playerTime", e)
+            uiState.positionMs = maxOf(0, p.currentPosition)
+            uiState.durationMs = if (p.duration > 0) p.duration else 0
+            uiState.bufferedMs = maxOf(0, p.bufferedPosition)
             ui.postDelayed(this, 250)
         }
     }
@@ -110,6 +114,7 @@ class NativePlayerPlugin : Plugin() {
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             notifyListeners("playerState", JSObject().put("playing", isPlaying))
+            uiState.isPlaying = isPlaying
         }
         override fun onPlaybackStateChanged(state: Int) {
             notifyListeners("playerState", JSObject().put("state", state))
