@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         setImmersiveMode();
         handleOpenDownloads(getIntent());
+        maybeStartHdrProbe(getIntent());
     }
 
     @Override
@@ -36,6 +37,7 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleOpenDownloads(intent);
+        maybeStartHdrProbe(intent);
     }
 
     /**
@@ -52,6 +54,19 @@ public class MainActivity extends BridgeActivity {
                     .putString(DbWorldDownloadPlugin.PREF_PENDING_ROUTE, "downloads")
                     .apply();
         } catch (Exception ignored) {}
+    }
+
+    // PHASE-0 THROWAWAY — remove after Phase 0. Proves the native SurfaceView + hidden-but-alive
+    // WebView model. Launch: adb shell am start -n com.db.dbworld/.MainActivity -e hdrProbe "<hdr10-url>"
+    private void maybeStartHdrProbe(Intent intent) {
+        if (intent == null) return;
+        String url = intent.getStringExtra("hdrProbe");
+        if (url == null || url.isEmpty()) return;
+        final android.webkit.WebView wv = getBridge().getWebView();
+        com.db.dbworld.player.probe.WebviewHiddenProbe.INSTANCE.start(this, wv, url, n -> {
+            wv.evaluateJavascript("console.log('probe-tick ' + " + n + ")", null);
+            return kotlin.Unit.INSTANCE;
+        });
     }
 
     @Override
