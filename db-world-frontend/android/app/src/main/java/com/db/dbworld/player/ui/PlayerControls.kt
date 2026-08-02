@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -51,6 +52,8 @@ fun PlayerControls(
     onSelectSubtitle: (Int) -> Unit,
     onSetSpeed: (Float) -> Unit,
     onSetDecoder: (Int) -> Unit,
+    onSelectEpisode: (String) -> Unit,
+    onSelectQuality: (String) -> Unit,
 ) {
     if (!state.controlsVisible) return
 
@@ -82,6 +85,19 @@ fun PlayerControls(
                 onSetDecoder = { onSetDecoder(it); menuOpen = false },
                 onDismiss = { menuOpen = false },
             )
+        }
+        var episodesOpen by remember { mutableStateOf(false) }
+        if (state.episodes.isNotEmpty() || state.variants.isNotEmpty()) {
+            IconButton(onClick = { episodesOpen = true },
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 56.dp, top = 8.dp)) {
+                Icon(Icons.Filled.List, contentDescription = "Episodes & quality", tint = Color.White)
+            }
+        }
+        if (episodesOpen) {
+            EpisodePanel(state,
+                onSelectEpisode = { onSelectEpisode(it); episodesOpen = false },
+                onSelectQuality = { onSelectQuality(it); episodesOpen = false },
+                onDismiss = { episodesOpen = false })
         }
         // Center play/pause.
         IconButton(onClick = onPlayPause, modifier = Modifier.align(Alignment.Center).size(72.dp)) {

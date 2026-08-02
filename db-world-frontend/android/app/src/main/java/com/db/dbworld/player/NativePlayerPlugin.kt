@@ -81,6 +81,8 @@ class NativePlayerPlugin : Plugin() {
                     onSelectSubtitle = { selectSubtitle(it) },
                     onSetSpeed = { setSpeedNative(it) },
                     onSetDecoder = { setDecoderModeNative(it) },
+                    onSelectEpisode = { requestEpisode(it) },
+                    onSelectQuality = { selectQuality(it) },
                 )
             }
         }
