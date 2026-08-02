@@ -19,14 +19,21 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
 
     private var surface: SurfaceView? = null
     private var compose: ComposeView? = null
+    private var frame: androidx.media3.ui.AspectRatioFrameLayout? = null
     private val parent: ViewGroup get() = webView.parent as ViewGroup
 
     fun attach(): SurfaceView {
         if (surface == null) {
-            surface = SurfaceView(activity).also {
-                parent.addView(it, 0, ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            val f = androidx.media3.ui.AspectRatioFrameLayout(activity).apply {
+                setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT)
             }
+            val sv = SurfaceView(activity)
+            f.addView(sv, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            parent.addView(f, 0, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            surface = sv
+            frame = f
             compose = ComposeView(activity).also {
                 parent.addView(it, ViewGroup.LayoutParams(   // above the surface
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -42,9 +49,21 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
         compose?.setContent(content)
     }
 
+    fun setAspectRatio(ratio: Float) {
+        if (ratio > 0f) frame?.setAspectRatio(ratio)
+    }
+
+    /** Toggle FIT (letterbox) <-> ZOOM (fill, crop). */
+    fun toggleZoom() {
+        val f = frame ?: return
+        f.resizeMode = if (f.resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT)
+            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+    }
+
     fun detach() {
         compose?.let { parent.removeView(it) }; compose = null
-        surface?.let { parent.removeView(it) }; surface = null
+        frame?.let { parent.removeView(it) }; frame = null; surface = null
         parent.setBackgroundColor(Color.TRANSPARENT)
         webView.setBackgroundColor(Color.WHITE)
         webView.visibility = View.VISIBLE

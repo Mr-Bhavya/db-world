@@ -168,6 +168,10 @@ class NativePlayerPlugin : Plugin() {
             notifyListeners("playerError", JSObject()
                 .put("code", error.errorCode).put("message", error.message))
         }
+        override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+            val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
+            if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
+        }
     }
 
     override fun handleOnPause() {
