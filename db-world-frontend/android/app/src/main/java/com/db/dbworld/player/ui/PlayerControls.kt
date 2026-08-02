@@ -1,5 +1,6 @@
 package com.db.dbworld.player.ui
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -162,11 +163,13 @@ fun PlayerControls(
                 Icon(Icons.Filled.Replay10, "Rewind 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
             }
             IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
-                Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play",
-                    tint = Color.White, modifier = Modifier.size(52.dp),
-                )
+                Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
+                    Icon(
+                        if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        if (playing) "Pause" else "Play",
+                        tint = Color.White, modifier = Modifier.size(52.dp),
+                    )
+                }
             }
             IconButton(onClick = { onSeekBy(10_000) }) {
                 Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
@@ -174,14 +177,14 @@ fun PlayerControls(
         }
 
         // Bottom bar: progress → time → labelled control row.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 16.dp)) {
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 10.dp)) {
             Seekbar(state, onSeek)
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(fmt(state.positionMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
                 Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
             }
             FlowRow(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
+                Modifier.fillMaxWidth().padding(top = 14.dp),
                 horizontalArrangement = Arrangement.Center,
             ) {
                 CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }

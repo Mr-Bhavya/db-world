@@ -34,4 +34,7 @@ class PlayerUiState {
     // Brightness/volume swipe HUD: kind = "brightness" | "volume" | null (hidden); value 0..1.
     var hudKind by mutableStateOf<String?>(null)
     var hudValue by mutableFloatStateOf(0f)
+    // Double-tap seek flash: seekTick is bumped (to now-ms) on each ±10s seek to trigger the overlay.
+    var seekTick by mutableLongStateOf(0L)
+    var seekForward by mutableStateOf(false)
 }

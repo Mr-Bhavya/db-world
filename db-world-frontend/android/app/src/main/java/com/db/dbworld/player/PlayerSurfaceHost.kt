@@ -59,12 +59,11 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
         if (ratio > 0f) frame?.setAspectRatio(ratio)
     }
 
-    /** Toggle FIT (letterbox) <-> ZOOM (fill, crop). */
-    fun toggleZoom() {
-        val f = frame ?: return
-        f.resizeMode = if (f.resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT)
-            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-        else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+    /** fill=true -> ZOOM (crop to fill the screen); fill=false -> FIT (letterbox). */
+    fun setFill(fill: Boolean) {
+        frame?.resizeMode =
+            if (fill) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
     fun setCues(cues: List<androidx.media3.common.text.Cue>) { subtitles?.setCues(cues) }

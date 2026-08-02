@@ -78,9 +78,11 @@ class NativePlayerPlugin : Plugin() {
                 onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
                 onDoubleSeek = { fwd ->
                     player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
+                    uiState.seekForward = fwd; uiState.seekTick = System.currentTimeMillis()
                 },
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
+                onZoom = { fill -> host?.setFill(fill) },
                 onDragEnd = { clearHud() },
             ) {
                 Box(Modifier.fillMaxSize()) {
@@ -111,6 +113,7 @@ class NativePlayerPlugin : Plugin() {
                         onClose = { dismissInternal() },
                     )
                     com.db.dbworld.player.ui.HudOverlay(state = uiState)
+                    com.db.dbworld.player.ui.SeekFlash(state = uiState)
                 }
             }
         }

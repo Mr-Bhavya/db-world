@@ -1,16 +1,24 @@
 package com.db.dbworld.player.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,23 +36,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Bottom-sheet modal matching the React player's Sheet: dim scrim + rounded dark card + title. */
+/**
+ * Bottom-sheet modal matching the React player's Sheet: dim scrim + a rounded dark card that
+ * slides up, with a drag handle and title.
+ */
 @Composable
 fun PlayerSheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    // Scrim tap dismisses; the card swallows taps so taps inside don't close it.
+    // Card slides up on open.
+    val visible = remember { MutableTransitionState(false).apply { targetState = true } }
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss)) {
-        Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = 440.dp)
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(PlayerTheme.SheetBg)
-                // Swallow taps so tapping inside the card doesn't reach the scrim's dismiss.
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-                .verticalScroll(rememberScrollState()),
+        AnimatedVisibility(
+            visibleState = visible,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
-            Text(title, color = PlayerTheme.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 6.dp))
-            content()
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+                    .background(PlayerTheme.SheetBg)
+                    // Swallow taps so tapping inside the card doesn't reach the scrim's dismiss.
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.padding(bottom = 10.dp).width(36.dp).height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF)),
+                )
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Text(title, color = PlayerTheme.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 6.dp))
+                    content()
+                }
+            }
         }
     }
 }
