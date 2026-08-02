@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -46,6 +47,10 @@ fun PlayerControls(
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onClose: () -> Unit,
+    onSelectAudio: (Int) -> Unit,
+    onSelectSubtitle: (Int) -> Unit,
+    onSetSpeed: (Float) -> Unit,
+    onSetDecoder: (Int) -> Unit,
 ) {
     if (!state.controlsVisible) return
 
@@ -63,6 +68,20 @@ fun PlayerControls(
         // Top bar: back.
         IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+        }
+        var menuOpen by remember { mutableStateOf(false) }
+        IconButton(onClick = { menuOpen = true }, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+            Icon(Icons.Filled.Settings, contentDescription = "Tracks & settings", tint = Color.White)
+        }
+        if (menuOpen) {
+            TrackMenus(
+                state = state,
+                onSelectAudio = { onSelectAudio(it); menuOpen = false },
+                onSelectSubtitle = { onSelectSubtitle(it); menuOpen = false },
+                onSetSpeed = { onSetSpeed(it); menuOpen = false },
+                onSetDecoder = { onSetDecoder(it); menuOpen = false },
+                onDismiss = { menuOpen = false },
+            )
         }
         // Center play/pause.
         IconButton(onClick = onPlayPause, modifier = Modifier.align(Alignment.Center).size(72.dp)) {

@@ -77,6 +77,10 @@ class NativePlayerPlugin : Plugin() {
                     onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
                     onSeek = { ms -> player?.seekTo(ms) },
                     onClose = { dismissInternal() },
+                    onSelectAudio = { selectAudio(it) },
+                    onSelectSubtitle = { selectSubtitle(it) },
+                    onSetSpeed = { setSpeedNative(it) },
+                    onSetDecoder = { setDecoderModeNative(it) },
                 )
             }
         }
