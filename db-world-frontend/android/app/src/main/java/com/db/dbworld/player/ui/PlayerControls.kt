@@ -208,7 +208,8 @@ fun PlayerControls(
                 // While buffering/seeking the play button is hidden — the centered spinner
                 // (BufferingSpinner) shows in its place, so you never tap a stale control.
                 Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                    AnimatedVisibility(visible = !state.buffering && !state.scrubbing, enter = fadeIn(), exit = fadeOut()) {
+                    // Hidden while buffering/scrubbing — the centered spinner shows in its place.
+                    if (!state.buffering && !state.scrubbing) {
                         IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
                             Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
                                 Icon(
