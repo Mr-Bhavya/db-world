@@ -132,15 +132,9 @@ fun SeekFlash(state: PlayerUiState) {
                 enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.7f),
                 exit = fadeOut(tween(250)),
             ) {
-                // YouTube-style: a big thin parenthesis arc — "(" on the forward side, ")" on
-                // rewind — behind the chevrons + label (no pill, no circle).
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        if (forward) "(" else ")",
-                        color = Color(0x33FFFFFF), fontSize = 200.sp,
-                        fontWeight = FontWeight.Light, style = shadow,
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // YouTube-style: just the pulsing chevrons + "N seconds" over the video — no pill,
+                // circle, or bracket — matching the reference screenshot.
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val transition = rememberInfiniteTransition(label = "seekArrows")
                         Row {
                             repeat(3) { i ->
@@ -165,7 +159,6 @@ fun SeekFlash(state: PlayerUiState) {
                         Text("${state.seekSeconds} seconds", color = Color.White, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, style = shadow, modifier = Modifier.padding(top = 6.dp))
                     }
-                }
             }
         }
     }
