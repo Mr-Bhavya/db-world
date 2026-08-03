@@ -37,6 +37,19 @@ class NativePlayerPlugin : Plugin() {
     private var volFrac = -1f     // continuous volume accumulator for smooth swipe (seeded per gesture)
     private var pipReceiver: android.content.BroadcastReceiver? = null
     private val PIP_ACTION = "com.db.dbworld.player.NATIVE_PIP_CONTROL"
+    private val prefs by lazy {
+        context.getSharedPreferences("dbworld_native_player", android.content.Context.MODE_PRIVATE)
+    }
+
+    /** A short haptic tick for discrete actions (seek, lock, fit/fill). */
+    private fun haptic() {
+        try {
+            activity.window.decorView.performHapticFeedback(
+                android.view.HapticFeedbackConstants.CLOCK_TICK,
+                android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+            )
+        } catch (_: Throwable) {}
+    }
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -94,14 +107,17 @@ class NativePlayerPlugin : Plugin() {
                 onDoubleSeek = { fwd ->
                     player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
                     uiState.seekForward = fwd; uiState.seekTick = System.currentTimeMillis()
+                    haptic()
                 },
                 onBrightnessDelta = { adjustBrightness(it) },
                 onVolumeDelta = { adjustVolume(it) },
                 onZoom = { fill ->
                     if (fill != fillMode) {
                         fillMode = fill; host?.setFill(fill)
+                        prefs.edit().putBoolean("fill", fill).apply()
                         uiState.zoomLabel = if (fill) "Fill screen" else "Fit to screen"
                         uiState.zoomTick = System.currentTimeMillis()
+                        haptic()
                     }
                 },
                 onDragEnd = { clearHud() },
@@ -112,11 +128,11 @@ class NativePlayerPlugin : Plugin() {
                         state = uiState,
                         onPlayPause = { player?.let { it.playWhenReady = !it.playWhenReady } },
                         onSeek = { ms -> player?.seekTo(ms) },
-                        onSeekBy = { d -> player?.let { it.seekTo((it.currentPosition + d).coerceAtLeast(0)) } },
+                        onSeekBy = { d -> player?.let { it.seekTo((it.currentPosition + d).coerceAtLeast(0)) }; haptic() },
                         onClose = { dismissInternal() },
                         onEnterPip = { enterPip() },
                         onRotate = { rotate() },
-                        onToggleLock = { uiState.locked = !uiState.locked },
+                        onToggleLock = { uiState.locked = !uiState.locked; haptic() },
                         onSelectAudio = { selectAudio(it) },
                         onSelectSubtitle = { selectSubtitle(it) },
                         onSetSpeed = { setSpeedNative(it) },
@@ -148,7 +164,12 @@ class NativePlayerPlugin : Plugin() {
             player = it; it.addListener(listener)
         }
         p.setVideoSurfaceView(surface)
+        // Restore remembered fit/fill + playback speed (per device).
+        fillMode = prefs.getBoolean("fill", false)
         host?.setFill(fillMode)
+        val savedSpeed = prefs.getFloat("speed", 1f)
+        p.setPlaybackSpeed(savedSpeed)
+        uiState.speed = savedSpeed
         toneMapApplied = false
         uiState.ended = false
         uiState.errorMessage = null
@@ -267,6 +288,7 @@ class NativePlayerPlugin : Plugin() {
 
     fun setSpeedNative(rate: Float) = activity.runOnUiThread {
         player?.setPlaybackSpeed(rate); uiState.speed = rate
+        prefs.edit().putFloat("speed", rate).apply()
     }
 
     /** Live-recreate the player with a different decoder preference (ported from HybridPlayerPlugin). */

@@ -3,8 +3,13 @@ package com.db.dbworld.player.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -121,7 +127,6 @@ fun PlayerControls(
         }
         return
     }
-    if (!state.controlsVisible) return
 
     var sheet by remember { mutableStateOf<String?>(null) }
 
@@ -142,92 +147,131 @@ fun PlayerControls(
     val curIdx = state.episodes.indexOfFirst { it.fileId == state.currentFileId }
     val epLabel = if (curIdx >= 0) state.episodes[curIdx].label else null
     val nextEp = if (curIdx >= 0 && curIdx + 1 < state.episodes.size) state.episodes[curIdx + 1] else null
+    val vis = state.controlsVisible
+    val centerAlpha by animateFloatAsState(if (state.scrubbing) 0f else 1f, label = "centerAlpha")
 
     Box(Modifier.fillMaxSize()) {
-        // Gradient scrims — stronger at the bottom for the taller control bar.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color(0x99000000), 0.2f to Color.Transparent,
-                    0.58f to Color.Transparent, 1f to Color(0xE0000000),
+        // Gradient scrims — stronger at the bottom for the taller control bar. Fades with controls.
+        AnimatedVisibility(vis, modifier = Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color(0x99000000), 0.2f to Color.Transparent,
+                        0.58f to Color.Transparent, 1f to Color(0xE0000000),
+                    ),
                 ),
-            ),
-        )
-
-        // Top bar: close + title/episode (left); pip/rotate/lock (right).
-        Row(
-            Modifier.align(Alignment.TopStart).fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
-                Column(Modifier.padding(start = 4.dp)) {
-                    if (state.title.isNotEmpty()) {
-                        Text(state.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (epLabel != null) {
-                        Text(epLabel, color = PlayerTheme.TextMuted, fontSize = 13.sp,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onEnterPip) { Icon(Icons.Filled.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
-                IconButton(onClick = onRotate) { Icon(Icons.Filled.ScreenRotation, "Rotate", tint = Color.White) }
-                IconButton(onClick = onToggleLock) { Icon(Icons.Filled.LockOpen, "Lock", tint = Color.White) }
-            }
+            )
         }
 
-        // Center transport cluster.
-        Row(
-            Modifier.align(Alignment.Center),
-            horizontalArrangement = Arrangement.spacedBy(40.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // Top bar: close + title/episode (left); pip/rotate/lock (right). Slides up on hide.
+        AnimatedVisibility(
+            vis, modifier = Modifier.align(Alignment.TopStart).fillMaxWidth(),
+            enter = fadeIn() + slideInVertically { -it }, exit = fadeOut() + slideOutVertically { -it },
         ) {
-            IconButton(onClick = { onSeekBy(-10_000) }) {
-                Icon(Icons.Filled.Replay10, "Rewind 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
-            }
-            // While buffering/seeking the play button is hidden — the centered spinner
-            // (BufferingSpinner) shows in its place, so you never tap a stale control.
-            Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                AnimatedVisibility(visible = !state.buffering && !state.scrubbing, enter = fadeIn(), exit = fadeOut()) {
-                    IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
-                        Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
-                            Icon(
-                                if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                if (playing) "Pause" else "Play",
-                                tint = Color.White, modifier = Modifier.size(52.dp),
-                            )
+            Row(
+                Modifier.fillMaxWidth().padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
+                    Column(Modifier.padding(start = 4.dp)) {
+                        if (state.title.isNotEmpty()) {
+                            Text(state.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (epLabel != null) {
+                            Text(epLabel, color = PlayerTheme.TextMuted, fontSize = 13.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onEnterPip) { Icon(Icons.Filled.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
+                    IconButton(onClick = onRotate) { Icon(Icons.Filled.ScreenRotation, "Rotate", tint = Color.White) }
+                    IconButton(onClick = onToggleLock) { Icon(Icons.Filled.LockOpen, "Lock", tint = Color.White) }
+                }
             }
-            IconButton(onClick = { onSeekBy(10_000) }) {
-                Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
+        }
+
+        // Center transport cluster — fades with controls, and dims out while scrubbing so the
+        // storyboard preview owns the screen.
+        AnimatedVisibility(vis, modifier = Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
+            Row(
+                Modifier.alpha(centerAlpha),
+                horizontalArrangement = Arrangement.spacedBy(40.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { onSeekBy(-10_000) }) {
+                    Icon(Icons.Filled.Replay10, "Rewind 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
+                }
+                // While buffering/seeking the play button is hidden — the centered spinner
+                // (BufferingSpinner) shows in its place, so you never tap a stale control.
+                Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+                    AnimatedVisibility(visible = !state.buffering && !state.scrubbing, enter = fadeIn(), exit = fadeOut()) {
+                        IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
+                            Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
+                                Icon(
+                                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    if (playing) "Pause" else "Play",
+                                    tint = Color.White, modifier = Modifier.size(52.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+                IconButton(onClick = { onSeekBy(10_000) }) {
+                    Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
+                }
             }
         }
 
         // Bottom bar (modern order): content controls on top, then the scrubber + time as the
-        // primary anchor at the very bottom.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
-            FlowRow(
-                Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
-                if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
-                if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
-                CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
-                if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
-                CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
+        // primary anchor at the very bottom. Slides down on hide.
+        AnimatedVisibility(
+            vis, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it },
+        ) {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
+                    if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
+                    if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
+                    CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
+                    if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
+                    CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
+                }
+                Seekbar(state, onSeek)
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
+                }
             }
-            Seekbar(state, onSeek)
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
+        }
+
+        // "Next episode" pill auto-surfaces near the end of a series episode (independent of the
+        // control bar's visibility, like Netflix).
+        val remainingMs = state.durationMs - state.positionMs
+        // Only when the control bar is hidden (its own row already has a Next button).
+        val showNextPill = nextEp != null && !vis && state.durationMs > 0 && !state.ended && remainingMs in 1L..40_000L
+        AnimatedVisibility(
+            visible = showNextPill,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 24.dp),
+            enter = fadeIn() + slideInHorizontally { it }, exit = fadeOut() + slideOutHorizontally { it },
+        ) {
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(Color.White)
+                    .clickable { nextEp?.let { onSelectEpisode(it.fileId) } }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.SkipNext, contentDescription = null, tint = Color(0xFF0B1112), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Next episode", color = Color(0xFF0B1112), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 

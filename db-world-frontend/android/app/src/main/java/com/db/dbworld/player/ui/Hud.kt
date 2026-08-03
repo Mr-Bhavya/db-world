@@ -93,36 +93,45 @@ fun BufferingSpinner(state: PlayerUiState) {
     }
 }
 
-/** Brief "10s" flash with a rewind/forward icon after a double-tap seek. */
+/**
+ * Netflix-style double-tap seek ripple: a translucent half-screen overlay on the tapped side,
+ * its center-facing edge rounded into a semicircle, with a ±10s icon + label. Quick fade in/out.
+ */
 @Composable
 fun SeekFlash(state: PlayerUiState) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(state.seekTick) {
         if (state.seekTick == 0L) return@LaunchedEffect
         shown = true
-        delay(550)
+        delay(600)
         shown = false
     }
+    val forward = state.seekForward
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = shown,
-            // Just OUTSIDE the center transport cluster (which spans ~±112dp) — near the seek
-            // buttons but not overlapping them.
             modifier = Modifier
-                .align(Alignment.Center)
-                .offset(x = if (state.seekForward) 168.dp else (-168).dp),
-            enter = scaleIn(initialScale = 0.6f) + fadeIn(),
-            exit = fadeOut(),
+                .align(if (forward) Alignment.CenterEnd else Alignment.CenterStart)
+                .fillMaxHeight().fillMaxWidth(0.5f),
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(300)),
         ) {
-            Column(
-                Modifier.clip(CircleShape).background(Color(0x59000000)).padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Box(
+                Modifier.fillMaxSize()
+                    .clip(
+                        if (forward) RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50)
+                        else RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50),
+                    )
+                    .background(Color(0x24FFFFFF)),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    if (state.seekForward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
-                    contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp),
-                )
-                Text("10s", color = Color.White, fontSize = 13.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        if (forward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
+                        contentDescription = null, tint = Color.White, modifier = Modifier.size(38.dp),
+                    )
+                    Text("10 seconds", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                }
             }
         }
     }
