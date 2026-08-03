@@ -1,12 +1,19 @@
 package com.db.dbworld.player.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,7 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
@@ -34,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -72,13 +82,13 @@ fun HudOverlay(state: PlayerUiState) {
     }
 }
 
-/** Centered buffering spinner, shown while the player is BUFFERING (and not errored). */
+/** Centered buffering spinner (sits where the play button is, which hides while buffering). */
 @Composable
 fun BufferingSpinner(state: PlayerUiState) {
     if (!state.buffering || state.errorMessage != null) return
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         androidx.compose.material3.CircularProgressIndicator(
-            color = PlayerTheme.Teal, strokeWidth = 3.dp,
+            color = PlayerTheme.Teal, strokeWidth = 3.5.dp, modifier = Modifier.size(52.dp),
         )
     }
 }
@@ -118,24 +128,41 @@ fun SeekFlash(state: PlayerUiState) {
     }
 }
 
-/** Brief centered "Fit to screen" / "Fill screen" pill shown after a pinch-zoom mode change. */
+/**
+ * Pinch-zoom feedback: a centered pill that springs in with a fit/fill icon + label, then scales
+ * out. The bouncy spring + teal outline make the aspect toggle feel deliberate, not "normal".
+ */
 @Composable
 fun ZoomFlash(state: PlayerUiState) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(state.zoomTick) {
         if (state.zoomTick == 0L) return@LaunchedEffect
         shown = true
-        delay(800)
+        delay(850)
         shown = false
     }
+    val fill = state.zoomLabel.startsWith("Fill")
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AnimatedVisibility(visible = shown, enter = fadeIn(), exit = fadeOut()) {
-            Text(
-                state.zoomLabel,
-                color = Color.White, fontSize = 14.sp,
-                modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xB3000000))
-                    .padding(horizontal = 18.dp, vertical = 10.dp),
-            )
+        AnimatedVisibility(
+            visible = shown,
+            enter = fadeIn(tween(120)) +
+                scaleIn(spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.55f),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 1.15f),
+        ) {
+            Row(
+                Modifier.clip(RoundedCornerShape(50))
+                    .background(Color(0xD90D0D10))
+                    .border(1.dp, PlayerTheme.Teal.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (fill) Icons.Filled.Fullscreen else Icons.Filled.FitScreen,
+                    contentDescription = null, tint = PlayerTheme.Teal, modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(state.zoomLabel, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

@@ -29,6 +29,7 @@ class PlayerUiState {
     var currentFileId by mutableStateOf("")
     var ended by mutableStateOf(false)
     var buffering by mutableStateOf(false)        // player is BUFFERING (show a spinner)
+    var scrubbing by mutableStateOf(false)        // user is dragging the progress bar (hide play button)
     var errorMessage by mutableStateOf<String?>(null)
     var title by mutableStateOf("")               // show/movie title for the top bar
     var locked by mutableStateOf(false)           // controls locked (tap does nothing but unlock)

@@ -1,6 +1,10 @@
 package com.db.dbworld.player.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -185,13 +189,19 @@ fun PlayerControls(
             IconButton(onClick = { onSeekBy(-10_000) }) {
                 Icon(Icons.Filled.Replay10, "Rewind 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
             }
-            IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
-                Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
-                    Icon(
-                        if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        if (playing) "Pause" else "Play",
-                        tint = Color.White, modifier = Modifier.size(52.dp),
-                    )
+            // While buffering/seeking the play button is hidden — the centered spinner
+            // (BufferingSpinner) shows in its place, so you never tap a stale control.
+            Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+                AnimatedVisibility(visible = !state.buffering && !state.scrubbing, enter = fadeIn(), exit = fadeOut()) {
+                    IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
+                        Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
+                            Icon(
+                                if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                if (playing) "Pause" else "Play",
+                                tint = Color.White, modifier = Modifier.size(52.dp),
+                            )
+                        }
+                    }
                 }
             }
             IconButton(onClick = { onSeekBy(10_000) }) {
@@ -199,24 +209,25 @@ fun PlayerControls(
             }
         }
 
-        // Bottom bar: progress → time → labelled control row.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 10.dp)) {
-            Seekbar(state, onSeek)
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(fmt(state.positionMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
-                Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
-            }
+        // Bottom bar (modern order): content controls on top, then the scrubber + time as the
+        // primary anchor at the very bottom.
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
             FlowRow(
-                Modifier.fillMaxWidth().padding(top = 14.dp),
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                 CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
                 if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
                 if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
+                CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                 if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
                 CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
+            }
+            Seekbar(state, onSeek)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
             }
         }
 
@@ -252,14 +263,18 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     val frac = (dragFrac ?: (if (hasDur) state.positionMs.toFloat() / dur else 0f)).coerceIn(0f, 1f)
     val bufFrac = (if (hasDur) state.bufferedMs.toFloat() / dur else 0f).coerceIn(0f, 1f)
+    val dragging = dragFrac != null
+    val trackH by animateDpAsState(if (dragging) 6.dp else 4.dp, label = "seekTrackH")
+    val thumbSize by animateDpAsState(if (dragging) 18.dp else 12.dp, label = "seekThumb")
+    val ringSize by animateDpAsState(if (dragging) 32.dp else 0.dp, label = "seekRing")
     BoxWithConstraints(
-        Modifier.fillMaxWidth().height(24.dp)
+        Modifier.fillMaxWidth().height(28.dp)
             .pointerInput(dur) {
                 detectHorizontalDragGestures(
-                    onDragStart = { off -> dragFrac = (off.x / size.width).coerceIn(0f, 1f) },
+                    onDragStart = { off -> state.scrubbing = true; dragFrac = (off.x / size.width).coerceIn(0f, 1f) },
                     onHorizontalDrag = { change, _ -> dragFrac = (change.position.x / size.width).coerceIn(0f, 1f) },
-                    onDragEnd = { dragFrac?.let { onSeek((it * dur).toLong()) }; dragFrac = null },
-                    onDragCancel = { dragFrac = null },
+                    onDragEnd = { dragFrac?.let { onSeek((it * dur).toLong()) }; dragFrac = null; state.scrubbing = false },
+                    onDragCancel = { dragFrac = null; state.scrubbing = false },
                 )
             }
             .pointerInput(dur) {
@@ -292,15 +307,25 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
             }
         }
         Box(
-            Modifier.align(Alignment.CenterStart).fillMaxWidth().height(5.dp)
+            Modifier.align(Alignment.CenterStart).fillMaxWidth().height(trackH)
                 .clip(RoundedCornerShape(999.dp)).background(PlayerTheme.Track),
         ) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(bufFrac).background(PlayerTheme.Buffered))
-            Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(PlayerTheme.Teal))
+            Box(Modifier.fillMaxHeight().fillMaxWidth(bufFrac).clip(RoundedCornerShape(999.dp)).background(PlayerTheme.Buffered))
+            Box(
+                Modifier.fillMaxHeight().fillMaxWidth(frac).clip(RoundedCornerShape(999.dp))
+                    .background(Brush.horizontalGradient(listOf(PlayerTheme.Teal, Color(0xFF34E0C8)))),
+            )
+        }
+        // Soft glow ring blooms under the thumb while scrubbing.
+        if (ringSize > 0.dp) {
+            Box(
+                Modifier.align(Alignment.CenterStart).offset(x = maxWidth * frac - ringSize / 2)
+                    .size(ringSize).clip(CircleShape).background(PlayerTheme.Teal.copy(alpha = 0.22f)),
+            )
         }
         Box(
-            Modifier.align(Alignment.CenterStart).offset(x = maxWidth * frac - 6.dp)
-                .size(13.dp).clip(CircleShape).background(PlayerTheme.Teal),
+            Modifier.align(Alignment.CenterStart).offset(x = maxWidth * frac - thumbSize / 2)
+                .size(thumbSize).clip(CircleShape).background(PlayerTheme.Teal),
         )
     }
 }
