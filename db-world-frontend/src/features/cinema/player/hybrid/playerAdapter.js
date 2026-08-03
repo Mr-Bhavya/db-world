@@ -43,13 +43,18 @@ function createNativeAdapter() {
   };
 }
 
+// Module-level (shared across adapter INSTANCES) — a src change recreates the adapter, so the
+// old instance's release() and the new instance's load() must share this timer for the cancel to
+// land. A src change (switch episode / quality) calls release() then load() in the same tick:
+// release() defers the real dismiss, load() cancels it → the native player just swaps the media
+// item (no teardown, no orientation reset). A genuine close (no load follows) fires the dismiss.
+let nativeDismissTimer = null;
+const cancelNativeDismiss = () => {
+  if (nativeDismissTimer) { clearTimeout(nativeDismissTimer); nativeDismissTimer = null; }
+};
+
 function createNativeControllerAdapter() {
-  // A src change (switch episode / quality) unmounts+remounts the [src] effect, which calls
-  // release() then load() in the same tick. Defer the real dismiss so that a load() arriving
-  // right after cancels it — the native player then just swaps the media item (no teardown,
-  // no orientation thrash). A genuine close (no load follows) fires dismiss after the grace.
-  let dismissTimer = null;
-  const cancelDismiss = () => { if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; } };
+  const cancelDismiss = cancelNativeDismiss;
   return {
     kind: 'native-controller',
     load:    (url, startMs = 0) => { cancelDismiss(); return NativePlayer.present({ url, startMs: Math.max(0, Math.round(startMs)) }); },
@@ -66,7 +71,7 @@ function createNativeControllerAdapter() {
     setDecoderMode: () => {},     // Phase-3 (plugin has no setDecoderMode yet)
     setOrientation: () => {},     // Phase-2
     enterPip: () => {},           // Phase-2 (plugin has no enterPip yet)
-    release: () => { cancelDismiss(); dismissTimer = setTimeout(() => { dismissTimer = null; NativePlayer.dismiss(); }, 80); },
+    release: () => { cancelDismiss(); nativeDismissTimer = setTimeout(() => { nativeDismissTimer = null; NativePlayer.dismiss(); }, 120); },
     on: (event, cb) => {
       const name = NATIVE_EVENT_MAP[event];
       if (!name) return () => {};   // ignore events the Phase-1 plugin doesn't emit (info/volume/pip)
