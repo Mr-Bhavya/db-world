@@ -31,7 +31,8 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun PauseOverlay(state: PlayerUiState) {
-    val show = !state.isPlaying && !state.controlsVisible && !state.inPip && !state.seekActive &&
+    val show = !state.isPlaying && !state.controlsVisible && !state.inPip &&
+        !state.seekActive && !state.scrubbing && state.hudKind == null &&   // never during an interaction
         !state.ended && !state.buffering && state.errorMessage == null
     val ep = state.episodes.firstOrNull { it.fileId == state.currentFileId }
     val epLine = ep?.let { if (it.name.isNotEmpty()) "${it.label} · ${it.name}" else it.label }

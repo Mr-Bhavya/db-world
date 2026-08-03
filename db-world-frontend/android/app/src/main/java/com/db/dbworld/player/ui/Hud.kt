@@ -111,55 +111,53 @@ fun SeekFlash(state: PlayerUiState) {
         if (state.seekTick == 0L) return@LaunchedEffect
         state.seekActive = true
         shown = true
-        delay(600)
+        delay(800)          // each tap re-arms this, so the badge stays while you keep tapping
         shown = false
         state.seekActive = false
     }
     val forward = state.seekForward
     Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = shown,
-            modifier = Modifier
-                .align(if (forward) Alignment.CenterEnd else Alignment.CenterStart)
-                .fillMaxHeight().fillMaxWidth(0.5f),
-            enter = fadeIn(tween(120)),
-            exit = fadeOut(tween(300)),
+        // Centered in the tapped HALF (≈¼ of the screen) — off-center, clear of the seek buttons.
+        Box(
+            Modifier.align(if (forward) Alignment.CenterEnd else Alignment.CenterStart)
+                .fillMaxWidth(0.5f).fillMaxHeight(),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier.fillMaxSize()
-                    // Gentle curve on the center-facing edge — not a big semicircle bulge.
-                    .clip(
-                        if (forward) RoundedCornerShape(topStart = 44.dp, bottomStart = 44.dp)
-                        else RoundedCornerShape(topEnd = 44.dp, bottomEnd = 44.dp),
-                    )
-                    .background(Color(0x24FFFFFF)),
-                contentAlignment = Alignment.Center,
+            AnimatedVisibility(
+                visible = shown,
+                enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.8f),
+                exit = fadeOut(tween(250)),
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Three chevrons that pulse in sequence (YouTube-style), pointing in the seek
-                    // direction — rewind mirrors the triangle and reverses the flow.
-                    val transition = rememberInfiniteTransition(label = "seekArrows")
-                    Row {
-                        repeat(3) { i ->
-                            val phaseIdx = if (forward) i else 2 - i
-                            val a by transition.animateFloat(
-                                initialValue = 0.25f, targetValue = 1f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(420),
-                                    repeatMode = RepeatMode.Reverse,
-                                    initialStartOffset = StartOffset(phaseIdx * 130),
-                                ),
-                                label = "arrow$i",
-                            )
-                            Icon(
-                                Icons.Filled.PlayArrow, contentDescription = null,
-                                tint = Color.White.copy(alpha = a),
-                                modifier = Modifier.size(24.dp)
-                                    .then(if (forward) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
-                            )
-                        }
+                Column(
+                Modifier.clip(RoundedCornerShape(28.dp)).background(Color(0x8A000000))
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // Three chevrons that pulse in sequence, pointing in the seek direction — rewind
+                // mirrors the triangle and reverses the flow.
+                val transition = rememberInfiniteTransition(label = "seekArrows")
+                Row {
+                    repeat(3) { i ->
+                        val phaseIdx = if (forward) i else 2 - i
+                        val a by transition.animateFloat(
+                            initialValue = 0.25f, targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(420),
+                                repeatMode = RepeatMode.Reverse,
+                                initialStartOffset = StartOffset(phaseIdx * 130),
+                            ),
+                            label = "arrow$i",
+                        )
+                        Icon(
+                            Icons.Filled.PlayArrow, contentDescription = null,
+                            tint = Color.White.copy(alpha = a),
+                            modifier = Modifier.size(26.dp)
+                                .then(if (forward) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
+                        )
                     }
-                    Text("10 seconds", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+                Text("${state.seekSeconds} seconds", color = Color.White, fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 }
             }
         }

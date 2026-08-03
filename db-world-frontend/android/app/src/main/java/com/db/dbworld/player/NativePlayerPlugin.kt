@@ -35,6 +35,9 @@ class NativePlayerPlugin : Plugin() {
     private var videoH = 0
     private var fillMode = false  // false = letterbox-fit (default; whole frame, no distortion), true = crop-to-fill
     private var volFrac = -1f     // continuous volume accumulator for smooth swipe (seeded per gesture)
+    private var seekAccum = 0     // accumulated seek seconds for rapid consecutive double-taps
+    private var lastSeekAt = 0L
+    private var lastSeekFwd = true
     private var pipReceiver: android.content.BroadcastReceiver? = null
     private val PIP_ACTION = "com.db.dbworld.player.NATIVE_PIP_CONTROL"
     private val prefs by lazy {
@@ -105,8 +108,12 @@ class NativePlayerPlugin : Plugin() {
                 sheetOpen = uiState.sheetOpen,
                 onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
                 onDoubleSeek = { fwd ->
+                    val now = System.currentTimeMillis()
+                    // Rapid taps in the same direction accumulate (10s → 20s → 30s), like YouTube.
+                    seekAccum = if (fwd == lastSeekFwd && now - lastSeekAt < 1200) seekAccum + 10 else 10
+                    lastSeekFwd = fwd; lastSeekAt = now
                     player?.let { it.seekTo((it.currentPosition + if (fwd) 10_000 else -10_000).coerceAtLeast(0)) }
-                    uiState.seekForward = fwd; uiState.seekTick = System.currentTimeMillis()
+                    uiState.seekForward = fwd; uiState.seekSeconds = seekAccum; uiState.seekTick = now
                     haptic()
                 },
                 onBrightnessDelta = { adjustBrightness(it) },

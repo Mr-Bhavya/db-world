@@ -234,17 +234,20 @@ private fun fpsText(fps: Float): String = when {
     else -> "%.3f".format(fps).trimEnd('0').trimEnd('.') + " fps"
 }
 
-/** Read-only detail row matching the sheet row style: label left, value right (muted). */
+/** Read-only detail row: label left, value right (muted), with a hairline divider beneath. */
 @Composable
 private fun InfoLine(label: String, value: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = PlayerTheme.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        if (value.isNotEmpty()) {
-            Text(value, color = PlayerTheme.TextMuted, fontSize = 14.sp,
-                textAlign = TextAlign.End, modifier = Modifier.padding(start = 12.dp))
+    Column {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, color = PlayerTheme.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            if (value.isNotEmpty()) {
+                Text(value, color = PlayerTheme.TextMuted, fontSize = 14.sp,
+                    textAlign = TextAlign.End, modifier = Modifier.padding(start = 12.dp))
+            }
         }
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x14FFFFFF)))
     }
 }

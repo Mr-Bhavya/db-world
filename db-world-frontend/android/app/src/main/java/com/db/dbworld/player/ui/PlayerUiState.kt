@@ -42,6 +42,7 @@ class PlayerUiState {
     var seekTick by mutableLongStateOf(0L)
     var seekForward by mutableStateOf(false)
     var seekActive by mutableStateOf(false)       // a double-tap seek ripple is showing
+    var seekSeconds by mutableIntStateOf(10)      // accumulated seconds for rapid multi-taps (10, 20, 30…)
     var videoWidth by mutableIntStateOf(0)        // for the Info sheet
     var videoHeight by mutableIntStateOf(0)
     var videoCodec by mutableStateOf("")          // "AV1" / "HEVC" / "H.264" …

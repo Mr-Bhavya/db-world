@@ -337,9 +337,10 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
         // Scrub preview: storyboard thumbnail (if any) + time, above the thumb while dragging.
         if (dragFrac != null && hasDur) {
             val previewMs = (frac * dur).toLong()
-            val thumbW = if (sb != null) 148.dp else 66.dp
+            val thumbW = if (sb != null) 132.dp else 76.dp
             val bubbleX = (maxWidth * frac - thumbW / 2).coerceIn(0.dp, (maxWidth - thumbW).coerceAtLeast(0.dp))
-            val bubbleUp = if (sb != null) 120.dp else 34.dp
+            // Sit just above the bar (was floating too high).
+            val bubbleUp = if (sb != null) 92.dp else 26.dp
             Column(
                 Modifier.align(Alignment.TopStart).offset(x = bubbleX, y = -bubbleUp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -351,8 +352,10 @@ private fun Seekbar(state: PlayerUiState, onSeek: (Long) -> Unit) {
                             .clip(RoundedCornerShape(8.dp)).background(Color.Black),
                     )
                 }
+                // Scrub time shown as current / total, like the bar's own labels.
                 Text(
-                    fmt(previewMs), color = Color.White, fontSize = 12.sp,
+                    "${fmt(previewMs)} / ${fmt(dur)}", color = Color.White, fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp))
                         .background(Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 3.dp),
                 )
