@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -36,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -71,9 +76,15 @@ fun PlayerSheet(title: String, onDismiss: () -> Unit, content: @Composable Colum
                 ) {
                     Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x59FFFFFF)))
                 }
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(title, color = PlayerTheme.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 6.dp))
+                        modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim,
+                            modifier = Modifier.size(20.dp))
+                    }
+                }
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     content()
                 }
             }
@@ -185,33 +196,40 @@ fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, o
     }
 }
 
-/** Read-only technical media details, grouped like a spec sheet. */
+/**
+ * Read-only media details in the web player's card style: section titles + rounded key/value
+ * cards, tracks flagged PLAYING. Width-capped so key and value stay a comfortable distance apart
+ * on large screens (full-width SpaceBetween drifts too far; a fixed label crams both left).
+ */
 @Composable
 fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
     PlayerSheet("Media info", onDismiss) {
-        InfoRow("Title", state.title.ifEmpty { "—" })
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 480.dp).fillMaxWidth().padding(bottom = 8.dp)) {
+                InfoSectionTitle("Video")
+                InfoKvCard(buildList {
+                    add("Resolution" to if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
+                    add("Codec" to state.videoCodec.ifEmpty { "—" })
+                    add("Dynamic range" to state.dynamicRange.ifEmpty { "—" })
+                    if (state.frameRate > 0f) add("Frame rate" to fpsText(state.frameRate))
+                })
 
-        SheetSection("Video")
-        InfoRow("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
-        InfoRow("Codec", state.videoCodec.ifEmpty { "—" })
-        InfoRow("Dynamic range", state.dynamicRange.ifEmpty { "—" })
-        InfoRow("Frame rate", fpsText(state.frameRate))
+                InfoSectionTitle("Audio", state.audioTracks.size)
+                if (state.audioTracks.isEmpty()) InfoNote("No audio tracks")
+                else state.audioTracks.forEach { t -> InfoTrackCard(t.label, t.id == state.selectedAudioId) }
 
-        SheetSection("Audio")
-        InfoRow("Track", state.audioTracks.firstOrNull { it.id == state.selectedAudioId }?.label ?: "—")
-        InfoRow("Available", if (state.audioTracks.isEmpty()) "—" else "${state.audioTracks.size}")
+                InfoSectionTitle("Subtitles", state.subtitleTracks.size)
+                if (state.selectedSubtitleId < 0) InfoNote("Currently off")
+                if (state.subtitleTracks.isEmpty()) InfoNote("No subtitles")
+                else state.subtitleTracks.forEach { t -> InfoTrackCard(t.label, t.id == state.selectedSubtitleId) }
 
-        SheetSection("Subtitles")
-        InfoRow(
-            "Current",
-            if (state.selectedSubtitleId < 0) "Off"
-            else state.subtitleTracks.firstOrNull { it.id == state.selectedSubtitleId }?.label ?: "—",
-        )
-        InfoRow("Available", if (state.subtitleTracks.isEmpty()) "None" else "${state.subtitleTracks.size}")
-
-        SheetSection("Playback")
-        InfoRow("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
-        InfoRow("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
+                InfoSectionTitle("Playback")
+                InfoKvCard(listOf(
+                    "Speed" to "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×",
+                    "Decoder" to when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" },
+                ))
+            }
+        }
     }
 }
 
@@ -221,11 +239,46 @@ private fun fpsText(fps: Float): String = when {
     else -> "%.3f".format(fps).trimEnd('0').trimEnd('.') + " fps"
 }
 
-/** Fixed-width label + value on the same side, so on big screens they don't drift far apart. */
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
-        Text(label, color = PlayerTheme.TextMuted, fontSize = 13.sp, modifier = Modifier.width(128.dp))
-        Text(value, color = PlayerTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+private fun InfoSectionTitle(label: String, count: Int? = null) {
+    Row(Modifier.padding(top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label.uppercase(), color = PlayerTheme.TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        if (count != null) Text("  ·  $count", color = PlayerTheme.TextMuted, fontSize = 11.sp)
     }
+}
+
+@Composable
+private fun InfoKvCard(rows: List<Pair<String, String>>) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0x14FFFFFF)).padding(vertical = 4.dp)) {
+        rows.forEach { (k, v) ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.Top) {
+                Text(k, color = PlayerTheme.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(end = 16.dp))
+                Spacer(Modifier.weight(1f))
+                Text(v, color = PlayerTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoTrackCard(name: String, playing: Boolean) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
+            .background(if (playing) PlayerTheme.Teal.copy(alpha = 0.12f) else Color(0x14FFFFFF))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, color = if (playing) PlayerTheme.Teal else PlayerTheme.Text, fontSize = 14.sp,
+            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (playing) {
+            Text("PLAYING", color = PlayerTheme.Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(999.dp))
+                    .background(PlayerTheme.Teal.copy(alpha = 0.18f)).padding(horizontal = 7.dp, vertical = 3.dp))
+        }
+    }
+}
+
+@Composable
+private fun InfoNote(text: String) {
+    Text(text, color = PlayerTheme.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp))
 }

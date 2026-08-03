@@ -213,8 +213,8 @@ fun PlayerControls(
             ) {
                 CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                 CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
-                if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
                 if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
+                if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
                 if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
                 CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
             }

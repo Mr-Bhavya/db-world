@@ -33,6 +33,7 @@ class PlayerUiState {
     var title by mutableStateOf("")               // show/movie title for the top bar
     var locked by mutableStateOf(false)           // controls locked (tap does nothing but unlock)
     var sheetOpen by mutableStateOf(false)        // a bottom-sheet modal is open (gestures stand down)
+    var inPip by mutableStateOf(false)            // in Picture-in-Picture (hide overlays/controls)
     // Brightness/volume swipe HUD: kind = "brightness" | "volume" | null (hidden); value 0..1.
     var hudKind by mutableStateOf<String?>(null)
     var hudValue by mutableFloatStateOf(0f)

@@ -35,6 +35,8 @@ class NativePlayerPlugin : Plugin() {
     private var videoH = 0
     private var fillMode = false  // false = letterbox-fit (default; whole frame, no distortion), true = crop-to-fill
     private var volFrac = -1f     // continuous volume accumulator for smooth swipe (seeded per gesture)
+    private var pipReceiver: android.content.BroadcastReceiver? = null
+    private val PIP_ACTION = "com.db.dbworld.player.NATIVE_PIP_CONTROL"
     private val uiState = com.db.dbworld.player.ui.PlayerUiState()
     private val ui = Handler(Looper.getMainLooper())
     private val audioGroups = ArrayList<androidx.media3.common.TrackGroup>()
@@ -97,7 +99,7 @@ class NativePlayerPlugin : Plugin() {
                 onVolumeDelta = { adjustVolume(it) },
                 onZoom = { fill ->
                     if (fill != fillMode) {
-                        fillMode = fill; applyScaling()
+                        fillMode = fill; host?.setFill(fill)
                         uiState.zoomLabel = if (fill) "Fill screen" else "Fit to screen"
                         uiState.zoomTick = System.currentTimeMillis()
                     }
@@ -138,11 +140,15 @@ class NativePlayerPlugin : Plugin() {
                 }
             }
         }
-        val p = player ?: ExoPlayerFactory.build(context, decoderMode).also {
+        // Always build a FRESH player for each load. Reusing one across a URL swap (episode /
+        // quality switch) left a blank surface; a new instance is cheap and reliable. The host
+        // stays attached, so there's no teardown flicker.
+        player?.release()
+        val p = ExoPlayerFactory.build(context, decoderMode).also {
             player = it; it.addListener(listener)
         }
         p.setVideoSurfaceView(surface)
-        applyScaling()
+        host?.setFill(fillMode)
         toneMapApplied = false
         uiState.ended = false
         uiState.errorMessage = null
@@ -291,6 +297,7 @@ class NativePlayerPlugin : Plugin() {
 
     private fun dismissInternal(userInitiated: Boolean = true) {
         ui.removeCallbacks(ticker)
+        unregisterPipReceiver()
         activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -400,13 +407,6 @@ class NativePlayerPlugin : Plugin() {
     /** Hide the brightness/volume HUD (called when a swipe gesture ends). */
     fun clearHud() = activity.runOnUiThread { uiState.hudKind = null; volFrac = -1f }
 
-    /** Apply the current fill/fit choice via ExoPlayer's scaling mode (full-screen SurfaceView). */
-    private fun applyScaling() {
-        player?.videoScalingMode =
-            if (fillMode) C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
-            else C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-    }
-
     /** Toggle between sensor-landscape and sensor-portrait. */
     fun rotate() = activity.runOnUiThread {
         activity.requestedOrientation =
@@ -431,6 +431,7 @@ class NativePlayerPlugin : Plugin() {
             // Don't let the screen time out mid-movie; allow it again when paused.
             if (isPlaying) activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             else activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            updatePipActions()   // keep the PiP play/pause icon in sync
         }
         override fun onPlaybackStateChanged(state: Int) {
             notifyListeners("playerState", JSObject().put("state", state))
@@ -460,30 +461,82 @@ class NativePlayerPlugin : Plugin() {
         override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
             videoW = size.width; videoH = size.height
             uiState.videoWidth = size.width; uiState.videoHeight = size.height
-            // Scaling is handled by ExoPlayer's videoScalingMode on a full-screen SurfaceView.
+            // Size the video frame to the real aspect ratio → symmetric letterbox, no stretch.
+            val par = if (size.pixelWidthHeightRatio > 0f) size.pixelWidthHeightRatio else 1f
+            if (size.height > 0) host?.setAspectRatio(size.width * par / size.height)
         }
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
             host?.setCues(cueGroup.cues)
         }
     }
 
-    /** Shrink into a floating PiP window, sized to the real video aspect ratio. */
+    /** Shrink into a floating PiP window, sized to the real video aspect ratio, with a play/pause action. */
     fun enterPip() = activity.runOnUiThread {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@runOnUiThread
         uiState.controlsVisible = false
+        registerPipReceiver()
+        try { activity.enterPictureInPictureMode(buildPipParams()) } catch (e: Exception) {}
+    }
+
+    private fun buildPipParams(): PictureInPictureParams {
         val w = if (videoW > 0) videoW else 16
         val h = if (videoH > 0) videoH else 9
         // Android rejects extreme ratios (~0.42..2.39) — clamp.
         val ratio = (w.toDouble() / h).coerceIn(0.42, 2.38)
-        val params = PictureInPictureParams.Builder()
+        return PictureInPictureParams.Builder()
             .setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
+            .setActions(listOf(playPauseAction()))
             .build()
-        try { activity.enterPictureInPictureMode(params) } catch (e: Exception) {}
+    }
+
+    /** The single PiP-window action, its icon reflecting the current play/pause state. */
+    private fun playPauseAction(): android.app.RemoteAction {
+        val playing = player?.playWhenReady == true
+        val iconRes = if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+        val title = if (playing) "Pause" else "Play"
+        val intent = android.content.Intent(PIP_ACTION).setPackage(context.packageName)
+        val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
+        val pi = android.app.PendingIntent.getBroadcast(context, 1, intent, flags)
+        return android.app.RemoteAction(
+            android.graphics.drawable.Icon.createWithResource(context, iconRes), title, title, pi)
+    }
+
+    private fun registerPipReceiver() {
+        if (pipReceiver != null) return
+        pipReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context?, intent: android.content.Intent?) {
+                val p = player ?: return
+                p.playWhenReady = !p.playWhenReady
+                updatePipActions()
+            }
+        }
+        val filter = android.content.IntentFilter(PIP_ACTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(pipReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(pipReceiver, filter)
+        }
+    }
+
+    private fun unregisterPipReceiver() {
+        pipReceiver?.let { try { context.unregisterReceiver(it) } catch (_: Exception) {} }
+        pipReceiver = null
+    }
+
+    /** Refresh the PiP action so its icon tracks play↔pause while in PiP. */
+    private fun updatePipActions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && inPip) {
+            try { activity.setPictureInPictureParams(buildPipParams()) } catch (_: Exception) {}
+        }
     }
 
     /** Called by MainActivity.onPictureInPictureModeChanged. */
     fun handlePipModeChanged(isInPip: Boolean) {
         inPip = isInPip
+        uiState.inPip = isInPip
+        if (!isInPip) unregisterPipReceiver()
     }
 
     override fun handleOnPause() {
@@ -495,6 +548,7 @@ class NativePlayerPlugin : Plugin() {
 
     override fun handleOnDestroy() {
         ui.removeCallbacks(ticker)
+        unregisterPipReceiver()
         player?.release(); player = null
         super.handleOnDestroy()
     }
