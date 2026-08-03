@@ -132,9 +132,14 @@ fun SeekFlash(state: PlayerUiState) {
                 enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.7f),
                 exit = fadeOut(tween(250)),
             ) {
-                // YouTube-style: a soft dark circle (no solid pill) behind chevrons + label.
+                // YouTube-style: a big thin parenthesis arc — "(" on the forward side, ")" on
+                // rewind — behind the chevrons + label (no pill, no circle).
                 Box(contentAlignment = Alignment.Center) {
-                    Spacer(Modifier.size(180.dp).clip(CircleShape).background(Color(0x40000000)))
+                    Text(
+                        if (forward) "(" else ")",
+                        color = Color(0x33FFFFFF), fontSize = 200.sp,
+                        fontWeight = FontWeight.Light, style = shadow,
+                    )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val transition = rememberInfiniteTransition(label = "seekArrows")
                         Row {
