@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -199,38 +198,70 @@ fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, o
 }
 
 /**
- * Read-only media details as TWO columns (like the Audio & Subtitles sheet): Video + Playback on
- * the LEFT, Audio + Subtitles on the RIGHT, split by a vertical divider, with horizontal dividers
- * between sections. Handles multiple audio/subtitle tracks.
+ * Read-only media details as TWO independently-scrolling columns (like the Audio & Subtitles
+ * sheet): Video on the LEFT; Audio, Subtitles, and Playback on the RIGHT, split by a vertical
+ * divider. Multiple audio/subtitle tracks each render name + detail; empty subtitles show "None".
  */
 @Composable
 fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
-    PlayerSheet("Media info", onDismiss) {
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp)) {
-            Column(Modifier.weight(1f)) {
-                SheetSection("Video")
-                InfoLine("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
-                InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
-                InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
-                InfoLine("Frame rate", fpsText(state.frameRate))
-                InfoDivider()
-                SheetSection("Playback")
-                InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
-                InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
-            }
-            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 6.dp).background(Color(0x1FFFFFFF)))
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                SheetSection("Audio")
-                when {
-                    state.audioInfo.isNotEmpty() -> state.audioInfo.forEach { a -> InfoTrack(a.name, a.detail) }
-                    state.audioTracks.isNotEmpty() -> state.audioTracks.forEach { t -> InfoTrack(t.label, "") }
-                    else -> InfoTrack("None", "")
+    val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+    Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss)) {
+        AnimatedVisibility(
+            visibleState = visible,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+                    .background(PlayerTheme.SheetBg)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onDismiss)
+                        .padding(horizontal = 22.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x59FFFFFF)))
                 }
-                InfoDivider()
-                SheetSection("Subtitles")
-                if (state.subtitleTracks.isEmpty()) InfoTrack("None", "")
-                else state.subtitleTracks.forEach { t -> InfoTrack(t.label, "") }
+                Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Media info", color = PlayerTheme.Text, fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim,
+                            modifier = Modifier.size(20.dp))
+                    }
+                }
+                Row(Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        SheetSection("Video")
+                        InfoLine("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
+                        InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
+                        InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
+                        InfoLine("Frame rate", fpsText(state.frameRate))
+                    }
+                    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 4.dp).background(Color(0x1FFFFFFF)))
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        SheetSection("Audio")
+                        when {
+                            state.audioInfo.isNotEmpty() -> state.audioInfo.forEach { a -> InfoTrack(a.name, a.detail) }
+                            state.audioTracks.isNotEmpty() -> state.audioTracks.forEach { t -> InfoTrack(t.label, "") }
+                            else -> InfoTrack("None", "")
+                        }
+                        InfoDivider()
+                        SheetSection("Subtitles")
+                        if (state.subtitleTracks.isEmpty()) InfoTrack("None", "")
+                        else state.subtitleTracks.forEach { t -> InfoTrack(t.label, "") }
+                        InfoDivider()
+                        SheetSection("Playback")
+                        InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
+                        InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
+                    }
+                }
             }
         }
     }
