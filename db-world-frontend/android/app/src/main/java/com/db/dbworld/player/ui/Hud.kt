@@ -102,9 +102,11 @@ fun SeekFlash(state: PlayerUiState) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(state.seekTick) {
         if (state.seekTick == 0L) return@LaunchedEffect
+        state.seekActive = true
         shown = true
         delay(600)
         shown = false
+        state.seekActive = false
     }
     val forward = state.seekForward
     Box(Modifier.fillMaxSize()) {
@@ -118,9 +120,10 @@ fun SeekFlash(state: PlayerUiState) {
         ) {
             Box(
                 Modifier.fillMaxSize()
+                    // Gentle curve on the center-facing edge — not a big semicircle bulge.
                     .clip(
-                        if (forward) RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50)
-                        else RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50),
+                        if (forward) RoundedCornerShape(topStart = 44.dp, bottomStart = 44.dp)
+                        else RoundedCornerShape(topEnd = 44.dp, bottomEnd = 44.dp),
                     )
                     .background(Color(0x24FFFFFF)),
                 contentAlignment = Alignment.Center,

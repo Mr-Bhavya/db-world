@@ -169,7 +169,7 @@ fun PlayerControls(
             enter = fadeIn() + slideInVertically { -it }, exit = fadeOut() + slideOutVertically { -it },
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(14.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -233,9 +233,14 @@ fun PlayerControls(
             vis, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it },
         ) {
-            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
+            Column(Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 16.dp)) {
+                Seekbar(state, onSeek)
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
+                }
                 FlowRow(
-                    Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    Modifier.fillMaxWidth().padding(top = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -245,11 +250,6 @@ fun PlayerControls(
                     CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
                     if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
                     CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
-                }
-                Seekbar(state, onSeek)
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
                 }
             }
         }
