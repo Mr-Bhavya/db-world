@@ -77,6 +77,19 @@ class PlayerSurfaceHost(private val activity: Activity, private val webView: Web
             else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
+    /**
+     * Prime-style zoom feedback: briefly scale the video frame and settle to 1.0 — pinch-out
+     * (fill) starts slightly small and grows in; pinch-in (fit) starts slightly large and shrinks.
+     */
+    fun pulseZoom(fill: Boolean) {
+        val target = frame ?: return
+        val from = if (fill) 0.9f else 1.1f
+        target.animate().cancel()
+        target.scaleX = from; target.scaleY = from
+        target.animate().scaleX(1f).scaleY(1f).setDuration(260)
+            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+    }
+
     fun setCues(cues: List<androidx.media3.common.text.Cue>) { subtitles?.setCues(cues) }
 
     fun detach() {

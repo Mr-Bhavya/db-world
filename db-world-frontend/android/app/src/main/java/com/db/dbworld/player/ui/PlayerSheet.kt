@@ -242,6 +242,10 @@ fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
                         InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
                         InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
                         InfoLine("Frame rate", fpsText(state.frameRate))
+                        InfoDivider()
+                        SheetSection("Playback")
+                        InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
+                        InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
                     }
                     Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 4.dp).background(Color(0x1FFFFFFF)))
                     Spacer(Modifier.width(14.dp))
@@ -256,10 +260,6 @@ fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
                         SheetSection("Subtitles")
                         if (state.subtitleTracks.isEmpty()) InfoTrack("None", "")
                         else state.subtitleTracks.forEach { t -> InfoTrack(t.label, "") }
-                        InfoDivider()
-                        SheetSection("Playback")
-                        InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
-                        InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
                     }
                 }
             }

@@ -47,9 +47,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +119,7 @@ fun SeekFlash(state: PlayerUiState) {
         state.seekActive = false
     }
     val forward = state.seekForward
+    val shadow = TextStyle(shadow = Shadow(Color.Black, Offset(0f, 2f), blurRadius = 8f))
     Box(Modifier.fillMaxSize()) {
         // Centered in the tapped HALF (≈¼ of the screen) — off-center, clear of the seek buttons.
         Box(
@@ -125,79 +129,38 @@ fun SeekFlash(state: PlayerUiState) {
         ) {
             AnimatedVisibility(
                 visible = shown,
-                enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.8f),
+                enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.7f),
                 exit = fadeOut(tween(250)),
             ) {
-                Column(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(Color(0x8A000000))
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Three chevrons that pulse in sequence, pointing in the seek direction — rewind
-                // mirrors the triangle and reverses the flow.
-                val transition = rememberInfiniteTransition(label = "seekArrows")
-                Row {
-                    repeat(3) { i ->
-                        val phaseIdx = if (forward) i else 2 - i
-                        val a by transition.animateFloat(
-                            initialValue = 0.25f, targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(420),
-                                repeatMode = RepeatMode.Reverse,
-                                initialStartOffset = StartOffset(phaseIdx * 130),
-                            ),
-                            label = "arrow$i",
-                        )
-                        Icon(
-                            Icons.Filled.PlayArrow, contentDescription = null,
-                            tint = Color.White.copy(alpha = a),
-                            modifier = Modifier.size(26.dp)
-                                .then(if (forward) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
-                        )
+                // YouTube-style: a soft dark circle (no solid pill) behind chevrons + label.
+                Box(contentAlignment = Alignment.Center) {
+                    Spacer(Modifier.size(180.dp).clip(CircleShape).background(Color(0x40000000)))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val transition = rememberInfiniteTransition(label = "seekArrows")
+                        Row {
+                            repeat(3) { i ->
+                                val phaseIdx = if (forward) i else 2 - i
+                                val a by transition.animateFloat(
+                                    initialValue = 0.25f, targetValue = 1f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(420),
+                                        repeatMode = RepeatMode.Reverse,
+                                        initialStartOffset = StartOffset(phaseIdx * 130),
+                                    ),
+                                    label = "arrow$i",
+                                )
+                                Icon(
+                                    Icons.Filled.PlayArrow, contentDescription = null,
+                                    tint = Color.White.copy(alpha = a),
+                                    modifier = Modifier.size(26.dp)
+                                        .then(if (forward) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
+                                )
+                            }
+                        }
+                        Text("${state.seekSeconds} seconds", color = Color.White, fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium, style = shadow, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
-                Text("${state.seekSeconds} seconds", color = Color.White, fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-        }
-    }
-}
-
-/**
- * Pinch-zoom feedback: a centered pill that springs in with a fit/fill icon + label, then scales
- * out. The bouncy spring + teal outline make the aspect toggle feel deliberate, not "normal".
- */
-@Composable
-fun ZoomFlash(state: PlayerUiState) {
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(state.zoomTick) {
-        if (state.zoomTick == 0L) return@LaunchedEffect
-        shown = true
-        delay(850)
-        shown = false
-    }
-    val fill = state.zoomLabel.startsWith("Fill")
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AnimatedVisibility(
-            visible = shown,
-            enter = fadeIn(tween(120)) +
-                scaleIn(spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.55f),
-            exit = fadeOut(tween(180)) + scaleOut(targetScale = 1.15f),
-        ) {
-            Row(
-                Modifier.clip(RoundedCornerShape(50))
-                    .background(Color(0xD90D0D10))
-                    .border(1.dp, PlayerTheme.Teal.copy(alpha = 0.55f), RoundedCornerShape(50))
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    if (fill) Icons.Filled.Fullscreen else Icons.Filled.FitScreen,
-                    contentDescription = null, tint = PlayerTheme.Teal, modifier = Modifier.size(24.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(state.zoomLabel, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

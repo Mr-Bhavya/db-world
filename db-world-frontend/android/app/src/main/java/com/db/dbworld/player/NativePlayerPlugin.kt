@@ -105,7 +105,9 @@ class NativePlayerPlugin : Plugin() {
         h.mountCompose {
             com.db.dbworld.player.ui.GestureLayer(
                 locked = uiState.locked,
-                sheetOpen = uiState.sheetOpen,
+                // Stand down while a sheet is open OR the progress bar is being dragged, so a
+                // diagonal scrub can't leak into brightness/volume.
+                sheetOpen = uiState.sheetOpen || uiState.scrubbing,
                 onTapToggle = { uiState.controlsVisible = !uiState.controlsVisible },
                 onDoubleSeek = { fwd ->
                     val now = System.currentTimeMillis()
@@ -121,9 +123,8 @@ class NativePlayerPlugin : Plugin() {
                 onZoom = { fill ->
                     if (fill != fillMode) {
                         fillMode = fill; host?.setFill(fill)
+                        host?.pulseZoom(fill)   // animate the video itself (Prime-style), no label pill
                         prefs.edit().putBoolean("fill", fill).apply()
-                        uiState.zoomLabel = if (fill) "Fill screen" else "Fit to screen"
-                        uiState.zoomTick = System.currentTimeMillis()
                         haptic()
                     }
                 },
@@ -158,7 +159,6 @@ class NativePlayerPlugin : Plugin() {
                     )
                     com.db.dbworld.player.ui.HudOverlay(state = uiState)
                     com.db.dbworld.player.ui.SeekFlash(state = uiState)
-                    com.db.dbworld.player.ui.ZoomFlash(state = uiState)
                     com.db.dbworld.player.ui.BufferingSpinner(state = uiState)
                 }
             }

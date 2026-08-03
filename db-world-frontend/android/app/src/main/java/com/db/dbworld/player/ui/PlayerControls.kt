@@ -3,7 +3,6 @@ package com.db.dbworld.player.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -62,7 +61,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -138,8 +136,9 @@ fun PlayerControls(
     // Auto-hide after a few seconds of no interaction — whether playing OR paused (paused just
     // idles a touch longer, then reveals the pause info card). Held open while a sheet is open
     // or after playback ended (the next-episode card owns the screen then).
-    LaunchedEffect(state.controlsVisible, state.isPlaying, sheet, state.ended) {
-        if (state.controlsVisible && sheet == null && !state.ended) {
+    LaunchedEffect(state.controlsVisible, state.isPlaying, sheet, state.ended, state.scrubbing) {
+        // Never auto-hide while the user is dragging the progress bar.
+        if (state.controlsVisible && sheet == null && !state.ended && !state.scrubbing) {
             // Paused idles noticeably longer before the controls hide and the pause card appears.
             delay(if (state.isPlaying) 3000 else 5500); state.controlsVisible = false
         }
@@ -149,7 +148,6 @@ fun PlayerControls(
     val epLabel = if (curIdx >= 0) state.episodes[curIdx].label else null
     val nextEp = if (curIdx >= 0 && curIdx + 1 < state.episodes.size) state.episodes[curIdx + 1] else null
     val vis = state.controlsVisible
-    val centerAlpha by animateFloatAsState(if (state.scrubbing) 0f else 1f, label = "centerAlpha")
 
     Box(Modifier.fillMaxSize()) {
         // Gradient scrims — stronger at the bottom for the taller control bar. Fades with controls.
@@ -195,22 +193,18 @@ fun PlayerControls(
             }
         }
 
-        // Center transport cluster — fades with controls, and dims out while scrubbing so the
-        // storyboard preview owns the screen.
+        // Center transport cluster — fades with the controls; stays visible while scrubbing.
         AnimatedVisibility(vis, modifier = Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
             Row(
-                Modifier.alpha(centerAlpha),
                 horizontalArrangement = Arrangement.spacedBy(40.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { onSeekBy(-10_000) }) {
                     Icon(Icons.Filled.Replay10, "Rewind 10 seconds", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
-                // While buffering/seeking the play button is hidden — the centered spinner
-                // (BufferingSpinner) shows in its place, so you never tap a stale control.
+                // While buffering the play button is hidden — the centered spinner shows in its place.
                 Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                    // Hidden while buffering/scrubbing — the centered spinner shows in its place.
-                    if (!state.buffering && !state.scrubbing) {
+                    if (!state.buffering) {
                         IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
                             Crossfade(targetState = state.isPlaying, label = "playpause") { playing ->
                                 Icon(
