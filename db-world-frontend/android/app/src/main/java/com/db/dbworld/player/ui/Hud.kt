@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.foundation.shape.CircleShape
@@ -132,9 +133,15 @@ fun SeekFlash(state: PlayerUiState) {
                 enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.7f),
                 exit = fadeOut(tween(250)),
             ) {
-                // YouTube-style: just the pulsing chevrons + "N seconds" over the video — no pill,
-                // circle, or bracket — matching the reference screenshot.
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // YouTube-style: a soft radial dim behind the arrows (fades out toward the edges,
+                // no hard circle/pill), matching the grey fade on the tapped half in the reference.
+                Box(contentAlignment = Alignment.Center) {
+                    Spacer(
+                        Modifier.size(320.dp).background(
+                            Brush.radialGradient(listOf(Color(0x59000000), Color.Transparent)),
+                        ),
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val transition = rememberInfiniteTransition(label = "seekArrows")
                         Row {
                             repeat(3) { i ->
@@ -159,6 +166,7 @@ fun SeekFlash(state: PlayerUiState) {
                         Text("${state.seekSeconds} seconds", color = Color.White, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, style = shadow, modifier = Modifier.padding(top = 6.dp))
                     }
+                }
             }
         }
     }
