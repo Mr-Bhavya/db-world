@@ -264,8 +264,11 @@ fun PlayerControls(
         // "Next episode" pill auto-surfaces near the end of a series episode (independent of the
         // control bar's visibility, like Netflix).
         val remainingMs = state.durationMs - state.positionMs
-        // Only when the control bar is hidden (its own row already has a Next button).
-        val showNextPill = nextEp != null && !vis && state.durationMs > 0 && !state.ended && remainingMs in 1L..40_000L
+        // Suggest the next episode in the last 2 min OR once ≥95% complete (whichever is earlier),
+        // and only when the control bar is hidden (its own row already has a Next button).
+        val nearEnd = state.durationMs > 0 &&
+            (remainingMs in 1L..120_000L || state.positionMs >= state.durationMs * 95 / 100)
+        val showNextPill = nextEp != null && !vis && !state.ended && nearEnd
         AnimatedVisibility(
             visible = showNextPill,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 24.dp),

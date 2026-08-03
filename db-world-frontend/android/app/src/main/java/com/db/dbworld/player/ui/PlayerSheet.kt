@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -198,33 +199,40 @@ fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, o
 }
 
 /**
- * Read-only media details in the SAME row style as the other sheets (section header + label/value
- * rows, no cards). Audio pulls the full MediaInfo detail supplied by JS (codec · channels · bitrate
- * · sample rate).
+ * Read-only media details as TWO columns (like the Audio & Subtitles sheet): Video + Playback on
+ * the LEFT, Audio + Subtitles on the RIGHT, split by a vertical divider, with horizontal dividers
+ * between sections. Handles multiple audio/subtitle tracks.
  */
 @Composable
 fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
     PlayerSheet("Media info", onDismiss) {
-        SheetSection("Video")
-        InfoLine("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
-        InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
-        InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
-        InfoLine("Frame rate", fpsText(state.frameRate))
-
-        SheetSection("Audio")
-        when {
-            state.audioInfo.isNotEmpty() -> state.audioInfo.forEach { a -> InfoLine(a.name, a.detail.ifEmpty { "—" }) }
-            state.audioTracks.isNotEmpty() -> state.audioTracks.forEach { t -> InfoLine(t.label, "") }
-            else -> InfoLine("Tracks", "None")
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp)) {
+            Column(Modifier.weight(1f)) {
+                SheetSection("Video")
+                InfoLine("Resolution", if (state.videoWidth > 0) "${state.videoWidth} × ${state.videoHeight}" else "—")
+                InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
+                InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
+                InfoLine("Frame rate", fpsText(state.frameRate))
+                InfoDivider()
+                SheetSection("Playback")
+                InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
+                InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
+            }
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 6.dp).background(Color(0x1FFFFFFF)))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                SheetSection("Audio")
+                when {
+                    state.audioInfo.isNotEmpty() -> state.audioInfo.forEach { a -> InfoTrack(a.name, a.detail) }
+                    state.audioTracks.isNotEmpty() -> state.audioTracks.forEach { t -> InfoTrack(t.label, "") }
+                    else -> InfoTrack("None", "")
+                }
+                InfoDivider()
+                SheetSection("Subtitles")
+                if (state.subtitleTracks.isEmpty()) InfoTrack("None", "")
+                else state.subtitleTracks.forEach { t -> InfoTrack(t.label, "") }
+            }
         }
-
-        SheetSection("Subtitles")
-        if (state.subtitleTracks.isEmpty()) InfoLine("Tracks", "None")
-        else state.subtitleTracks.forEach { t -> InfoLine(t.label, "") }
-
-        SheetSection("Playback")
-        InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")
-        InfoLine("Decoder", when (state.decoderMode) { 1 -> "Hardware"; 2 -> "Software (FFmpeg)"; else -> "Auto (HW → SW)" })
     }
 }
 
@@ -234,20 +242,35 @@ private fun fpsText(fps: Float): String = when {
     else -> "%.3f".format(fps).trimEnd('0').trimEnd('.') + " fps"
 }
 
-/** Read-only detail row: label left, value right (muted), with a hairline divider beneath. */
+/** KV detail row: label left, value right (muted). */
 @Composable
 private fun InfoLine(label: String, value: String) {
-    Column {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, color = PlayerTheme.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            if (value.isNotEmpty()) {
-                Text(value, color = PlayerTheme.TextMuted, fontSize = 14.sp,
-                    textAlign = TextAlign.End, modifier = Modifier.padding(start = 12.dp))
-            }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = PlayerTheme.TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        if (value.isNotEmpty()) {
+            Text(value, color = PlayerTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.End, modifier = Modifier.padding(start = 8.dp))
         }
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x14FFFFFF)))
     }
+}
+
+/** A track row (name over its detail) for the multi-track Audio / Subtitles columns. */
+@Composable
+private fun InfoTrack(name: String, detail: String) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp)) {
+        Text(name, color = PlayerTheme.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (detail.isNotEmpty()) {
+            Text(detail, color = PlayerTheme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/** Horizontal hairline between sections within a column. */
+@Composable
+private fun InfoDivider() {
+    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(0.5.dp).background(Color(0x1FFFFFFF)))
 }
