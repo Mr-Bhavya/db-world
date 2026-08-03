@@ -53,4 +53,6 @@ class PlayerUiState {
     var zoomTick by mutableLongStateOf(0L)
     // Scrub-preview storyboard (null if the file has no sprite).
     var storyboard by mutableStateOf<com.db.dbworld.player.PlayerStoryboard?>(null)
+    // Full audio-track detail from the API (for the Info sheet).
+    var audioInfo by mutableStateOf<List<com.db.dbworld.player.PlayerAudioInfo>>(emptyList())
 }

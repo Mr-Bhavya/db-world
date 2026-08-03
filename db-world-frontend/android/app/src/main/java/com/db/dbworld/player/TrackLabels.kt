@@ -99,6 +99,9 @@ data class PlayerEpisode(
 /** A quality variant (URL already resolved by JS). */
 data class PlayerVariant(val url: String, val label: String)
 
+/** Full audio-track detail from the API MediaInfo (pre-formatted by JS) for the Info sheet. */
+data class PlayerAudioInfo(val name: String, val detail: String)
+
 /**
  * Scrub-preview storyboard: one sprite sheet at [url], a [cols]×[rows] grid of [tileW]×[tileH]
  * thumbnails, one every [intervalMs] ms, [count] total. Tile index = floor(posMs/intervalMs).

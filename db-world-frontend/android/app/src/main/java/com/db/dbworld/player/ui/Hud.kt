@@ -1,7 +1,12 @@
 package com.db.dbworld.player.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -27,6 +32,7 @@ import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
@@ -40,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -129,11 +136,30 @@ fun SeekFlash(state: PlayerUiState) {
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        if (forward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
-                        contentDescription = null, tint = Color.White, modifier = Modifier.size(38.dp),
-                    )
-                    Text("10 seconds", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    // Three chevrons that pulse in sequence (YouTube-style), pointing in the seek
+                    // direction — rewind mirrors the triangle and reverses the flow.
+                    val transition = rememberInfiniteTransition(label = "seekArrows")
+                    Row {
+                        repeat(3) { i ->
+                            val phaseIdx = if (forward) i else 2 - i
+                            val a by transition.animateFloat(
+                                initialValue = 0.25f, targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(420),
+                                    repeatMode = RepeatMode.Reverse,
+                                    initialStartOffset = StartOffset(phaseIdx * 130),
+                                ),
+                                label = "arrow$i",
+                            )
+                            Icon(
+                                Icons.Filled.PlayArrow, contentDescription = null,
+                                tint = Color.White.copy(alpha = a),
+                                modifier = Modifier.size(24.dp)
+                                    .then(if (forward) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
+                            )
+                        }
+                    }
+                    Text("10 seconds", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                 }
             }
         }

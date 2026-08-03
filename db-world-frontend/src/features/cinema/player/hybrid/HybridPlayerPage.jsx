@@ -22,6 +22,45 @@ import { isNativePlayerEnabled } from './nativePlayerFlag';
 
 const NativePlayer = registerPlugin('NativePlayer');
 
+// Compact audio-track formatters for the native Info sheet (mirror the web player's labels),
+// built from the file's MediaInfo (`cur.audio`) which the ExoPlayer track list doesn't fully expose.
+const _audCodec = (a) => {
+  const raw = String(a.formatCommercial || a.format || a.codecId || '').toUpperCase();
+  if (raw.includes('EAC3') || raw.includes('E-AC-3') || raw.includes('E-AC3')) return 'E-AC3';
+  if (raw.includes('TRUEHD') || raw.includes('TRUE-HD')) return 'TrueHD';
+  if (raw.includes('DTS-HD') || raw.includes('DTSHD')) return 'DTS-HD';
+  if (raw.includes('DTS')) return 'DTS';
+  if (raw.includes('AC-3') || raw.includes('AC3')) return 'AC3';
+  if (raw.includes('AAC')) return 'AAC';
+  if (raw.includes('OPUS')) return 'Opus';
+  if (raw.includes('FLAC')) return 'FLAC';
+  if (raw.includes('MP3') || raw.includes('MPEG AUDIO')) return 'MP3';
+  if (raw.includes('PCM')) return 'PCM';
+  return a.format || '';
+};
+const _audCh = (a) => {
+  const n = Number(a.channels);
+  if (n >= 8) return '7.1';
+  if (n >= 6) return '5.1';
+  if (n === 2) return 'Stereo';
+  if (n === 1) return 'Mono';
+  return '';
+};
+const _audBr = (a) => {
+  const n = Number(a.bitRate);
+  if (Number.isFinite(n) && n > 0) return `${Math.round(n / 1000)} kbps`;
+  if (typeof a.bitRate === 'string' && a.bitRate.trim()) return a.bitRate.trim();
+  return '';
+};
+const _audSr = (a) => {
+  const hz = Number(a.sampleRate ?? a.samplingRate);
+  return hz > 0 ? `${(hz / 1000).toFixed(hz % 1000 === 0 ? 0 : 1)} kHz` : '';
+};
+const buildAudioInfo = (audio) => (audio || []).map((a, i) => ({
+  name: a.language || a.title || `Audio ${i + 1}`,
+  detail: [_audCodec(a), _audCh(a), _audBr(a), _audSr(a)].filter(Boolean).join(' · '),
+}));
+
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
   if (!fileId) return 0;
@@ -135,6 +174,7 @@ export default function HybridPlayerPage() {
       title: showTitle,
       overview: media?.overview || '',
       storyboard: cur.storyboard || null,
+      audioInfo: buildAudioInfo(cur.audio),
     }).catch(() => {});
   }, [episodes, cur, media, showTitle]);
 

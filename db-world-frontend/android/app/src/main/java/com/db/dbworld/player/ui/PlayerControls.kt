@@ -140,7 +140,8 @@ fun PlayerControls(
     // or after playback ended (the next-episode card owns the screen then).
     LaunchedEffect(state.controlsVisible, state.isPlaying, sheet, state.ended) {
         if (state.controlsVisible && sheet == null && !state.ended) {
-            delay(if (state.isPlaying) 3000 else 3600); state.controlsVisible = false
+            // Paused idles noticeably longer before the controls hide and the pause card appears.
+            delay(if (state.isPlaying) 3000 else 5500); state.controlsVisible = false
         }
     }
 
@@ -239,17 +240,23 @@ fun PlayerControls(
                     Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Text(fmt(state.durationMs), color = PlayerTheme.TextDim, fontSize = 12.sp)
                 }
-                FlowRow(
+                // Split row: settings on the LEFT, content/navigation (Audio, Episodes, Next) on
+                // the RIGHT — like Netflix, where "Episodes" lives bottom-right.
+                Row(
                     Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
-                    if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
-                    if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
-                    CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
-                    if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
-                    CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CtrlBtn(Icons.Filled.Speed, "${trimSpeed(state.speed)}×", state.speed != 1f) { sheet = "speed" }
+                        if (state.variants.isNotEmpty()) CtrlBtn(Icons.Filled.HighQuality, "Quality", sheet == "quality") { sheet = "quality" }
+                        CtrlBtn(Icons.Filled.Info, "Info", sheet == "info") { sheet = "info" }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CtrlBtn(Icons.Filled.Audiotrack, "Audio & Subtitles", sheet == "audio") { sheet = "audio" }
+                        if (state.episodes.size > 1) CtrlBtn(Icons.Filled.PlaylistPlay, "Episodes", sheet == "episodes") { sheet = "episodes" }
+                        if (nextEp != null) CtrlBtn(Icons.Filled.SkipNext, "Next episode", false) { onSelectEpisode(nextEp.fileId) }
+                    }
                 }
             }
         }

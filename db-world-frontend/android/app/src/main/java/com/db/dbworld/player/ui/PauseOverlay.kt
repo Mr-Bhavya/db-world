@@ -1,6 +1,7 @@
 package com.db.dbworld.player.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -38,7 +39,8 @@ fun PauseOverlay(state: PlayerUiState) {
     // Drop shadow on every line so the text stays readable even over a bright frame.
     val shadow = TextStyle(shadow = Shadow(Color.Black, Offset(0f, 2f), blurRadius = 12f))
 
-    AnimatedVisibility(visible = show, enter = fadeIn(), exit = fadeOut()) {
+    // Ease in slowly for a calm, gradual reveal (not a snap).
+    AnimatedVisibility(visible = show, enter = fadeIn(tween(700)), exit = fadeOut(tween(300))) {
         Box(
             Modifier.fillMaxSize().background(
                 // Darker and reaching further right, so the whole text column sits on a dark base.

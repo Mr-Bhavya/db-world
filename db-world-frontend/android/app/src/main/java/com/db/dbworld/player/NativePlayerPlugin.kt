@@ -226,6 +226,7 @@ class NativePlayerPlugin : Plugin() {
         val playlistTitle = call.getString("title") ?: ""
         val playlistOverview = call.getString("overview") ?: ""
         val sb = call.getObject("storyboard")
+        val audioInfoArr = call.getArray("audioInfo")
         activity.runOnUiThread {
             uiState.episodes = parseEpisodes(eps)
             uiState.variants = parseVariants(vars)
@@ -233,8 +234,19 @@ class NativePlayerPlugin : Plugin() {
             uiState.title = playlistTitle
             uiState.overview = playlistOverview
             uiState.storyboard = parseStoryboard(sb)
+            uiState.audioInfo = parseAudioInfo(audioInfoArr)
         }
         call.resolve()
+    }
+
+    private fun parseAudioInfo(arr: com.getcapacitor.JSArray?): List<PlayerAudioInfo> {
+        val out = ArrayList<PlayerAudioInfo>()
+        if (arr == null) return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(PlayerAudioInfo(o.optString("name"), o.optString("detail")))
+        }
+        return out
     }
 
     private fun parseStoryboard(o: JSObject?): PlayerStoryboard? {
