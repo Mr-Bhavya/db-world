@@ -47,31 +47,39 @@ const SYNC_CHIPS = [
 const fmtSyncDate = (iso) =>
   new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-// ── Bulk action bar — shown when rows are selected ──────────────────────────────
-function BulkBar({ count, busy, onResync, onShow, onHide, onDelete, onClear, T }) {
+// ── Bulk action bar — a floating, viewport-pinned pill shown when rows are
+// selected. Deliberately `position: fixed` (not inside the table card) so it
+// stays put while the page scrolls — a sticky child of the SectionCard would be
+// clipped by its overflow:hidden, and stacking a second sticky under the filters
+// bar needs a fragile dynamic offset. ──────────────────────────────────────────
+function BulkBar({ count, busy, onResync, onPublish, onUnlist, onDelete, onClear, T }) {
   const S = adminSurface(T);
   const action = (icon, label, onClick, danger) => (
     <Box onClick={busy ? undefined : onClick}
       sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: busy ? 'default' : 'pointer',
-        px: 1, py: 0.5, borderRadius: 1, fontSize: 13,
+        px: 1, py: 0.5, borderRadius: 1.5, fontSize: 13, whiteSpace: 'nowrap',
         color: danger ? T.error : T.teal, opacity: busy ? 0.5 : 1,
         '&:hover': { bgcolor: danger ? T.errorBg : T.tealBg } }}>
       {icon}{label}
     </Box>
   );
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap',
-      px: { xs: 1.5, md: 2.5 }, py: 0.75, flexShrink: 0,
-      bgcolor: T.tealBg, borderBottom: `1px solid ${S.divider}` }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.teal, mr: 1 }}>{count} selected</Typography>
+    <Box sx={{
+      position: 'fixed', bottom: { xs: 12, sm: 20 }, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1200, maxWidth: 'calc(100vw - 24px)',
+      display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'nowrap', overflowX: 'auto',
+      px: { xs: 1.25, sm: 1.75 }, py: 0.75,
+      bgcolor: S.card, border: `1px solid ${T.teal}66`, borderRadius: 999,
+      boxShadow: '0 10px 34px rgba(0,0,0,0.30)',
+      '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.teal, mr: 1, whiteSpace: 'nowrap' }}>{count} selected</Typography>
       {busy && <CircularProgress size={14} sx={{ color: T.teal, mr: 1 }} />}
       {action(<SyncIcon sx={{ fontSize: 16 }} />, 'Re-sync', onResync)}
-      {action(<VisibilityIcon sx={{ fontSize: 16 }} />, 'Show on rails', onShow)}
-      {action(<VisibilityOffIcon sx={{ fontSize: 16 }} />, 'Hide from rails', onHide)}
+      {action(<VisibilityIcon sx={{ fontSize: 16 }} />, 'Publish', onPublish)}
+      {action(<VisibilityOffIcon sx={{ fontSize: 16 }} />, 'Unlist', onUnlist)}
       {action(<DeleteIcon sx={{ fontSize: 16 }} />, 'Delete', onDelete, true)}
-      <Box sx={{ flex: 1 }} />
       <Tooltip title="Clear selection">
-        <IconButton size="small" onClick={onClear} sx={{ color: T.textMuted }}>
+        <IconButton size="small" onClick={onClear} sx={{ color: T.textMuted, ml: 0.5 }}>
           <CloseIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
@@ -344,20 +352,6 @@ export default function RecordManagementV2() {
 
       {/* Table */}
       <SectionCard padding={false} flushMobile>
-        {/* Bulk action bar — appears when rows are checked */}
-        {selectedRows.length > 0 && (
-          <BulkBar
-            count={selectedRows.length}
-            busy={bulkBusy}
-            onResync={() => runBulk('Re-synced', id => refreshRecordFromTmdb(id))}
-            onShow={() => runBulk('Updated', id => setRecordVisibility(id, false))}
-            onHide={() => runBulk('Updated', id => setRecordVisibility(id, true))}
-            onDelete={handleBulkDelete}
-            onClear={clearSelection}
-            T={T}
-          />
-        )}
-
         {error ? (
           <ErrorState message="Failed to load records" onRetry={refetch} />
         ) : isLoading ? (
@@ -384,6 +378,20 @@ export default function RecordManagementV2() {
           />
         )}
       </SectionCard>
+
+      {/* Floating bulk-action bar — pinned to the viewport so it stays put while scrolling */}
+      {selectedRows.length > 0 && (
+        <BulkBar
+          count={selectedRows.length}
+          busy={bulkBusy}
+          onResync={() => runBulk('Re-synced', id => refreshRecordFromTmdb(id))}
+          onPublish={() => runBulk('Published', id => setRecordVisibility(id, 'PUBLISHED'))}
+          onUnlist={() => runBulk('Unlisted', id => setRecordVisibility(id, 'UNLISTED'))}
+          onDelete={handleBulkDelete}
+          onClear={clearSelection}
+          T={T}
+        />
+      )}
 
       <RecordDetailDrawer rows={rows} />
       <RecordCreateModal    open={modalState === 'create'} onClose={closeModal} />
