@@ -9,7 +9,12 @@
 $ActiveProfile = "local"
 
 $ScriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = Split-Path -Parent $ScriptsDir
+# This script lives in scripts\run\ — repo root is two levels up.
+$BaseDir = Split-Path -Parent (Split-Path -Parent $ScriptsDir)
+
+# Shared helpers (JDK-25 resolver etc.). Optional — fall back gracefully if absent.
+$CommonFile = Join-Path (Split-Path -Parent $ScriptsDir) "lib\dbworld-common.ps1"
+if (Test-Path $CommonFile) { . $CommonFile }
 
 $BackendDir = Join-Path $BaseDir "db-world-backend"
 $RuntimeDir = Join-Path $BaseDir "runtime"
@@ -87,7 +92,20 @@ Write-Host ""
 
 Set-Location $BackendDir
 
-java "-Dspring.profiles.active=$ActiveProfile" -jar $WarFile
+# The WAR is built for Java 25, but JAVA_HOME here may be JDK 21 and PATH's default `java` isn't
+# guaranteed to be 25. Pin a real JDK 25 so `java -jar` never hits UnsupportedClassVersionError.
+$javaExe = "java"
+if (Get-Command Resolve-Jdk25Home -ErrorAction SilentlyContinue) {
+    $jdk = Resolve-Jdk25Home
+    if ($jdk) {
+        $javaExe = Join-Path $jdk "bin\java.exe"
+        Write-Host "Using JDK: $jdk" -ForegroundColor DarkGray
+    } else {
+        Write-Host "[WARN] JDK 25 not found - falling back to 'java' on PATH." -ForegroundColor Yellow
+    }
+}
+
+& $javaExe "-Dspring.profiles.active=$ActiveProfile" -jar $WarFile
 
 $exitCode = $LASTEXITCODE
 Write-Host ""

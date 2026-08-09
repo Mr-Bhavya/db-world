@@ -4,8 +4,10 @@
 # ==========================================================
 
 $ScriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = Split-Path -Parent $ScriptsDir
+# This script lives in scripts\run\ — repo root is two levels up.
+$BaseDir = Split-Path -Parent (Split-Path -Parent $ScriptsDir)
 
+# Backend + frontend runners live alongside this script (scripts\run\).
 $BackendScript = Join-Path $ScriptsDir "start-dbworld-backend.ps1"
 $FrontendScript = Join-Path $ScriptsDir "start-dbworld-frontend.ps1"
 
