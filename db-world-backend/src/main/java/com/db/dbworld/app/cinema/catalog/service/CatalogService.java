@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,12 +22,28 @@ public interface CatalogService {
 
     RecordDto createRecord(CreateRecordRequest request);
 
-    /** Toggle whether a record is hidden from rails (search visibility unchanged). */
-    RecordDto setHideFromRails(Long recordId, boolean hide);
+    /**
+     * Set a record's visibility (DRAFT / PUBLISHED / UNLISTED). Publishing (first transition to
+     * PUBLISHED) fires the one-time "new title" push when the record has media files — see
+     * {@code announceIfReady}. Publishing without media is allowed (warned in the UI) and simply
+     * defers the push until media arrives.
+     */
+    RecordDto setVisibility(Long recordId, RecordVisibility visibility);
 
     RecordDto updateRecord(Long id, UpdateRecordRequest request);
 
+    /** Admin-facing read — returns the record regardless of visibility (drafts included). */
     RecordDto getRecord(Long recordId);
+
+    /** Public-facing read — 404s a DRAFT so unpublished records aren't reachable by direct link. */
+    RecordDto getPublicRecord(Long recordId);
+
+    /**
+     * Hook called after a record's media finishes ingesting: auto-publishes the draft when the
+     * {@code cinema.record.auto-publish-on-media} setting is on, and fires the deferred "new title"
+     * push if the record is now publicly playable. Best-effort — never throws.
+     */
+    void onMediaIngested(Long recordId);
 
     /**
      * Returns up to {@code limit} records sharing the primary genre of

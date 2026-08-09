@@ -1,17 +1,15 @@
 import {
   Dialog, Box, Typography, Chip, IconButton, Tabs, Tab,
-  CircularProgress, Alert, Tooltip, useMediaQuery,
+  CircularProgress, Alert, useMediaQuery,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
 import { getAdminRecordDetail } from '../api/adminApi';
 import { useRecordStore } from '../stores/useRecordStore';
-import { useRecordVisibility } from './useRecordVisibility';
+import VisibilityControl from './VisibilityControl';
 import { useRecordSync } from './useRecordSync';
 import { TmdbDetailBody } from './TmdbDetailModal';
 import { MediaFilesBody } from './MediaFilesModal';
@@ -129,7 +127,6 @@ export default function RecordDetailDrawer({ rows }) {
   const { drawerRecordId, drawerTab, setDrawerTab, closeDrawer } = useRecordStore();
   const open = Boolean(drawerRecordId);
   const row  = rows?.find(r => r.recordId === drawerRecordId);
-  const visibilityMut = useRecordVisibility();
   const isXs = useMediaQuery('(max-width:600px)');
 
   return (
@@ -155,14 +152,7 @@ export default function RecordDetailDrawer({ rows }) {
                 #{row.tmdbId} ↗
               </Box>
             )}
-            {row && (
-              <Tooltip title={row.hideFromRails ? 'Hidden from rails (click to show)' : 'Visible on rails (click to hide)'}>
-                <IconButton size="small" onClick={() => visibilityMut.mutate({ id: row.recordId, hideFromRails: !row.hideFromRails })}
-                  sx={{ color: row.hideFromRails ? T.error : T.success, p: .25 }}>
-                  {row.hideFromRails ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
-                </IconButton>
-              </Tooltip>
-            )}
+            {row && <VisibilityControl row={row} />}
           </Box>
         </Box>
         <IconButton onClick={closeDrawer} sx={{ color: T.textMuted, flexShrink: 0 }}><CloseIcon /></IconButton>

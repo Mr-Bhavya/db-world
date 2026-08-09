@@ -93,7 +93,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                         String.class,
                         tags.get("tagType"),
                         cb.literal(",")),
-                record.get("hideFromRails")
+                record.get("visibility")
         ));
 
         query.where(predicates.toArray(new Predicate[0]));
@@ -106,7 +106,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 tmdb.get("year"),
                 record.get("createdAt"),
                 record.get("updatedAt"),
-                record.get("hideFromRails")
+                record.get("visibility")
         );
 
         TypedQuery<RecordAdminRowDto> typedQuery = em.createQuery(query);
@@ -138,7 +138,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 YEAR(COALESCE(NULLIF(TRIM(tm.release_date), ''), NULLIF(TRIM(tm.first_air_date), ''))) AS year,
                 r.created_at AS createdAt,
                 r.updated_at AS updatedAt,
-                r.hide_from_rails AS hideFromRails,
+                r.visibility AS visibility,
                 (SELECT GROUP_CONCAT(t.tag_type ORDER BY t.priority SEPARATOR ',')
                    FROM record_tags t WHERE t.record_id = r.id) AS tags,
                 s.status AS syncStatus,
@@ -271,7 +271,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 toInteger(r[4]),
                 toInstant(r[5]),
                 toInstant(r[6]),
-                toBoolean(r[7]),
+                (String) r[7],
                 (String) r[8],
                 (String) r[9],
                 toInstant(r[10]),

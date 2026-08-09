@@ -39,6 +39,11 @@ public final class ConfigKeys {
     public static final String WALLET_MAX_FILE_SIZE_BYTES           = "wallet.max-file-size-bytes";
     public static final String WALLET_ALLOWED_CONTENT_TYPES         = "wallet.allowed-content-types";
 
+    // Cinema catalog
+    // When true, a DRAFT record is auto-published (and its "new title" push fires) the moment its
+    // first media file finishes ingesting — otherwise an admin publishes it manually.
+    public static final String CINEMA_RECORD_AUTO_PUBLISH           = "cinema.record.auto-publish-on-media";
+
     // IPO Tracker (IPO Guru API key is a SECRET — read from env IPO_GURU_API_KEY, not here)
     // Poll cadence is NOT a setting here — it lives in scheduler_job_config (job id "ipo-poll"),
     // admin-editable via the Scheduler page like every other cron job.

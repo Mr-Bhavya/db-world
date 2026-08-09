@@ -22,7 +22,8 @@ public interface RecordAdminRowDto {
 
     String getTags();
 
-    Boolean getHideFromRails();
+    /** DRAFT / PUBLISHED / UNLISTED (string form, straight from the projection). */
+    String getVisibility();
 
     /* ── TMDB sync state (LEFT JOIN tmdb_record_sync; null when never synced) ── */
 
