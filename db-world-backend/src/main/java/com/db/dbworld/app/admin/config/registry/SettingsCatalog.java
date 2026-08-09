@@ -21,6 +21,7 @@ public final class SettingsCatalog {
     private static final String C_WALLET    = "Document Wallet";
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
+    private static final String C_INGESTION = "Media Ingestion";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -122,7 +123,16 @@ public final class SettingsCatalog {
         str(PUSH_IPO_TOPIC, C_PUSH, "IPO push topic",
             "FCM topic every device is subscribed to on register; IPO alerts broadcast to it "
             + "(so every user is notified). Blank restores the built-in default.",
-            "ipo-all", false, 1)
+            "ipo-all", false, 1),
+
+        // ── Media Ingestion ───────────────────────────────────────────────
+        bool(INGESTION_TRACK_REVIEW_ENABLED, C_INGESTION, "Track review enabled",
+             "Master switch for the post-download audio/subtitle track review. When off, jobs that "
+             + "requested review just apply the smart-default filter automatically (no prompt).", true, 0),
+        intg(INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES, C_INGESTION, "Track review timeout (min)",
+             "How long a job waits for you to pick tracks before auto-applying the smart default and "
+             + "continuing. The job holds no processing slot while it waits, so other jobs proceed.",
+             30, 1L, 1440L, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

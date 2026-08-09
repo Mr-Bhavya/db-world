@@ -182,6 +182,9 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const isTerminal = TERMINAL.includes(status);
   const isPaused = status === 'PAUSED';
   const isActive = !isTerminal && !isPaused;
+  // Live-edit is only useful before processing consumes the request (Queued / Started /
+  // Downloading / Paused). Once processing or terminal, use "Edit & rerun" instead.
+  const canLiveEdit = !isTerminal && status !== 'PROCESSING';
 
   const invalidateHistory = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['ingestion-history'] });
@@ -231,15 +234,18 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
       });
     }
 
-    if (!isTerminal) {
+    if (canLiveEdit) {
       list.push({
         key: 'Edit',
-        label: 'Edit season/episode',
+        label: 'Edit job',
         colorKey: 'primary',
         icon: <Edit fontSize="small" />,
         onClick: () => setLiveEditOpen(true),
         subtle: true,
       });
+    }
+
+    if (!isTerminal) {
       list.push({
         key: 'Cancel',
         label: 'Cancel',
@@ -277,7 +283,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
     });
 
     return list;
-  }, [isActive, isYt, isPaused, isTerminal, act, job.jobId]);
+  }, [isActive, isYt, isPaused, isTerminal, canLiveEdit, act, job.jobId]);
 
   const closeRerunEdit = useCallback(() => {
     setRerunEditOpen(false);
@@ -291,6 +297,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const liveEditDialog = liveEditOpen ? (
     <LiveEditDialog
       jobId={job.jobId}
+      status={status}
       open={liveEditOpen}
       onClose={() => setLiveEditOpen(false)}
     />

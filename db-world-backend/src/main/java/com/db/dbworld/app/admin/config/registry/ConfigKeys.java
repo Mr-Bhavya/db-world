@@ -56,4 +56,8 @@ public final class ConfigKeys {
     // env (not a setting here), same as the IPO Guru API key.
     public static final String PUSH_ENABLED                         = "push.enabled";
     public static final String PUSH_IPO_TOPIC                       = "push.ipo.topic";
+
+    // Media Ingestion — interactive audio/subtitle track review (opt-in per job).
+    public static final String INGESTION_TRACK_REVIEW_ENABLED         = "ingestion.track-review.enabled";
+    public static final String INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES = "ingestion.track-review.timeout-minutes";
 }

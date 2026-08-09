@@ -103,6 +103,15 @@ public class TrackFilter {
     private boolean keepFirstVideoOnly = false;
 
     /**
+     * Marks this filter as an explicit, final decision (e.g. picked in the interactive track-review
+     * dialog, or the smart default applied on review timeout). {@code SmartTrackFilterService} then
+     * uses it AS-IS and will NOT recompute a smart default — even when the decision is "keep
+     * everything" (no languages dropped). Default {@code false} = normal smart-resolve behaviour.
+     */
+    @Builder.Default
+    private boolean explicit = false;
+
+    /**
      * Number of audio streams per original language code (e.g. "hin" → 2 for dual-channel).
      * Used to emit correct index-based {@code -metadata:s:a:N} specifiers.
      * {@code null} means assume 1 stream per language.

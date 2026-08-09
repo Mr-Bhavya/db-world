@@ -1,6 +1,8 @@
 package com.db.dbworld.app.media.ingestion.config;
 
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.pipeline.DefaultIngestionPipeline;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
@@ -9,6 +11,7 @@ import com.db.dbworld.app.media.ingestion.spi.DownloadStrategy;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.ingestion.spi.SourceHandler;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
+import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.push.PushService;
 import lombok.extern.log4j.Log4j2;
@@ -50,7 +53,10 @@ public class IngestionConfig {
             IngestionJobStore        jobStore,
             IngestionDownloadQueue   downloadQueue,
             RecordRepository         recordRepository,
-            PushService              pushService
+            PushService              pushService,
+            SmartTrackFilterService  smartTrackFilterService,
+            TrackReviewCoordinator   trackReviewCoordinator,
+            SettingsService          settingsService
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -65,7 +71,10 @@ public class IngestionConfig {
                 jobStore,
                 downloadQueue,
                 recordRepository,
-                pushService
+                pushService,
+                smartTrackFilterService,
+                trackReviewCoordinator,
+                settingsService
         );
     }
 }
