@@ -218,8 +218,9 @@ export default function RecordManagementV2() {
       ...(filters.type     && { type:     filters.type }),
       ...(filters.year     && { year:     Number(filters.year) }),
       ...(filters.tmdbId   && { tmdbId:   Number(filters.tmdbId) }),
-      ...(filters.recordId && { recordId: Number(filters.recordId) }),
-      ...(filters.status   && { status:   filters.status }),
+      ...(filters.recordId   && { recordId:   Number(filters.recordId) }),
+      ...(filters.status     && { status:     filters.status }),
+      ...(filters.visibility && { visibility: filters.visibility }),
     };
     if (sortModel.length > 0) {
       base.sort = sortModel.map(s => `${s.field},${s.sort}`).join('&sort=');

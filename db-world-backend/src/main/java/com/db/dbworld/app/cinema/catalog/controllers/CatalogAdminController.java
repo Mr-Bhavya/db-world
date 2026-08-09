@@ -119,6 +119,7 @@ public class CatalogAdminController {
             @RequestParam(required = false) Long tmdbId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) SyncStatus status,
+            @RequestParam(required = false) RecordVisibility visibility,
             Pageable pageable
     ) {
 
@@ -130,6 +131,7 @@ public class CatalogAdminController {
                         tmdbId,
                         year,
                         status,
+                        visibility,
                         pageable
                 )
         );

@@ -62,6 +62,7 @@ public interface CatalogService {
             Long tmdbId,
             Integer year,
             SyncStatus status,
+            RecordVisibility visibility,
             Pageable pageable
     );
 

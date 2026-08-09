@@ -164,7 +164,8 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
 
     @Override
     public Page<RecordAdminRowDto> findAdminTable(
-            Long recordId, String name, String type, Long tmdbId, Integer year, String status, Pageable pageable) {
+            Long recordId, String name, String type, Long tmdbId, Integer year, String status,
+            String visibility, Pageable pageable) {
 
         boolean hasName = name != null && !name.isBlank();
 
@@ -187,15 +188,16 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 """);
         if (recordId != null) where.append(" AND r.id = :recordId");
         if (hasName)          where.append(" AND LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%'))");
-        if (type != null)     where.append(" AND r.type = :type");
-        if (tmdbId != null)   where.append(" AND tm.id = :tmdbId");
-        if (status != null)   where.append(" AND s.status = :status");
+        if (type != null)       where.append(" AND r.type = :type");
+        if (tmdbId != null)     where.append(" AND tm.id = :tmdbId");
+        if (status != null)     where.append(" AND s.status = :status");
+        if (visibility != null) where.append(" AND r.visibility = :visibility");
         if (year != null)     where.append(" AND YEAR(COALESCE(NULLIF(TRIM(tm.release_date), ''), NULLIF(TRIM(tm.first_air_date), ''))) = :year");
 
         String fromWhere = where.toString();
 
         Query dataQuery = em.createNativeQuery(ADMIN_SELECT + fromWhere + buildAdminOrderBy(pageable));
-        bindAdminParams(dataQuery, recordId, hasName ? name : null, type, tmdbId, year, status);
+        bindAdminParams(dataQuery, recordId, hasName ? name : null, type, tmdbId, year, status, visibility);
         dataQuery.setFirstResult((int) pageable.getOffset());
         dataQuery.setMaxResults(pageable.getPageSize());
 
@@ -206,7 +208,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 .collect(Collectors.toList());
 
         Query countQuery = em.createNativeQuery("SELECT COUNT(*) " + fromWhere);
-        bindAdminParams(countQuery, recordId, hasName ? name : null, type, tmdbId, year, status);
+        bindAdminParams(countQuery, recordId, hasName ? name : null, type, tmdbId, year, status, visibility);
         long total = ((Number) countQuery.getSingleResult()).longValue();
 
         return new PageImpl<>(content, pageable, total);
@@ -253,13 +255,14 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
     }
 
     private static void bindAdminParams(Query q, Long recordId, String name, String type,
-                                        Long tmdbId, Integer year, String status) {
-        if (recordId != null) q.setParameter("recordId", recordId);
-        if (name != null)     q.setParameter("name", name);
-        if (type != null)     q.setParameter("type", type);
-        if (tmdbId != null)   q.setParameter("tmdbId", tmdbId);
-        if (status != null)   q.setParameter("status", status);
-        if (year != null)     q.setParameter("year", year);
+                                        Long tmdbId, Integer year, String status, String visibility) {
+        if (recordId != null)   q.setParameter("recordId", recordId);
+        if (name != null)       q.setParameter("name", name);
+        if (type != null)       q.setParameter("type", type);
+        if (tmdbId != null)     q.setParameter("tmdbId", tmdbId);
+        if (status != null)     q.setParameter("status", status);
+        if (year != null)       q.setParameter("year", year);
+        if (visibility != null) q.setParameter("visibility", visibility);
     }
 
     private static RecordAdminRowDto mapAdminRow(Object[] r) {
