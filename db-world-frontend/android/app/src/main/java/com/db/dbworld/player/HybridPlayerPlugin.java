@@ -29,6 +29,7 @@ import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.media3.common.C;
+import androidx.media3.common.ColorInfo;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -82,6 +83,7 @@ public class HybridPlayerPlugin extends Plugin {
     private SubtitleView subtitleView;   // renders the selected text track's cues over the video
     private String  currentUrl;       // for decoder-mode recreate
     private int     decoderMode = 0;  // 0 auto · 1 hardware · 2 software
+    private boolean toneMappingApplied = false;  // HDR→SDR effects pipeline enabled for the current item
     // Aspect-fit transform state — without this a raw TextureView stretches the video.
     private float videoW = 0, videoH = 0, pixelRatio = 1f, zoom = 1f;
     // Track groups by type, indexed for selection from JS.
@@ -201,6 +203,7 @@ public class HybridPlayerPlugin extends Plugin {
         ensureAudio();   // system-volume sync + route hardware keys to media
         attachSurface(); // creates the TextureView and binds it to the player
         currentUrl = url;
+        toneMappingApplied = false;   // re-evaluated from the new item's tracks
         player.setMediaItem(MediaItem.fromUri(url));
         player.prepare();
         if (startMs > 0) player.seekTo(startMs);
@@ -685,6 +688,43 @@ public class HybridPlayerPlugin extends Plugin {
         notifyListeners("playerTracks", e);
     }
 
+    /** True if the format carries an HDR transfer function (HDR10/PQ or HLG). */
+    private static boolean isHdr(Format f) {
+        ColorInfo ci = f.colorInfo;
+        return ci != null
+                && (ci.colorTransfer == C.COLOR_TRANSFER_ST2084   // PQ — HDR10 / HDR10+ / Dolby Vision
+                 || ci.colorTransfer == C.COLOR_TRANSFER_HLG);    // HLG
+    }
+
+    /**
+     * The video is composited to a {@link TextureView} inside the app's SDR window,
+     * which cannot present an HDR (BT.2020 PQ/HLG, 10-bit) signal — a raw HDR frame
+     * shown as SDR renders far too dark (crushed blacks, faces lost in shadow). Routing
+     * playback through Media3's video-effects pipeline forces an HDR→SDR tone-map
+     * (DefaultVideoFrameProcessor, OpenGL path, API 29+), restoring correct brightness.
+     * Enabled ONLY when the loaded video is actually HDR, so ordinary SDR playback stays
+     * on the untouched fast path (and clear of the effects-pipeline seek quirks).
+     */
+    private void applyHdrToneMappingIfNeeded(Tracks tracks) {
+        if (toneMappingApplied || player == null) return;
+        for (Tracks.Group g : tracks.getGroups()) {
+            if (g.getType() != C.TRACK_TYPE_VIDEO) continue;
+            TrackGroup tg = g.getMediaTrackGroup();
+            for (int i = 0; i < tg.length; i++) {
+                if (isHdr(tg.getFormat(i))) {
+                    try {
+                        player.setVideoEffects(java.util.Collections.emptyList());
+                        toneMappingApplied = true;
+                        android.util.Log.d(TAG, "HDR video detected — enabled HDR→SDR tone mapping");
+                    } catch (Throwable t) {
+                        android.util.Log.w(TAG, "HDR tone-mapping unavailable", t);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
     private final Player.Listener playerListener = new Player.Listener() {
         @Override public void onIsPlayingChanged(boolean isPlaying) {
             // Keep the screen on only while actually playing; let it sleep when paused.
@@ -697,6 +737,7 @@ public class HybridPlayerPlugin extends Plugin {
         }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
+            applyHdrToneMappingIfNeeded(tracks);
         }
         // Draw the decoded subtitle cues (empty list when subtitles are off / none selected).
         // Without this sink the selected text track is decoded but never rendered anywhere.

@@ -12,6 +12,7 @@ import androidx.annotation.NonNull;
 import com.db.dbworld.appupdate.AppUpdatePlugin;
 import com.db.dbworld.download.DbWorldDownloadPlugin;
 import com.db.dbworld.player.HybridPlayerPlugin;
+import com.db.dbworld.player.NativePlayerPlugin;
 import com.db.dbworld.vaultcrypto.VaultCryptoPlugin;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
@@ -26,9 +27,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(HybridPlayerPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
         registerPlugin(VaultCryptoPlugin.class);
+        registerPlugin(NativePlayerPlugin.class);
         super.onCreate(savedInstanceState);
         setImmersiveMode();
         handleOpenDownloads(getIntent());
+        maybeStartHdrProbe(getIntent());
     }
 
     @Override
@@ -36,6 +39,7 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleOpenDownloads(intent);
+        maybeStartHdrProbe(intent);
     }
 
     /**
@@ -54,6 +58,19 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {}
     }
 
+    // PHASE-0 THROWAWAY — remove after Phase 0. Proves the native SurfaceView + hidden-but-alive
+    // WebView model. Launch: adb shell am start -n com.db.dbworld/.MainActivity -e hdrProbe "<hdr10-url>"
+    private void maybeStartHdrProbe(Intent intent) {
+        if (intent == null) return;
+        String url = intent.getStringExtra("hdrProbe");
+        if (url == null || url.isEmpty()) return;
+        final android.webkit.WebView wv = getBridge().getWebView();
+        com.db.dbworld.player.probe.WebviewHiddenProbe.INSTANCE.start(this, wv, url, n -> {
+            wv.evaluateJavascript("console.log('probe-tick ' + " + n + ")", null);
+            return kotlin.Unit.INSTANCE;
+        });
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -68,6 +85,12 @@ public class MainActivity extends BridgeActivity {
             PluginHandle h = getBridge().getPlugin("HybridPlayer");
             if (h != null && h.getInstance() instanceof HybridPlayerPlugin) {
                 ((HybridPlayerPlugin) h.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
+            }
+        } catch (Exception ignored) {}
+        try {
+            PluginHandle nh = getBridge().getPlugin("NativePlayer");
+            if (nh != null && nh.getInstance() instanceof NativePlayerPlugin) {
+                ((NativePlayerPlugin) nh.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
             }
         } catch (Exception ignored) {}
     }

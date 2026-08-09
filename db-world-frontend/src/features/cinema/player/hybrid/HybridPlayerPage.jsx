@@ -7,16 +7,59 @@
 // Route: /db-world/db-cinema/player/:mediaFileId
 //   fast path:    navigate(playerPath(id), { state: { media } })
 //   instant path: navigate(playerPath(id), { state: { resume: { recordId, title, type } } })
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { registerPlugin } from '@capacitor/core';
 import CircularProgress from '@mui/material/CircularProgress';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { buildMediaFromFileId } from '../../media/playerLaunch';
-import { addWatched } from '../../api/cinemaApi';
+import { addWatched, tmdbImg } from '../../api/cinemaApi';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
+import { isNativePlayerEnabled } from './nativePlayerFlag';
+
+const NativePlayer = registerPlugin('NativePlayer');
+
+// Compact audio-track formatters for the native Info sheet (mirror the web player's labels),
+// built from the file's MediaInfo (`cur.audio`) which the ExoPlayer track list doesn't fully expose.
+const _audCodec = (a) => {
+  const raw = String(a.formatCommercial || a.format || a.codecId || '').toUpperCase();
+  if (raw.includes('EAC3') || raw.includes('E-AC-3') || raw.includes('E-AC3')) return 'E-AC3';
+  if (raw.includes('TRUEHD') || raw.includes('TRUE-HD')) return 'TrueHD';
+  if (raw.includes('DTS-HD') || raw.includes('DTSHD')) return 'DTS-HD';
+  if (raw.includes('DTS')) return 'DTS';
+  if (raw.includes('AC-3') || raw.includes('AC3')) return 'AC3';
+  if (raw.includes('AAC')) return 'AAC';
+  if (raw.includes('OPUS')) return 'Opus';
+  if (raw.includes('FLAC')) return 'FLAC';
+  if (raw.includes('MP3') || raw.includes('MPEG AUDIO')) return 'MP3';
+  if (raw.includes('PCM')) return 'PCM';
+  return a.format || '';
+};
+const _audCh = (a) => {
+  const n = Number(a.channels);
+  if (n >= 8) return '7.1';
+  if (n >= 6) return '5.1';
+  if (n === 2) return 'Stereo';
+  if (n === 1) return 'Mono';
+  return '';
+};
+const _audBr = (a) => {
+  const n = Number(a.bitRate);
+  if (Number.isFinite(n) && n > 0) return `${Math.round(n / 1000)} kbps`;
+  if (typeof a.bitRate === 'string' && a.bitRate.trim()) return a.bitRate.trim();
+  return '';
+};
+const _audSr = (a) => {
+  const hz = Number(a.sampleRate ?? a.samplingRate);
+  return hz > 0 ? `${(hz / 1000).toFixed(hz % 1000 === 0 ? 0 : 1)} kHz` : '';
+};
+const buildAudioInfo = (audio) => (audio || []).map((a, i) => ({
+  name: a.language || a.title || `Audio ${i + 1}`,
+  detail: [_audCodec(a), _audCh(a), _audBr(a), _audSr(a)].filter(Boolean).join(' · '),
+}));
 
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
@@ -36,6 +79,7 @@ export default function HybridPlayerPage() {
   const navigate  = useNavigate();
   const qc        = useQueryClient();
   const watchedMarkedRef = useRef(new Set()); // record ids already auto-marked Watched this session
+  const closedRef = useRef(false);            // guard: navigate back only once on native close
 
   // media: from route state (fast in-app launch) or resolved from the URL id (refresh /
   // deep-link / instant Continue-Watching). Resolving happens behind the loading screen.
@@ -56,7 +100,7 @@ export default function HybridPlayerPage() {
     return () => { cancelled = true; };
   }, [routeId, media, state]);
 
-  const episodes  = media?.episodes || [];
+  const episodes  = useMemo(() => media?.episodes || [], [media]);
   // The show/movie name stays constant; per-episode info (S#E# · name) is derived
   // inside the player from `episodes` + `currentEpisodeId`.
   const showTitle = media?.title || media?.fileName || '';
@@ -109,6 +153,53 @@ export default function HybridPlayerPage() {
       requestId, mediaFileId: ep.mediaFileId || ep.fileId || null, recordId,
     });
   }, [media]);
+
+  // Native player: hand it a flat episode + variant list to display, and route its
+  // episode-tap events back into the existing selectEpisode() (which resolves + reloads).
+  useEffect(() => {
+    if (!isNativePlayerEnabled() || !cur) return;
+    const eps = (episodes || []).map((e) => ({
+      fileId: String(e.fileId),
+      label: e.label || '',
+      name: e.name || '',
+      overview: e.overview || '',
+      still: tmdbImg(e.stillPath, 'w300') || '',
+      runtime: e.runtime ? `${e.runtime}m` : '',
+    }));
+    const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
+    NativePlayer.setPlaylist({
+      episodes: eps,
+      variants,
+      currentFileId: String(cur.fileId),
+      title: showTitle,
+      overview: media?.overview || '',
+      storyboard: cur.storyboard || null,
+      audioInfo: buildAudioInfo(cur.audio),
+    }).catch(() => {});
+  }, [episodes, cur, media, showTitle]);
+
+  // Native player: when the user closes it from the native X (which fires playerClosed),
+  // pop this route so the WebView doesn't linger on the hidden headless player (white screen).
+  useEffect(() => {
+    if (!isNativePlayerEnabled()) return undefined;
+    let handle;
+    NativePlayer.addListener('playerClosed', () => {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      navigate(-1);
+    }).then((h) => { handle = h; });
+    return () => handle?.remove?.();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!isNativePlayerEnabled()) return undefined;
+    let handle;
+    NativePlayer.addListener('playerSelectEpisode', ({ fileId }) => {
+      const ep = (episodes || []).find((e) => String(e.fileId) === String(fileId));
+      if (ep) selectEpisode(ep);
+    }).then((h) => { handle = h; });
+    return () => handle?.remove?.();
+  }, [episodes, selectEpisode]);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
     if (!cur?.fileId) return;
