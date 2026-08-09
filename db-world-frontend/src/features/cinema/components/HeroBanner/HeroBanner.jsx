@@ -11,7 +11,8 @@ import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
 import HeroBannerMobile from './HeroBannerMobile';
-import HeroBannerDesktop from './HeroBannerDesktop';
+import SpotlightHero from '../Billboard/SpotlightHero';
+import CategoryBillboard from '../Billboard/CategoryBillboard';
 
 import { CYCLE_MS } from './heroUtils';
 import { useHeroColor } from './useHeroColor';
@@ -118,7 +119,7 @@ const HeroSkeletonMobile = ({ isXs }) => {
 };
 
 const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
-  // Mirror HeroBannerDesktop's `metrics` so the skeleton fills the same footprint
+  // Mirror the billboard's footprint so the skeleton fills the same space
   // at every desktop-class size: desktop, large monitor and TV.
   const heroHeight = isTv
     ? 'clamp(760px, 90vh, 1120px)'
@@ -139,9 +140,6 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
   const logoH = isTv ? 132 : isMonitor ? 112 : 92;
   const buttonHeight = isTv ? 60 : 46;
   const roundBtn = isTv ? 54 : 42;
-  const navBtn = isTv ? 44 : 36;
-  const thumbW = isTv ? 132 : isMonitor ? 116 : 104;
-  const thumbH = isTv ? 74 : isMonitor ? 66 : 58;
   const overviewLines = isTv ? 4 : 3;
   const lineWidths = ['86%', '78%', '70%', '58%'];
 
@@ -228,29 +226,13 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
           <SkeletonBlock width={170} height={buttonHeight} sx={{ borderRadius: 999 }} />
           <SkeletonBlock width={roundBtn} height={roundBtn} sx={{ borderRadius: '50%' }} />
         </Box>
-      </Box>
 
-      {/* Slide navigator placeholder — right-side thumbnail strip */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: contentBottom,
-          right: contentLeft,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-        }}
-      >
-        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
-        {[0, 1, 2, 3].map((i) => (
-          <SkeletonBlock
-            key={i}
-            width={thumbW}
-            height={thumbH}
-            sx={{ borderRadius: 1.5, bgcolor: shimmerStrong }}
-          />
-        ))}
-        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
+        {/* Pagination dots placeholder (matches the billboard) */}
+        <Box sx={{ display: 'flex', gap: 0.7, mt: 2.2 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonBlock key={i} width={i === 0 ? 22 : 7} height={7} sx={{ borderRadius: 999 }} />
+          ))}
+        </Box>
       </Box>
     </Box>
   );
@@ -264,6 +246,10 @@ const HeroBanner = ({
   onWatchlist,
   loading,
   onColorExtracted,
+  variant = 'spotlight',
+  heading = null,
+  breadcrumb = null,
+  ranked = false,
 }) => {
   const theme = useTheme();
 
@@ -421,11 +407,18 @@ const HeroBanner = ({
     );
   }
 
+  const tier = isTv ? 'tv' : isMonitor ? 'monitor' : 'desktop';
+  const DesktopHero = variant === 'billboard' ? CategoryBillboard : SpotlightHero;
+
   return (
-    <HeroBannerDesktop
+    <DesktopHero
       {...commonProps}
       isMonitor={isMonitor}
       isTv={isTv}
+      tier={tier}
+      heading={heading}
+      breadcrumb={breadcrumb}
+      ranked={ranked}
       onHoverPause={pauseCycle}
       onHoverResume={resumeCycle}
     />
