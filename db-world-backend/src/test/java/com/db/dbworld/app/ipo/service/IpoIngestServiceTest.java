@@ -73,6 +73,12 @@ class IpoIngestServiceTest {
         when(financialRepo.findByIpoIdOrderByPeriodEndAsc(any())).thenReturn(List.of());
     }
 
+    /** An ingest service pinned to a specific instant — for the IST open-cutoff clamp tests. */
+    private IpoIngestService serviceAt(Instant now) {
+        return new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
+                financialRepo, new IpoMapper(), Clock.fixed(now, ZoneOffset.UTC));
+    }
+
     /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
     private static Map<String, BigDecimal> subscriptionCategories() {
         Map<String, BigDecimal> categories = new LinkedHashMap<>();
@@ -361,6 +367,35 @@ class IpoIngestServiceTest {
                 new BigDecimal("1.50"), "awaited", null, null, null);
 
         service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("open");
+    }
+
+    @Test
+    void ingest_sourceReportsOpenBeforeIstOpenCutoff_heldAtUpcoming() {
+        stubNoExisting();
+        // 2026-07-20T03:00Z = 08:30 IST on the open day (07-20) — bidding hasn't opened (10 AM) yet, so a
+        // source's premature "open" must be held back to "upcoming" (no midnight/early "IPO is open" push).
+        IpoDto dto = dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T03:00:00Z")).ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("upcoming");
+    }
+
+    @Test
+    void ingest_sourceReportsOpenAfterIstOpenCutoff_staysOpen() {
+        stubNoExisting();
+        // 2026-07-20T05:00Z = 10:30 IST on the open day — bidding is genuinely open, so "open" stands.
+        IpoDto dto = dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T05:00:00Z")).ingest(List.of(dto));
 
         ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
         verify(listingRepo, times(1)).save(listingCaptor.capture());

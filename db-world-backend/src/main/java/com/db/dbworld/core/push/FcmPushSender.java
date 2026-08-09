@@ -1,5 +1,7 @@
 package com.db.dbworld.core.push;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.gson.Gson;
@@ -15,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -46,8 +49,10 @@ public class FcmPushSender implements PushSender {
     private final String projectId;
     private final RestClient http = RestClient.create();
     private final Gson gson = new Gson();
+    private final SettingsService settings;
 
-    public FcmPushSender() {
+    public FcmPushSender(SettingsService settings) {
+        this.settings = settings;
         GoogleCredentials creds = null;
         String project = null;
         String path = System.getenv(ENV_SERVICE_ACCOUNT);
@@ -104,25 +109,9 @@ public class FcmPushSender implements PushSender {
     private void sendMessage(String targetKey, String targetValue, String title, String body,
                              Map<String, String> data, String channelId, String targetLabel) {
         try {
-            JsonObject notification = new JsonObject();
-            notification.addProperty("title", title);
-            notification.addProperty("body", body);
-
-            JsonObject message = new JsonObject();
-            message.addProperty(targetKey, targetValue);
-            message.add("notification", notification);
-            if (data != null && !data.isEmpty()) {
-                JsonObject dataObj = new JsonObject();
-                data.forEach(dataObj::addProperty);
-                message.add("data", dataObj);
-            }
-            if (channelId != null && !channelId.isBlank()) {
-                JsonObject androidNotification = new JsonObject();
-                androidNotification.addProperty("channel_id", channelId.trim());
-                JsonObject android = new JsonObject();
-                android.add("notification", androidNotification);
-                message.add("android", android);
-            }
+            long ttlSeconds = settings.getLong(ConfigKeys.PUSH_TTL_SECONDS);
+            JsonObject message = buildMessage(targetKey, targetValue, title, body, data, channelId,
+                    ttlSeconds, Instant.now().getEpochSecond());
 
             JsonObject payload = new JsonObject();
             payload.add("message", message);
@@ -138,6 +127,61 @@ public class FcmPushSender implements PushSender {
         } catch (Exception e) {
             log.warn("FCM send to {} failed: {}", targetLabel, e.toString());
         }
+    }
+
+    /**
+     * Builds the FCM HTTP v1 {@code message} object. Package-private + static so the notification-
+     * expiry wiring is unit-testable without a live FCM call. When {@code ttlSeconds > 0} it stamps a
+     * matching time-to-live on all three platforms — Android {@code ttl}, APNs {@code apns-expiration}
+     * (an absolute epoch second), WebPush {@code TTL} — so FCM drops a push it couldn't deliver within
+     * that window instead of hoarding it for ~4 weeks and flooding a device when it next comes online.
+     * {@code ttlSeconds <= 0} leaves every expiry field off (FCM's default retention).
+     */
+    static JsonObject buildMessage(String targetKey, String targetValue, String title, String body,
+                                   Map<String, String> data, String channelId,
+                                   long ttlSeconds, long nowEpochSeconds) {
+        JsonObject notification = new JsonObject();
+        notification.addProperty("title", title);
+        notification.addProperty("body", body);
+
+        JsonObject message = new JsonObject();
+        message.addProperty(targetKey, targetValue);
+        message.add("notification", notification);
+        if (data != null && !data.isEmpty()) {
+            JsonObject dataObj = new JsonObject();
+            data.forEach(dataObj::addProperty);
+            message.add("data", dataObj);
+        }
+
+        // Android block carries the channel id and/or the ttl — only attached when non-empty.
+        JsonObject android = new JsonObject();
+        if (channelId != null && !channelId.isBlank()) {
+            JsonObject androidNotification = new JsonObject();
+            androidNotification.addProperty("channel_id", channelId.trim());
+            android.add("notification", androidNotification);
+        }
+        if (ttlSeconds > 0) {
+            android.addProperty("ttl", ttlSeconds + "s");
+        }
+        if (!android.entrySet().isEmpty()) {
+            message.add("android", android);
+        }
+
+        // Same expiry for iOS (APNs, absolute epoch second) and browser/PWA (WebPush, relative seconds).
+        if (ttlSeconds > 0) {
+            JsonObject apnsHeaders = new JsonObject();
+            apnsHeaders.addProperty("apns-expiration", String.valueOf(nowEpochSeconds + ttlSeconds));
+            JsonObject apns = new JsonObject();
+            apns.add("headers", apnsHeaders);
+            message.add("apns", apns);
+
+            JsonObject webpushHeaders = new JsonObject();
+            webpushHeaders.addProperty("TTL", String.valueOf(ttlSeconds));
+            JsonObject webpush = new JsonObject();
+            webpush.add("headers", webpushHeaders);
+            message.add("webpush", webpush);
+        }
+        return message;
     }
 
     @Override

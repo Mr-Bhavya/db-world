@@ -1,5 +1,8 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.ipo.notification.IpoMarketCalendar;
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
@@ -20,8 +23,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,12 +43,15 @@ import static org.mockito.Mockito.when;
 class IpoQueryServiceTest {
 
     private static final Instant LAST_SUCCESS = Instant.parse("2026-07-24T09:00:00Z");
+    /** Fixed "now" so "listed long ago" is deterministic — 2026-07-24T09:00Z = 14:30 IST, today = 2026-07-24. */
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-07-24T09:00:00Z"), ZoneOffset.UTC);
 
     IpoListingRepository listingRepository;
     IpoGmpHistoryRepository gmpHistoryRepository;
     IpoSubscriptionHistoryRepository subscriptionHistoryRepository;
     IpoFinancialRepository financialRepository;
     IpoSourcePollService pollService;
+    SettingsService settings;
     IpoQueryService service;
 
     @BeforeEach
@@ -53,8 +61,21 @@ class IpoQueryServiceTest {
         subscriptionHistoryRepository = mock(IpoSubscriptionHistoryRepository.class);
         financialRepository = mock(IpoFinancialRepository.class);
         pollService = mock(IpoSourcePollService.class);
+        settings = mock(SettingsService.class);
+        // Real calendar backed by the mocked settings (getString→null = no holidays, weekend-only) so
+        // working-day date math in detail() behaves realistically; a test can stub holidays to vary it.
+        IpoMarketCalendar marketCalendar = new IpoMarketCalendar(settings);
+        // Default: hide-listed disabled (0) unless a test opts in — keeps the unrelated list tests unaffected.
         service = new IpoQueryService(listingRepository, gmpHistoryRepository, subscriptionHistoryRepository,
-                financialRepository, pollService, new IpoMapper());
+                financialRepository, pollService, new IpoMapper(), settings, marketCalendar, FIXED_CLOCK);
+    }
+
+    /** A listed IPO with an explicit listing date, for the "hide listed long ago" tests. */
+    private IpoListingEntity listedEntity(String id, LocalDate listingDate) {
+        return IpoListingEntity.builder()
+                .id(id).matchKey(id + "-key").companyName("Company " + id)
+                .ipoType("mainboard").status("listed").listingDate(listingDate)
+                .build();
     }
 
     private IpoListingEntity entity(String id, String status, LocalDate openDate) {
@@ -223,6 +244,59 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void list_hidesListedOlderThanConfiguredDays_keepsRecentListings() {
+        when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
+        // today (fixed clock) = 2026-07-24 IST → cutoff = 2026-06-24. Older listing dropped, recent kept.
+        IpoListingEntity oldListed = listedEntity("old", LocalDate.of(2026, 6, 1));        // 53 days ago → hidden
+        IpoListingEntity recentListed = listedEntity("recent", LocalDate.of(2026, 7, 20)); // 4 days ago → kept
+        when(listingRepository.findAll()).thenReturn(List.of(oldListed, recentListed));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("recent");
+    }
+
+    @Test
+    void list_hideListedDisabledWhenDaysZero_showsAll() {
+        when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(0L);
+        IpoListingEntity ancient = listedEntity("ancient", LocalDate.of(2025, 1, 1));
+        when(listingRepository.findAll()).thenReturn(List.of(ancient));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("ancient");
+    }
+
+    @Test
+    void list_neverHidesListedWithNoListingDate() {
+        when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
+        IpoListingEntity listedNoDate = listedEntity("no-date", null); // can't age it → kept
+        when(listingRepository.findAll()).thenReturn(List.of(listedNoDate));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("no-date");
+    }
+
+    @Test
+    void list_hideListedNeverAffectsNonListedStatuses() {
+        when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
+        // A very old *closed* IPO isn't subject to the listed-age filter (only status "listed" is).
+        IpoListingEntity oldClosed = IpoListingEntity.builder()
+                .id("closed").matchKey("closed-key").companyName("Company closed")
+                .ipoType("mainboard").status("closed").listingDate(LocalDate.of(2025, 1, 1)).build();
+        when(listingRepository.findAll()).thenReturn(List.of(oldClosed));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, null);
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("closed");
+    }
+
+    @Test
     void detail_present_returnsMappedDto() {
         IpoListingEntity entity = entity("1", "open", LocalDate.of(2026, 7, 20));
         when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
@@ -305,6 +379,23 @@ class IpoQueryServiceTest {
 
         assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 30)); // preserved, not overwritten
         assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 7, 29)); // derived
+    }
+
+    @Test
+    void detail_derivedTimelineDatesSkipConfiguredHolidays() {
+        // allotment 2026-07-29 (Wed); afterAllotment would be Thu 07-30, but that's a configured NSE
+        // holiday → the derived refund/demat roll forward to the next trading day, Fri 07-31.
+        when(settings.getString(ConfigKeys.IPO_MARKET_HOLIDAYS)).thenReturn("2026-07-30");
+        IpoListingEntity entity = IpoListingEntity.builder()
+                .id("1").matchKey("1-key").companyName("Company 1").status("closed")
+                .allotmentDate(LocalDate.of(2026, 7, 29))
+                .build();
+        when(listingRepository.findById("1")).thenReturn(Optional.of(entity));
+
+        IpoDetailDto dto = service.detail("1");
+
+        assertThat(dto.refundDate()).isEqualTo(LocalDate.of(2026, 7, 31));
+        assertThat(dto.dematDate()).isEqualTo(LocalDate.of(2026, 7, 31));
     }
 
     @Test
