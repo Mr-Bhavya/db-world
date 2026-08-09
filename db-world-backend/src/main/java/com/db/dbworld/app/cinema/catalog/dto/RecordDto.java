@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.dto;
 
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.dto.TmdbDto;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,6 +30,8 @@ public class RecordDto {
 
     private List<RecordTagDto> tags;
 
-    private boolean hideFromRails;
+    private RecordVisibility visibility;
+
+    private Instant newReleaseNotifiedAt;
 
 }

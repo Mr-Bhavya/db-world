@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert, FormControlLabel, Checkbox } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -38,7 +39,6 @@ export default function RecordCreateModal({ open, onClose }) {
   const [selected,      setSelected]      = useState(null);
   const [searching,     setSearching]     = useState(false);
   const [searchError,   setSearchError]   = useState('');
-  const [hideFromRails, setHideFromRails] = useState(false);
   const searchTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
@@ -72,19 +72,18 @@ export default function RecordCreateModal({ open, onClose }) {
   };
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId, hideFromRails: d.hideFromRails }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Record created'); handleClose(); },
+    mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Record created as draft'); handleClose(); },
     onError: (e) => notify.error(e?.response?.data?.message ?? 'Create failed'),
   });
 
   const onSubmit = (d) => {
     if (!selected) { notify.warning('Please select a TMDB result'); return; }
-    mutate({ type: d.type, tmdbId: selected.id, hideFromRails });
+    mutate({ type: d.type, tmdbId: selected.id });
   };
 
   const handleClose = () => {
     setQuery(''); setYear(''); setResults([]); setSelected(null); setSearchError('');
-    setHideFromRails(false);
     reset({ type: 'MOVIE' });
     onClose();
   };
@@ -173,27 +172,14 @@ export default function RecordCreateModal({ open, onClose }) {
             </Alert>
           )}
 
-          <FormControlLabel
-            sx={{ color: T.textMuted, mx: 0, mt: -0.5 }}
-            control={
-              <Checkbox
-                size="small"
-                checked={hideFromRails}
-                onChange={(e) => setHideFromRails(e.target.checked)}
-                sx={{ color: T.textMuted, '&.Mui-checked': { color: T.teal } }}
-              />
-            }
-            label={
-              <Box>
-                <Typography sx={{ fontSize: 13, color: T.textPrimary, fontWeight: 600 }}>
-                  Hide from rails / home page
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: T.textFaint }}>
-                  Record still appears in search results. Useful for 18+ titles or library-only deep cuts.
-                </Typography>
-              </Box>
-            }
-          />
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', p: 1.25, borderRadius: 1.5,
+            bgcolor: T.glass, border: `1px solid ${T.glassBorder}` }}>
+            <InfoOutlinedIcon sx={{ fontSize: 16, color: T.textMuted, mt: .1, flexShrink: 0 }} />
+            <Typography sx={{ fontSize: 11.5, color: T.textMuted, lineHeight: 1.5 }}>
+              New records are created as a <b>draft</b> — not public, no notification. Add media files, then
+              publish it from the records table or its detail page to make it public.
+            </Typography>
+          </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} sx={{ color: T.textMuted }}>Cancel</Button>

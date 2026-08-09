@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
@@ -46,19 +47,19 @@ public class CatalogAdminController {
     }
 
     /* =========================
-       VISIBILITY (hide from rails)
+       VISIBILITY (DRAFT / PUBLISHED / UNLISTED)
        ========================= */
 
     @AdminAccess
     @PatchMapping("/{id}/visibility")
     public ApiResponse<RecordDto> setVisibility(
             @PathVariable Long id,
-            @RequestParam boolean hideFromRails
+            @RequestParam RecordVisibility visibility
     ) {
 
         return ApiResponse.success(
-                hideFromRails ? "Record hidden from rails" : "Record visible on rails",
-                catalogService.setHideFromRails(id, hideFromRails)
+                "Record visibility set to " + visibility,
+                catalogService.setVisibility(id, visibility)
         );
     }
 
@@ -118,6 +119,7 @@ public class CatalogAdminController {
             @RequestParam(required = false) Long tmdbId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) SyncStatus status,
+            @RequestParam(required = false) RecordVisibility visibility,
             Pageable pageable
     ) {
 
@@ -129,6 +131,7 @@ public class CatalogAdminController {
                         tmdbId,
                         year,
                         status,
+                        visibility,
                         pageable
                 )
         );

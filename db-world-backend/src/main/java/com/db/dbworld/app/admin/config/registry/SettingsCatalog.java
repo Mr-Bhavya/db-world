@@ -19,6 +19,7 @@ public final class SettingsCatalog {
     private static final String C_WEATHER   = "Weather";
     private static final String C_CDN       = "CDN Signing";
     private static final String C_WALLET    = "Document Wallet";
+    private static final String C_CINEMA    = "Cinema";
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
 
@@ -106,6 +107,12 @@ public final class SettingsCatalog {
         str(WALLET_ALLOWED_CONTENT_TYPES, C_WALLET, "Allowed content types",
             "Comma-separated MIME types accepted for wallet uploads.",
             "application/pdf,image/png,image/jpeg", false, 1),
+
+        // ── Cinema ────────────────────────────────────────────────────────
+        bool(CINEMA_RECORD_AUTO_PUBLISH, C_CINEMA, "Auto-publish on media",
+             "When on, a draft record is automatically published — and its one-time \"new title\" push "
+             + "sent — as soon as its first media file finishes ingesting. When off, an admin publishes "
+             + "each record manually.", false, 0),
 
         // ── IPO Tracker ──────────────────────────────────────────────────
         str(IPO_SOURCES_ENABLED, C_IPO, "Enabled sources",

@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(39); // +5 IPO keys (hide-listed, notify-window-start/end, holidays, holidays-auto) + push.ttl-seconds
+        assertThat(after1).isEqualTo(40); // 33 base + 6 IPO branch (incl. push.ttl-seconds) + 1 cinema auto-publish
     }
 
     @Test

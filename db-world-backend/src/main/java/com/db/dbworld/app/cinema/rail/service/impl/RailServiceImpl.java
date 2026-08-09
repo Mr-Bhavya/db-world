@@ -69,10 +69,11 @@ public class RailServiceImpl implements RailService {
     private EntityManager entityManager;
 
     /**
-     * Enable the "excludeHidden" Hibernate filter for the current session so all
-     * subsequent record queries in this transaction skip records with
-     * hide_from_rails = true. Search and admin endpoints don't call this, so
-     * hidden records still surface there (e.g. 18+ titles searchable but off rails).
+     * Enable the "excludeHidden" Hibernate filter for the current session so all subsequent record
+     * queries in this transaction show PUBLISHED records only (i.e. skip DRAFT and UNLISTED). Search
+     * and admin endpoints don't call this, so UNLISTED titles still surface in search (e.g. 18+
+     * titles searchable but off the rails); drafts are excluded from search via the separate
+     * {@code publicVisible} filter.
      */
     private void hideRailHiddenRecords() {
         entityManager.unwrap(Session.class).enableFilter("excludeHidden");

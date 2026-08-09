@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.ingestion.pipeline;
 
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
@@ -55,6 +56,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final IngestionDownloadQueue downloadQueue;
     private final RecordRepository   recordRepository;
     private final PushService        pushService;
+    private final CatalogService     catalogService;
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -271,6 +273,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
                 repository.save(ctx);
                 notifyAdmins("Ingestion complete", recordName, ctx.getRequest());
+                // Media is now attached: auto-publish the record (if enabled) and fire the deferred
+                // "new title" push. Best-effort — onMediaIngested swallows its own failures.
+                catalogService.onMediaIngested(ctx.getRecordId());
             } finally {
                 if (recordLock != null) recordLock.release();
             }

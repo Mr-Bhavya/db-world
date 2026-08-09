@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.entities;
 
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -22,8 +23,12 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
+// Rails (home / category / "more like this") show PUBLISHED only.
 @FilterDef(name = "excludeHidden")
-@Filter(name = "excludeHidden", condition = "hide_from_rails = false")
+@Filter(name = "excludeHidden", condition = "visibility = 'PUBLISHED'")
+// Public search + detail show anything that isn't a DRAFT (i.e. PUBLISHED or UNLISTED).
+@FilterDef(name = "publicVisible")
+@Filter(name = "publicVisible", condition = "visibility <> 'DRAFT'")
 @Table(
         name = "records",
         schema = "db_world",
@@ -84,13 +89,24 @@ public class RecordEntity implements Serializable {
     private List<RecordTagEntity> tags = new ArrayList<>();
 
     /**
-     * Hide this record from rails (home page, category rails, "more like this").
-     * Search still returns it — useful for 18+ titles, library-only deep cuts, etc.
-     * Default false. Filtering applied via the {@code excludeHidden} Hibernate filter.
+     * Public visibility lifecycle — DRAFT (admin-only), PUBLISHED (rails + search + detail), or
+     * UNLISTED (searchable + direct link, off the rails — 18+/deep cuts). Replaces the old
+     * {@code hideFromRails} boolean. New records start DRAFT so nothing is public (or pushed) until
+     * an admin publishes it. The column is nullable at the DB level so the additive migration can
+     * add it cleanly; the app always sets it, and a boot-time migration backfills legacy rows.
+     * Enforced via the {@code excludeHidden} (rails) and {@code publicVisible} (search/detail) filters.
      */
-    @Column(name = "hide_from_rails", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", length = 20)
     @Builder.Default
-    private boolean hideFromRails = false;
+    private RecordVisibility visibility = RecordVisibility.DRAFT;
+
+    /**
+     * When the one-time "New on DB World" push went out (the record first became publicly playable).
+     * Null until announced — the dedup marker so re-publishing or rails toggles never re-notify.
+     */
+    @Column(name = "new_release_notified_at")
+    private Instant newReleaseNotifiedAt;
 
     /**
      * When this record last gained genuinely new content (a season/episode it didn't
