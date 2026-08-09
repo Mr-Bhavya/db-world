@@ -13,6 +13,22 @@ const EXPAND_SWIPE  = 22;
 const COLLAPSE_PULL = 56;
 const CLOSE_PULL    = 150;
 
+// Reference-counted body scroll lock. A record→person→record drill-in can remount this sheet
+// (a different-type record swaps the matched overlay <Route>), so two instances briefly overlap.
+// The old save/restore-`prev` pattern then snapshotted `overflow:hidden` as the "previous" value
+// and restored THAT on the final close — leaving the cinema page permanently scroll-locked. The
+// counter only touches the body when the first sheet locks and the last one unlocks, and always
+// clears to '' (never re-applies a stale 'hidden').
+let _bodyLockCount = 0;
+function lockBodyScroll() {
+  if (_bodyLockCount === 0) document.body.style.overflow = 'hidden';
+  _bodyLockCount += 1;
+}
+function unlockBodyScroll() {
+  _bodyLockCount = Math.max(0, _bodyLockCount - 1);
+  if (_bodyLockCount === 0) document.body.style.overflow = '';
+}
+
 export default function RecordDetailSheet() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,20 +71,28 @@ export default function RecordDetailSheet() {
   const handleAnimComplete = useCallback(() => {
     if (closingRef.current && !navigatedRef.current) {
       navigatedRef.current = true; // guard against double fire
-      navigate(-1);
+      // Dismiss straight back to the background page (the cinema page the overlay was opened
+      // over) — same as the desktop modal. A plain navigate(-1) would only unwind ONE history
+      // entry, so closing a record opened from a person view would re-surface the person view
+      // instead of returning to cinema.
+      const background = location.state?.background;
+      if (background) {
+        navigate(background.pathname + (background.search ?? ''), { replace: true });
+      } else {
+        navigate(-1);
+      }
     }
-  }, [navigate]);
+  }, [navigate, location.state]);
 
   // Single ref callback — no dual tracking
   const setScrollerRef = useCallback((node) => {
     setScrollEl(node);
   }, []);
 
-  // Lock background scroll
+  // Lock background scroll (ref-counted — survives a record→person→record remount).
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    lockBodyScroll();
+    return () => unlockBodyScroll();
   }, []);
 
   // Person drill-in → force full
