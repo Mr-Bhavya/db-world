@@ -42,8 +42,11 @@ export function heroMetrics(isMonitor, isTv) {
   return {
     logoMaxH: isTv ? 176 : isMonitor ? 148 : 122,
     titleSize: isTv ? 'clamp(2.6rem, 4.4vw, 5rem)' : isMonitor ? 'clamp(2.4rem, 3.6vw, 4rem)' : 'clamp(2rem, 3vw, 3.4rem)',
-    bodySize: isTv ? '1.1rem' : isMonitor ? '1rem' : '0.95rem',
-    metaSize: isTv ? '1rem' : '0.9rem',
+    // Overview + meta scale fluidly with the viewport (responsive on both Home and Movies/TV),
+    // and the description shows more lines the larger the screen gets.
+    bodySize: 'clamp(0.9rem, 0.62rem + 0.6vw, 1.18rem)',
+    metaSize: 'clamp(0.82rem, 0.66rem + 0.34vw, 1rem)',
+    overviewLines: isTv ? 4 : isMonitor ? 3 : 2,
     btnHeight: isTv ? 56 : 46,
     btnFont: isTv ? '1.05rem' : '0.95rem',
     roundBtn: isTv ? 52 : 42,
@@ -96,7 +99,7 @@ export function BillboardContent({ record, ix = {}, m, isTv, reducedMotion, onWa
           </Box>
 
           {record.overview && (
-            <Typography sx={{ color: 'rgba(255,255,255,0.84)', mb: isTv ? 2.5 : 2, lineHeight: 1.5, maxWidth: isTv ? 640 : 500, fontSize: m.bodySize, textShadow: '0 2px 8px rgba(0,0,0,0.6)', ...clampLines(isTv ? 3 : 2) }}>
+            <Typography sx={{ color: 'rgba(255,255,255,0.84)', mb: isTv ? 2.5 : 2, lineHeight: 1.5, maxWidth: '100%', fontSize: m.bodySize, textShadow: '0 2px 8px rgba(0,0,0,0.6)', ...clampLines(m.overviewLines) }}>
               {record.overview}
             </Typography>
           )}

@@ -246,6 +246,9 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
   const safeHeroColor = heroColor || '20,20,20';
   const hasHeroColor = Boolean(heroColor);
+  // The per-title colour wash is a HOME-only treatment. Movies / TV Shows / genre pages stay
+  // neutral (#141414) so the billboard's soft bottom fade doesn't reveal a coloured page beneath it.
+  const showWash = hasHeroColor && billboardVariant === 'spotlight';
 
   // Device-specific overlay sizing.
   // `solidEnd` is tuned to land just past the hero's bottom edge so the colour
@@ -307,7 +310,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
           pointerEvents: 'none',
           zIndex: 0,
           background: overlayGradient,
-          opacity: hasHeroColor ? 1 : 0,
+          opacity: showWash ? 1 : 0,
           transition:
             'background 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease',
           willChange: 'background, opacity',
@@ -333,7 +336,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
               transparent 70%
             )
           `,
-          opacity: hasHeroColor ? 1 : 0,
+          opacity: showWash ? 1 : 0,
           transition:
             'background 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease',
         }}
@@ -364,7 +367,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
         {/* Fixed-px overlap (NOT vh) so the first rail rides up onto the hero by a
             consistent amount on every screen — a vh overlap grew on big monitors
             and rode up over the hero's title/buttons. */}
-        <Box sx={{ position: 'relative', zIndex: 1, background: 'transparent', mt: billboardVariant === 'spotlight' ? { xs: 0, md: '16px' } : { xs: 0, md: '-48px', lg: '-56px', xl: '-64px' } }}>
+        <Box sx={{ position: 'relative', zIndex: 1, background: 'transparent', mt: billboardVariant === 'spotlight' ? { xs: 0, md: '-8px', lg: '-12px' } : { xs: 0, md: '-90px', lg: '-110px', xl: '-130px' } }}>
           {railsLoading && rails.length === 0 ? (
             <>
               <RailSkeleton />

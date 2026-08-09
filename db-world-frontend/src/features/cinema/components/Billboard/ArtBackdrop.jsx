@@ -26,12 +26,12 @@ function pickPath(record, tier) {
 }
 
 // Readability + blend scrims, tinted with the title's dominant colour: dark-left for the text,
-// fade-to-colour at the bottom so the hero dissolves into the page below.
-function buildGradients(base) {
-  return [
-    `linear-gradient(to right, rgba(${base},0.85) 0%, rgba(${base},0.55) 26%, rgba(${base},0.15) 48%, transparent 68%)`,
-    `linear-gradient(to top, rgba(${base},0.95) 0%, rgba(${base},0.4) 20%, rgba(${base},0.08) 40%, transparent 58%)`,
-  ];
+// and (optionally) a fade-to-colour at the bottom. Home drops the bottom scrim so it reads as pure
+// colour that blends into the rails via the page wash, rather than a visible fade band.
+function buildGradients(base, bottomScrim = true) {
+  const left = `linear-gradient(to right, rgba(${base},0.85) 0%, rgba(${base},0.55) 26%, rgba(${base},0.15) 48%, transparent 68%)`;
+  const bottom = `linear-gradient(to top, rgba(${base},0.95) 0%, rgba(${base},0.4) 20%, rgba(${base},0.08) 40%, transparent 58%)`;
+  return bottomScrim ? [left, bottom] : [left];
 }
 
 export default function ArtBackdrop({
@@ -45,6 +45,7 @@ export default function ArtBackdrop({
   fit = 'cover',
   heroColor = null,
   fadeBottom = false,
+  bottomScrim = true,
 }) {
   const path = useMemo(() => pickPath(record, tier), [record, tier]);
   const src = path ? tmdbImg(path, SIZE_BY_TIER[tier] ?? 'original') : null;
@@ -52,7 +53,7 @@ export default function ArtBackdrop({
   const base = heroColor || '16,16,16';
   const isContain = fit === 'contain';
   const pos = objectPosition || (isContain ? 'right center' : 'center 25%');
-  const grads = gradient === 'none' ? [] : buildGradients(base);
+  const grads = gradient === 'none' ? [] : buildGradients(base, bottomScrim);
   const zoom = kenBurns && !reducedMotion;
 
   return (

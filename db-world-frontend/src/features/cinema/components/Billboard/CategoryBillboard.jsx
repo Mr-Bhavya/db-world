@@ -35,7 +35,8 @@ export default function CategoryBillboard({
   const m = heroMetrics(isMonitor, isTv);
   const layout = useMemo(() => ({
     padTop: isTv ? 100 : 88,                              // clear the fixed nav
-    padBottom: isTv ? 96 : isMonitor ? 84 : 72,
+    // Big bottom room: the first rail rides up ONTO the image, so content must sit well above it.
+    padBottom: isTv ? 190 : isMonitor ? 170 : 150,
   }), [isMonitor, isTv]);
 
   const hasHeader = !!breadcrumb;
@@ -62,18 +63,26 @@ export default function CategoryBillboard({
         sx={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '16 / 9',        // height tracks width, capped at 95vh so it fits the viewport
-          maxHeight: '95vh',
+          aspectRatio: '16 / 9',            // ratio keeps the backdrop from stretching / over-cropping…
+          minHeight: isTv ? '92vh' : '90vh', // …but a tall floor so the hero fills the screen
+          maxHeight: '100vh',
           overflow: 'hidden',
-          bgcolor: 'transparent',       // so the faded bottom reveals the page, not a colour block
+          bgcolor: '#141414',               // neutral — no per-title colour on Movies/TV
         }}
       >
         <AnimatePresence mode="sync" initial={false}>
           <motion.div key={record.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reducedMotion ? 0.2 : FADE_SECS, ease: EASE }} style={{ position: 'absolute', inset: 0 }}>
-            {/* heroColor omitted → neutral scrims (no per-title colour); fadeBottom → blend into page. */}
-            <ArtBackdrop record={record} tier={tier} reducedMotion={reducedMotion} cycleMs={CYCLE_MS} fit="cover" fadeBottom gradient="billboard" />
+            {/* Neutral scrims, no colour tint and no hard bottom mask — the soft gradient below blends it. */}
+            <ArtBackdrop record={record} tier={tier} reducedMotion={reducedMotion} cycleMs={CYCLE_MS} fit="cover" gradient="billboard" bottomScrim={false} />
           </motion.div>
         </AnimatePresence>
+
+        {/* Gentle low-strength bottom fade: darkens the lower image just enough for legibility and
+            blends into the page, so the first rail can ride up onto the image without a hard edge. */}
+        <Box aria-hidden sx={{
+          position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%', zIndex: 1, pointerEvents: 'none',
+          background: 'linear-gradient(to bottom, transparent 0%, rgba(20,20,20,0.26) 46%, rgba(20,20,20,0.6) 76%, #141414 100%)',
+        }} />
 
         <Box sx={{ position: 'absolute', inset: 0, zIndex: 2, display: 'flex', flexDirection: 'column', justifyContent: hasHeader ? 'space-between' : 'flex-end', px: `${m.padX}px`, pt: `${layout.padTop}px`, pb: `${layout.padBottom}px` }}>
           {hasHeader && (

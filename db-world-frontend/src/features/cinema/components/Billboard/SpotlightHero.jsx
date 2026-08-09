@@ -71,13 +71,17 @@ export default function SpotlightHero({
           borderRadius: `${layout.radius}px`,
           overflow: 'hidden',
           bgcolor: `rgb(${heroColor})`,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+          // No black drop-shadow — a soft glow of the title's own colour instead, so the hero's
+          // colour bleeds downward and "slowly converts" into the rails rather than ending on a
+          // dark band.
+          boxShadow: `0 40px 100px -44px rgba(${heroColor}, 0.65)`,
           border: `1px solid ${BORDER}`,
         }}
       >
         <AnimatePresence mode="sync" initial={false}>
           <motion.div key={record.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reducedMotion ? 0.2 : FADE_SECS, ease: EASE }} style={{ position: 'absolute', inset: 0 }}>
-            <ArtBackdrop record={record} tier={tier} reducedMotion={reducedMotion} cycleMs={CYCLE_MS} fit="cover" heroColor={heroColor} gradient="spotlight" />
+            {/* bottomScrim omitted → only the left reading scrim; no bottom fade band on Home. */}
+            <ArtBackdrop record={record} tier={tier} reducedMotion={reducedMotion} cycleMs={CYCLE_MS} fit="cover" heroColor={heroColor} gradient="spotlight" bottomScrim={false} />
           </motion.div>
         </AnimatePresence>
 
