@@ -51,9 +51,21 @@ public final class ConfigKeys {
     public static final String IPO_CHITTORGARH_BASE_URL             = "ipo.chittorgarh.base-url";
     public static final String IPO_INVESTORGAIN_BASE_URL            = "ipo.investorgain.base-url";
     public static final String IPO_GMP_NOTIFY_THRESHOLD_PCT         = "ipo.gmp.notify-threshold-pct";
+    // List view: drop long-since-listed IPOs so the list stays "current" (0 = never hide).
+    public static final String IPO_LIST_HIDE_LISTED_AFTER_DAYS      = "ipo.list.hide-listed-after-days";
+    // Notification quiet-hours + non-trading-day gating (Indian market calendar). Hours are IST;
+    // holidays are a comma-separated ISO-date list (weekends are always non-trading, no need to list).
+    public static final String IPO_NOTIFY_WINDOW_START_HOUR         = "ipo.notify.window-start-hour";
+    public static final String IPO_NOTIFY_WINDOW_END_HOUR           = "ipo.notify.window-end-hour";
+    public static final String IPO_MARKET_HOLIDAYS                  = "ipo.market.holidays";
+    // System-managed: NSE trading holidays auto-fetched yearly, unioned with the manual list above.
+    public static final String IPO_MARKET_HOLIDAYS_AUTO            = "ipo.market.holidays.auto";
 
     // Push notifications (FCM). The Firebase service-account credentials are a SECRET — read from
     // env (not a setting here), same as the IPO Guru API key.
     public static final String PUSH_ENABLED                         = "push.enabled";
     public static final String PUSH_IPO_TOPIC                       = "push.ipo.topic";
+    // How long (seconds) FCM keeps trying to deliver a push before dropping it as stale — so a
+    // device offline for days doesn't get a flood of old notifications on reconnect. 0 = FCM default.
+    public static final String PUSH_TTL_SECONDS                     = "push.ttl-seconds";
 }

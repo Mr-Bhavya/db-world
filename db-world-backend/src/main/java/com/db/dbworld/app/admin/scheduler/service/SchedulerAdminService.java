@@ -64,9 +64,13 @@ public class SchedulerAdminService {
                     .stabilityWindowSeconds(5)
                     .enabled(true).displayOrder(4).build(),
             // A single IPO Guru /ipos call returns list + GMP + subscription together, so v1
-            // needs only one cron cadence (no separate per-category schedules).
+            // needs only one cron cadence (no separate per-category schedules). Daytime-only
+            // (10:00–20:00 IST, every 2h) so it never polls overnight — aligned with the IPO
+            // notification window, so open/listed alerts fire from 10 AM and nothing is generated
+            // at 12 AM. (Existing installs keep their stored cron — edit it on the admin Scheduler
+            // page; this default only applies to a fresh seed.)
             SchedulerJobConfigEntity.builder().jobId(IpoPollScheduler.JOB_ID)
-                    .jobType(JobType.CRON).cronExpression("0 0 */3 * * *")
+                    .jobType(JobType.CRON).cronExpression("0 0 10-20/2 * * *")
                     .timezone("Asia/Kolkata").enabled(true).displayOrder(5).build()
     );
 

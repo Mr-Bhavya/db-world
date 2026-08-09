@@ -45,23 +45,35 @@ public class IpoNotificationService {
     private final PushService pushService;
     private final SettingsService settings;
     private final IpoListingRepository listingRepo;
+    private final IpoMarketCalendar marketCalendar;
     private final Clock clock;
 
     @Autowired
-    public IpoNotificationService(PushService pushService, SettingsService settings, IpoListingRepository listingRepo) {
-        this(pushService, settings, listingRepo, Clock.systemUTC());
+    public IpoNotificationService(PushService pushService, SettingsService settings,
+                                   IpoListingRepository listingRepo, IpoMarketCalendar marketCalendar) {
+        this(pushService, settings, listingRepo, marketCalendar, Clock.systemUTC());
     }
 
-    IpoNotificationService(PushService pushService, SettingsService settings, IpoListingRepository listingRepo, Clock clock) {
+    IpoNotificationService(PushService pushService, SettingsService settings, IpoListingRepository listingRepo,
+                            IpoMarketCalendar marketCalendar, Clock clock) {
         this.pushService = pushService;
         this.settings = settings;
         this.listingRepo = listingRepo;
+        this.marketCalendar = marketCalendar;
         this.clock = clock;
     }
 
     /** Broadcast one push per notification-worthy change from the latest ingest. */
     public void dispatch(List<IpoLifecycleChange> changes) {
         if (changes == null || changes.isEmpty()) {
+            return;
+        }
+        // Follow the Indian market calendar: never fire open/listed/allotment/GMP alerts overnight,
+        // on a weekend, or on an NSE holiday. Suppressed changes are already persisted (the admin
+        // change feed keeps them) — only the user-facing push is skipped.
+        if (!marketCalendar.isNotificationWindow(LocalDateTime.now(clock.withZone(IST)))) {
+            log.debug("IPO notifications suppressed for {} change(s) — outside the market-hours/trading-day window",
+                    changes.size());
             return;
         }
         for (IpoLifecycleChange c : changes) {
@@ -84,10 +96,10 @@ public class IpoNotificationService {
     /** Once-per-IPO "closing soon" reminder for open IPOs closing today or tomorrow (IST). */
     public void notifyClosingSoon() {
         LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
-        // Don't send reminders overnight/early morning (the status flips at IST times now, but a poll
-        // can still run at midnight) — wait until the market day has begun so alerts arrive at a sane
-        // hour rather than 12:00 AM.
-        if (nowIst.toLocalTime().isBefore(IpoStatusCanonicalizer.OPEN_CUTOFF_IST)) {
+        // Same market-calendar gate as dispatch(): no reminders overnight, on weekends, or on NSE
+        // holidays — only during IST market hours on a trading day. The dedupe marker is only stamped
+        // on an actual send, so a reminder suppressed now still goes out at the next in-window poll.
+        if (!marketCalendar.isNotificationWindow(nowIst)) {
             return;
         }
         LocalDate today = nowIst.toLocalDate();
