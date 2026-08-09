@@ -34,6 +34,16 @@ public class IngestionContext {
     private LogCollector logCollector = new LogCollector();
     private final AtomicBoolean cancellationFlag = new AtomicBoolean(false);
 
+    /**
+     * The linked record id, read LIVE from the request so a mid-flight edit (add/fix the record
+     * link while the job is still downloading) is honoured at processing time. Falls back to the
+     * snapshot field only if the request is somehow absent. (Lombok skips generating this getter
+     * because it's defined here.)
+     */
+    public Long getRecordId() {
+        return request != null && request.getRecordId() != null ? request.getRecordId() : recordId;
+    }
+
     public void log(String step, String msg) {
         logCollector.info(step, msg);
     }

@@ -51,10 +51,12 @@ public class SmartTrackFilterService {
                 userFilter != null && userFilter.hasAnyFilter());
         TrackLanguages langs = probeLanguages(mediaFile);
 
-        if (userFilter != null && userFilter.hasAnyFilter()) {
-            // Preserve the user's filter settings; only augment with track infos for title generation
-            log.info("Using user-supplied track filter for {} (keepAudio={}, keepSubs={})",
+        if (userFilter != null && (userFilter.hasAnyFilter() || userFilter.isExplicit())) {
+            // Preserve the user's filter settings; only augment with track infos for title generation.
+            // An explicit filter (interactive review) is honoured even when it keeps everything.
+            log.info("Using user-supplied track filter for {} (explicit={}, keepAudio={}, keepSubs={})",
                     mediaFile.getFileName(),
+                    userFilter.isExplicit(),
                     userFilter.getKeepAudioLanguages(),
                     userFilter.getKeepSubtitleLanguages());
             return userFilter.toBuilder()

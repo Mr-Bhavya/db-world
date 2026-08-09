@@ -1,7 +1,11 @@
 package com.db.dbworld.app.media.ingestion.pipeline;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
+import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
+import com.db.dbworld.app.media.enrichment.TrackFilter;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
@@ -16,9 +20,12 @@ import org.apache.logging.log4j.ThreadContext;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -57,6 +64,15 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final RecordRepository   recordRepository;
     private final PushService        pushService;
     private final CatalogService     catalogService;
+
+    // Interactive audio/subtitle track review (opt-in per job).
+    private final SmartTrackFilterService smartTrackFilterService;
+    private final TrackReviewCoordinator  trackReviewCoordinator;
+    private final SettingsService         settingsService;
+
+    /** Container extensions considered "media" when picking a representative file to probe. */
+    private static final Set<String> MEDIA_EXTENSIONS = Set.of(
+            "mkv", "mp4", "avi", "mov", "ts", "m2ts", "m4v", "wmv", "flv", "webm", "mpg", "mpeg");
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -220,6 +236,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     private void runProcessing(IngestionContext ctx, String recordName) throws Exception {
         String  jobId     = ctx.getJobId();
+
+        // ── Interactive track-review gate ────────────────────────────────────────
+        // Runs BEFORE any processing slot is acquired and after the download slot is released, so a
+        // job parked here waiting for the admin holds no slot and other jobs keep flowing.
+        maybeAwaitTrackReview(ctx);
+        if (isCancelled(ctx)) { markCancelled(ctx); return; }
+
         Long    recordId  = ctx.getRecordId();
 
         Semaphore recordLock = recordId != null
@@ -283,6 +306,108 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             globalProcessingSemaphore.release();
         }
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Interactive track review
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * If this job opted into track review, probe the downloaded file, enter {@code AWAITING_INPUT}
+     * and park until the admin picks tracks (or the timeout applies the smart default). The chosen
+     * (or default) {@link TrackFilter} is set back on the request so the FFmpeg pass applies it.
+     * Best-effort: any probe/skip condition just proceeds with the normal smart-resolve behaviour.
+     */
+    private void maybeAwaitTrackReview(IngestionContext ctx) {
+        String jobId = ctx.getJobId();
+        if (!Boolean.TRUE.equals(ctx.getRequest().getReviewTracks())) return;
+        if (!settingsService.getBoolean(ConfigKeys.INGESTION_TRACK_REVIEW_ENABLED)) {
+            ctx.log("TRACKS", "Track review requested but disabled in settings — using smart default");
+            return;
+        }
+        if (ctx.getDownload() == null || ctx.getDownload().getFilePath() == null) return;
+        if (isCancelled(ctx)) return;
+
+        Path probeTarget = resolveProbeTarget(ctx.getDownload().getFilePath());
+        if (probeTarget == null) {
+            ctx.log("TRACKS", "Track review requested but no probe-able media file found — skipping");
+            return;
+        }
+
+        TrackFilter resolved;
+        try {
+            resolved = smartTrackFilterService.resolve(probeTarget, ctx.getRequest().getTrackFilter());
+        } catch (Exception e) {
+            ctx.logError("TRACKS", "Track probe failed (" + e.getMessage() + ") — skipping review");
+            return;
+        }
+        boolean hasTracks = notEmpty(resolved.getAllAudioTracks()) || notEmpty(resolved.getAllSubTracks());
+        if (!hasTracks) {
+            ctx.log("TRACKS", "No audio/subtitle tracks detected — skipping review");
+            return;
+        }
+
+        long timeoutMin = settingsService.getInt(ConfigKeys.INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES);
+        if (timeoutMin <= 0) timeoutMin = 30;
+        Duration timeout = Duration.ofMinutes(timeoutMin);
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+
+        TrackReviewOptions options = TrackReviewOptions.from(jobId, resolved, deadline);
+        TrackFilter fallback = resolved.toBuilder().explicit(true).build();
+
+        // Free the sequential HTTP download slot so other downloads run while we wait.
+        if (ctx.isQueueManaged()) {
+            downloadQueue.signalComplete(jobId);
+        }
+
+        trackingService.updateStatus(jobId, MirrorStatus.AWAITING_INPUT);
+        ctx.setStatus(MirrorStatus.AWAITING_INPUT);
+        ctx.log("TRACKS", "Awaiting track selection — " + options.audio().size() + " audio, "
+                + options.subtitles().size() + " subtitle track(s); auto-default in " + timeoutMin + " min");
+
+        TrackFilter chosen = trackReviewCoordinator.awaitSelection(jobId, options, fallback, timeout);
+        if (chosen == null) {
+            // Cancelled while awaiting — cancel path has already flagged the job; let the caller end it.
+            return;
+        }
+        TrackFilter applied = chosen.isExplicit() ? chosen : chosen.toBuilder().explicit(true).build();
+        ctx.getRequest().setTrackFilter(applied);
+        ctx.log("TRACKS", "Applying selection — keepAudio=" + applied.getKeepAudioLanguages()
+                + ", keepSubs=" + applied.getKeepSubtitleLanguages());
+    }
+
+    /** The file to probe for track review: the file itself, or the largest media file in a directory. */
+    private Path resolveProbeTarget(Path fileOrDir) {
+        try {
+            if (Files.isRegularFile(fileOrDir)) return fileOrDir;
+            if (Files.isDirectory(fileOrDir)) {
+                try (var stream = Files.walk(fileOrDir)) {
+                    return stream.filter(Files::isRegularFile)
+                            .filter(this::isMediaFile)
+                            .max(Comparator.comparingLong(this::sizeQuietly))
+                            .orElse(null);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("resolveProbeTarget failed for {}: {}", fileOrDir, e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isMediaFile(Path p) {
+        String name = p.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && MEDIA_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase());
+    }
+
+    private long sizeQuietly(Path p) {
+        try { return Files.size(p); } catch (Exception e) { return 0L; }
+    }
+
+    private static boolean notEmpty(List<?> list) {
+        return list != null && !list.isEmpty();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Tries to acquire the semaphore, polling every 500 ms.

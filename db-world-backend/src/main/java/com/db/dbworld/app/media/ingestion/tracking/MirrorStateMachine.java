@@ -18,11 +18,18 @@ public class MirrorStateMachine {
 
             case STARTED -> to == MirrorStatus.QUEUED ||
                     to == MirrorStatus.DOWNLOADING ||
+                    to == MirrorStatus.AWAITING_INPUT ||
                     to == MirrorStatus.PROCESSING ||
                     to == MirrorStatus.FAILED;
 
-            case DOWNLOADING -> to == MirrorStatus.PROCESSING ||
+            case DOWNLOADING -> to == MirrorStatus.AWAITING_INPUT ||
+                    to == MirrorStatus.PROCESSING ||
                     to == MirrorStatus.PAUSED ||
+                    to == MirrorStatus.CANCELLED ||
+                    to == MirrorStatus.FAILED;
+
+            // Parked for track selection → resumes into processing, or ends.
+            case AWAITING_INPUT -> to == MirrorStatus.PROCESSING ||
                     to == MirrorStatus.CANCELLED ||
                     to == MirrorStatus.FAILED;
 

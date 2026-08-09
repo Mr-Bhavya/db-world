@@ -73,4 +73,8 @@ public final class ConfigKeys {
     // How long (seconds) FCM keeps trying to deliver a push before dropping it as stale — so a
     // device offline for days doesn't get a flood of old notifications on reconnect. 0 = FCM default.
     public static final String PUSH_TTL_SECONDS                     = "push.ttl-seconds";
+
+    // Media Ingestion — interactive audio/subtitle track review (opt-in per job).
+    public static final String INGESTION_TRACK_REVIEW_ENABLED         = "ingestion.track-review.enabled";
+    public static final String INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES = "ingestion.track-review.timeout-minutes";
 }

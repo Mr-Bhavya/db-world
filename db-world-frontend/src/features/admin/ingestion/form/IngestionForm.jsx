@@ -52,6 +52,7 @@ import {
   QueueMusicRounded as QueueMusic,
   AutoAwesomeRounded as AutoAwesome,
   LockResetRounded as LockReset,
+  SubtitlesRounded as Subtitles,
 } from '@mui/icons-material';
 
 import { AnimatePresence, motion } from 'framer-motion';
@@ -104,6 +105,8 @@ const schema = z.object({
   zipPwd: z.string().optional().default(''),
 
   audioOnly: z.boolean().default(false),
+
+  reviewTracks: z.boolean().default(false),
 
   videoITag: z.string().optional().nullable(),
   audioITag: z.string().optional().nullable(),
@@ -505,6 +508,7 @@ const EMPTY_DEFAULTS = {
   extract: false,
   zipPwd: '',
   audioOnly: false,
+  reviewTracks: false,
   videoITag: null,
   audioITag: null,
   videoQuality: 'best',
@@ -720,6 +724,8 @@ export default function IngestionForm({
         password: data.useAuth ? data.password : undefined,
         extractPassword:
           data.extract && data.zipPwd ? data.zipPwd : undefined,
+        // Opt-in: pause after download to hand-pick audio/subtitle tracks on the live job.
+        reviewTracks: !!data.reviewTracks,
         videoITag: isYtMode && !data.audioOnly ? data.videoITag : undefined,
         audioITag: isYtMode ? data.audioITag : undefined,
         // Quality preset — used by playlists (itags differ per video) and ignored by the
@@ -1341,6 +1347,27 @@ export default function IngestionForm({
                           />
                         )}
                       />
+                    </OptionTile>
+                  )}
+                />
+
+                {/* Interactive track review */}
+                <Controller
+                  name="reviewTracks"
+                  control={control}
+                  render={({ field }) => (
+                    <OptionTile
+                      icon={<Subtitles sx={{ fontSize: 18 }} />}
+                      title="Review tracks after download"
+                      subtitle="Pick which audio/subtitle languages to keep before processing"
+                      checked={!!field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    >
+                      <Alert severity="info" sx={{ borderRadius: 2.5, mt: 0.25 }}>
+                        After the download finishes, the job pauses on the live tab and asks you to
+                        choose tracks — meanwhile other jobs keep running. If you don&apos;t respond in
+                        time, the smart default (keep priority languages) is applied automatically.
+                      </Alert>
                     </OptionTile>
                   )}
                 />

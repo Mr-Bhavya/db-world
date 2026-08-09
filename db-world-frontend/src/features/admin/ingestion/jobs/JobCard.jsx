@@ -42,9 +42,11 @@ import {
   Speed,
   Notes,
   FiberManualRecord as DotIcon,
+  Subtitles,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import JobActions from './JobActions';
+import TrackReviewDialog from './TrackReviewDialog';
 import CommonServices from '@shared/services/CommonServices';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ const STATUS_CFG = {
   QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
   STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
   DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
+  AWAITING_INPUT: { label: 'Needs tracks', color: 'secondary', Icon: Subtitles },
   PROCESSING: { label: 'Processing', color: 'warning', Icon: VideoSettings },
   PAUSED: { label: 'Paused', color: 'warning', Icon: Pause },
   SUCCESS: { label: 'Completed', color: 'success', Icon: CheckCircle },
@@ -702,6 +705,46 @@ function LogPanel({
   );
 }
 
+// Prominent call-to-action shown while a job is parked in AWAITING_INPUT.
+function TrackReviewBanner({ onOpen }) {
+  return (
+    <Paper
+      elevation={0}
+      variant="outlined"
+      sx={{
+        mt: 0.3,
+        px: 1,
+        py: 0.85,
+        borderRadius: 2.5,
+        borderColor: (t) => alpha(t.palette.secondary.main, 0.45),
+        bgcolor: (t) => alpha(t.palette.secondary.main, 0.08),
+      }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Subtitles sx={{ fontSize: 19, color: 'secondary.main', flexShrink: 0 }} />
+        <Box flex={1} minWidth={0}>
+          <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+            Waiting for your track selection
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Pick which audio/subtitle languages to keep — other jobs keep running meanwhile.
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="contained"
+          color="secondary"
+          onClick={onOpen}
+          startIcon={<Subtitles sx={{ fontSize: 16 }} />}
+          sx={{ borderRadius: 999, fontWeight: 700, flexShrink: 0 }}
+        >
+          Select
+        </Button>
+      </Stack>
+    </Paper>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -717,6 +760,7 @@ function JobCardComponent({ job }) {
   const [logHtml, setLogHtml] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(false);
+  const [trackDlgOpen, setTrackDlgOpen] = useState(false);
 
   const {
     jobId,
@@ -743,7 +787,7 @@ function JobCardComponent({ job }) {
   const isActive = !isTerminal && status !== 'PAUSED';
 
   const statusLabel = useMemo(() => {
-    if (isTerminal || status === 'PAUSED') return cfg.label;
+    if (isTerminal || status === 'PAUSED' || status === 'AWAITING_INPUT') return cfg.label;
     return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
   }, [cfg.label, isTerminal, status, step]);
 
@@ -817,9 +861,10 @@ function JobCardComponent({ job }) {
     if (status === 'CANCELLED') return alpha(T.error ?? '#f44336', 0.3);
     if (status === 'SUCCESS') return alpha(T.success ?? '#4caf50', 0.4);
     if (status === 'PAUSED') return alpha(T.warning ?? '#ff9800', 0.5);
+    if (status === 'AWAITING_INPUT') return alpha(theme.palette.secondary.main, 0.55);
     if (isActive) return alpha(T.teal ?? '#00bcd4', 0.4);
     return T.border ?? 'rgba(0,0,0,0.12)';
-  }, [status, isActive, T]);
+  }, [status, isActive, T, theme]);
 
   const sourceColor = useMemo(() => {
     if (sourceType === 'YOUTUBE') return 'error.main';
@@ -1054,7 +1099,7 @@ function JobCardComponent({ job }) {
                   }}
                 />
               </Box>
-            ) : isActive && status !== 'QUEUED' ? (
+            ) : isActive && status !== 'QUEUED' && status !== 'AWAITING_INPUT' ? (
               <LinearProgress
                 variant="indeterminate"
                 sx={{
@@ -1063,6 +1108,11 @@ function JobCardComponent({ job }) {
                   mt: 0.1,
                 }}
               />
+            ) : null}
+
+            {/* Track-review CTA — the job is parked waiting for an audio/subtitle selection */}
+            {status === 'AWAITING_INPUT' ? (
+              <TrackReviewBanner onOpen={() => setTrackDlgOpen(true)} />
             ) : null}
 
             {/* Per-file breakdown: full list for season packs, inline sub-steps for a single file */}
@@ -1138,6 +1188,14 @@ function JobCardComponent({ job }) {
           </Stack>
         </CardContent>
       </Card>
+
+      {trackDlgOpen ? (
+        <TrackReviewDialog
+          jobId={jobId}
+          open={trackDlgOpen}
+          onClose={() => setTrackDlgOpen(false)}
+        />
+      ) : null}
     </motion.div>
   );
 }

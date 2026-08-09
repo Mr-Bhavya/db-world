@@ -22,6 +22,7 @@ public final class SettingsCatalog {
     private static final String C_CINEMA    = "Cinema";
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
+    private static final String C_INGESTION = "Media Ingestion";
 
     /**
      * Default NSE market-holiday seed. Fixed-date national holidays are written as recurring
@@ -172,7 +173,16 @@ public final class SettingsCatalog {
             "How long FCM keeps trying to deliver a push before dropping it as stale — stops a device "
             + "that was offline for days from getting a flood of old notifications when it reconnects. "
             + "Applies to every push (Android/iOS/web). 86400 = 1 day; 0 = FCM default (~4 weeks).",
-            86400L, 0L, 2419200L, 2)
+            86400L, 0L, 2419200L, 2),
+
+        // ── Media Ingestion ───────────────────────────────────────────────
+        bool(INGESTION_TRACK_REVIEW_ENABLED, C_INGESTION, "Track review enabled",
+             "Master switch for the post-download audio/subtitle track review. When off, jobs that "
+             + "requested review just apply the smart-default filter automatically (no prompt).", true, 0),
+        intg(INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES, C_INGESTION, "Track review timeout (min)",
+             "How long a job waits for you to pick tracks before auto-applying the smart default and "
+             + "continuing. The job holds no processing slot while it waits, so other jobs proceed.",
+             30, 1L, 1440L, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

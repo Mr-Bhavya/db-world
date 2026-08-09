@@ -55,6 +55,9 @@ public interface TrackingService {
     /** True if a job is currently tracked (active or recently terminal). */
     boolean hasJob(String jobId);
 
+    /** Current lifecycle status of a tracked job, or {@code null} if it isn't tracked. */
+    MirrorStatus getStatus(String jobId);
+
     /** Restore a job into the tracking map (used on server restart recovery). */
     void restoreJob(String jobId, Instant startedAt, MirrorStatus status,
                     String sourceType, String fileName, String uri,

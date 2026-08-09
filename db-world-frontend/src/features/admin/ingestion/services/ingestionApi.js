@@ -43,6 +43,20 @@ export const editJobParams = async (jobId, body) => {
   return res.data;
 };
 
+// ── Interactive track review (audio/subtitle selection while AWAITING_INPUT) ───
+
+/** Detected audio/subtitle tracks + smart-default suggestion for a parked job. */
+export const getJobTracks = async (jobId) => {
+  const res = await axiosInstance.get(`/api/ingestion/${jobId}/tracks`);
+  return res.data;
+};
+
+/** Submit the chosen audio/subtitle languages, unparking the job to continue processing. */
+export const submitJobTracks = async (jobId, selection) => {
+  const res = await axiosInstance.post(`/api/ingestion/${jobId}/tracks`, selection);
+  return res.data;
+};
+
 export const deleteJob = async (jobId) => {
   const res = await axiosInstance.delete(`/api/ingestion/${jobId}`);
   return res.data;
