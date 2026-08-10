@@ -482,6 +482,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.setStatus(MirrorStatus.AWAITING_INPUT);
         ctx.log("TRACKS", "Awaiting track selection — " + options.audio().size() + " audio, "
                 + options.subtitles().size() + " subtitle track(s); auto-default in " + timeoutMin + " min");
+        // Ping admins that this job is parked waiting for a human track pick, so nobody has to sit
+        // watching the queue (it still auto-applies the smart default at the timeout regardless).
+        notifyAdmins("Track selection needed", resolveRecordName(ctx.getRecordId()), ctx.getRequest());
 
         TrackFilter chosen = trackReviewCoordinator.awaitSelection(jobId, options, fallback, timeout);
         if (chosen == null) {
@@ -624,9 +627,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Admin push notifications — fired only on the three job state transitions
-    // (queued / complete / failed), never on progress ticks. Fully best-effort:
-    // a push hiccup must never affect the job.
+    // Admin push notifications — fired only on the four job state transitions
+    // (queued / awaiting-input / complete / failed), never on progress ticks. Fully
+    // best-effort: a push hiccup must never affect the job.
     // ──────────────────────────────────────────────────────────────────────────
 
     private void notifyAdmins(String title, String recordName, IngestionRequest request) {

@@ -29,7 +29,7 @@ import java.util.List;
  *
  * Frames are extracted with FAST input seeking ({@code -ss} before {@code -i}),
  * so each tile decodes only ~one GOP near its timestamp instead of decoding the
- * whole file — cheap enough to run ~100 times even for a 4K HEVC remux on a Pi.
+ * whole file — cheap enough to run hundreds of times even for a 4K HEVC remux on a Pi.
  *
  * Entirely best-effort: any failure is logged and swallowed so it can never
  * break ingestion. Files ingested before this feature simply have no sprite and
@@ -42,7 +42,7 @@ public class StoryboardService {
 
     private static final int COLS               = 10;   // tiles per row
     private static final int TARGET_INTERVAL_SEC = 10;   // aim for one frame every ~10s of video
-    private static final int MAX_TILES           = 400;  // upper bound (bounds sprite size + gen time)
+    private static final int MAX_TILES           = 900;  // upper bound (bounds sprite size + gen time)
     private static final int MIN_INTERVAL_SEC    = 2;    // never sample closer than this
     private static final int TILE_WIDTH          = 160;  // px; height derived from source aspect
 

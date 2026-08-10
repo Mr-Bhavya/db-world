@@ -501,106 +501,78 @@ function BottomActions({
   hasUri,
   job,
   compact,
+  spread,
 }) {
+  const pillSx = {
+    minWidth: 0,
+    px: 0.9,
+    py: 0.35,
+    borderRadius: 999,
+    textTransform: 'none',
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+  };
+  const iconSx = { width: 28, height: 28, borderRadius: 2 };
+
+  const utility = compact ? (
+    <>
+      <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
+        <IconButton size="small" onClick={onToggleLogs} sx={iconSx}>
+          {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
+        </IconButton>
+      </Tooltip>
+      {hasUri ? (
+        <Tooltip title="Copy source URL">
+          <IconButton size="small" onClick={onCopyUrl} sx={iconSx}>
+            <ContentCopy sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+    </>
+  ) : (
+    <>
+      <Button
+        size="small"
+        variant="text"
+        startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+        onClick={onToggleLogs}
+        sx={pillSx}
+      >
+        {logOpen ? 'Hide Logs' : 'Logs'}
+      </Button>
+      {hasUri ? (
+        <Button size="small" variant="text" startIcon={<ContentCopy fontSize="small" />} onClick={onCopyUrl} sx={pillSx}>
+          Copy URL
+        </Button>
+      ) : null}
+    </>
+  );
+
   return (
     <Box
       sx={{
-        overflowX: 'auto',
+        overflowX: spread ? 'visible' : 'auto',
         overflowY: 'hidden',
         WebkitOverflowScrolling: 'touch',
         pb: 0.1,
         mx: -0.15,
       }}
     >
+      {/* Desktop spreads the row (view/copy on the left, job actions on the right); mobile keeps a
+          single left-aligned scroll row. */}
       <Stack
         direction="row"
-        spacing={0.45}
         alignItems="center"
-        sx={{
-          width: 'max-content',
-          minWidth: '100%',
-          flexWrap: 'nowrap',
-        }}
+        spacing={0.45}
+        sx={spread
+          ? { width: '100%', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: 0.5 }
+          : { width: 'max-content', minWidth: '100%', flexWrap: 'nowrap' }}
       >
-        {compact ? (
-          <>
-            <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
-              <IconButton
-                size="small"
-                onClick={onToggleLogs}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 2,
-                }}
-              >
-                {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
-              </IconButton>
-            </Tooltip>
-
-            {hasUri ? (
-              <Tooltip title="Copy source URL">
-                <IconButton
-                  size="small"
-                  onClick={onCopyUrl}
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 2,
-                  }}
-                >
-                  <ContentCopy sx={{ fontSize: 15 }} />
-                </IconButton>
-              </Tooltip>
-            ) : null}
-
-            <JobActions job={job} layout="mobile" compactMobile />
-          </>
-        ) : (
-          <>
-            <Button
-              size="small"
-              variant="text"
-              startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-              onClick={onToggleLogs}
-              sx={{
-                minWidth: 0,
-                px: 0.9,
-                py: 0.35,
-                borderRadius: 999,
-                textTransform: 'none',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {logOpen ? 'Hide Logs' : 'Logs'}
-            </Button>
-
-            {hasUri ? (
-              <Button
-                size="small"
-                variant="text"
-                startIcon={<ContentCopy fontSize="small" />}
-                onClick={onCopyUrl}
-                sx={{
-                  minWidth: 0,
-                  px: 0.9,
-                  py: 0.35,
-                  borderRadius: 999,
-                  textTransform: 'none',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Copy URL
-              </Button>
-            ) : null}
-
-            <JobActions job={job} layout="mobile" compactMobile={false} />
-          </>
-        )}
+        <Stack direction="row" spacing={0.45} alignItems="center">
+          {utility}
+        </Stack>
+        <JobActions job={job} layout="mobile" compactMobile={compact} />
       </Stack>
     </Box>
   );
@@ -838,7 +810,9 @@ function JobCardComponent({ job }) {
   // render as a time. Falls back to the download/extract byte-percent before files exist.
   const mainPct = hasFiles
     ? Math.min(100, Math.max(0, Number(overallPercent ?? pct)))
-    : pct;
+    // While extracting, only trust a processing-phase % — a stale "downloading" 100% must not bleed
+    // through as a full bar; show indeterminate until real extraction progress arrives.
+    : (isExtract && progress?.phase !== 'processing' ? 0 : pct);
 
   const progressLeft = useMemo(() => {
     // The phase word lives in the status chip now — here we show only the OVERALL metric so the two
@@ -1161,7 +1135,7 @@ function JobCardComponent({ job }) {
               </Typography>
             ) : null}
 
-            {/* Bottom action row — same placement on mobile and desktop */}
+            {/* Bottom action row — same placement on mobile + desktop; spread across the row on desktop */}
             <BottomActions
               logOpen={logOpen}
               onToggleLogs={toggleLogs}
@@ -1169,6 +1143,7 @@ function JobCardComponent({ job }) {
               hasUri={!!uri}
               job={job}
               compact={isVeryNarrow}
+              spread={!isSmDown}
             />
 
             {/* Logs */}
