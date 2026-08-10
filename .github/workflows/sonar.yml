@@ -5,12 +5,13 @@ name: SonarCloud
 # (config in sonar-project.properties). GitHub-hosted runner, deliberately NOT the Pi:
 # analysis is CPU-heavy and needs network, and the whole point is to spare the Pi.
 #
-# Requires repo secret SONAR_TOKEN. Mirrors ci.yml triggers so it validates every PR.
+# Requires repo secret SONAR_TOKEN. Runs on the integration line (where feature branches
+# land) plus development/main, so analysis happens as you work — not only at release.
 on:
   push:
-    branches: [main]
+    branches: [main, integration/ipo-and-record]
   pull_request:
-    branches: [development, main]
+    branches: [development, main, integration/ipo-and-record]
   workflow_dispatch: {}
 
 jobs:
