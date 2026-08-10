@@ -79,4 +79,6 @@ public final class ConfigKeys {
     public static final String INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES = "ingestion.track-review.timeout-minutes";
     // Max CPU threads for the heavy media tools (ffmpeg storyboard decode + 7z extraction). 0 = all cores.
     public static final String INGESTION_PROCESSING_THREADS           = "ingestion.processing-threads";
+    // Master switch for scrub-preview storyboard generation during ingestion.
+    public static final String INGESTION_STORYBOARD_ENABLED           = "ingestion.storyboard.enabled";
 }

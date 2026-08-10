@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(43); // 40 (base+IPO+push+cinema) + 3 media-ingestion (track-review enabled/timeout + processing-threads)
+        assertThat(after1).isEqualTo(44); // 40 (base+IPO+push+cinema) + 4 media-ingestion (track-review enabled/timeout + processing-threads + storyboard-enabled)
     }
 
     @Test
