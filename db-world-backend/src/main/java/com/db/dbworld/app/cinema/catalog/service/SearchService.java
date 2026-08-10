@@ -10,4 +10,7 @@ public interface SearchService {
     Page<SearchRecordDto> search(String query, Pageable pageable);
 
     Page<RecordAutocompleteDto> autocomplete(String query, int limit);
+
+    /** Like {@link #autocomplete} but WITHOUT the draft filter — for admin record-linking pickers. */
+    Page<RecordAutocompleteDto> autocompleteAdmin(String query, int limit);
 }

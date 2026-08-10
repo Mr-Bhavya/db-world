@@ -182,7 +182,18 @@ public final class SettingsCatalog {
         intg(INGESTION_TRACK_REVIEW_TIMEOUT_MINUTES, C_INGESTION, "Track review timeout (min)",
              "How long a job waits for you to pick tracks before auto-applying the smart default and "
              + "continuing. The job holds no processing slot while it waits, so other jobs proceed.",
-             30, 1L, 1440L, 1)
+             30, 1L, 1440L, 1),
+        intg(INGESTION_PROCESSING_THREADS, C_INGESTION, "Media processing CPU threads",
+             "Max CPU threads for the heavy media tools — ffmpeg storyboard frame decode + 7z archive "
+             + "extraction. 0 = use all cores. Lower it (e.g. 2 on a 4-core Pi) to keep the server "
+             + "responsive during ingestion: processing takes longer but never pins every core. Takes "
+             + "effect on the next job — no restart needed.",
+             2, 0L, 64L, 2),
+        bool(INGESTION_STORYBOARD_ENABLED, C_INGESTION, "Storyboard generation",
+             "Generate the scrub-bar preview sprite (a thumbnail roughly every 10s of video) during "
+             + "ingestion. Turn off to skip it entirely — noticeably less CPU/time per job, at the cost "
+             + "of no hover-scrub thumbnails in the player for newly ingested files. Applies on the next job.",
+             true, 3)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

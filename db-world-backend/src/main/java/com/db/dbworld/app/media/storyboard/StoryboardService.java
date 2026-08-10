@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.storyboard;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
@@ -29,7 +31,7 @@ import java.util.List;
  *
  * Frames are extracted with FAST input seeking ({@code -ss} before {@code -i}),
  * so each tile decodes only ~one GOP near its timestamp instead of decoding the
- * whole file — cheap enough to run ~100 times even for a 4K HEVC remux on a Pi.
+ * whole file — cheap enough to run hundreds of times even for a 4K HEVC remux on a Pi.
  *
  * Entirely best-effort: any failure is logged and swallowed so it can never
  * break ingestion. Files ingested before this feature simply have no sprite and
@@ -40,14 +42,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StoryboardService {
 
-    private static final int COLS              = 10;   // tiles per row
-    private static final int TARGET_TILES      = 100;  // upper bound on total tiles
-    private static final int MIN_INTERVAL_SEC  = 2;    // never sample closer than this
-    private static final int TILE_WIDTH        = 160;  // px; height derived from source aspect
+    private static final int COLS               = 10;   // tiles per row
+    private static final int TARGET_INTERVAL_SEC = 10;   // aim for one frame every ~10s of video
+    private static final int MAX_TILES           = 900;  // upper bound (bounds sprite size + gen time)
+    private static final int MIN_INTERVAL_SEC    = 2;    // never sample closer than this
+    private static final int TILE_WIDTH          = 160;  // px; height derived from source aspect
 
     private final AppProperties       runtime;
     private final ProcessExecutor     processExecutor;
     private final MediaFileRepository mediaFileRepository;
+    private final SettingsService     settingsService;
 
     /** Sprites live in a sibling dir of the symlink root: {dataRoot}/storyboards. */
     private Path storyboardDir() {
@@ -146,14 +150,19 @@ public class StoryboardService {
             long durationSec = durationMs / 1000;
             if (durationSec < MIN_INTERVAL_SEC) return;
 
-            int intervalSec = Math.max(MIN_INTERVAL_SEC,
-                    (int) Math.ceil(durationSec / (double) TARGET_TILES));
-            int count = (int) Math.min(TARGET_TILES, durationSec / intervalSec);
+            // Aim for one tile every ~TARGET_INTERVAL_SEC, capped at MAX_TILES, so a long film gets a
+            // dense scrub preview instead of a fixed 100 (≈72s apart on a 2h movie). The interval only
+            // stretches past the target once the cap is hit, then spreads the tiles evenly.
+            int desired     = (int) Math.ceil(durationSec / (double) TARGET_INTERVAL_SEC);
+            int count       = Math.max(1, Math.min(MAX_TILES, desired));
+            int intervalSec = Math.max(MIN_INTERVAL_SEC, (int) Math.ceil(durationSec / (double) count));
+            count = (int) Math.min(count, durationSec / intervalSec);
             if (count < 1) return;
             int rows = (int) Math.ceil(count / (double) COLS);
 
             tmpDir = Files.createTempDirectory("storyboard-" + mediaFileId + "-");
             String ffmpeg = runtime.getFfmpeg();
+            int threads = settingsService.getInt(ConfigKeys.INGESTION_PROCESSING_THREADS); // >0 caps ffmpeg decode threads (Pi CPU relief)
 
             List<BufferedImage> tiles = new ArrayList<>(count);
             int tileH = -1;
@@ -162,15 +171,17 @@ public class StoryboardService {
                 long ts   = (long) i * intervalSec;
                 Path tile = tmpDir.resolve(i + ".jpg");
                 try {
-                    processExecutor.executeFfmpegWithSimpleOutput(List.of(
-                            ffmpeg, "-y",
-                            "-ss", String.valueOf(ts),
-                            "-i", videoFile.toAbsolutePath().toString(),
-                            "-frames:v", "1",
-                            "-vf", "scale=" + TILE_WIDTH + ":-2",
-                            "-q:v", "4",
-                            tile.toAbsolutePath().toString()
-                    ));
+                    List<String> cmd = new ArrayList<>();
+                    cmd.add(ffmpeg);
+                    if (threads > 0) { cmd.add("-threads"); cmd.add(String.valueOf(threads)); }
+                    cmd.add("-y");
+                    cmd.add("-ss"); cmd.add(String.valueOf(ts));
+                    cmd.add("-i"); cmd.add(videoFile.toAbsolutePath().toString());
+                    cmd.add("-frames:v"); cmd.add("1");
+                    cmd.add("-vf"); cmd.add("scale=" + TILE_WIDTH + ":-2");
+                    cmd.add("-q:v"); cmd.add("4");
+                    cmd.add(tile.toAbsolutePath().toString());
+                    processExecutor.executeFfmpegWithSimpleOutput(cmd);
                     BufferedImage img = Files.exists(tile) ? ImageIO.read(tile.toFile()) : null;
                     if (img != null && tileH < 0) tileH = img.getHeight();
                     tiles.add(img); // may be null — leaves that grid cell black

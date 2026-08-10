@@ -6,7 +6,10 @@ import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Getter
@@ -27,6 +30,17 @@ public class IngestionContext {
     private MirrorStatus status;
     private PipelineStepType currentStep;
     private boolean queueManaged;
+
+    /** Set once an archive download has been extracted, so the extraction step doesn't run twice. */
+    private boolean archiveExtracted;
+
+    /** Set when the job was manually released ("Run now") to run in parallel — the pipeline then lets
+     *  it bypass the serial processing cap and the Option-B download-slot reclaim. */
+    private boolean parallel;
+
+    /** Temp files/dirs this job created (downloaded archive/file, extract dir) to remove when the job
+     *  ends — best-effort, so a big archive + its extracted copy don't linger. Never a local source file. */
+    private final List<Path> tempArtifacts = new ArrayList<>();
 
     private String message;
     private String htmlReport;

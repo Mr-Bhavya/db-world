@@ -12,10 +12,10 @@ import {
   Cancel,
   Delete,
   Edit,
+  FastForward,
   Pause,
   PlayArrow,
   Replay,
-  Tune,
 } from '@mui/icons-material';
 import { notify } from '@shared/notify';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,7 @@ import {
   pauseJob,
   resumeJob,
   cancelJob,
-  rerunJob,
+  releaseJob,
   deleteJob,
 } from '../services/ingestionApi';
 import RerunEditDialog from './RerunEditDialog';
@@ -214,6 +214,17 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const actions = useMemo(() => {
     const list = [];
 
+    // "Run now": pull a still-queued job out of the download queue to download in parallel.
+    if (status === 'QUEUED') {
+      list.push({
+        key: 'RunNow',
+        label: 'Run now',
+        colorKey: 'success',
+        icon: <FastForward fontSize="small" />,
+        onClick: () => act('RunNow', () => releaseJob(job.jobId)),
+      });
+    }
+
     if (isActive && !isYt) {
       list.push({
         key: 'Pause',
@@ -256,20 +267,14 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
     }
 
     if (isTerminal) {
+      // One "Rerun" that opens the prefilled dialog — submit unchanged to rerun as-is, or edit
+      // first. (The old dedicated plain-Rerun button was redundant with this.)
       list.push({
         key: 'Rerun',
         label: 'Rerun',
         colorKey: 'primary',
         icon: <Replay fontSize="small" />,
-        onClick: () => act('Rerun', () => rerunJob(job.jobId)),
-      });
-      list.push({
-        key: 'EditRerun',
-        label: 'Edit & rerun',
-        colorKey: 'primary',
-        icon: <Tune fontSize="small" />,
         onClick: () => setRerunEditOpen(true),
-        subtle: true,
       });
     }
 
@@ -283,7 +288,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
     });
 
     return list;
-  }, [isActive, isYt, isPaused, isTerminal, canLiveEdit, act, job.jobId]);
+  }, [isActive, isYt, isPaused, isTerminal, canLiveEdit, status, act, job.jobId]);
 
   const closeRerunEdit = useCallback(() => {
     setRerunEditOpen(false);

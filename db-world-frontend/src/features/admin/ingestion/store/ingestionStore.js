@@ -24,6 +24,13 @@ const useIngestionStore = create((set) => ({
   // ── Form visibility ──────────────────────────────────────────────────────
   formOpen: false,
   setFormOpen: (formOpen) => set({ formOpen }),
+
+  // ── Record prefill ─────────────────────────────────────────────────────────
+  // Set by a record's "Add media files" button, consumed once by the New Job form to pre-select
+  // the record (so you can attach media to a DRAFT record that the search can't otherwise reach).
+  prefillRecord: null,
+  setPrefillRecord: (prefillRecord) => set({ prefillRecord }),
+  clearPrefillRecord: () => set({ prefillRecord: null }),
 }));
 
 export default useIngestionStore;

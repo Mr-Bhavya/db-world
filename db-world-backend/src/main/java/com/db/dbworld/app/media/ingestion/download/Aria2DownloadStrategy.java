@@ -74,7 +74,10 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                     ctx.log("QUEUE", "Removed from queue due to cancellation");
                     return DownloadResult.failure(jobId, "Cancelled");
                 }
-                ctx.log("QUEUE", "Download slot acquired");
+                // A released ("Run now") job bypassed the slot — carry that onto the ctx so the
+                // pipeline lets it bypass the serial processing cap too (full parallel).
+                ctx.setParallel(downloadQueue.isParallel(jobId));
+                ctx.log("QUEUE", ctx.isParallel() ? "Running in parallel (released)" : "Download slot acquired");
             }
 
             trackingService.updateStatus(jobId, com.db.dbworld.app.media.ingestion.tracking.MirrorStatus.DOWNLOADING);

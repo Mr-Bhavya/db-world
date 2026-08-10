@@ -172,12 +172,12 @@ export default function LiveEditDialog({ jobId, status, open, onClose, onSaved }
               <Box>
                 <FormControlLabel
                   control={<Switch size="small" checked={extract} onChange={(e) => setExtract(e.target.checked)} />}
-                  label={<Typography variant="body2" fontWeight={600}>Extract archive after download</Typography>}
+                  label={<Typography variant="body2" fontWeight={600}>Password-protected archive</Typography>}
                 />
                 <Collapse in={extract}>
-                  <TextField label="Archive password (optional)" type="password" size="small" fullWidth
+                  <TextField label="Archive password" type="password" size="small" fullWidth
                     sx={{ mt: 1 }} value={extractPassword} onChange={(e) => setExtractPassword(e.target.value)}
-                    placeholder="Leave blank if none" />
+                    placeholder="Archives auto-extract — set only if password-protected" />
                 </Collapse>
               </Box>
 

@@ -3,12 +3,14 @@ package com.db.dbworld.app.cinema.catalog.service.impl;
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
+import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
@@ -32,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -158,5 +161,30 @@ class CatalogServiceVisibilityTest {
         assertThatThrownBy(() -> service.getPublicRecord(1L))
                 .isInstanceOf(EntityNotFoundException.class);
         verify(recordMapper, never()).toDto(any());
+    }
+
+    @Test
+    void updateRecord_visibilityOnlyChange_reusesTmdbAndDoesNotReIngest() {
+        // Regression: a draft→unlisted/publish edit keeps the same TMDB id+type. Re-ingesting an
+        // already-ingested movie used to 500 with "Movie with ID … already exists" — now the existing
+        // TMDB entity is reused and ingestMovie/ingestTvSeries are never called.
+        MovieTmdbEntity tmdb = mock(MovieTmdbEntity.class);
+        when(tmdb.getId()).thenReturn(1402L);
+        when(tmdb.getTitle()).thenReturn("Acme");
+        RecordEntity r = RecordEntity.builder()
+                .id(2271L).name("Acme").type(RecordType.MOVIE)
+                .visibility(RecordVisibility.DRAFT).tmdb(tmdb).build();
+        when(recordRepository.findByIdWithTmdb(2271L)).thenReturn(Optional.of(r));
+
+        UpdateRecordRequest req = new UpdateRecordRequest();
+        req.setType(RecordType.MOVIE);
+        req.setTmdbId(1402L);
+        req.setVisibility(RecordVisibility.UNLISTED);
+
+        service.updateRecord(2271L, req);
+
+        assertThat(r.getVisibility()).isEqualTo(RecordVisibility.UNLISTED);
+        verify(tmdbIngestionService, never()).ingestMovie(any(Long.class));
+        verify(tmdbIngestionService, never()).ingestTvSeries(any(Long.class));
     }
 }

@@ -14,6 +14,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
@@ -24,7 +26,6 @@ import {
   HttpRounded as Http,
   RefreshRounded as Refresh,
   ReplayRounded as Replay,
-  TuneRounded as Tune,
   SearchRounded as Search,
   YouTube,
   LinkRounded as LinkIcon,
@@ -40,7 +41,7 @@ import { notify } from '@shared/notify';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useJobHistory } from '../hooks/useJobHistory';
-import { deleteJob, rerunJob } from '../services/ingestionApi';
+import { deleteJob } from '../services/ingestionApi';
 import LogViewerDrawer from '../jobs/LogViewerDrawer';
 import RerunEditDialog from '../jobs/RerunEditDialog';
 
@@ -56,6 +57,16 @@ const STATUS_COLORS = {
   DOWNLOADING: 'primary',
   PROCESSING: 'warning',
   PAUSED: 'warning',
+};
+
+const STATUS_LABELS = {
+  SUCCESS: 'Completed',
+  FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
+  QUEUED: 'Queued',
+  DOWNLOADING: 'Downloading',
+  PROCESSING: 'Processing',
+  PAUSED: 'Paused',
 };
 
 const SOURCE_ICONS = {
@@ -248,6 +259,60 @@ const GridLoadingOverlay = memo(function GridLoadingOverlay() {
   );
 });
 
+// Mobile history row — a compact card (a data grid is unusable on a phone).
+function HistoryCard({ row, deleting, onRerun, onLogs, onDelete, T, S }) {
+  const Icon = SOURCE_ICONS[row.sourceType] ?? Http;
+  const isYt = row.sourceType === 'YOUTUBE';
+  const label = safeFileName(row);
+  const ms = row.startedAt && row.completedAt
+    ? new Date(row.completedAt) - new Date(row.startedAt)
+    : null;
+  return (
+    <Paper variant="outlined" sx={{ borderRadius: 2.5, p: 1.25, borderColor: S.border, bgcolor: S.card }}>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
+        <Box sx={{ width: 32, height: 32, borderRadius: 2, flexShrink: 0, display: 'grid',
+          placeItems: 'center', bgcolor: isYt ? T.errorBg : S.inset, color: isYt ? T.error : T.textMuted }}>
+          <Icon sx={{ fontSize: 18 }} />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography noWrap fontWeight={700} sx={{ fontSize: '0.82rem' }}>{label}</Typography>
+          {row.recordName ? (
+            <Typography noWrap variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              #{row.recordId} · {row.recordName}
+            </Typography>
+          ) : null}
+        </Box>
+        <Chip size="small" label={STATUS_LABELS[row.status] ?? row.status}
+          color={STATUS_COLORS[row.status] ?? 'default'}
+          sx={{ fontSize: '0.64rem', height: 21, fontWeight: 700, borderRadius: 999, flexShrink: 0 }} />
+      </Stack>
+
+      <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap' }} useFlexGap>
+        <Typography variant="caption" color="text.secondary">{fmtBytes(row.totalBytes || row.downloadedBytes)}</Typography>
+        {ms != null ? <Typography variant="caption" color="text.secondary">· {fmtDuration(ms)}</Typography> : null}
+        {row.startedAt ? (
+          <Typography variant="caption" color="text.secondary">· {new Date(row.startedAt).toLocaleDateString()}</Typography>
+        ) : null}
+      </Stack>
+
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1 }}>
+        <Button size="small" variant="outlined" startIcon={<Replay fontSize="small" />}
+          onClick={onRerun} sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Rerun</Button>
+        <Button size="small" variant="text" startIcon={<Article fontSize="small" />}
+          onClick={onLogs} sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Logs</Button>
+        <Box sx={{ flex: 1 }} />
+        <Tooltip title="Delete">
+          <span>
+            <IconButton size="small" color="error" onClick={onDelete} disabled={deleting}>
+              {deleting ? <CircularProgress size={14} color="inherit" /> : <Delete fontSize="small" />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack>
+    </Paper>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,6 +320,8 @@ const GridLoadingOverlay = memo(function GridLoadingOverlay() {
 export default function JobHistory() {
   const T = useT();
   const S = adminSurface(T);
+  const theme = useTheme();
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
 
   const qc = useQueryClient();
 
@@ -404,7 +471,7 @@ export default function JobHistory() {
         width: 130,
         renderCell: ({ value }) => (
           <Chip
-            label={value}
+            label={STATUS_LABELS[value] ?? value}
             size="small"
             color={STATUS_COLORS[value] ?? 'default'}
             sx={{
@@ -418,7 +485,7 @@ export default function JobHistory() {
       },
       {
         field: 'step',
-        headerName: 'Last step',
+        headerName: 'Stage',
         width: 120,
         renderCell: ({ value }) =>
           value ? (
@@ -476,44 +543,36 @@ export default function JobHistory() {
       {
         field: 'actions',
         headerName: 'Actions',
-        width: 176,
+        width: 132,
         sortable: false,
         filterable: false,
         align: 'center',
         headerAlign: 'center',
         renderCell: ({ row }) => {
           const id = row.jobId;
+          const del = !!busy[`${id}_Delete`];
           return (
             <Stack direction="row" spacing={0.2}>
               <HistoryActionButton
                 title="Rerun"
                 color="primary"
-                loading={!!busy[`${id}_Rerun`]}
-                disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
-                onClick={() => act(id, 'Rerun', () => rerunJob(id))}
-                icon={<Replay fontSize="small" />}
-              />
-
-              <HistoryActionButton
-                title="Edit & rerun"
-                color="primary"
-                disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
+                disabled={del}
                 onClick={() => setRerunEditJobId(id)}
-                icon={<Tune fontSize="small" />}
+                icon={<Replay fontSize="small" />}
               />
 
               <HistoryActionButton
                 title="Logs"
                 onClick={() => setLogJobId(id)}
-                disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
+                disabled={del}
                 icon={<Article fontSize="small" />}
               />
 
               <HistoryActionButton
                 title="Delete"
                 color="error"
-                loading={!!busy[`${id}_Delete`]}
-                disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
+                loading={del}
+                disabled={del}
                 onClick={() => act(id, 'Delete', () => deleteJob(id))}
                 icon={<Delete fontSize="small" />}
               />
@@ -593,7 +652,34 @@ export default function JobHistory() {
           </Alert>
         ) : null}
 
-        {/* Grid */}
+        {/* Desktop: data grid · Mobile: card list (a grid is unusable on a phone) */}
+        {isSmDown ? (
+          isLoading ? (
+            <Stack alignItems="center" sx={{ py: 5 }}><CircularProgress /></Stack>
+          ) : rows.length === 0 ? (
+            <Paper variant="outlined" sx={{ borderRadius: 3, borderStyle: 'dashed',
+              borderColor: S.border, bgcolor: S.inset, p: 3, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                {search ? 'No jobs match your search.' : 'Completed and past jobs will appear here.'}
+              </Typography>
+            </Paper>
+          ) : (
+            <Stack spacing={1}>
+              {rows.map((row) => (
+                <HistoryCard
+                  key={row.jobId}
+                  row={row}
+                  deleting={!!busy[`${row.jobId}_Delete`]}
+                  onRerun={() => setRerunEditJobId(row.jobId)}
+                  onLogs={() => setLogJobId(row.jobId)}
+                  onDelete={() => act(row.jobId, 'Delete', () => deleteJob(row.jobId))}
+                  T={T}
+                  S={S}
+                />
+              ))}
+            </Stack>
+          )
+        ) : (
         <Paper
           elevation={0}
           variant="outlined"
@@ -650,6 +736,7 @@ export default function JobHistory() {
             />
           </Box>
         </Paper>
+        )}
       </Stack>
 
       <LogViewerDrawer

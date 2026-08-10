@@ -208,17 +208,24 @@ public class CatalogServiceImpl implements CatalogService {
             return recordMapper.toDto(record);
         }
 
-        validateTmdbUniqueness(
-                request.getTmdbId(),
-                record.getTmdb() != null ? record.getTmdb().getId() : null
-        );
-
-        TmdbEntity tmdb = ingestTmdbByType(
-                request.getType(),
-                request.getTmdbId(),
-                tmdbIngestionService::ingestMovie,
-                tmdbIngestionService::ingestTvSeries
-        );
+        // Only (re-)ingest when the TMDB link actually changes. A visibility-only edit keeps the same
+        // id + type, and ingestMovie/ingestTvSeries are insert-only (they throw if the title already
+        // exists), so re-ingesting an unchanged link 500s — reuse the already-ingested entity instead.
+        TmdbEntity tmdb;
+        if (tmdbLinkUnchanged(record, request)) {
+            tmdb = record.getTmdb();
+        } else {
+            validateTmdbUniqueness(
+                    request.getTmdbId(),
+                    record.getTmdb() != null ? record.getTmdb().getId() : null
+            );
+            tmdb = ingestTmdbByType(
+                    request.getType(),
+                    request.getTmdbId(),
+                    tmdbIngestionService::ingestMovie,
+                    tmdbIngestionService::ingestTvSeries
+            );
+        }
 
         updateRecordFromRequest(record, request, tmdb);
 
@@ -545,13 +552,20 @@ public class CatalogServiceImpl implements CatalogService {
         }
     }
 
+    /**
+     * True when the record's TMDB link (id + type) already matches the request — i.e. only non-TMDB
+     * fields (e.g. visibility) could have changed, so there's nothing to re-ingest.
+     */
+    private boolean tmdbLinkUnchanged(RecordEntity record, UpdateRecordRequest request) {
+        return record.getTmdb() != null &&
+                Objects.equals(record.getTmdb().getId(), request.getTmdbId()) &&
+                record.getType() == request.getType();
+    }
+
     private boolean isUnchanged(RecordEntity record, UpdateRecordRequest request) {
         boolean visibilityUnchanged = request.getVisibility() == null
                 || record.getVisibility() == request.getVisibility();
-        return record.getTmdb() != null &&
-                Objects.equals(record.getTmdb().getId(), request.getTmdbId()) &&
-                record.getType() == request.getType() &&
-                visibilityUnchanged;
+        return tmdbLinkUnchanged(record, request) && visibilityUnchanged;
     }
 
     private String extractTitle(TmdbEntity tmdb) {

@@ -171,7 +171,7 @@ export default function RecordDetailDrawer({ rows }) {
         {!open ? null
           : drawerTab === 'overview' ? <OverviewPanel recordId={drawerRecordId} />
           : drawerTab === 'tmdb'     ? <TmdbDetailBody record={row} />
-          : drawerTab === 'files'    ? <MediaFilesBody recordId={drawerRecordId} />
+          : drawerTab === 'files'    ? <MediaFilesBody recordId={drawerRecordId} record={row} />
           : <SyncPanel row={row} />}
       </Box>
     </Dialog>
