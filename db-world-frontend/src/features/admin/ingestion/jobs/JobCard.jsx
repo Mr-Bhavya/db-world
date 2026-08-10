@@ -39,7 +39,6 @@ import {
   YouTube,
   PlayCircleOutline,
   Timer,
-  Speed,
   Notes,
   FiberManualRecord as DotIcon,
   Subtitles,
@@ -148,12 +147,18 @@ function safeDisplayName(fileName, uri, jobId) {
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATUS_CFG = {
+// Phase-aware chip config — ONE label for the current phase. The StageBar below is the visual
+// breadcrumb, so the fine step is never repeated as text. Derived from status + step in the card.
+const PHASE_CFG = {
   QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
   STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
   DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
-  AWAITING_INPUT: { label: 'Needs tracks', color: 'secondary', Icon: Subtitles },
+  EXTRACT: { label: 'Extracting', color: 'primary', Icon: Archive },
+  MERGING: { label: 'Merging', color: 'primary', Icon: Merge },
+  FFMPEG: { label: 'Encoding', color: 'warning', Icon: VideoSettings },
+  MEDIA_INFO: { label: 'Media info', color: 'warning', Icon: VideoSettings },
   PROCESSING: { label: 'Processing', color: 'warning', Icon: VideoSettings },
+  AWAITING_INPUT: { label: 'Needs tracks', color: 'secondary', Icon: Subtitles },
   PAUSED: { label: 'Paused', color: 'warning', Icon: Pause },
   SUCCESS: { label: 'Completed', color: 'success', Icon: CheckCircle },
   FAILED: { label: 'Failed', color: 'error', Icon: ErrorIcon },
@@ -489,7 +494,7 @@ function FileBreakdown({ files, fileIndex, fileTotal }) {
   );
 }
 
-function MobileBottomActions({
+function BottomActions({
   logOpen,
   onToggleLogs,
   onCopyUrl,
@@ -781,18 +786,25 @@ function JobCardComponent({ job }) {
     overallPercent,
   } = job;
 
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
   const SourceIcon = SOURCE_ICONS[sourceType] ?? Http;
   const isTerminal = ['SUCCESS', 'FAILED', 'CANCELLED'].includes(status);
   const isActive = !isTerminal && status !== 'PAUSED';
 
-  const statusLabel = useMemo(() => {
-    // QUEUED/STARTED must show their own label even if a stale step (e.g. DOWNLOAD) rides along in
-    // the snapshot — a job still waiting for a download slot is "Queued", not "Download".
-    if (isTerminal || status === 'PAUSED' || status === 'AWAITING_INPUT'
-        || status === 'QUEUED' || status === 'STARTED') return cfg.label;
-    return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
-  }, [cfg.label, isTerminal, status, step]);
+  // The chip shows the CURRENT phase (one label + colour + icon). QUEUED/STARTED/PAUSED/AWAITING and
+  // terminal states map straight through; while active the phase comes from the step (never a stale
+  // DOWNLOAD label while queued, since QUEUED short-circuits here).
+  const phase = useMemo(() => {
+    if (isTerminal || status === 'QUEUED' || status === 'STARTED'
+        || status === 'PAUSED' || status === 'AWAITING_INPUT') return status;
+    if (progress?.phase === 'merging') return 'MERGING';
+    if (step === 'EXTRACT') return 'EXTRACT';
+    if (step === 'FFMPEG') return 'FFMPEG';
+    if (step === 'MEDIA_INFO') return 'MEDIA_INFO';
+    if (step === 'DOWNLOAD' || status === 'DOWNLOADING') return 'DOWNLOADING';
+    return 'PROCESSING';
+  }, [isTerminal, status, step, progress?.phase]);
+  const cfg = PHASE_CFG[phase] ?? PHASE_CFG.STARTED;
+  const statusLabel = cfg.label;
 
   const pct = Math.min(100, Math.max(0, Number(progress?.percent ?? 0)));
   const speed = useMemo(() => fmtSpeed(progress?.speed), [progress?.speed]);
@@ -815,11 +827,12 @@ function JobCardComponent({ job }) {
     : pct;
 
   const progressLeft = useMemo(() => {
-    if (isMerging) return 'Merging audio + video…';
-    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Processing';
-    if (isExtract) return 'Extracting…';
+    // The phase word lives in the status chip now — here we show only the OVERALL metric so the two
+    // don't repeat. Extract/merge have no meaningful % (indeterminate bar), so no left label.
+    if (isMerging || isExtract) return '';
+    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Overall';
     return `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
-  }, [isMerging, hasFiles, isMultiFile, fileIndex, fileTotal, isExtract, progress?.downloaded, progress?.total]);
+  }, [isMerging, isExtract, hasFiles, isMultiFile, fileIndex, fileTotal, progress?.downloaded, progress?.total]);
 
   const progressRight = useMemo(() => {
     return [
@@ -1028,30 +1041,6 @@ function JobCardComponent({ job }) {
                   color={cfg.color}
                   outlined={false}
                 />
-
-                {!isSmDown ? (
-                  <>
-                    {uri ? (
-                      <Tooltip title="Copy source URL">
-                        <IconButton size="small" onClick={handleCopyUrl} sx={{ p: 0.4 }}>
-                          <ContentCopy sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                    ) : null}
-
-                    <Tooltip title={logOpen ? 'Collapse logs' : 'View logs'}>
-                      <IconButton size="small" onClick={toggleLogs} sx={{ p: 0.4 }}>
-                        {logOpen ? (
-                          <ExpandLess sx={{ fontSize: 17 }} />
-                        ) : (
-                          <ExpandMore sx={{ fontSize: 17 }} />
-                        )}
-                      </IconButton>
-                    </Tooltip>
-
-                    <JobActions job={job} layout="desktop" />
-                  </>
-                ) : null}
               </Stack>
             </Stack>
 
@@ -1069,13 +1058,6 @@ function JobCardComponent({ job }) {
                 <MetaChip
                   icon={<Timer sx={{ fontSize: 13 }} />}
                   label={footerTime}
-                />
-              ) : null}
-
-              {speed && !isMerging ? (
-                <MetaChip
-                  icon={<Speed sx={{ fontSize: 13 }} />}
-                  label={speed}
                 />
               ) : null}
 
@@ -1165,17 +1147,15 @@ function JobCardComponent({ job }) {
               </Typography>
             ) : null}
 
-            {/* Mobile bottom action row */}
-            {isSmDown ? (
-              <MobileBottomActions
-                logOpen={logOpen}
-                onToggleLogs={toggleLogs}
-                onCopyUrl={handleCopyUrl}
-                hasUri={!!uri}
-                job={job}
-                compact={isVeryNarrow}
-              />
-            ) : null}
+            {/* Bottom action row — same placement on mobile and desktop */}
+            <BottomActions
+              logOpen={logOpen}
+              onToggleLogs={toggleLogs}
+              onCopyUrl={handleCopyUrl}
+              hasUri={!!uri}
+              job={job}
+              compact={isVeryNarrow}
+            />
 
             {/* Logs */}
             <LogPanel

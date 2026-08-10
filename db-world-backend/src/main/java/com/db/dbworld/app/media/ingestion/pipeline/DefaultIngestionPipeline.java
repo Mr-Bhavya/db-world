@@ -37,10 +37,11 @@ import java.util.concurrent.TimeUnit;
 public class DefaultIngestionPipeline implements IngestionPipeline {
 
     /**
-     * Maximum FFmpeg/processing jobs that may run at the same time.
-     * Prevents CPU/memory overload when a large batch is submitted at once.
+     * Max FFmpeg/processing jobs running at once. 1 = strictly serial — only one job processes at a
+     * time; every other job waits for this slot. (A manually-released "Run now" job can still
+     * download in parallel via the download queue.)
      */
-    private static final int MAX_CONCURRENT_PROCESSING = 2;
+    private static final int MAX_CONCURRENT_PROCESSING = 1;
 
     private final List<SourceHandler>    sourceHandlers;
     private final List<DownloadStrategy> downloadStrategies;
@@ -258,8 +259,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 ? recordLocks.computeIfAbsent(recordId, k -> new Semaphore(1))
                 : null;
 
-        // Acquire global slot — caps total concurrent FFmpeg processes
-        if (!tryAcquireSlot(globalProcessingSemaphore, ctx, "global processing slot")) return;
+        // Serial processing: only one job holds this slot at a time (cap = MAX_CONCURRENT_PROCESSING).
+        // A manually-released ("Run now") job bypasses the slot so ONLY it runs in parallel.
+        boolean parallel = ctx.isParallel();
+        if (!parallel && !tryAcquireSlot(globalProcessingSemaphore, ctx, "global processing slot")) return;
         try {
             // Acquire per-record slot — serialises same-record jobs
             if (recordLock != null && !tryAcquireSlot(recordLock, ctx, "per-record processing slot")) {
@@ -312,7 +315,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 if (recordLock != null) recordLock.release();
             }
         } finally {
-            globalProcessingSemaphore.release();
+            if (!parallel) globalProcessingSemaphore.release();
         }
     }
 
@@ -345,12 +348,18 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         }
 
         // Extraction is I/O + CPU heavy, so cap it with the global processing slot — but release the
-        // slot right after (finally) so the track-review wait below never sits on a processing slot.
-        if (!tryAcquireSlot(globalProcessingSemaphore, ctx, "archive extraction slot")) return;
+        // slot right after (finally) so the track-review wait never sits on it. A released ("Run now")
+        // job bypasses the slot (it runs in parallel).
+        boolean parallel = ctx.isParallel();
+        if (!parallel && !tryAcquireSlot(globalProcessingSemaphore, ctx, "archive extraction slot")) return;
         try {
             // Keep the status where it is (DOWNLOADING) and only advance the STEP to EXTRACT — moving
             // to PROCESSING here would make the later AWAITING_INPUT transition illegal.
             updateStep(ctx, PipelineStepType.EXTRACT);
+            // Clear the stale download snapshot (still at 100%) so the UI shows an indeterminate
+            // "Extracting…" bar rather than a bogus 100% — 7z's cursor progress isn't reliably parsed
+            // cross-platform (Windows uses backspaces that readLine can't split into % updates).
+            trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.processing());
             ctx.log("EXTRACT", "Archive detected — extracting before track detection");
             ProcessingResult result = extractor.process(ctx);
             if (!result.isSuccess()) {
@@ -363,7 +372,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             ctx.setArchiveExtracted(true);
             ctx.log("EXTRACT", "Extraction done — processing extracted files");
         } finally {
-            globalProcessingSemaphore.release();
+            if (!parallel) globalProcessingSemaphore.release();
         }
     }
 
@@ -466,7 +475,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         // while holding the slot, so a fresh download never starts alongside this job's processing.
         // The slot is finally released in execute()'s finally — i.e. after ALL processing. Move off
         // AWAITING_INPUT first so the UI drops the track-review banner.
-        if (ctx.isQueueManaged()) {
+        // A released ("Run now") job runs in parallel — it never held the single download slot, so it
+        // neither reclaims nor blocks on it. Every other job reclaims the slot for processing (Option B).
+        if (ctx.isQueueManaged() && !ctx.isParallel()) {
             trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
             ctx.setStatus(MirrorStatus.PROCESSING);
             ctx.log("QUEUE", "Reclaiming download slot for processing…");

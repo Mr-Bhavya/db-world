@@ -40,10 +40,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StoryboardService {
 
-    private static final int COLS              = 10;   // tiles per row
-    private static final int TARGET_TILES      = 100;  // upper bound on total tiles
-    private static final int MIN_INTERVAL_SEC  = 2;    // never sample closer than this
-    private static final int TILE_WIDTH        = 160;  // px; height derived from source aspect
+    private static final int COLS               = 10;   // tiles per row
+    private static final int TARGET_INTERVAL_SEC = 10;   // aim for one frame every ~10s of video
+    private static final int MAX_TILES           = 400;  // upper bound (bounds sprite size + gen time)
+    private static final int MIN_INTERVAL_SEC    = 2;    // never sample closer than this
+    private static final int TILE_WIDTH          = 160;  // px; height derived from source aspect
 
     private final AppProperties       runtime;
     private final ProcessExecutor     processExecutor;
@@ -146,9 +147,13 @@ public class StoryboardService {
             long durationSec = durationMs / 1000;
             if (durationSec < MIN_INTERVAL_SEC) return;
 
-            int intervalSec = Math.max(MIN_INTERVAL_SEC,
-                    (int) Math.ceil(durationSec / (double) TARGET_TILES));
-            int count = (int) Math.min(TARGET_TILES, durationSec / intervalSec);
+            // Aim for one tile every ~TARGET_INTERVAL_SEC, capped at MAX_TILES, so a long film gets a
+            // dense scrub preview instead of a fixed 100 (≈72s apart on a 2h movie). The interval only
+            // stretches past the target once the cap is hit, then spreads the tiles evenly.
+            int desired     = (int) Math.ceil(durationSec / (double) TARGET_INTERVAL_SEC);
+            int count       = Math.max(1, Math.min(MAX_TILES, desired));
+            int intervalSec = Math.max(MIN_INTERVAL_SEC, (int) Math.ceil(durationSec / (double) count));
+            count = (int) Math.min(count, durationSec / intervalSec);
             if (count < 1) return;
             int rows = (int) Math.ceil(count / (double) COLS);
 

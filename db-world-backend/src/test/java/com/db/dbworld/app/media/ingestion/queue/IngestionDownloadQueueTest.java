@@ -51,10 +51,13 @@ class IngestionDownloadQueueTest {
         assertThat(queue.releaseNow("B")).isTrue();
         assertThat(queue.getQueueSize()).isZero();                 // B pulled out of the FIFO
         assertThat(queue.getCurrentlyRunningJobId()).isEqualTo("A"); // A keeps the slot
+        assertThat(queue.isParallel("B")).isTrue();                // flagged for parallel processing too
 
-        // B now runs in parallel: awaitTurn returns without B ever taking the slot.
+        // B now runs in parallel: awaitTurn returns without B ever taking the slot, and the flag
+        // persists (so the pipeline can also bypass the serial processing cap).
         assertThat(queue.awaitTurn("B", () -> false)).isTrue();
         assertThat(queue.getCurrentlyRunningJobId()).isEqualTo("A");
+        assertThat(queue.isParallel("B")).isTrue();
     }
 
     @Test

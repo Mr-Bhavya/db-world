@@ -50,7 +50,8 @@ public class IngestionDownloadQueue {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, QueueEntry> entryMap = new ConcurrentHashMap<>();
 
-    /** Jobs released to run in parallel — {@link #awaitTurn} lets them through without a slot. */
+    /** Jobs released ("Run now") to run in parallel: they bypass the download slot in awaitTurn AND
+     *  the serial processing cap (via {@link #isParallel}). Persist until job end (signalComplete/cancel). */
     private final Set<String> released = ConcurrentHashMap.newKeySet();
 
     @Getter
@@ -120,14 +121,14 @@ public class IngestionDownloadQueue {
             return false; // not waiting in the queue
         }
         released.add(jobId);
-        log.info("[{}] Released from queue → downloading in parallel (bypassing slot)", jobId);
+        log.info("[{}] Released → running in parallel (bypasses download slot + processing cap)", jobId);
         notifyAll();
         return true;
     }
 
     public synchronized boolean awaitTurn(String jobId, BooleanSupplier cancelled) throws InterruptedException {
         while (!jobId.equals(currentlyRunningJobId)) {
-            if (released.remove(jobId)) {
+            if (released.contains(jobId)) { // persists until job end so processing can bypass the cap too
                 log.info("[{}] Running in parallel — bypassing the download slot", jobId);
                 return true;
             }
@@ -153,6 +154,12 @@ public class IngestionDownloadQueue {
         List<String> snapshot = getQueueSnapshot();
         int idx = snapshot.indexOf(jobId);
         return idx >= 0 ? idx + 1 : -1;
+    }
+
+    /** True if the job was released ("Run now") to run in parallel — the pipeline bypasses the serial
+     *  processing cap for it. Set by {@link #releaseNow}; cleared at job end. */
+    public boolean isParallel(String jobId) {
+        return released.contains(jobId);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

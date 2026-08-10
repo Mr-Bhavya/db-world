@@ -31,6 +31,10 @@ public class IngestionContext {
     /** Set once an archive download has been extracted, so the extraction step doesn't run twice. */
     private boolean archiveExtracted;
 
+    /** Set when the job was manually released ("Run now") to run in parallel — the pipeline then lets
+     *  it bypass the serial processing cap and the Option-B download-slot reclaim. */
+    private boolean parallel;
+
     private String message;
     private String htmlReport;
 
