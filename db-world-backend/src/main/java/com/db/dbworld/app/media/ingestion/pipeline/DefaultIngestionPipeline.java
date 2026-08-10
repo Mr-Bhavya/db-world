@@ -74,6 +74,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
             "mkv", "mp4", "avi", "mov", "ts", "m2ts", "m4v", "wmv", "flv", "webm", "mpg", "mpeg");
 
+    /** Archive extensions treated as "extract me first" (a magic-byte sniff also covers renamed files). */
+    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of(
+            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "cbz", "cbr");
+
     // ──────────────────────────────────────────────────────────────────────────
 
     @Override
@@ -183,13 +187,12 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                     .orElseThrow(() -> new RuntimeException(
                             "No download strategy for source: " + ctx.getSource().getType()));
 
-            // Advance tracked status + step INTO the download phase. Without this the job sat on
-            // STARTED/"Starting" (step=null) for the entire download + yt-dlp merge, only waking up
-            // when processing set FFMPEG. The download strategies set ctx.setCurrentStep alone,
-            // which never reaches the tracking snapshot the UI reads.
-            trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
-            updateStep(ctx, PipelineStepType.DOWNLOAD);
-
+            // Each download strategy owns the DOWNLOADING transition and fires it at the moment the
+            // transfer actually begins: aria2 only after it acquires the sequential download slot (a
+            // job still waiting for the slot stays QUEUED), yt-dlp immediately since it never queues.
+            // Setting DOWNLOADING here — before the strategy ran — made a job that is genuinely
+            // waiting in the HTTP queue read as "Downloading", and the queue's QUEUED correction was
+            // then dropped as an illegal DOWNLOADING→QUEUED transition.
             DownloadResult downloadResult = downloader.download(ctx);
             ctx.setDownload(downloadResult);
 
@@ -236,6 +239,12 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     private void runProcessing(IngestionContext ctx, String recordName) throws Exception {
         String  jobId     = ctx.getJobId();
+
+        // ── Archive preparation ──────────────────────────────────────────────────
+        // If the download is an archive, extract it BEFORE the track-review probe so the probe (and
+        // the later FFmpeg pass) see the real media files, and the one selection applies to them all.
+        maybePrepareArchive(ctx);
+        if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
         // ── Interactive track-review gate ────────────────────────────────────────
         // Runs BEFORE any processing slot is acquired and after the download slot is released, so a
@@ -308,6 +317,82 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Archive preparation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * If the download is a single archive file (auto-detected by magic bytes, or the request opted
+     * into {@code extract}), extract it NOW — before the track-review probe — so the probe and the
+     * later FFmpeg pass see the real media files rather than the opaque archive. Reuses the existing
+     * ExtractionProcessingStrategy; that strategy is then skipped in the processors loop (guarded on
+     * {@code archiveExtracted}). Torrent packs / playlists already arrive as a directory of media,
+     * so they're left untouched (the directory-aware probe handles them directly).
+     */
+    private void maybePrepareArchive(IngestionContext ctx) throws Exception {
+        if (ctx.getDownload() == null || ctx.getDownload().getFilePath() == null) return;
+        Path file = ctx.getDownload().getFilePath();
+        if (!Files.isRegularFile(file)) return; // directory (torrent pack/playlist) — nothing to unpack
+
+        boolean wantExtract = Boolean.TRUE.equals(ctx.getRequest().getExtract()) || isArchive(file);
+        if (!wantExtract) return;
+
+        ProcessingStrategy extractor = processors.stream()
+                .filter(p -> p.getClass().getSimpleName().toLowerCase().contains("extract"))
+                .findFirst().orElse(null);
+        if (extractor == null) {
+            ctx.logError("EXTRACT", "Archive detected but no extraction strategy is available");
+            return;
+        }
+
+        // Extraction is I/O + CPU heavy, so cap it with the global processing slot — but release the
+        // slot right after (finally) so the track-review wait below never sits on a processing slot.
+        if (!tryAcquireSlot(globalProcessingSemaphore, ctx, "archive extraction slot")) return;
+        try {
+            // Keep the status where it is (DOWNLOADING) and only advance the STEP to EXTRACT — moving
+            // to PROCESSING here would make the later AWAITING_INPUT transition illegal.
+            updateStep(ctx, PipelineStepType.EXTRACT);
+            ctx.log("EXTRACT", "Archive detected — extracting before track detection");
+            ProcessingResult result = extractor.process(ctx);
+            if (!result.isSuccess()) {
+                throw new RuntimeException("Extraction failed: " + result.getErrorMessage());
+            }
+            if (result.getFinalFile() != null) {
+                ctx.getDownload().setFilePath(result.getFinalFile());
+                ctx.getDownload().setFileName(result.getFinalFile().getFileName().toString());
+            }
+            ctx.setArchiveExtracted(true);
+            ctx.log("EXTRACT", "Extraction done — processing extracted files");
+        } finally {
+            globalProcessingSemaphore.release();
+        }
+    }
+
+    /** True if the file looks like an archive we should unpack — magic-byte sniff, extension fallback. */
+    private boolean isArchive(Path file) {
+        try (var in = Files.newInputStream(file)) {
+            byte[] h = in.readNBytes(8);
+            if (h.length >= 4) {
+                int b0 = h[0] & 0xFF, b1 = h[1] & 0xFF, b2 = h[2] & 0xFF, b3 = h[3] & 0xFF;
+                if (b0 == 'P' && b1 == 'K' && (b2 == 3 || b2 == 5 || b2 == 7)) return true;   // zip / ooxml
+                if (b0 == 0x37 && b1 == 0x7A && b2 == 0xBC && b3 == 0xAF) return true;         // 7z
+                if (b0 == 'R' && b1 == 'a' && b2 == 'r' && b3 == '!') return true;             // rar
+                if (b0 == 0x1F && b1 == 0x8B) return true;                                     // gzip / tgz
+                if (b0 == 0xFD && b1 == 0x37 && b2 == 0x7A && b3 == 0x58) return true;         // xz
+                if (b0 == 'B' && b1 == 'Z' && b2 == 'h') return true;                          // bzip2
+            }
+        } catch (Exception e) {
+            log.debug("isArchive sniff failed for {}: {}", file, e.getMessage());
+        }
+        return hasArchiveExtension(file); // tar's magic sits at offset 257 — trust the extension for it
+    }
+
+    private boolean hasArchiveExtension(Path file) {
+        String name = file.getFileName().toString().toLowerCase();
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && ARCHIVE_EXTENSIONS.contains(name.substring(dot + 1));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Interactive track review
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -317,7 +402,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
      * (or default) {@link TrackFilter} is set back on the request so the FFmpeg pass applies it.
      * Best-effort: any probe/skip condition just proceeds with the normal smart-resolve behaviour.
      */
-    private void maybeAwaitTrackReview(IngestionContext ctx) {
+    private void maybeAwaitTrackReview(IngestionContext ctx) throws InterruptedException {
         String jobId = ctx.getJobId();
         if (!Boolean.TRUE.equals(ctx.getRequest().getReviewTracks())) return;
         if (!settingsService.getBoolean(ConfigKeys.INGESTION_TRACK_REVIEW_ENABLED)) {
@@ -354,7 +439,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         TrackReviewOptions options = TrackReviewOptions.from(jobId, resolved, deadline);
         TrackFilter fallback = resolved.toBuilder().explicit(true).build();
 
-        // Free the sequential HTTP download slot so other downloads run while we wait.
+        // Free the sequential HTTP download slot while we wait for the admin: a review can sit for
+        // up to the timeout, and blocking every other download on a human is wrong (Option B). The
+        // slot is RECLAIMED below the moment a selection lands, so the ffmpeg/storyboard pass still
+        // holds it and never overlaps a fresh download.
         if (ctx.isQueueManaged()) {
             downloadQueue.signalComplete(jobId);
         }
@@ -373,6 +461,21 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.getRequest().setTrackFilter(applied);
         ctx.log("TRACKS", "Applying selection — keepAudio=" + applied.getKeepAudioLanguages()
                 + ", keepSubs=" + applied.getKeepSubtitleLanguages());
+
+        // Reclaim the download slot for the processing phase (Option B): ffmpeg + storyboard now run
+        // while holding the slot, so a fresh download never starts alongside this job's processing.
+        // The slot is finally released in execute()'s finally — i.e. after ALL processing. Move off
+        // AWAITING_INPUT first so the UI drops the track-review banner.
+        if (ctx.isQueueManaged()) {
+            trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
+            ctx.setStatus(MirrorStatus.PROCESSING);
+            ctx.log("QUEUE", "Reclaiming download slot for processing…");
+            downloadQueue.enqueueForReprocess(jobId);
+            if (!downloadQueue.awaitTurn(jobId, () -> isCancelled(ctx))) {
+                return; // cancelled while waiting to reclaim — caller ends the job
+            }
+            ctx.log("QUEUE", "Download slot reclaimed");
+        }
     }
 
     /** The file to probe for track review: the file itself, or the largest media file in a directory. */

@@ -78,4 +78,17 @@ public class SearchServiceImpl implements SearchService {
         excludeDrafts();
         return recordRepository.autocomplete(query.trim(), pageable);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<RecordAutocompleteDto> autocompleteAdmin(String query, int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+
+        if (query == null || query.isBlank()) {
+            return Page.empty(pageable);
+        }
+
+        // No excludeDrafts() — admin media-linking pickers must find DRAFT/UNLISTED records too.
+        return recordRepository.autocomplete(query.trim(), pageable);
+    }
 }

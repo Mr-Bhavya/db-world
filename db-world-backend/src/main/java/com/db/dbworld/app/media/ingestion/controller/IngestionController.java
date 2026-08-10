@@ -6,6 +6,7 @@ import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
+import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.repository.IngestionJobRepository;
 import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
 import com.db.dbworld.app.media.ingestion.service.YtFormatService;
@@ -65,6 +66,7 @@ public class IngestionController {
     private final RecordRepository       recordRepository;
     private final StreamMigrationService streamMigrationService;
     private final TrackReviewCoordinator trackReviewCoordinator;
+    private final IngestionDownloadQueue downloadQueue;
 
     public IngestionController(
             IngestionPipeline      pipeline,
@@ -76,7 +78,8 @@ public class IngestionController {
             FileBrowserService     fileBrowserService,
             RecordRepository       recordRepository,
             StreamMigrationService streamMigrationService,
-            TrackReviewCoordinator trackReviewCoordinator
+            TrackReviewCoordinator trackReviewCoordinator,
+            IngestionDownloadQueue downloadQueue
     ) {
         this.pipeline                = pipeline;
         this.trackingService         = trackingService;
@@ -88,6 +91,7 @@ public class IngestionController {
         this.recordRepository        = recordRepository;
         this.streamMigrationService  = streamMigrationService;
         this.trackReviewCoordinator  = trackReviewCoordinator;
+        this.downloadQueue           = downloadQueue;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -219,29 +223,62 @@ public class IngestionController {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // RELEASE  (pull a queued job out of the FIFO to download in parallel)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @PutMapping("/{jobId}/release")
+    public ApiResponse<Void> release(@PathVariable String jobId) {
+        boolean released = downloadQueue.releaseNow(jobId);
+        if (!released) {
+            return ApiResponse.error(400,
+                    "Job " + jobId + " is not waiting in the download queue "
+                    + "(already downloading, not an HTTP job, or already finished).");
+        }
+        log.info("[{}] Released from download queue to run in parallel", jobId);
+        return ApiResponse.success("Job " + jobId + " released — downloading in parallel");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // RERUN
     // ══════════════════════════════════════════════════════════════════════════
 
     @PostMapping("/{jobId}/rerun")
-    public ApiResponse<String> rerun(@PathVariable String jobId) {
-        // 1. Try in-memory store (job still tracked)
-        Optional<IngestionRequest> stored = jobStore.getRequest(jobId);
-        if (stored.isPresent()) {
-            String newJobId = pipeline.start(stored.get());
-            log.info("[{}] Rerun started → new jobId={}", jobId, newJobId);
-            return ApiResponse.success("Rerun started", newJobId);
+    public ApiResponse<String> rerun(@PathVariable String jobId,
+                                     @RequestBody(required = false) IngestionRequest overrides) {
+        // Reconstruct the ORIGINAL request — in-memory store first (keeps secrets), then the DB row.
+        IngestionRequest original = jobStore.getRequest(jobId)
+                .orElseGet(() -> jobRepository.findById(jobId).map(this::reconstructRequest).orElse(null));
+        if (original == null) {
+            return ApiResponse.error(404, "Job " + jobId + " not found in store or DB", (String) null);
         }
 
-        // 2. Fall back to DB record
-        return jobRepository.findById(jobId)
-                .map(entity -> {
-                    String newJobId = pipeline.start(reconstructRequest(entity));
-                    log.info("[{}] Rerun from DB → new jobId={}", jobId, newJobId);
-                    return ApiResponse.success("Rerun started (from DB)", newJobId);
-                })
-                .orElse(ApiResponse.error(404,
-                        "Job " + jobId + " not found in store or DB", (String) null));
+        // No body → plain rerun with the original request (the "rerun unchanged" path). Body → edited
+        // rerun: use the edited body but backfill any secrets the params snapshot can't echo
+        // (passwords, .torrent bytes) so protected sources still rerun without re-typing them.
+        boolean edited = overrides != null;
+        IngestionRequest toRun = edited ? overrides : original;
+        if (edited) backfillSecrets(toRun, original);
+
+        String newJobId = pipeline.start(toRun);
+        log.info("[{}] Rerun started ({}) → new jobId={}", jobId, edited ? "edited" : "as-is", newJobId);
+        return ApiResponse.success("Rerun started", newJobId);
     }
+
+    /** Copy secrets the params snapshot never echoes from the original request into an edited rerun. */
+    private void backfillSecrets(IngestionRequest edited, IngestionRequest original) {
+        if (original == null) return;
+        if (isBlank(edited.getPassword()))        edited.setPassword(original.getPassword());
+        if (isBlank(edited.getUsername()))        edited.setUsername(original.getUsername());
+        if (isBlank(edited.getExtractPassword())) edited.setExtractPassword(original.getExtractPassword());
+        if (isBlank(edited.getTorrentBase64()))   edited.setTorrentBase64(original.getTorrentBase64());
+        // If only processing fields were edited and the source wasn't re-supplied, keep the original.
+        if (isBlank(edited.getUri()) && isBlank(edited.getLocalFilePath())) {
+            edited.setUri(original.getUri());
+            edited.setLocalFilePath(original.getLocalFilePath());
+        }
+    }
+
+    private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     // ══════════════════════════════════════════════════════════════════════════
     // PARAMS  (re-editable snapshot for "rerun with edit")

@@ -787,7 +787,10 @@ function JobCardComponent({ job }) {
   const isActive = !isTerminal && status !== 'PAUSED';
 
   const statusLabel = useMemo(() => {
-    if (isTerminal || status === 'PAUSED' || status === 'AWAITING_INPUT') return cfg.label;
+    // QUEUED/STARTED must show their own label even if a stale step (e.g. DOWNLOAD) rides along in
+    // the snapshot — a job still waiting for a download slot is "Queued", not "Download".
+    if (isTerminal || status === 'PAUSED' || status === 'AWAITING_INPUT'
+        || status === 'QUEUED' || status === 'STARTED') return cfg.label;
     return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
   }, [cfg.label, isTerminal, status, step]);
 

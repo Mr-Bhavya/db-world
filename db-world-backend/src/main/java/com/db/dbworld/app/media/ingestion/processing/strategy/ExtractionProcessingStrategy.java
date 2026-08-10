@@ -38,6 +38,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
     @Override
     public boolean supports(IngestionContext ctx) {
         return Boolean.TRUE.equals(ctx.getRequest().getExtract())
+                && !ctx.isArchiveExtracted() // already unpacked before the track-review probe
                 && ctx.getDownload() != null
                 && ctx.getDownload().isSuccess()
                 && ctx.getDownload().getFilePath() != null;

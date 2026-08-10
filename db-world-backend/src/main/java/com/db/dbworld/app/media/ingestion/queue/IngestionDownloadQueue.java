@@ -11,9 +11,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.Set;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
@@ -21,6 +22,17 @@ import java.util.function.BooleanSupplier;
  * Sequential download queue for HTTP/HTTPS downloads via Aria2.
  * Only one HTTP download runs at a time; magnets/torrents bypass the queue.
  * Replaces the old HttpDownloadQueueService.
+ *
+ * <p>Two extra capabilities sit on top of the plain FIFO:
+ * <ul>
+ *   <li><b>Reprocess reclaim</b> ({@link #enqueueForReprocess}) — after a job is parked for
+ *       interactive track review it releases the slot (so a human wait never blocks other
+ *       downloads); once a selection lands it reclaims the slot for its ffmpeg/storyboard pass so
+ *       processing is never running alongside a fresh download. Reprocess jobs jump to the FRONT.</li>
+ *   <li><b>Release-to-parallel</b> ({@link #releaseNow}) — an admin can pull a still-waiting job out
+ *       of the queue to download immediately, in parallel with the current one, bypassing the single
+ *       slot (the same way magnets do).</li>
+ * </ul>
  *
  * Usage: inject this service into Aria2DownloadStrategy if sequential queuing is needed.
  */
@@ -34,9 +46,12 @@ public class IngestionDownloadQueue {
 
     private final TrackingService trackingService;
 
-    private final BlockingQueue<QueueEntry> queue = new LinkedBlockingQueue<>();
+    private final BlockingDeque<QueueEntry> queue = new LinkedBlockingDeque<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, QueueEntry> entryMap = new ConcurrentHashMap<>();
+
+    /** Jobs released to run in parallel — {@link #awaitTurn} lets them through without a slot. */
+    private final Set<String> released = ConcurrentHashMap.newKeySet();
 
     @Getter
     private volatile String currentlyRunningJobId;
@@ -70,8 +85,52 @@ public class IngestionDownloadQueue {
         return true;
     }
 
+    /**
+     * Re-acquire the slot for a job's POST-track-review processing phase (Option B). Added to the
+     * FRONT of the deque so a job that already finished downloading isn't stuck behind fresh
+     * downloads, and with no QUEUED status write — the job is moving into processing, not back to
+     * the start. Caller then {@link #awaitTurn}s as usual.
+     */
+    public synchronized boolean enqueueForReprocess(String jobId) {
+        if (entryMap.containsKey(jobId)) return true;
+        QueueEntry entry = new QueueEntry(jobId, System.currentTimeMillis());
+        queue.offerFirst(entry);
+        entryMap.put(jobId, entry);
+        log.info("[{}] Re-queued (front) to reclaim slot for processing", jobId);
+        tryStartNext();
+        notifyAll();
+        return true;
+    }
+
+    /**
+     * Release-to-parallel: pull a still-waiting job out of the FIFO and let it download NOW, in
+     * parallel with whatever holds the slot. The released job does NOT occupy the single slot (the
+     * same bypass magnets use), so the FIFO keeps flowing untouched.
+     *
+     * @return true if the job was waiting and has been released; false if it wasn't queued
+     *         (already downloading in the slot, a magnet/yt-dlp job, or already finished).
+     */
+    public synchronized boolean releaseNow(String jobId) {
+        if (jobId.equals(currentlyRunningJobId)) {
+            return false; // already downloading in the slot — nothing to release
+        }
+        boolean wasQueued = queue.removeIf(e -> e.jobId.equals(jobId));
+        entryMap.remove(jobId);
+        if (!wasQueued) {
+            return false; // not waiting in the queue
+        }
+        released.add(jobId);
+        log.info("[{}] Released from queue → downloading in parallel (bypassing slot)", jobId);
+        notifyAll();
+        return true;
+    }
+
     public synchronized boolean awaitTurn(String jobId, BooleanSupplier cancelled) throws InterruptedException {
         while (!jobId.equals(currentlyRunningJobId)) {
+            if (released.remove(jobId)) {
+                log.info("[{}] Running in parallel — bypassing the download slot", jobId);
+                return true;
+            }
             if (cancelled != null && cancelled.getAsBoolean()) {
                 cancel(jobId);
                 return false;
@@ -138,11 +197,13 @@ public class IngestionDownloadQueue {
             releaseRunning();
         }
         entryMap.remove(jobId);
+        released.remove(jobId);
     }
 
     public synchronized void cancel(String jobId) {
         queue.removeIf(entry -> entry.jobId.equals(jobId));
         entryMap.remove(jobId);
+        released.remove(jobId);
         if (jobId.equals(currentlyRunningJobId)) {
             releaseRunning();
         } else {
@@ -187,6 +248,7 @@ public class IngestionDownloadQueue {
     void init() {
         running.set(false);
         currentlyRunningJobId = null;
+        released.clear();
         log.info("IngestionDownloadQueue initialised");
     }
 

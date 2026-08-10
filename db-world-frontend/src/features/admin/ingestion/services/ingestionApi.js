@@ -26,8 +26,19 @@ export const cancelJob = async (jobId) => {
   return res.data;
 };
 
-export const rerunJob = async (jobId) => {
-  const res = await axiosInstance.post(`/api/ingestion/${jobId}/rerun`);
+/** Release a queued job from the download queue so it downloads immediately, in parallel. */
+export const releaseJob = async (jobId) => {
+  const res = await axiosInstance.put(`/api/ingestion/${jobId}/release`);
+  return res.data;
+};
+
+/**
+ * Rerun a job. With no body it reuses the original stored request (secrets preserved); with an
+ * `overrides` body (from the edit dialog) the server merges the edits and backfills any secrets the
+ * params snapshot couldn't echo (passwords, .torrent bytes).
+ */
+export const rerunJob = async (jobId, overrides) => {
+  const res = await axiosInstance.post(`/api/ingestion/${jobId}/rerun`, overrides ?? undefined);
   return res.data;
 };
 
@@ -133,6 +144,8 @@ export const linkFileToRecord = async (mediaFileId, recordId) => {
 // ── Record search ─────────────────────────────────────────────────────────────
 
 export const searchRecords = async (q) => {
-  const res = await axiosInstance.get('/api/cinema/catalog/autocomplete', { params: { q } });
+  // Admin autocomplete: unlike the public one it does NOT filter out DRAFT/UNLISTED records, so an
+  // admin can link media to a not-yet-published record. Also matches substrings ("Ironman" → "The Ironman").
+  const res = await axiosInstance.get('/api/cinema/admin/catalog/autocomplete', { params: { q } });
   return res.data;
 };

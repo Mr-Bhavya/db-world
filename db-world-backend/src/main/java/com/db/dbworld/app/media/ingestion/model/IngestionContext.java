@@ -28,6 +28,9 @@ public class IngestionContext {
     private PipelineStepType currentStep;
     private boolean queueManaged;
 
+    /** Set once an archive download has been extracted, so the extraction step doesn't run twice. */
+    private boolean archiveExtracted;
+
     private String message;
     private String htmlReport;
 
