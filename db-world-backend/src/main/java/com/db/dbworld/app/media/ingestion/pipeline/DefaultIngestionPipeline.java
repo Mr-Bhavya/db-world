@@ -211,6 +211,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
             ctx.log("DOWNLOAD", "Completed: " + downloadResult.getFileName());
 
+            // Track a downloaded FILE (single media, or an archive before extraction) for temp cleanup
+            // on job end. Directories (torrent packs) share the record's temp dir, so we don't queue
+            // those for deletion here; local-file (link-existing) jobs skip this section entirely.
+            if (downloadResult.getFilePath() != null && Files.isRegularFile(downloadResult.getFilePath())) {
+                ctx.getTempArtifacts().add(downloadResult.getFilePath());
+            }
+
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
             runProcessing(ctx, recordName);
@@ -229,6 +236,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             safeRepositorySave(ctx);
             notifyAdmins("Ingestion failed", recordName, ctx.getRequest());
         } finally {
+            cleanupTempArtifacts(ctx);
             if (ctx.isQueueManaged()) {
                 downloadQueue.signalComplete(jobId);
             }
@@ -272,6 +280,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
                 ctx.setStatus(MirrorStatus.PROCESSING);
 
+                // A multi-file job (zip / folder / torrent pack) has a DIRECTORY as its download path;
+                // keep the folder/archive name as the job's display name rather than overwriting it to
+                // the last processed file (the per-file breakdown already lists each file).
+                final boolean multiFile = ctx.getDownload() != null
+                        && ctx.getDownload().getFilePath() != null
+                        && Files.isDirectory(ctx.getDownload().getFilePath());
+
                 for (ProcessingStrategy processor : processors) {
                     if (!processor.supports(ctx)) continue;
 
@@ -287,15 +302,21 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                     }
 
                     if (result.getFinalFile() != null) {
-                        String finalFileName = result.getFinalFile().getFileName().toString();
-                        trackingService.updateJobMeta(jobId,
-                                ctx.getSource() != null ? ctx.getSource().getType() : null,
-                                finalFileName,
-                                ctx.getRequest() != null ? ctx.getRequest().getUri() : null,
-                                ctx.getRecordId(), recordName);
                         if (ctx.getDownload() != null) {
                             ctx.getDownload().setFilePath(result.getFinalFile());
-                            ctx.getDownload().setFileName(finalFileName);
+                        }
+                        // Single-file job → its display name is the final output file. Multi-file job
+                        // → keep the folder/archive name already set right after download.
+                        if (!multiFile) {
+                            String finalFileName = result.getFinalFile().getFileName().toString();
+                            trackingService.updateJobMeta(jobId,
+                                    ctx.getSource() != null ? ctx.getSource().getType() : null,
+                                    finalFileName,
+                                    ctx.getRequest() != null ? ctx.getRequest().getUri() : null,
+                                    ctx.getRecordId(), recordName);
+                            if (ctx.getDownload() != null) {
+                                ctx.getDownload().setFileName(finalFileName);
+                            }
                         }
                     }
 
@@ -370,6 +391,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 ctx.getDownload().setFileName(result.getFinalFile().getFileName().toString());
             }
             ctx.setArchiveExtracted(true);
+            ctx.getTempArtifacts().add(result.getFinalFile()); // extract dir — removed when the job ends
             ctx.log("EXTRACT", "Extraction done — processing extracted files");
         } finally {
             if (!parallel) globalProcessingSemaphore.release();
@@ -559,6 +581,32 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private void safeRepositorySave(IngestionContext ctx) {
         try { repository.save(ctx); } catch (Exception e) {
             log.warn("[{}] Failed to persist final state: {}", ctx.getJobId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort removal of this job's temp artifacts (downloaded archive/file + extract dir) once the
+     * job ends — success, failure, or cancel. The final media already moved to the stream dir is NOT a
+     * temp artifact (untouched); local source files are never tracked, so they're never deleted.
+     */
+    private void cleanupTempArtifacts(IngestionContext ctx) {
+        for (Path p : ctx.getTempArtifacts()) {
+            if (p == null) continue;
+            try {
+                if (!Files.exists(p)) continue;
+                if (Files.isDirectory(p)) {
+                    try (var s = Files.walk(p)) {
+                        s.sorted(Comparator.reverseOrder()).forEach(x -> {
+                            try { Files.deleteIfExists(x); } catch (Exception ignored) { /* best-effort */ }
+                        });
+                    }
+                } else {
+                    Files.deleteIfExists(p);
+                }
+                ctx.log("CLEANUP", "Removed temp: " + p.getFileName());
+            } catch (Exception e) {
+                log.warn("[{}] Temp cleanup failed for {}: {}", ctx.getJobId(), p, e.getMessage());
+            }
         }
     }
 

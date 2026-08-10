@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notify } from '@shared/notify';
 import {
   alpha,
@@ -807,8 +807,22 @@ function JobCardComponent({ job }) {
   const statusLabel = cfg.label;
 
   const pct = Math.min(100, Math.max(0, Number(progress?.percent ?? 0)));
-  const speed = useMemo(() => fmtSpeed(progress?.speed), [progress?.speed]);
-  const eta = useMemo(() => fmtEta(progress?.eta), [progress?.eta]);
+  // Low download speeds report 0 between ticks; hold the last non-zero value so speed/ETA don't
+  // flicker on and off every couple of seconds.
+  const lastSpeedRef = useRef(0);
+  const lastEtaRef = useRef(0);
+  useEffect(() => {
+    if (Number(progress?.speed) > 0) lastSpeedRef.current = Number(progress.speed);
+    if (Number(progress?.eta) > 0) lastEtaRef.current = Number(progress.eta);
+  }, [progress?.speed, progress?.eta]);
+  const speed = useMemo(
+    () => fmtSpeed(Number(progress?.speed) > 0 ? progress.speed : lastSpeedRef.current),
+    [progress?.speed]
+  );
+  const eta = useMemo(
+    () => fmtEta(Number(progress?.eta) > 0 ? progress.eta : lastEtaRef.current),
+    [progress?.eta]
+  );
   const isFfmpeg = step === 'FFMPEG';
   const isExtract = step === 'EXTRACT';
   const isMerging = progress?.phase === 'merging';
