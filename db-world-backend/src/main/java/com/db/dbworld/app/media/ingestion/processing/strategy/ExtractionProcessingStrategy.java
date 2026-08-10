@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.ingestion.processing.strategy;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
@@ -34,6 +36,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
 
     private final ProcessExecutor processExecutor;
     private final TrackingService trackingService;
+    private final SettingsService settingsService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -70,6 +73,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                     archivePath.toAbsolutePath().toString(),
                     extractDir.toAbsolutePath().toString(),
                     ctx.getRequest().getExtractPassword(),
+                    settingsService.getInt(ConfigKeys.INGESTION_PROCESSING_THREADS),
                     buildStreamProcessor(ctx, stderrAccumulator),
                     ctx.getCancellationFlag(),
                     Duration.ofHours(2)

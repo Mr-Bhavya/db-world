@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.storyboard;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
@@ -49,6 +51,7 @@ public class StoryboardService {
     private final AppProperties       runtime;
     private final ProcessExecutor     processExecutor;
     private final MediaFileRepository mediaFileRepository;
+    private final SettingsService     settingsService;
 
     /** Sprites live in a sibling dir of the symlink root: {dataRoot}/storyboards. */
     private Path storyboardDir() {
@@ -159,6 +162,7 @@ public class StoryboardService {
 
             tmpDir = Files.createTempDirectory("storyboard-" + mediaFileId + "-");
             String ffmpeg = runtime.getFfmpeg();
+            int threads = settingsService.getInt(ConfigKeys.INGESTION_PROCESSING_THREADS); // >0 caps ffmpeg decode threads (Pi CPU relief)
 
             List<BufferedImage> tiles = new ArrayList<>(count);
             int tileH = -1;
@@ -167,15 +171,17 @@ public class StoryboardService {
                 long ts   = (long) i * intervalSec;
                 Path tile = tmpDir.resolve(i + ".jpg");
                 try {
-                    processExecutor.executeFfmpegWithSimpleOutput(List.of(
-                            ffmpeg, "-y",
-                            "-ss", String.valueOf(ts),
-                            "-i", videoFile.toAbsolutePath().toString(),
-                            "-frames:v", "1",
-                            "-vf", "scale=" + TILE_WIDTH + ":-2",
-                            "-q:v", "4",
-                            tile.toAbsolutePath().toString()
-                    ));
+                    List<String> cmd = new ArrayList<>();
+                    cmd.add(ffmpeg);
+                    if (threads > 0) { cmd.add("-threads"); cmd.add(String.valueOf(threads)); }
+                    cmd.add("-y");
+                    cmd.add("-ss"); cmd.add(String.valueOf(ts));
+                    cmd.add("-i"); cmd.add(videoFile.toAbsolutePath().toString());
+                    cmd.add("-frames:v"); cmd.add("1");
+                    cmd.add("-vf"); cmd.add("scale=" + TILE_WIDTH + ":-2");
+                    cmd.add("-q:v"); cmd.add("4");
+                    cmd.add(tile.toAbsolutePath().toString());
+                    processExecutor.executeFfmpegWithSimpleOutput(cmd);
                     BufferedImage img = Files.exists(tile) ? ImageIO.read(tile.toFile()) : null;
                     if (img != null && tileH < 0) tileH = img.getHeight();
                     tiles.add(img); // may be null — leaves that grid cell black

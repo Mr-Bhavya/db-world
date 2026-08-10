@@ -182,6 +182,7 @@ public class ProcessExecutor implements AutoCloseable {
             String archivePath,
             String outputPath,
             String password,            // NEW â€” null means no password
+            int threads,                // 0 = all cores; >0 caps 7z via -mmt (Pi CPU relief)
             StreamProcessor streamProcessor,
             AtomicBoolean cancellationFlag,
             Duration timeout
@@ -190,6 +191,9 @@ public class ProcessExecutor implements AutoCloseable {
         List<String> cmdList = new ArrayList<>();
         cmdList.add(runtimeProperties.getSevenZip());
         cmdList.addAll(List.of("x", "-bsp1", "-bb1", archivePath, "-o" + outputPath, "-aoa"));
+        if (threads > 0) {
+            cmdList.add("-mmt=" + threads);   // cap 7z to N CPU threads (Pi relief); 0 = all cores
+        }
         if (password != null && !password.isBlank()) {
             cmdList.add("-p" + password);   // password must immediately follow -p, no space
         }
