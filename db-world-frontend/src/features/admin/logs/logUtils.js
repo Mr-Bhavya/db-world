@@ -216,6 +216,8 @@ export function facets(entries) {
   return {
     levels: [...levels],
     methods: [...methods],
-    users: [...users].sort(),
+    // Explicit collator: bare .sort() orders by UTF-16 code unit, which puts every
+    // uppercase name ahead of every lowercase one in this user-facing filter list.
+    users: [...users].sort((a, b) => a.localeCompare(b)),
   };
 }

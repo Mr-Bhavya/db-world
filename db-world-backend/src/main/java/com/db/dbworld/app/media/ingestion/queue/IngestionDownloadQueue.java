@@ -76,7 +76,10 @@ public class IngestionDownloadQueue {
         }
 
         QueueEntry entry = new QueueEntry(jobId, System.currentTimeMillis());
-        queue.offer(entry);
+        // add() over offer(): the deque is unbounded, so insertion cannot fail — and if that
+        // ever changes, add() throws rather than silently dropping the job while entryMap
+        // and the tracking status below both go on to claim it was queued.
+        queue.add(entry);
         entryMap.put(jobId, entry);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
 
