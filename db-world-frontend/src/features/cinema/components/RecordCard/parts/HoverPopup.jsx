@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import { tmdbImg } from '../../../api/cinemaApi';
 import { openRecord } from '../../../utils/recordNav';
+import { embedOrigin } from '../../../utils/embedOrigin';
 import ActionButton from './ActionButton';
 import CardReactionButton from './CardReactionButton';
 import { POPUP_W, year, fmtRuntime, navBlock, activeHoverPopup } from './cardHelpers';
@@ -136,6 +137,9 @@ const HoverPopup = ({
     ? `${record.previewVideoUrl}&autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
     : null;
 
+  // Exact origin of whatever is in the iframe, for the postMessage below.
+  const videoOrigin = useMemo(() => embedOrigin(videoSrc), [videoSrc]);
+
   // Netflix-style: hold on the still for a beat, THEN start the trailer from the
   // top (mounting the iframe here so it autoplays from 0, not mid-clip).
   useEffect(() => {
@@ -173,9 +177,12 @@ const HoverPopup = ({
 
   const toggleMute = (e) => {
     e.stopPropagation();
-    if (!iframeRef.current?.contentWindow) return;
+    if (!iframeRef.current?.contentWindow || !videoOrigin) return;
+    // Target the embed's own origin rather than '*' — with a wildcard the message
+    // is delivered to whatever document happens to occupy the iframe.
     iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({ event: 'command', func: muted ? 'unMute' : 'mute', args: [] }), '*',
+      JSON.stringify({ event: 'command', func: muted ? 'unMute' : 'mute', args: [] }),
+      videoOrigin,
     );
     setMuted(prev => !prev);
   };

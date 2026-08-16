@@ -44,8 +44,11 @@ on:
         description: "Android: release notes shown in the update dialog"
         required: false
 
+# Least privilege by default: only android-release publishes a Release, so only that
+# job gets contents:write (see its own permissions block). The build/deploy jobs just
+# need to read the repo.
 permissions:
-  contents: write   # publish the Release
+  contents: read
 
 concurrency:
   group: deploy-release
@@ -148,6 +151,8 @@ jobs:
     name: Android · publish APK release
     if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the only job that publishes a GitHub Release
     steps:
       - uses: actions/checkout@v7
         with:
@@ -253,7 +258,9 @@ jobs:
           cat "$GITHUB_WORKSPACE/version.json"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        # Pinned to a full commit SHA: a mutable tag on a third-party action can be
+        # repointed at malicious code, and this job holds contents:write. v3 = 3d0d988.
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: v${{ steps.ver.outputs.name }}
           name: v${{ steps.ver.outputs.name }}

@@ -208,7 +208,8 @@
       "Bash(npx vitest *)",
       "WebFetch(domain:www.chittorgarh.com)",
       "WebFetch(domain:www.ipoguru.in)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(command -v jq)"
     ]
   },
   "enableAllProjectMcpServers": true,
