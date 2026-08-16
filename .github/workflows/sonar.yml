@@ -38,10 +38,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      # package-lock.json is gitignored (see ci.yml), so resolve fresh with npm install.
+      # `npm ci` — reproducible install from the tracked lockfile (see ci.yml).
       - name: Frontend deps
         working-directory: db-world-frontend
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Frontend tests + coverage
         working-directory: db-world-frontend
         run: npm run test:coverage

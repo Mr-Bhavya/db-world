@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Log4j2
@@ -100,7 +101,10 @@ public class LogsController {
             @PathVariable LogType type,
             @RequestParam(defaultValue = "JSON") LogFormat format
     ) {
-        String sessionId = source + "-" + type + "-" + System.currentTimeMillis() + "-" + Math.random();
+        // randomUUID rather than currentTimeMillis + Math.random(): two follows opened in
+        // the same millisecond could previously collide on this emitters map key, evicting
+        // one another's SSE stream.
+        String sessionId = source + "-" + type + "-" + UUID.randomUUID();
         SseEmitter emitter = new SseEmitter(180_000L);
 
         try {

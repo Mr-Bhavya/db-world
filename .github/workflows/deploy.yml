@@ -112,7 +112,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production
@@ -174,7 +174,9 @@ jobs:
           NAME="$IN_NAME"
           # Blank version → auto-bump the patch of the latest published release (3.1.0 -> 3.1.1).
           if [ -z "$NAME" ]; then
-            LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+            # --proto '=https' --proto-redir '=https' so -L can't be walked down to
+            # plaintext http by a redirect; the resolved version drives the release tag.
+            LATEST=$(curl -fsSL --proto '=https' --proto-redir '=https' "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
                      | grep -m1 '"tag_name"' | sed 's/.*: *"\(.*\)".*/\1/' || true)
             LATEST="${LATEST#v}"
             if [ -z "$LATEST" ]; then NAME="3.0.0"; else
@@ -195,7 +197,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production
