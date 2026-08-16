@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,6 +90,11 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 request != null ? request.getUri() : null,
                 request != null ? request.getRecordId() : null,
                 request != null ? request.getLocalFilePath() : null);
+
+        // The log above treats request as nullable, but getRecordId() below dereferenced it
+        // unconditionally — a null request died with a bare NPE several lines later instead
+        // of saying what was wrong.
+        Objects.requireNonNull(request, "IngestionRequest must not be null");
 
         IngestionContext ctx = new IngestionContext();
         ctx.setJobId(jobId);

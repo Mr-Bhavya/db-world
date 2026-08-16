@@ -72,6 +72,9 @@ public class TagAdminService {
     public int bulkAdd(RecordTagType tagType, List<Long> recordIds, int priority) {
         log.debug("bulkAdd entry; tagType={}, recordCount={}, priority={}",
                 tagType, recordIds != null ? recordIds.size() : 0, priority);
+        // The log line above already treats null as possible; the loop below did not,
+        // so a null list NPE'd instead of being a no-op.
+        if (recordIds == null || recordIds.isEmpty()) return 0;
         int added = 0;
         for (Long id : recordIds) {
             RecordEntity record = recordRepository.findById(id)
@@ -99,6 +102,8 @@ public class TagAdminService {
     public int bulkRemove(RecordTagType tagType, List<Long> recordIds) {
         log.debug("bulkRemove entry; tagType={}, recordCount={}",
                 tagType, recordIds != null ? recordIds.size() : 0);
+        // Same null-vs-loop mismatch as bulkAdd.
+        if (recordIds == null || recordIds.isEmpty()) return 0;
         int removed = 0;
         for (Long id : recordIds) {
             RecordEntity record = recordRepository.findById(id)
