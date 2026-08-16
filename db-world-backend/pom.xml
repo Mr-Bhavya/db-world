@@ -46,7 +46,7 @@
         <springdoc.version>3.0.3</springdoc.version>
         <metrics-dropwizard.version>4.2.33</metrics-dropwizard.version>
         <commons-io.version>2.20.0</commons-io.version>
-        <jsoup.version>1.18.3</jsoup.version>
+        <jsoup.version>1.23.1</jsoup.version>
 
         <!-- Explicit so MapStruct's annotation processor picks up a Java 25 compatible build. -->
         <lombok.version>1.18.42</lombok.version>
