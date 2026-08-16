@@ -15,7 +15,11 @@ import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
@@ -45,6 +49,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,6 +71,8 @@ public class CatalogServiceImpl implements CatalogService {
     private final ApplicationEventPublisher publisher;
     private final RecordMapper recordMapper;
     private final PushService pushService;
+    private final MediaFileRepository mediaFileRepository;
+    private final SettingsService settingsService;
 
     private static final String RECORD_NOT_FOUND = "Record not found: ";
     private static final String TMDB_ALREADY_EXISTS = "Record already exists for TMDB id: ";
@@ -93,7 +100,10 @@ public class CatalogServiceImpl implements CatalogService {
         );
 
         RecordEntity record = buildRecord(request.getType(), tmdb);
-        record.setHideFromRails(request.isHideFromRails());
+        // New records start as DRAFT (builder default): not public, no push. An admin makes them
+        // public later — once media files are attached — via setVisibility, which is where the
+        // one-time "New on DB World" push now fires (see announceIfReady). This is the fix for
+        // pushing before a title is actually playable.
 
         recordTaggingService.assignTags(record);
 
@@ -101,13 +111,69 @@ public class CatalogServiceImpl implements CatalogService {
 
         publishEvent(record.getId());
 
-        log.info("Record created; recordId={}, tmdbId={}, type={}",
+        log.info("Record created as DRAFT; recordId={}, tmdbId={}, type={}",
                 record.getId(), request.getTmdbId(), request.getType());
 
-        // Notify EVERYONE a new title landed. Only reached via genuine admin creation — the admin
-        // "create record" endpoint and the admin catalog-ingest approval; TMDB sync / media
-        // ingestion never create records through this method, so there's no batch/auto spam.
-        // Best-effort: a push failure must never break record creation.
+        return dto;
+    }
+
+    @Override
+    public RecordDto setVisibility(Long recordId, RecordVisibility visibility) {
+        RecordEntity record = getRecordOrThrow(recordId);
+        record.setVisibility(visibility);
+        RecordDto dto = saveAndMap(record);
+        announceIfReady(record);
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RecordDto getPublicRecord(Long recordId) {
+        RecordEntity record = getRecordOrThrow(recordId);
+        if (record.getVisibility() == RecordVisibility.DRAFT) {
+            // A draft is admin-only — behave as if it doesn't exist for public callers.
+            throw new EntityNotFoundException(RECORD_NOT_FOUND + recordId);
+        }
+        return getRecord(recordId);
+    }
+
+    @Override
+    public void onMediaIngested(Long recordId) {
+        if (recordId == null) {
+            return;
+        }
+        try {
+            RecordEntity record = recordRepository.findById(recordId).orElse(null);
+            if (record == null) {
+                return;
+            }
+            // Auto-publish a draft once its media lands, if the admin has opted in.
+            if (record.getVisibility() == RecordVisibility.DRAFT
+                    && settingsService.getBoolean(ConfigKeys.CINEMA_RECORD_AUTO_PUBLISH)) {
+                record.setVisibility(RecordVisibility.PUBLISHED);
+                recordRepository.save(record);
+                log.info("Auto-published record {} on media ingest", recordId);
+            }
+            // Fires the "new title" push for a record that's now publicly playable — covers both the
+            // auto-publish above and a record an admin published early (before media existed).
+            announceIfReady(record);
+        } catch (Exception e) {
+            log.warn("onMediaIngested failed for recordId={}: {}", recordId, e.toString());
+        }
+    }
+
+    /**
+     * Fires the one-time "New on DB World" broadcast when a record is publicly playable for the first
+     * time: PUBLISHED, has at least one media file, and not previously announced. Deduped via
+     * {@code newReleaseNotifiedAt}, so re-publishing or a rails toggle never re-notifies. Best-effort
+     * — a push failure never propagates.
+     */
+    private void announceIfReady(RecordEntity record) {
+        if (record.getVisibility() != RecordVisibility.PUBLISHED
+                || record.getNewReleaseNotifiedAt() != null
+                || !mediaFileRepository.existsByRecord_Id(record.getId())) {
+            return;
+        }
         try {
             // Full deep-link path so a tapped notification opens the record detail
             // (the frontend prefers data.link; route/recordId kept as a fallback).
@@ -119,18 +185,11 @@ public class CatalogServiceImpl implements CatalogService {
             pushService.broadcast("New on DB World", record.getName(),
                     Map.of("route", "record", "recordId", String.valueOf(record.getId()), "link", link),
                     "cinema");
+            record.setNewReleaseNotifiedAt(Instant.now());
+            recordRepository.save(record);
         } catch (Exception e) {
             log.debug("New-record push failed for recordId={}: {}", record.getId(), e.toString());
         }
-
-        return dto;
-    }
-
-    @Override
-    public RecordDto setHideFromRails(Long recordId, boolean hide) {
-        RecordEntity record = getRecordOrThrow(recordId);
-        record.setHideFromRails(hide);
-        return saveAndMap(record);
     }
 
     /* ===============================
@@ -149,21 +208,31 @@ public class CatalogServiceImpl implements CatalogService {
             return recordMapper.toDto(record);
         }
 
-        validateTmdbUniqueness(
-                request.getTmdbId(),
-                record.getTmdb() != null ? record.getTmdb().getId() : null
-        );
-
-        TmdbEntity tmdb = ingestTmdbByType(
-                request.getType(),
-                request.getTmdbId(),
-                tmdbIngestionService::ingestMovie,
-                tmdbIngestionService::ingestTvSeries
-        );
+        // Only (re-)ingest when the TMDB link actually changes. A visibility-only edit keeps the same
+        // id + type, and ingestMovie/ingestTvSeries are insert-only (they throw if the title already
+        // exists), so re-ingesting an unchanged link 500s — reuse the already-ingested entity instead.
+        TmdbEntity tmdb;
+        if (tmdbLinkUnchanged(record, request)) {
+            tmdb = record.getTmdb();
+        } else {
+            validateTmdbUniqueness(
+                    request.getTmdbId(),
+                    record.getTmdb() != null ? record.getTmdb().getId() : null
+            );
+            tmdb = ingestTmdbByType(
+                    request.getType(),
+                    request.getTmdbId(),
+                    tmdbIngestionService::ingestMovie,
+                    tmdbIngestionService::ingestTvSeries
+            );
+        }
 
         updateRecordFromRequest(record, request, tmdb);
 
         RecordDto dto = saveAndMap(record);
+
+        // If this edit published the record, fire the deferred "new title" push (no-op otherwise).
+        announceIfReady(record);
 
         publishEvent(record.getId());
 
@@ -251,7 +320,7 @@ public class CatalogServiceImpl implements CatalogService {
     public List<SearchRecordDto> getSimilar(Long recordId, int limit) {
         if (limit <= 0) return List.of();
 
-        // "More Like This" is a rail — exclude hide_from_rails records.
+        // "More Like This" is a rail — show PUBLISHED records only (excludeHidden filter).
         entityManager.unwrap(Session.class).enableFilter("excludeHidden");
 
         RecordEntity record = getRecordOrThrow(recordId);
@@ -323,13 +392,14 @@ public class CatalogServiceImpl implements CatalogService {
             Long tmdbId,
             Integer year,
             SyncStatus status,
+            RecordVisibility visibility,
             Pageable pageable
     ) {
         // Sort is applied inside the repository's hand-built native query from a
         // safe allowlist — no alias-remap needed (and it can sort joined columns).
         return recordRepository.findAdminTable(
                 recordId, name, type != null ? type.name() : null, tmdbId, year,
-                status != null ? status.name() : null, pageable
+                status != null ? status.name() : null, visibility != null ? visibility.name() : null, pageable
         );
     }
 
@@ -477,18 +547,25 @@ public class CatalogServiceImpl implements CatalogService {
         record.setTmdb(tmdb);
         record.setType(request.getType());
         record.setName(extractTitle(tmdb));
-        if (request.getHideFromRails() != null) {
-            record.setHideFromRails(request.getHideFromRails());
+        if (request.getVisibility() != null) {
+            record.setVisibility(request.getVisibility());
         }
     }
 
-    private boolean isUnchanged(RecordEntity record, UpdateRecordRequest request) {
-        boolean hideUnchanged = request.getHideFromRails() == null
-                || record.isHideFromRails() == request.getHideFromRails();
+    /**
+     * True when the record's TMDB link (id + type) already matches the request — i.e. only non-TMDB
+     * fields (e.g. visibility) could have changed, so there's nothing to re-ingest.
+     */
+    private boolean tmdbLinkUnchanged(RecordEntity record, UpdateRecordRequest request) {
         return record.getTmdb() != null &&
                 Objects.equals(record.getTmdb().getId(), request.getTmdbId()) &&
-                record.getType() == request.getType() &&
-                hideUnchanged;
+                record.getType() == request.getType();
+    }
+
+    private boolean isUnchanged(RecordEntity record, UpdateRecordRequest request) {
+        boolean visibilityUnchanged = request.getVisibility() == null
+                || record.getVisibility() == request.getVisibility();
+        return tmdbLinkUnchanged(record, request) && visibilityUnchanged;
     }
 
     private String extractTitle(TmdbEntity tmdb) {

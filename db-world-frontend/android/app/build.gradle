@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 // Release signing — credentials live in android/keystore.properties (gitignored),
 // never committed. Falls back to debug signing if the file is absent.
@@ -56,8 +57,25 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        // 21 to match the Kotlin jvmTarget below and the capacitor.build.gradle override
+        // (KGP 1.9.20 fails the build on an inconsistent Java/Kotlin JVM target).
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions {
+        jvmTarget = '21'
+        // NextLib (nextlib-media3ext:1.7.1-0.9.0) is compiled with Kotlin 2.1.0; our compiler is
+        // 1.9.20 (reads metadata up to 2.0.0). We only reference the simple NextRenderersFactory
+        // class from Kotlin, so allow reading its newer metadata instead of forcing a full Kotlin
+        // 2.x migration (which would also require the new Compose compiler Gradle plugin).
+        freeCompilerArgs += ['-Xskip-metadata-version-check']
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        // Must match Kotlin 1.9.20 (the version on the root buildscript classpath).
+        kotlinCompilerExtensionVersion '1.5.4'
     }
 
     // The embedded aria2c binary ships as jniLibs/<abi>/libaria2c.so. It MUST be extracted to
@@ -83,7 +101,26 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.core:core:$androidxCoreVersion"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
+    // Match the compiler on the root classpath (1.9.20) for Compose.
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.20"
+    // Jetpack Compose (native player UI).
+    // BOM 2023.10.01 = Compose runtime 1.5.4, the exact match for compiler 1.5.4 / Kotlin
+    // 1.9.20 (a newer BOM's runtime would need a newer compiler than 1.5.4).
+    def composeBom = platform('androidx.compose:compose-bom:2023.10.01')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    // Extended icon set — the player UI uses Replay10/Forward10/VolumeUp/BrightnessHigh/
+    // PictureInPictureAlt/ScreenRotation/Lock/Speed/Audiotrack/HighQuality etc. that are NOT
+    // in -core. (-extended supersets -core.)
+    implementation 'androidx.compose.material:material-icons-extended'
+    // Async image loading for episode-list thumbnails (TMDB stills). 2.5.0 targets
+    // Compose 1.5.x / Kotlin 1.9.x, matching the pinned BOM above.
+    implementation 'io.coil-kt:coil-compose:2.5.0'
+    implementation "androidx.activity:activity-compose:$androidxActivityVersion"
+    debugImplementation 'androidx.compose.ui:ui-tooling'
     // BiometricPrompt with device-credential fallback for the offline-vault
     // Keystore unlock (see com.db.dbworld.vaultcrypto).
     implementation "androidx.biometric:biometric:1.1.0"
@@ -102,6 +139,11 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
     implementation "androidx.media3:media3-ui:$media3_version"
     implementation "androidx.media3:media3-session:$media3_version"
+    // media3-effect supplies DefaultVideoFrameProcessor, the pipeline behind
+    // ExoPlayer.setVideoEffects(). media3-exoplayer does NOT pull it in, so it must
+    // be declared explicitly (same version) — it is what tone-maps HDR→SDR for the
+    // TextureView output in HybridPlayerPlugin (raw HDR on a TextureView renders dark).
+    implementation "androidx.media3:media3-effect:$media3_version"
     // FFmpeg software audio decoders (E-AC3/AC3/DTS/TrueHD) for devices without
     // a hardware decoder. Drop-in via NextRenderersFactory. Version = <media3>-<lib>.
     implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"

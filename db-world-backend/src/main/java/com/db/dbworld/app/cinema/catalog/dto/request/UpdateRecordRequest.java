@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.dto.request;
 
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.validation.ValidRecordType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -15,6 +16,6 @@ public class UpdateRecordRequest {
     @NotNull
     private Long tmdbId;
 
-    /** Optional — when present, sync the record's hide-from-rails flag. */
-    private Boolean hideFromRails;
+    /** Optional — when present, set the record's visibility (DRAFT / PUBLISHED / UNLISTED). */
+    private RecordVisibility visibility;
 }

@@ -59,10 +59,10 @@ export const getRecordsTable = (params) =>
 export const createRecord = (body) =>
   axiosInstance.post('/api/cinema/admin/catalog', body).then(r => r.data.data);
 
-/** Toggle whether a record is excluded from rails (search visibility unchanged). */
-export const setRecordVisibility = (id, hideFromRails) =>
+/** Set a record's visibility: DRAFT | PUBLISHED | UNLISTED. */
+export const setRecordVisibility = (id, visibility) =>
   axiosInstance
-    .patch(`/api/cinema/admin/catalog/${id}/visibility`, null, { params: { hideFromRails } })
+    .patch(`/api/cinema/admin/catalog/${id}/visibility`, null, { params: { visibility } })
     .then(r => r.data.data);
 
 export const updateRecord = (id, body) =>

@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.ingestion.processing.strategy;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
@@ -34,10 +36,12 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
 
     private final ProcessExecutor processExecutor;
     private final TrackingService trackingService;
+    private final SettingsService settingsService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
         return Boolean.TRUE.equals(ctx.getRequest().getExtract())
+                && !ctx.isArchiveExtracted() // already unpacked before the track-review probe
                 && ctx.getDownload() != null
                 && ctx.getDownload().isSuccess()
                 && ctx.getDownload().getFilePath() != null;
@@ -69,6 +73,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                     archivePath.toAbsolutePath().toString(),
                     extractDir.toAbsolutePath().toString(),
                     ctx.getRequest().getExtractPassword(),
+                    settingsService.getInt(ConfigKeys.INGESTION_PROCESSING_THREADS),
                     buildStreamProcessor(ctx, stderrAccumulator),
                     ctx.getCancellationFlag(),
                     Duration.ofHours(2)
@@ -107,8 +112,12 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                 if (line == null || line.isBlank()) return;
                 String trimmed = line.trim();
                 Matcher matcher = PERCENT_PATTERN.matcher(trimmed);
-                if (matcher.find()) {
-                    int percent = Math.min(100, Integer.parseInt(matcher.group(1)));
+                int percent = -1;
+                while (matcher.find()) { // a single 7z line can carry many "N%" ticks — use the latest
+                    percent = Integer.parseInt(matcher.group(1));
+                }
+                if (percent >= 0) {
+                    percent = Math.min(100, percent);
                     long eta = estimateEtaSeconds(startedAt, percent);
                     trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(percent, 100, 0.0, eta, "processing"));
                     ctx.log("EXTRACT", trimmed);

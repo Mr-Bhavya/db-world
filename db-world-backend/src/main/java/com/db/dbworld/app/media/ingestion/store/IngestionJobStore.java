@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.ingestion.store;
 
 import com.db.dbworld.app.media.ingestion.model.IngestionRequest;
+import com.db.dbworld.app.media.ingestion.model.JobEditRequest;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
@@ -89,18 +90,41 @@ public class IngestionJobStore {
     }
 
     /**
-     * Live-edit safe request fields on a still-running job. Only season/episode are editable —
-     * both are consumed at PROCESSING time (episode naming + final season folder), so editing
-     * them while the job is downloading takes effect once processing runs. Null args are left
-     * unchanged. Returns false when the job is no longer tracked (terminal / evicted), i.e. it
-     * can no longer be edited.
+     * Live-edit request fields on a still-tracked job by mutating the in-memory {@link IngestionRequest}
+     * (the same instance the pipeline reads at each stage, so edits take effect when that stage runs).
+     * Only non-null fields are applied. Processing-tier fields are always applied here (the CALLER is
+     * responsible for only calling this before PROCESSING); download-tier fields are applied only when
+     * {@code allowDownloadFields} is true (i.e. the job is still QUEUED, before the download starts).
+     * Returns false when the job is no longer tracked (terminal / evicted) — nothing to edit.
      */
-    public boolean applyEdit(String jobId, Integer season, Integer episode) {
+    public boolean applyEdit(String jobId, JobEditRequest edit, boolean allowDownloadFields) {
         JobMeta meta = store.get(jobId);
         if (meta == null) return false;
-        if (season  != null) meta.request.setSeason(season);
-        if (episode != null) meta.request.setEpisode(episode);
-        log.info("[{}] Live-edited request — season={}, episode={}", jobId, season, episode);
+        IngestionRequest r = meta.request;
+
+        // Processing-tier — consumed at PROCESSING (record link, TV naming, extract, rename, filter).
+        if (edit.getRecordId()        != null) r.setRecordId(edit.getRecordId());
+        if (edit.getSeason()          != null) r.setSeason(edit.getSeason());
+        if (edit.getEpisode()         != null) r.setEpisode(edit.getEpisode());
+        if (edit.getExtract()         != null) r.setExtract(edit.getExtract());
+        if (edit.getExtractPassword() != null) r.setExtractPassword(edit.getExtractPassword());
+        if (edit.getRename()          != null) r.setRename(edit.getRename());
+        if (edit.getFileName()        != null) r.setFileName(edit.getFileName());
+        if (edit.getTrackFilter()     != null) r.setTrackFilter(edit.getTrackFilter());
+
+        // Download-tier — consumed at DOWNLOAD (source, format, folder, auth); only safe while QUEUED.
+        if (allowDownloadFields) {
+            if (edit.getUri()          != null) r.setUri(edit.getUri());
+            if (edit.getVideoITag()    != null) r.setVideoITag(edit.getVideoITag());
+            if (edit.getAudioITag()    != null) r.setAudioITag(edit.getAudioITag());
+            if (edit.getVideoQuality() != null) r.setVideoQuality(edit.getVideoQuality());
+            if (edit.getOnlyAudio()    != null) r.setOnlyAudio(edit.getOnlyAudio());
+            if (edit.getFolderName()   != null) r.setFolderName(edit.getFolderName());
+            if (edit.getUrlProtected() != null) r.setUrlProtected(edit.getUrlProtected());
+            if (edit.getUsername()     != null) r.setUsername(edit.getUsername());
+            if (edit.getPassword()     != null) r.setPassword(edit.getPassword());
+        }
+        log.info("[{}] Live-edited request (downloadFieldsAllowed={})", jobId, allowDownloadFields);
         return true;
     }
 

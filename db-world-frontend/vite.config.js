@@ -8,6 +8,24 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
 
+    // Vitest — code coverage via V8. The lcov report (db-world-frontend/coverage/lcov.info)
+    // feeds SonarCloud; `text` prints a summary locally. Run with `npm run test:coverage`.
+    test: {
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'lcov'],
+        reportsDirectory: './coverage',
+        exclude: [
+          '**/*.{test,spec}.{js,jsx}',
+          '**/__tests__/**',
+          '**/*.config.js',
+          'dist/**',
+          'android/**',
+          'src/main.jsx',
+        ],
+      },
+    },
+
     // Emit Web Workers as ES modules so the pdf.js worker bundles to a .js chunk (served with a
     // correct JS MIME by the Capacitor WebView — .mjs is not, which silently breaks the worker).
     worker: { format: 'es' },

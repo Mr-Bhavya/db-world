@@ -2,13 +2,16 @@ package com.db.dbworld.app.cinema.catalog.controllers;
 
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
+import com.db.dbworld.app.cinema.catalog.service.SearchService;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
@@ -17,12 +20,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/cinema/admin/catalog")
 @RequiredArgsConstructor
 public class CatalogAdminController {
 
     private final CatalogService catalogService;
+    private final SearchService searchService;
 
     /* =========================
        GET RECORD (admin)
@@ -32,6 +38,16 @@ public class CatalogAdminController {
     @GetMapping("/{id}")
     public ApiResponse<RecordDto> getRecord(@PathVariable Long id) {
         return ApiResponse.success(catalogService.getRecord(id));
+    }
+
+    /* =========================
+       AUTOCOMPLETE (admin — includes DRAFT / UNLISTED, unlike the public one)
+       ========================= */
+
+    @AdminAccess
+    @GetMapping("/autocomplete")
+    public ApiResponse<List<RecordAutocompleteDto>> autocomplete(@RequestParam String q) {
+        return ApiResponse.success(searchService.autocompleteAdmin(q, 10).toList());
     }
 
     /* =========================
@@ -46,19 +62,19 @@ public class CatalogAdminController {
     }
 
     /* =========================
-       VISIBILITY (hide from rails)
+       VISIBILITY (DRAFT / PUBLISHED / UNLISTED)
        ========================= */
 
     @AdminAccess
     @PatchMapping("/{id}/visibility")
     public ApiResponse<RecordDto> setVisibility(
             @PathVariable Long id,
-            @RequestParam boolean hideFromRails
+            @RequestParam RecordVisibility visibility
     ) {
 
         return ApiResponse.success(
-                hideFromRails ? "Record hidden from rails" : "Record visible on rails",
-                catalogService.setHideFromRails(id, hideFromRails)
+                "Record visibility set to " + visibility,
+                catalogService.setVisibility(id, visibility)
         );
     }
 
@@ -118,6 +134,7 @@ public class CatalogAdminController {
             @RequestParam(required = false) Long tmdbId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) SyncStatus status,
+            @RequestParam(required = false) RecordVisibility visibility,
             Pageable pageable
     ) {
 
@@ -129,6 +146,7 @@ public class CatalogAdminController {
                         tmdbId,
                         year,
                         status,
+                        visibility,
                         pageable
                 )
         );

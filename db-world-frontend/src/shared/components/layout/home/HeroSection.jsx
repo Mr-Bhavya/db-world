@@ -5,6 +5,8 @@ import {
   Box,
   Button,
   Container,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 
 import { motion, useReducedMotion } from 'framer-motion';
@@ -28,6 +30,11 @@ const HeroSection = memo(function HeroSection({
   onNavigate,
 }) {
   const prefersReducedMotion = useReducedMotion();
+  const theme = useTheme();
+  // The spotlight only appears in the lg+ right column (the Box below is display:none under lg).
+  // Gate the actual mount on the same breakpoint so on phones/tablets the panel — and its
+  // `useIpos()` call — never runs: otherwise it would hit /api/ipo purely to render nothing.
+  const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const ipoApp = visibleApps.find((app) => app.id === 'ipo') ?? visibleApps[0];
   const IpoAppIcon = ipoApp?.Icon;
 
@@ -319,7 +326,7 @@ const HeroSection = memo(function HeroSection({
                 minWidth: 0,
               }}
             >
-              {ipoApp && (
+              {isLgUp && ipoApp && (
                 <motion.div
                   initial={{
                     opacity: 0,

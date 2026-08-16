@@ -6,12 +6,14 @@ import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
+import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.repository.IngestionJobRepository;
 import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
 import com.db.dbworld.app.media.ingestion.service.YtFormatService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.migration.StreamMigrationService;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
+import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
@@ -63,6 +65,8 @@ public class IngestionController {
     private final FileBrowserService     fileBrowserService;
     private final RecordRepository       recordRepository;
     private final StreamMigrationService streamMigrationService;
+    private final TrackReviewCoordinator trackReviewCoordinator;
+    private final IngestionDownloadQueue downloadQueue;
 
     public IngestionController(
             IngestionPipeline      pipeline,
@@ -73,7 +77,9 @@ public class IngestionController {
             YtFormatService        ytFormatService,
             FileBrowserService     fileBrowserService,
             RecordRepository       recordRepository,
-            StreamMigrationService streamMigrationService
+            StreamMigrationService streamMigrationService,
+            TrackReviewCoordinator trackReviewCoordinator,
+            IngestionDownloadQueue downloadQueue
     ) {
         this.pipeline                = pipeline;
         this.trackingService         = trackingService;
@@ -84,6 +90,8 @@ public class IngestionController {
         this.fileBrowserService      = fileBrowserService;
         this.recordRepository        = recordRepository;
         this.streamMigrationService  = streamMigrationService;
+        this.trackReviewCoordinator  = trackReviewCoordinator;
+        this.downloadQueue           = downloadQueue;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -147,6 +155,7 @@ public class IngestionController {
     @PutMapping("/{jobId}/cancel")
     public ApiResponse<Void> cancel(@PathVariable String jobId) {
         trackingService.updateStatus(jobId, MirrorStatus.CANCELLED);
+        trackReviewCoordinator.cancel(jobId); // unpark if it's waiting for track selection
         jobStore.executeCancelAction(jobId);
         log.info("[{}] Cancel requested", jobId);
         return ApiResponse.success("Job " + jobId + " cancelled");
@@ -214,29 +223,62 @@ public class IngestionController {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // RELEASE  (pull a queued job out of the FIFO to download in parallel)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @PutMapping("/{jobId}/release")
+    public ApiResponse<Void> release(@PathVariable String jobId) {
+        boolean released = downloadQueue.releaseNow(jobId);
+        if (!released) {
+            return ApiResponse.error(400,
+                    "Job " + jobId + " is not waiting in the download queue "
+                    + "(already downloading, not an HTTP job, or already finished).");
+        }
+        log.info("[{}] Released from download queue to run in parallel", jobId);
+        return ApiResponse.success("Job " + jobId + " released — downloading in parallel");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // RERUN
     // ══════════════════════════════════════════════════════════════════════════
 
     @PostMapping("/{jobId}/rerun")
-    public ApiResponse<String> rerun(@PathVariable String jobId) {
-        // 1. Try in-memory store (job still tracked)
-        Optional<IngestionRequest> stored = jobStore.getRequest(jobId);
-        if (stored.isPresent()) {
-            String newJobId = pipeline.start(stored.get());
-            log.info("[{}] Rerun started → new jobId={}", jobId, newJobId);
-            return ApiResponse.success("Rerun started", newJobId);
+    public ApiResponse<String> rerun(@PathVariable String jobId,
+                                     @RequestBody(required = false) IngestionRequest overrides) {
+        // Reconstruct the ORIGINAL request — in-memory store first (keeps secrets), then the DB row.
+        IngestionRequest original = jobStore.getRequest(jobId)
+                .orElseGet(() -> jobRepository.findById(jobId).map(this::reconstructRequest).orElse(null));
+        if (original == null) {
+            return ApiResponse.error(404, "Job " + jobId + " not found in store or DB", (String) null);
         }
 
-        // 2. Fall back to DB record
-        return jobRepository.findById(jobId)
-                .map(entity -> {
-                    String newJobId = pipeline.start(reconstructRequest(entity));
-                    log.info("[{}] Rerun from DB → new jobId={}", jobId, newJobId);
-                    return ApiResponse.success("Rerun started (from DB)", newJobId);
-                })
-                .orElse(ApiResponse.error(404,
-                        "Job " + jobId + " not found in store or DB", (String) null));
+        // No body → plain rerun with the original request (the "rerun unchanged" path). Body → edited
+        // rerun: use the edited body but backfill any secrets the params snapshot can't echo
+        // (passwords, .torrent bytes) so protected sources still rerun without re-typing them.
+        boolean edited = overrides != null;
+        IngestionRequest toRun = edited ? overrides : original;
+        if (edited) backfillSecrets(toRun, original);
+
+        String newJobId = pipeline.start(toRun);
+        log.info("[{}] Rerun started ({}) → new jobId={}", jobId, edited ? "edited" : "as-is", newJobId);
+        return ApiResponse.success("Rerun started", newJobId);
     }
+
+    /** Copy secrets the params snapshot never echoes from the original request into an edited rerun. */
+    private void backfillSecrets(IngestionRequest edited, IngestionRequest original) {
+        if (original == null) return;
+        if (isBlank(edited.getPassword()))        edited.setPassword(original.getPassword());
+        if (isBlank(edited.getUsername()))        edited.setUsername(original.getUsername());
+        if (isBlank(edited.getExtractPassword())) edited.setExtractPassword(original.getExtractPassword());
+        if (isBlank(edited.getTorrentBase64()))   edited.setTorrentBase64(original.getTorrentBase64());
+        // If only processing fields were edited and the source wasn't re-supplied, keep the original.
+        if (isBlank(edited.getUri()) && isBlank(edited.getLocalFilePath())) {
+            edited.setUri(original.getUri());
+            edited.setLocalFilePath(original.getLocalFilePath());
+        }
+    }
+
+    private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     // ══════════════════════════════════════════════════════════════════════════
     // PARAMS  (re-editable snapshot for "rerun with edit")
@@ -264,21 +306,72 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Edit safe fields (season/episode) on a still-running job. The edit is applied to the
-     * in-memory request and takes effect when the pipeline reaches the processing stage, so
-     * it's only allowed while the job is active. Returns 400 once the job is terminal.
+     * Live-edit a still-running job. Each field is applied to the in-memory request and takes effect
+     * when the pipeline reaches the stage that consumes it, so editing is phase-gated against the
+     * job's current status:
+     * <ul>
+     *   <li>Processing-tier fields (record link, season/episode, extract, rename, track filter) are
+     *       editable until the download finishes (QUEUED / STARTED / DOWNLOADING / PAUSED).</li>
+     *   <li>Download-tier fields (source, format, folder, auth) are editable only while still QUEUED.</li>
+     * </ul>
+     * Once the job is processing or terminal it returns 400 (the caller should offer "Edit & rerun").
      */
     @PatchMapping("/{jobId}/params")
     public ApiResponse<Void> editJobParams(@PathVariable String jobId,
                                            @RequestBody JobEditRequest edit) {
-        boolean applied = jobStore.applyEdit(jobId, edit.getSeason(), edit.getEpisode());
-        if (!applied) {
-            return ApiResponse.error(400,
-                    "Job " + jobId + " is not active — only running jobs can be edited.");
+        MirrorStatus status = trackingService.getStatus(jobId);
+        if (status == null) {
+            return ApiResponse.error(400, "Job " + jobId + " is not active — only running jobs can be edited.");
         }
-        log.info("[{}] Live edit applied — season={}, episode={}",
-                jobId, edit.getSeason(), edit.getEpisode());
+        boolean beforeProcessing = status == MirrorStatus.QUEUED || status == MirrorStatus.STARTED
+                || status == MirrorStatus.DOWNLOADING || status == MirrorStatus.PAUSED
+                || status == MirrorStatus.AWAITING_INPUT;
+        if (!beforeProcessing) {
+            return ApiResponse.error(400,
+                    "Job " + jobId + " is already processing or finished — use \"Edit & rerun\" to change it.");
+        }
+        boolean allowDownloadFields = status == MirrorStatus.QUEUED;
+
+        boolean applied = jobStore.applyEdit(jobId, edit, allowDownloadFields);
+        if (!applied) {
+            return ApiResponse.error(400, "Job " + jobId + " is no longer tracked — it can't be edited.");
+        }
+        log.info("[{}] Live edit applied (status={}, downloadFields={})", jobId, status, allowDownloadFields);
         return ApiResponse.success("Job " + jobId + " updated");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TRACK REVIEW  (interactive audio/subtitle selection while AWAITING_INPUT)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Detected audio/subtitle tracks + the smart-default suggestion for a job parked in
+     * {@code AWAITING_INPUT}. 404 once the job has resumed (selection made, timed out, or cancelled).
+     */
+    @GetMapping("/{jobId}/tracks")
+    public ApiResponse<TrackReviewOptions> getTrackOptions(@PathVariable String jobId) {
+        return trackReviewCoordinator.getOptions(jobId)
+                .map(ApiResponse::success)
+                .orElse(ApiResponse.error(404,
+                        "Job " + jobId + " is not awaiting track selection.", (TrackReviewOptions) null));
+    }
+
+    /**
+     * Submit the admin's audio/subtitle choice for a parked job. Builds the model track filter,
+     * unparks the pipeline, and processing continues with the chosen tracks.
+     */
+    @PostMapping("/{jobId}/tracks")
+    public ApiResponse<Void> submitTrackSelection(@PathVariable String jobId,
+                                                  @RequestBody TrackReviewSelection selection) {
+        if (!trackReviewCoordinator.isPending(jobId)) {
+            return ApiResponse.error(400, "Job " + jobId + " is not awaiting track selection.");
+        }
+        boolean applied = trackReviewCoordinator.submit(jobId, selection.toTrackFilter());
+        if (!applied) {
+            return ApiResponse.error(400, "Job " + jobId + " is no longer waiting — the selection was not applied.");
+        }
+        log.info("[{}] Track selection submitted", jobId);
+        return ApiResponse.success("Track selection applied — processing will continue");
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -288,6 +381,7 @@ public class IngestionController {
     @DeleteMapping("/{jobId}")
     public ApiResponse<Void> purge(@PathVariable String jobId) {
         trackingService.updateStatus(jobId, MirrorStatus.CANCELLED);
+        trackReviewCoordinator.cancel(jobId); // unpark if it's waiting for track selection
         jobStore.executeCancelAction(jobId);
         jobStore.remove(jobId);
         jobRepository.deleteById(jobId);
@@ -509,6 +603,7 @@ public class IngestionController {
         r.setSeason(base.getSeason());
         r.setEpisode(base.getEpisode());
         r.setTrackFilter(base.getTrackFilter());
+        r.setReviewTracks(Boolean.TRUE.equals(base.getReviewTracks()));
         r.setLocalFilePath(base.getLocalFilePath());
         r.setPlaylistItems(base.getPlaylistItems());
         return r;
@@ -549,6 +644,7 @@ public class IngestionController {
                 .record(record)
                 .season(r.getSeason())
                 .episode(r.getEpisode())
+                .folderName(r.getFolderName())
                 .videoITag(r.getVideoITag())
                 .audioITag(r.getAudioITag())
                 .onlyAudio(Boolean.TRUE.equals(r.getOnlyAudio()))

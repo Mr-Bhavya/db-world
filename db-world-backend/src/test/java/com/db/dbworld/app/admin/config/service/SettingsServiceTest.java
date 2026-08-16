@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(33); // +3 per-source IPO base-URLs, then +2 push settings
+        assertThat(after1).isEqualTo(44); // 40 (base+IPO+push+cinema) + 4 media-ingestion (track-review enabled/timeout + processing-threads + storyboard-enabled)
     }
 
     @Test

@@ -15,6 +15,6 @@ public class CreateRecordRequest {
     @NotNull
     private Long tmdbId;
 
-    /** Optional — when true, the record is excluded from rails (still appears in search). */
-    private boolean hideFromRails = false;
+    // Note: new records are always created as DRAFT (not public). An admin makes them public later
+    // via the publish/visibility action — see CatalogService.setVisibility.
 }

@@ -7,6 +7,7 @@ import SortIcon from '@mui/icons-material/Sort';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
+import { VISIBILITY_ORDER, visibilityMeta } from './visibilityConstants';
 
 const SORT_OPTIONS = [
   { value: 'recordId,desc',     label: 'Latest' },
@@ -79,6 +80,15 @@ export default function RecordFilters() {
         <MenuItem value="">All</MenuItem>
         <MenuItem value="MOVIE">Movie</MenuItem>
         <MenuItem value="TV_SERIES">Series</MenuItem>
+      </TextField>
+
+      <TextField select size="small" label="Visibility" value={filters.visibility}
+        onChange={e => setFilter('visibility', e.target.value)}
+        sx={{ ...inputSx, minWidth: 130 }}
+        InputLabelProps={{ shrink: true }}
+        SelectProps={{ displayEmpty: true, MenuProps: getSelectMenuProps(T) }}>
+        <MenuItem value="">All statuses</MenuItem>
+        {VISIBILITY_ORDER.map(v => <MenuItem key={v} value={v}>{visibilityMeta(v).label}</MenuItem>)}
       </TextField>
 
       {/* Year + TMDB ID — inline on sm+, behind a "More filters" popover on xs. */}

@@ -7,6 +7,7 @@ import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
+import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.processor.StreamProcessor;
@@ -65,6 +66,13 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         jobStore.setCancelAction(jobId, () -> cancellation.set(true));
 
         try {
+            // yt-dlp never enters the sequential HTTP queue, so its download starts right away —
+            // set DOWNLOADING here (the pipeline no longer pre-sets it) so the UI leaves "Starting".
+            trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
+            trackingService.updateStep(jobId, PipelineStepType.DOWNLOAD);
+            ctx.setStatus(MirrorStatus.DOWNLOADING);
+            ctx.setCurrentStep(PipelineStepType.DOWNLOAD);
+
             fileStorageService.prepareDirectories(ctx);
             Path tempDir = fileStorageService.resolveTempDir(ctx);
 
@@ -98,7 +106,6 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                     ctx, capturedFilename, downloadedBytes, totalBytes, trackingService, objectMapper
             );
 
-            ctx.setCurrentStep(PipelineStepType.DOWNLOAD);
             String processOutput = processExecutor.runYtDlpCommand(cmd, processor, cancellation);
 
             String fileName = parseFilename(processOutput, capturedFilename.get(), ctx.getJobId());

@@ -6,14 +6,12 @@ import SyncIcon from '@mui/icons-material/Sync';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
 import { AdminDataTable, adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
-import { useRecordVisibility } from './useRecordVisibility';
 import { useRecordSync } from './useRecordSync';
+import VisibilityControl from './VisibilityControl';
 import RecordTagsInline from './RecordTagsInline';
 
 const SORT_FIELD_MAP = {
@@ -69,7 +67,6 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
   // otherwise the panel checkboxes appear frozen (can't toggle).
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
 
-  const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
 
   // The column-menu ("Sort by / Hide / Manage columns") and the "Manage columns"
@@ -191,27 +188,8 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       },
     },
     {
-      field: 'hideFromRails', headerName: 'On Rails', width: 80, sortable: false,
-      renderCell: ({ row }) => {
-        const hidden = Boolean(row.hideFromRails);
-        return (
-          <Tooltip title={hidden ? 'Hidden from rails (click to show)' : 'Visible on rails (click to hide)'}>
-            <span>
-              <IconButton
-                size="small"
-                disabled={visibilityMut.isPending}
-                onClick={() => visibilityMut.mutate({ id: row.recordId, hideFromRails: !hidden })}
-                sx={{
-                  color: hidden ? T.error : T.success,
-                  '&:hover': { bgcolor: hidden ? T.errorBg : `${T.success}15` },
-                }}
-              >
-                {hidden ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
-              </IconButton>
-            </span>
-          </Tooltip>
-        );
-      },
+      field: 'visibility', headerName: 'Visibility', width: 130, sortable: false,
+      renderCell: ({ row }) => <VisibilityControl row={row} />,
     },
     {
       field: 'actions', headerName: '', width: 108, sortable: false,
@@ -233,7 +211,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
         </Box>
       ),
     },
-  ], [T, onDelete, openModal, openMediaFiles, openDrawer, visibilityMut, syncMut]);
+  ], [T, onDelete, openModal, openMediaFiles, openDrawer, syncMut]);
 
   return (
     <AdminDataTable

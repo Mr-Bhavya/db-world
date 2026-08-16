@@ -6,10 +6,15 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
+import LibraryAddRounded from '@mui/icons-material/LibraryAddRounded';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import Constants from '@shared/constants';
 import { getMediaFiles, deleteMediaFileById, rescanMediaFile } from '../api/adminApi';
+import useIngestionStore from '../ingestion/store/ingestionStore';
+import { useRecordStore } from '../stores/useRecordStore';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '—';
@@ -54,7 +59,7 @@ const TrackRow = ({ label, track }) => {
  * Media file list for the unified record detail drawer's "Files" tab.
  * (Replaces the former standalone MediaFilesModal dialog.)
  */
-export function MediaFilesBody({ recordId }) {
+export function MediaFilesBody({ recordId, record }) {
   const T = useT();
   const [deletingId, setDeletingId] = useState(null);
   const [rescanningId, setRescanningId] = useState(null);
@@ -87,20 +92,56 @@ export function MediaFilesBody({ recordId }) {
 
   const totalSize = files.reduce((sum, f) => sum + (f.fileSize ?? 0), 0);
 
+  const navigate = useNavigate();
+  const closeDrawer = useRecordStore((s) => s.closeDrawer);
+  const setPrefillRecord = useIngestionStore((s) => s.setPrefillRecord);
+  const setIngestionTab = useIngestionStore((s) => s.setActiveTab);
+
+  // Jump to the New Job form with THIS record pre-selected — the reliable way to attach media to a
+  // record (especially a DRAFT, which the record search deliberately hides).
+  const handleAddMedia = () => {
+    setPrefillRecord({
+      id: recordId,
+      name: record?.name ?? null,
+      type: record?.type ?? null,
+      posterPath: record?.posterPath ?? null,
+    });
+    setIngestionTab(0); // New Job tab
+    closeDrawer?.();
+    navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/ingestion`);
+  };
+
+  const addMediaButton = (
+    <Button
+      size="small"
+      variant="outlined"
+      startIcon={<LibraryAddRounded sx={{ fontSize: 16 }} />}
+      onClick={handleAddMedia}
+      sx={{ textTransform: 'none', fontWeight: 700, borderColor: T.glassBorder, color: T.teal,
+        '&:hover': { borderColor: T.teal, bgcolor: T.tealBg } }}
+    >
+      Add media files
+    </Button>
+  );
+
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={28} sx={{ color: T.teal }} /></Box>;
   if (error) return <Alert severity="error" sx={{ bgcolor: T.errorBg, color: T.error, border: `1px solid ${T.error}44`, '& .MuiAlert-icon': { color: T.error } }}>Failed to load media files</Alert>;
   if (files.length === 0) return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 1.5 }}>
       <VideoFileIcon sx={{ fontSize: 40, color: T.textFaint }} />
       <Typography sx={{ fontSize: 13, color: T.textMuted }}>No media files linked to this record.</Typography>
+      {addMediaButton}
     </Box>
   );
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: T.textMuted, mb: 1 }}>
-        {files.length} file{files.length !== 1 ? 's' : ''} · {fmtSize(totalSize)} total
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+        <Typography sx={{ fontSize: 11, color: T.textMuted }}>
+          {files.length} file{files.length !== 1 ? 's' : ''} · {fmtSize(totalSize)} total
+        </Typography>
+        {addMediaButton}
+      </Box>
       {files.map((file) => {
         const isDeleting   = deletingId   === file.id;
         const isRescanning = rescanningId === file.id;

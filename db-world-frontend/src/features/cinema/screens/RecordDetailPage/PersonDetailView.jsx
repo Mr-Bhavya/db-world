@@ -323,9 +323,29 @@ export default function PersonDetailView({ personId, onBack, surface }) {
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
     const slug = (item.title ?? '').replace(/\s+/g, '-').toLowerCase();
     const path = base.replace(':title', `${item.recordId}-${slug}`);
-    // Drop `person` so navigating to a record doesn't re-open the person view.
-    const { person: _person, ...restState } = location.state ?? {};
-    navigate(path, { state: { ...restState, background: restState.background || location } });
+    // Drop `person` (so we don't re-open the person view) AND the previous record's preview/origin
+    // (a stale cardRecord would flash the WRONG poster as the instant hero, and originRect would
+    // grow the new record from the old card's rect). Keep `background` so closing returns to the
+    // page the overlay was opened over (the cinema page), not this person overlay.
+    const {
+      person: _person, cardRecord: _cardRecord, originRect: _originRect, defaultTab: _defaultTab,
+      ...restState
+    } = location.state ?? {};
+    navigate(path, {
+      state: {
+        ...restState,
+        background: restState.background || location,
+        cardRecord: {
+          id: item.recordId,
+          title: item.title,
+          type: item.mediaType,
+          posterPath: item.posterPath ?? null,
+          backdropPath: item.backdropPath ?? null,
+          voteAverage: item.voteAverage,
+          releaseDate: item.releaseDate,
+        },
+      },
+    });
   }, [navigate, location]);
 
   const bg = surface ?? T.bg;

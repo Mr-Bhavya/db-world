@@ -33,6 +33,7 @@ import InfoOutlinedIcon  from '@mui/icons-material/InfoOutlined';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
+import { isNativePlayerEnabled } from './nativePlayerFlag';
 import { tmdbImg } from '../../api/cinemaApi';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];   // Netflix-style set
@@ -262,6 +263,11 @@ export default function DbWorldVideoPlayer({
   requestId = null, mediaFileId = null, recordId = null, // stream telemetry session (null → reporting is skipped)
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
+  // When the native (SurfaceView+Compose) player is active it draws its OWN controls natively,
+  // so this React overlay must render NOTHING (otherwise both UIs stack and look broken). All
+  // hooks/effects below still run — they drive the native player + resume/telemetry — only the
+  // visible JSX is suppressed (a hidden root keeps rootRef-using effects safe).
+  const nativeHeadless = isNativePlayerEnabled();
   const reduce   = useReducedMotion();          // honour prefers-reduced-motion
   const videoRef    = useRef(null);
   const rootRef     = useRef(null);
@@ -992,7 +998,9 @@ export default function DbWorldVideoPlayer({
   const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
   const showUpNext = nextEpisode && !ended && nearEnd && !upNextDismissed && countdown == null;
 
-  return (
+  return nativeHeadless ? (
+    <div ref={rootRef} style={{ display: 'none' }} />
+  ) : (
     <ScaleCtx.Provider value={uiScale}>
     <div
       ref={rootRef}

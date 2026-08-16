@@ -67,6 +67,11 @@ build/
 *.war
 *.jar
 db-world-frontend/dist/
+
+### Test coverage — generated, never commit ###
+coverage/
+db-world-frontend/coverage/
+
 db-world-frontend/android/app/build/
 db-world-frontend/android/.gradle/
 db-world-frontend/.angular/

@@ -197,6 +197,12 @@ public class InMemoryTrackingService implements TrackingService {
     }
 
     @Override
+    public MirrorStatus getStatus(String jobId) {
+        JobState state = jobs.get(jobId);
+        return state != null ? state.status.get() : null;
+    }
+
+    @Override
     public Map<String, Object> getAll() {
         Map<String, Object> result = new LinkedHashMap<>();
         jobs.forEach((jobId, state) -> result.put(jobId, toSummary(jobId, state)));

@@ -5,14 +5,12 @@ import SyncIcon from '@mui/icons-material/Sync';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { useRecordStore } from '../stores/useRecordStore';
-import { useRecordVisibility } from './useRecordVisibility';
 import { useRecordSync } from './useRecordSync';
+import VisibilityControl from './VisibilityControl';
 import RecordTagsInline from './RecordTagsInline';
 
 const SYNC_META = {
@@ -37,7 +35,6 @@ export default function RecordMobileList({ rows, onDelete }) {
   const T = useT();
   const S = adminSurface(T);
   const { selectedRows, setSelectedRows, openModal, openMediaFiles, openDrawer } = useRecordStore();
-  const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
 
   const selected = new Set(selectedRows);
@@ -56,7 +53,6 @@ export default function RecordMobileList({ rows, onDelete }) {
       {rows.map(row => {
         const sel     = selected.has(row.recordId);
         const meta    = SYNC_META[row.syncStatus];
-        const hidden  = Boolean(row.hideFromRails);
         const count   = row.mediaFileCount ?? 0;
         const syncing = syncMut.isPending && syncMut.variables === row.recordId;
         return (
@@ -121,15 +117,7 @@ export default function RecordMobileList({ rows, onDelete }) {
                 </Typography>
               </Box>
 
-              <Tooltip title={hidden ? 'Hidden from rails (tap to show)' : 'On rails (tap to hide)'}>
-                <span>
-                  <IconButton size="small" disabled={visibilityMut.isPending}
-                    onClick={() => visibilityMut.mutate({ id: row.recordId, hideFromRails: !hidden })}
-                    sx={{ p: 0.25, color: hidden ? T.error : T.success }}>
-                    {hidden ? <VisibilityOffIcon sx={{ fontSize: 15 }} /> : <VisibilityIcon sx={{ fontSize: 15 }} />}
-                  </IconButton>
-                </span>
-              </Tooltip>
+              <VisibilityControl row={row} />
 
               {row.lastSyncedAt && (
                 <Typography sx={{ fontSize: 10, color: T.textFaint }}>

@@ -52,6 +52,7 @@ import {
   QueueMusicRounded as QueueMusic,
   AutoAwesomeRounded as AutoAwesome,
   LockResetRounded as LockReset,
+  SubtitlesRounded as Subtitles,
 } from '@mui/icons-material';
 
 import { AnimatePresence, motion } from 'framer-motion';
@@ -104,6 +105,8 @@ const schema = z.object({
   zipPwd: z.string().optional().default(''),
 
   audioOnly: z.boolean().default(false),
+
+  reviewTracks: z.boolean().default(false),
 
   videoITag: z.string().optional().nullable(),
   audioITag: z.string().optional().nullable(),
@@ -505,6 +508,7 @@ const EMPTY_DEFAULTS = {
   extract: false,
   zipPwd: '',
   audioOnly: false,
+  reviewTracks: false,
   videoITag: null,
   audioITag: null,
   videoQuality: 'best',
@@ -519,6 +523,7 @@ export default function IngestionForm({
   initialValues = null,
   dialogMode = false,
   onCancel,
+  submitOverride = null,
 }) {
   const theme = useTheme();
   const T = useT();
@@ -585,6 +590,16 @@ export default function IngestionForm({
     () => urls.filter((u) => (u?.url || '').trim()).length,
     [urls]
   );
+
+  // Pre-select the record when we arrived here from a record's "Add media files" button. Consumed
+  // once (cleared after), and only for the main New Job form — never the rerun/edit dialog.
+  const prefillRecord = useIngestionStore((s) => s.prefillRecord);
+  const clearPrefillRecord = useIngestionStore((s) => s.clearPrefillRecord);
+  useEffect(() => {
+    if (dialogMode || initialValues || !prefillRecord) return;
+    setValue('record', prefillRecord, { shouldDirty: true });
+    clearPrefillRecord();
+  }, [prefillRecord, dialogMode, initialValues, setValue, clearPrefillRecord]);
 
   useEffect(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
@@ -706,7 +721,9 @@ export default function IngestionForm({
 
       const uris = validUrls.map((u) => u.url);
 
-      if (!torrentBase64 && uris.length === 0) {
+      // A rerun (submitOverride) may proceed with no URL here — the server backfills the original
+      // source (URL / .torrent bytes) that the params snapshot can't echo.
+      if (!submitOverride && !torrentBase64 && uris.length === 0) {
         notify.warning('Provide at least one URL or upload a .torrent file');
         return;
       }
@@ -720,6 +737,8 @@ export default function IngestionForm({
         password: data.useAuth ? data.password : undefined,
         extractPassword:
           data.extract && data.zipPwd ? data.zipPwd : undefined,
+        // Opt-in: pause after download to hand-pick audio/subtitle tracks on the live job.
+        reviewTracks: !!data.reviewTracks,
         videoITag: isYtMode && !data.audioOnly ? data.videoITag : undefined,
         audioITag: isYtMode ? data.audioITag : undefined,
         // Quality preset — used by playlists (itags differ per video) and ignored by the
@@ -727,6 +746,31 @@ export default function IngestionForm({
         videoQuality: isYtMode && !data.audioOnly ? (data.videoQuality || undefined) : undefined,
         ...(torrentBase64 ? { torrentBase64 } : {}),
       };
+
+      // Rerun-with-edit: one job via the caller's override (POST /{jobId}/rerun), which backfills
+      // secrets server-side. No playlist / multi-URL fan-out — a rerun re-runs a single job.
+      if (submitOverride) {
+        const body = {
+          ...sharedOptions,
+          uri: uris[0] || undefined,
+          season: data.season ? Number(data.season) : null,
+          episode: data.episode ? Number(data.episode) : null,
+          rename: !!validUrls[0]?.rename,
+          fileName: validUrls[0]?.rename ? validUrls[0]?.customName : undefined,
+        };
+        try {
+          const res = await submitOverride(body);
+          if (res?.httpStatusCode === 200 || res?.httpStatusCode === 201) {
+            notify.success(res?.message || 'Rerun started');
+            onSubmitted?.();
+          } else {
+            notify.error(res?.message || 'Failed to rerun');
+          }
+        } catch (e) {
+          notify.error(e?.response?.data?.message ?? 'Network error');
+        }
+        return;
+      }
 
       if (isPlaylist) {
         const entries = formatsData?.playlistEntries ?? [];
@@ -840,6 +884,7 @@ export default function IngestionForm({
       handleReset,
       setActiveTab,
       onSubmitted,
+      submitOverride,
     ]
   );
 
@@ -1293,15 +1338,15 @@ export default function IngestionForm({
                   )}
                 />
 
-                {/* Archive extraction */}
+                {/* Archive password — archives auto-extract; this is only for protected ones */}
                 <Controller
                   name="extract"
                   control={control}
                   render={({ field }) => (
                     <OptionTile
                       icon={<Archive sx={{ fontSize: 18 }} />}
-                      title="Extract archive"
-                      subtitle="Extract ZIP / RAR / 7z after download"
+                      title="Password-protected archive"
+                      subtitle="ZIP / RAR / 7z extract automatically — turn on only to enter a password"
                       checked={!!field.value}
                       onChange={(e) => field.onChange(e.target.checked)}
                     >
@@ -1311,7 +1356,7 @@ export default function IngestionForm({
                         render={({ field: pwdField, fieldState }) => (
                           <TextField
                             {...pwdField}
-                            label="Archive password (optional)"
+                            label="Archive password"
                             type={showZipPassword ? 'text' : 'password'}
                             size="small"
                             fullWidth
@@ -1341,6 +1386,27 @@ export default function IngestionForm({
                           />
                         )}
                       />
+                    </OptionTile>
+                  )}
+                />
+
+                {/* Interactive track review */}
+                <Controller
+                  name="reviewTracks"
+                  control={control}
+                  render={({ field }) => (
+                    <OptionTile
+                      icon={<Subtitles sx={{ fontSize: 18 }} />}
+                      title="Review tracks after download"
+                      subtitle="Pick which audio/subtitle languages to keep before processing"
+                      checked={!!field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    >
+                      <Alert severity="info" sx={{ borderRadius: 2.5, mt: 0.25 }}>
+                        After the download finishes, the job pauses on the live tab and asks you to
+                        choose tracks — meanwhile other jobs keep running. If you don&apos;t respond in
+                        time, the smart default (keep priority languages) is applied automatically.
+                      </Alert>
                     </OptionTile>
                   )}
                 />

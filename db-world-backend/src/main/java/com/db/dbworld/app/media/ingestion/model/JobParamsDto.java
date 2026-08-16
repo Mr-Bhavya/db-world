@@ -36,6 +36,9 @@ public class JobParamsDto {
     private Integer season;
     private Integer episode;
 
+    /** Target sub-folder for the download. */
+    private String folderName;
+
     private String videoITag;
     private String audioITag;
     private Boolean onlyAudio;

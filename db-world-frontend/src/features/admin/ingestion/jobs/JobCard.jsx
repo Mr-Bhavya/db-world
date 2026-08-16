@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notify } from '@shared/notify';
 import {
   alpha,
@@ -39,12 +39,13 @@ import {
   YouTube,
   PlayCircleOutline,
   Timer,
-  Speed,
   Notes,
   FiberManualRecord as DotIcon,
+  Subtitles,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import JobActions from './JobActions';
+import TrackReviewDialog from './TrackReviewDialog';
 import CommonServices from '@shared/services/CommonServices';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,11 +147,18 @@ function safeDisplayName(fileName, uri, jobId) {
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATUS_CFG = {
+// Phase-aware chip config — ONE label for the current phase. The StageBar below is the visual
+// breadcrumb, so the fine step is never repeated as text. Derived from status + step in the card.
+const PHASE_CFG = {
   QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
   STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
   DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
+  EXTRACT: { label: 'Extracting', color: 'primary', Icon: Archive },
+  MERGING: { label: 'Merging', color: 'primary', Icon: Merge },
+  FFMPEG: { label: 'Encoding', color: 'warning', Icon: VideoSettings },
+  MEDIA_INFO: { label: 'Media info', color: 'warning', Icon: VideoSettings },
   PROCESSING: { label: 'Processing', color: 'warning', Icon: VideoSettings },
+  AWAITING_INPUT: { label: 'Needs tracks', color: 'secondary', Icon: Subtitles },
   PAUSED: { label: 'Paused', color: 'warning', Icon: Pause },
   SUCCESS: { label: 'Completed', color: 'success', Icon: CheckCircle },
   FAILED: { label: 'Failed', color: 'error', Icon: ErrorIcon },
@@ -486,113 +494,85 @@ function FileBreakdown({ files, fileIndex, fileTotal }) {
   );
 }
 
-function MobileBottomActions({
+function BottomActions({
   logOpen,
   onToggleLogs,
   onCopyUrl,
   hasUri,
   job,
   compact,
+  spread,
 }) {
+  const pillSx = {
+    minWidth: 0,
+    px: 0.9,
+    py: 0.35,
+    borderRadius: 999,
+    textTransform: 'none',
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+  };
+  const iconSx = { width: 28, height: 28, borderRadius: 2 };
+
+  const utility = compact ? (
+    <>
+      <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
+        <IconButton size="small" onClick={onToggleLogs} sx={iconSx}>
+          {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
+        </IconButton>
+      </Tooltip>
+      {hasUri ? (
+        <Tooltip title="Copy source URL">
+          <IconButton size="small" onClick={onCopyUrl} sx={iconSx}>
+            <ContentCopy sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+    </>
+  ) : (
+    <>
+      <Button
+        size="small"
+        variant="text"
+        startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+        onClick={onToggleLogs}
+        sx={pillSx}
+      >
+        {logOpen ? 'Hide Logs' : 'Logs'}
+      </Button>
+      {hasUri ? (
+        <Button size="small" variant="text" startIcon={<ContentCopy fontSize="small" />} onClick={onCopyUrl} sx={pillSx}>
+          Copy URL
+        </Button>
+      ) : null}
+    </>
+  );
+
   return (
     <Box
       sx={{
-        overflowX: 'auto',
+        overflowX: spread ? 'visible' : 'auto',
         overflowY: 'hidden',
         WebkitOverflowScrolling: 'touch',
         pb: 0.1,
         mx: -0.15,
       }}
     >
+      {/* Desktop spreads the row (view/copy on the left, job actions on the right); mobile keeps a
+          single left-aligned scroll row. */}
       <Stack
         direction="row"
-        spacing={0.45}
         alignItems="center"
-        sx={{
-          width: 'max-content',
-          minWidth: '100%',
-          flexWrap: 'nowrap',
-        }}
+        spacing={0.45}
+        sx={spread
+          ? { width: '100%', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: 0.5 }
+          : { width: 'max-content', minWidth: '100%', flexWrap: 'nowrap' }}
       >
-        {compact ? (
-          <>
-            <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
-              <IconButton
-                size="small"
-                onClick={onToggleLogs}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 2,
-                }}
-              >
-                {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
-              </IconButton>
-            </Tooltip>
-
-            {hasUri ? (
-              <Tooltip title="Copy source URL">
-                <IconButton
-                  size="small"
-                  onClick={onCopyUrl}
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 2,
-                  }}
-                >
-                  <ContentCopy sx={{ fontSize: 15 }} />
-                </IconButton>
-              </Tooltip>
-            ) : null}
-
-            <JobActions job={job} layout="mobile" compactMobile />
-          </>
-        ) : (
-          <>
-            <Button
-              size="small"
-              variant="text"
-              startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-              onClick={onToggleLogs}
-              sx={{
-                minWidth: 0,
-                px: 0.9,
-                py: 0.35,
-                borderRadius: 999,
-                textTransform: 'none',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {logOpen ? 'Hide Logs' : 'Logs'}
-            </Button>
-
-            {hasUri ? (
-              <Button
-                size="small"
-                variant="text"
-                startIcon={<ContentCopy fontSize="small" />}
-                onClick={onCopyUrl}
-                sx={{
-                  minWidth: 0,
-                  px: 0.9,
-                  py: 0.35,
-                  borderRadius: 999,
-                  textTransform: 'none',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Copy URL
-              </Button>
-            ) : null}
-
-            <JobActions job={job} layout="mobile" compactMobile={false} />
-          </>
-        )}
+        <Stack direction="row" spacing={0.45} alignItems="center">
+          {utility}
+        </Stack>
+        <JobActions job={job} layout="mobile" compactMobile={compact} />
       </Stack>
     </Box>
   );
@@ -702,6 +682,46 @@ function LogPanel({
   );
 }
 
+// Prominent call-to-action shown while a job is parked in AWAITING_INPUT.
+function TrackReviewBanner({ onOpen }) {
+  return (
+    <Paper
+      elevation={0}
+      variant="outlined"
+      sx={{
+        mt: 0.3,
+        px: 1,
+        py: 0.85,
+        borderRadius: 2.5,
+        borderColor: (t) => alpha(t.palette.secondary.main, 0.45),
+        bgcolor: (t) => alpha(t.palette.secondary.main, 0.08),
+      }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Subtitles sx={{ fontSize: 19, color: 'secondary.main', flexShrink: 0 }} />
+        <Box flex={1} minWidth={0}>
+          <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+            Waiting for your track selection
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Pick which audio/subtitle languages to keep — other jobs keep running meanwhile.
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="contained"
+          color="secondary"
+          onClick={onOpen}
+          startIcon={<Subtitles sx={{ fontSize: 16 }} />}
+          sx={{ borderRadius: 999, fontWeight: 700, flexShrink: 0 }}
+        >
+          Select
+        </Button>
+      </Stack>
+    </Paper>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -717,6 +737,7 @@ function JobCardComponent({ job }) {
   const [logHtml, setLogHtml] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(false);
+  const [trackDlgOpen, setTrackDlgOpen] = useState(false);
 
   const {
     jobId,
@@ -737,19 +758,43 @@ function JobCardComponent({ job }) {
     overallPercent,
   } = job;
 
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
   const SourceIcon = SOURCE_ICONS[sourceType] ?? Http;
   const isTerminal = ['SUCCESS', 'FAILED', 'CANCELLED'].includes(status);
   const isActive = !isTerminal && status !== 'PAUSED';
 
-  const statusLabel = useMemo(() => {
-    if (isTerminal || status === 'PAUSED') return cfg.label;
-    return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
-  }, [cfg.label, isTerminal, status, step]);
+  // The chip shows the CURRENT phase (one label + colour + icon). QUEUED/STARTED/PAUSED/AWAITING and
+  // terminal states map straight through; while active the phase comes from the step (never a stale
+  // DOWNLOAD label while queued, since QUEUED short-circuits here).
+  const phase = useMemo(() => {
+    if (isTerminal || status === 'QUEUED' || status === 'STARTED'
+        || status === 'PAUSED' || status === 'AWAITING_INPUT') return status;
+    if (progress?.phase === 'merging') return 'MERGING';
+    if (step === 'EXTRACT') return 'EXTRACT';
+    if (step === 'FFMPEG') return 'FFMPEG';
+    if (step === 'MEDIA_INFO') return 'MEDIA_INFO';
+    if (step === 'DOWNLOAD' || status === 'DOWNLOADING') return 'DOWNLOADING';
+    return 'PROCESSING';
+  }, [isTerminal, status, step, progress?.phase]);
+  const cfg = PHASE_CFG[phase] ?? PHASE_CFG.STARTED;
+  const statusLabel = cfg.label;
 
   const pct = Math.min(100, Math.max(0, Number(progress?.percent ?? 0)));
-  const speed = useMemo(() => fmtSpeed(progress?.speed), [progress?.speed]);
-  const eta = useMemo(() => fmtEta(progress?.eta), [progress?.eta]);
+  // Low download speeds report 0 between ticks; hold the last non-zero value so speed/ETA don't
+  // flicker on and off every couple of seconds.
+  const lastSpeedRef = useRef(0);
+  const lastEtaRef = useRef(0);
+  useEffect(() => {
+    if (Number(progress?.speed) > 0) lastSpeedRef.current = Number(progress.speed);
+    if (Number(progress?.eta) > 0) lastEtaRef.current = Number(progress.eta);
+  }, [progress?.speed, progress?.eta]);
+  const speed = useMemo(
+    () => fmtSpeed(Number(progress?.speed) > 0 ? progress.speed : lastSpeedRef.current),
+    [progress?.speed]
+  );
+  const eta = useMemo(
+    () => fmtEta(Number(progress?.eta) > 0 ? progress.eta : lastEtaRef.current),
+    [progress?.eta]
+  );
   const isFfmpeg = step === 'FFMPEG';
   const isExtract = step === 'EXTRACT';
   const isMerging = progress?.phase === 'merging';
@@ -765,14 +810,17 @@ function JobCardComponent({ job }) {
   // render as a time. Falls back to the download/extract byte-percent before files exist.
   const mainPct = hasFiles
     ? Math.min(100, Math.max(0, Number(overallPercent ?? pct)))
-    : pct;
+    // While extracting, only trust a processing-phase % — a stale "downloading" 100% must not bleed
+    // through as a full bar; show indeterminate until real extraction progress arrives.
+    : (isExtract && progress?.phase !== 'processing' ? 0 : pct);
 
   const progressLeft = useMemo(() => {
-    if (isMerging) return 'Merging audio + video…';
-    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Processing';
-    if (isExtract) return 'Extracting…';
+    // The phase word lives in the status chip now — here we show only the OVERALL metric so the two
+    // don't repeat. Extract/merge have no meaningful % (indeterminate bar), so no left label.
+    if (isMerging || isExtract) return '';
+    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Overall';
     return `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
-  }, [isMerging, hasFiles, isMultiFile, fileIndex, fileTotal, isExtract, progress?.downloaded, progress?.total]);
+  }, [isMerging, isExtract, hasFiles, isMultiFile, fileIndex, fileTotal, progress?.downloaded, progress?.total]);
 
   const progressRight = useMemo(() => {
     return [
@@ -817,9 +865,10 @@ function JobCardComponent({ job }) {
     if (status === 'CANCELLED') return alpha(T.error ?? '#f44336', 0.3);
     if (status === 'SUCCESS') return alpha(T.success ?? '#4caf50', 0.4);
     if (status === 'PAUSED') return alpha(T.warning ?? '#ff9800', 0.5);
+    if (status === 'AWAITING_INPUT') return alpha(theme.palette.secondary.main, 0.55);
     if (isActive) return alpha(T.teal ?? '#00bcd4', 0.4);
     return T.border ?? 'rgba(0,0,0,0.12)';
-  }, [status, isActive, T]);
+  }, [status, isActive, T, theme]);
 
   const sourceColor = useMemo(() => {
     if (sourceType === 'YOUTUBE') return 'error.main';
@@ -980,30 +1029,6 @@ function JobCardComponent({ job }) {
                   color={cfg.color}
                   outlined={false}
                 />
-
-                {!isSmDown ? (
-                  <>
-                    {uri ? (
-                      <Tooltip title="Copy source URL">
-                        <IconButton size="small" onClick={handleCopyUrl} sx={{ p: 0.4 }}>
-                          <ContentCopy sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                    ) : null}
-
-                    <Tooltip title={logOpen ? 'Collapse logs' : 'View logs'}>
-                      <IconButton size="small" onClick={toggleLogs} sx={{ p: 0.4 }}>
-                        {logOpen ? (
-                          <ExpandLess sx={{ fontSize: 17 }} />
-                        ) : (
-                          <ExpandMore sx={{ fontSize: 17 }} />
-                        )}
-                      </IconButton>
-                    </Tooltip>
-
-                    <JobActions job={job} layout="desktop" />
-                  </>
-                ) : null}
               </Stack>
             </Stack>
 
@@ -1021,13 +1046,6 @@ function JobCardComponent({ job }) {
                 <MetaChip
                   icon={<Timer sx={{ fontSize: 13 }} />}
                   label={footerTime}
-                />
-              ) : null}
-
-              {speed && !isMerging ? (
-                <MetaChip
-                  icon={<Speed sx={{ fontSize: 13 }} />}
-                  label={speed}
                 />
               ) : null}
 
@@ -1054,7 +1072,7 @@ function JobCardComponent({ job }) {
                   }}
                 />
               </Box>
-            ) : isActive && status !== 'QUEUED' ? (
+            ) : isActive && status !== 'QUEUED' && status !== 'AWAITING_INPUT' ? (
               <LinearProgress
                 variant="indeterminate"
                 sx={{
@@ -1063,6 +1081,11 @@ function JobCardComponent({ job }) {
                   mt: 0.1,
                 }}
               />
+            ) : null}
+
+            {/* Track-review CTA — the job is parked waiting for an audio/subtitle selection */}
+            {status === 'AWAITING_INPUT' ? (
+              <TrackReviewBanner onOpen={() => setTrackDlgOpen(true)} />
             ) : null}
 
             {/* Per-file breakdown: full list for season packs, inline sub-steps for a single file */}
@@ -1112,17 +1135,16 @@ function JobCardComponent({ job }) {
               </Typography>
             ) : null}
 
-            {/* Mobile bottom action row */}
-            {isSmDown ? (
-              <MobileBottomActions
-                logOpen={logOpen}
-                onToggleLogs={toggleLogs}
-                onCopyUrl={handleCopyUrl}
-                hasUri={!!uri}
-                job={job}
-                compact={isVeryNarrow}
-              />
-            ) : null}
+            {/* Bottom action row — same placement on mobile + desktop; spread across the row on desktop */}
+            <BottomActions
+              logOpen={logOpen}
+              onToggleLogs={toggleLogs}
+              onCopyUrl={handleCopyUrl}
+              hasUri={!!uri}
+              job={job}
+              compact={isVeryNarrow}
+              spread={!isSmDown}
+            />
 
             {/* Logs */}
             <LogPanel
@@ -1138,6 +1160,14 @@ function JobCardComponent({ job }) {
           </Stack>
         </CardContent>
       </Card>
+
+      {trackDlgOpen ? (
+        <TrackReviewDialog
+          jobId={jobId}
+          open={trackDlgOpen}
+          onClose={() => setTrackDlgOpen(false)}
+        />
+      ) : null}
     </motion.div>
   );
 }

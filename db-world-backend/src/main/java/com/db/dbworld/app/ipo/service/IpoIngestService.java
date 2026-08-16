@@ -42,7 +42,9 @@ import java.util.stream.Collectors;
 @Service
 public class IpoIngestService {
 
+    private static final String STATUS_UPCOMING = "upcoming";
     private static final String STATUS_OPEN = "open";
+    private static final String STATUS_CLOSED = "closed";
     private static final String STATUS_LISTED = "listed";
 
     /** Indian IPO calendar zone — status boundaries (open/close/listing) flip at IST midnight. */
@@ -97,7 +99,7 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withCloseCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto))));
+        IpoDto dto = withCloseCutoff(withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))));
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -291,18 +293,7 @@ public class IpoIngestService {
     /** Returns {@code dto} unchanged if its status is already canonical, else a copy with it swapped in. */
     private static IpoDto withCanonicalStatus(IpoDto dto) {
         String canonicalStatus = IpoStatusCanonicalizer.canonical(dto.status());
-        if (Objects.equals(canonicalStatus, dto.status())) {
-            return dto;
-        }
-        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), canonicalStatus,
-                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
-                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
-                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
-                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
-                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
-                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+        return Objects.equals(canonicalStatus, dto.status()) ? dto : withStatus(dto, canonicalStatus);
     }
 
     /**
@@ -316,18 +307,23 @@ public class IpoIngestService {
         }
         String derived = IpoStatusCanonicalizer.deriveStatus(
                 dto.openDate(), dto.closeDate(), dto.listingDate(), LocalDateTime.now(clock.withZone(IST)));
-        if (derived == null) {
+        return derived == null ? dto : withStatus(dto, derived);
+    }
+
+    /**
+     * Holds a source-reported "open" IPO at "upcoming" until the IST open moment (Indian IPO bidding
+     * opens ~10&nbsp;AM IST on day one). A source (e.g. NSE) can flag an issue "Active" at the very
+     * start of the open day; without this clamp a midnight/early-morning poll would flip it to "open"
+     * and fire the "IPO is open" push at 12&nbsp;AM. The date-only {@link IpoStatusCanonicalizer#deriveStatus}
+     * already respects this cutoff — this applies the same rule to a source-reported status. Guarded on a
+     * known {@code openDate}: with none we can't reason about timing, so the status is left untouched.
+     */
+    private IpoDto withOpenCutoff(IpoDto dto) {
+        if (!STATUS_OPEN.equals(dto.status()) || dto.openDate() == null
+                || IpoStatusCanonicalizer.isPastOpen(dto.openDate(), LocalDateTime.now(clock.withZone(IST)))) {
             return dto;
         }
-        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), derived,
-                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
-                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
-                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
-                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
-                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
-                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+        return withStatus(dto, STATUS_UPCOMING);
     }
 
     /**
@@ -338,11 +334,16 @@ public class IpoIngestService {
      * change-compare), so once persisted it stays "closed" and never flip-flops back to "open".
      */
     private IpoDto withCloseCutoff(IpoDto dto) {
-        if (!"open".equals(dto.status())
+        if (!STATUS_OPEN.equals(dto.status())
                 || !IpoStatusCanonicalizer.isPastClose(dto.closeDate(), LocalDateTime.now(clock.withZone(IST)))) {
             return dto;
         }
-        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), "closed",
+        return withStatus(dto, STATUS_CLOSED);
+    }
+
+    /** A copy of {@code dto} with only its status swapped — every other field carried across verbatim. */
+    private static IpoDto withStatus(IpoDto dto, String status) {
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), status,
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
                 dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
                 dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),

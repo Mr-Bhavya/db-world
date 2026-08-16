@@ -3,7 +3,6 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography,
   CircularProgress, IconButton, Chip, Divider, Alert,
-  FormControlLabel, Checkbox,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,6 +19,7 @@ import { useT } from '@shared/theme';
 import { updateRecord, addRecordTag, removeRecordTag, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 import { useTagDefs } from './useTagDefs';
+import { VISIBILITY_ORDER, visibilityMeta } from './visibilityConstants';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 
@@ -46,7 +46,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   const [selected,      setSelected]      = useState(null);
   const [searching,     setSearching]     = useState(false);
   const [searchError,   setSearchError]   = useState('');
-  const [hideFromRails, setHideFromRails] = useState(false);
+  const [visibility,    setVisibility]    = useState('DRAFT');
   const searchTimer = useRef(null);
 
   const { control, handleSubmit, watch, reset } = useForm({
@@ -64,7 +64,7 @@ export default function RecordEditModal({ open, record, onClose }) {
       setResults([]);
       setSelected(null);
       setSearchError('');
-      setHideFromRails(Boolean(record.hideFromRails));
+      setVisibility(record.visibility ?? 'DRAFT');
       if (record.name) {
         clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => doSearch(record.name, record.type, ''), 300);
@@ -128,7 +128,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   const onSubmit = (d) => {
     const tmdbId = selected?.id ?? record?.tmdbId;
     if (!tmdbId) { notify.warning('Please select a TMDB result'); return; }
-    doUpdate({ type: d.type, tmdbId, hideFromRails });
+    doUpdate({ type: d.type, tmdbId, visibility });
   };
 
   if (!record) return null;
@@ -274,27 +274,24 @@ export default function RecordEditModal({ open, record, onClose }) {
             )}
           </Box>
 
-          <FormControlLabel
-            sx={{ color: T.textMuted, mx: 0, mt: 1 }}
-            control={
-              <Checkbox
-                size="small"
-                checked={hideFromRails}
-                onChange={(e) => setHideFromRails(e.target.checked)}
-                sx={{ color: T.textMuted, '&.Mui-checked': { color: T.teal } }}
-              />
-            }
-            label={
-              <Box>
-                <Typography sx={{ fontSize: 13, color: T.textPrimary, fontWeight: 600 }}>
-                  Hide from rails / home page
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: T.textFaint }}>
-                  Record still appears in search results. Useful for 18+ titles or library-only deep cuts.
-                </Typography>
-              </Box>
-            }
-          />
+          <Box>
+            <Typography sx={{ fontSize: 12, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .6, mb: 1 }}>
+              Visibility
+            </Typography>
+            <ToggleButtonGroup exclusive size="small" fullWidth value={visibility}
+              onChange={(_, v) => { if (v) setVisibility(v); }}
+              sx={{ '& .MuiToggleButton-root': {
+                flex: 1, textTransform: 'none', fontSize: 12.5, color: T.textMuted, borderColor: T.glassBorder,
+                '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55`, '&:hover': { bgcolor: T.tealBg } } } }}>
+              {VISIBILITY_ORDER.map(v => <ToggleButton key={v} value={v}>{visibilityMeta(v).label}</ToggleButton>)}
+            </ToggleButtonGroup>
+            <Typography sx={{ fontSize: 11, color: T.textFaint, mt: .75 }}>{visibilityMeta(visibility).desc}</Typography>
+            {visibility === 'PUBLISHED' && Number(record.mediaFileCount ?? 0) === 0 && (
+              <Typography sx={{ fontSize: 11, color: T.warning, mt: .5 }}>
+                No media files yet — it will publish as a placeholder; the notification is held until media is added.
+              </Typography>
+            )}
+          </Box>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>

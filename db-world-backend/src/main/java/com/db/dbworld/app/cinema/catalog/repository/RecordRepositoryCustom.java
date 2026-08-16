@@ -28,6 +28,7 @@ public interface RecordRepositoryCustom {
             Long tmdbId,
             Integer year,
             String status,
+            String visibility,
             Pageable pageable
     );
 
