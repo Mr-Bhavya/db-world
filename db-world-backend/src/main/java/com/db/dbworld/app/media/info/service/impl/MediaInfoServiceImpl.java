@@ -437,21 +437,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         String json = getRawJson(filePath);
 
         try {
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode tracks = root.path("media").path("track");
-
-            List<TrackDto> trackDtos = new ArrayList<>();
-
-            if (tracks.isArray()) {
-                int order = 0;
-
-                for (JsonNode node : tracks) {
-                    String type = node.path("@type").asText("");
-
-                    TrackDto dto = mapTrackToDto(type, node, order++);
-                    if (dto != null) trackDtos.add(dto);
-                }
-            }
+            List<TrackDto> trackDtos = parseTracks(json);
 
             return MediaFileDto.builder()
                     .fileName(filePath.getFileName().toString())
@@ -463,6 +449,32 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse MediaInfo JSON", e);
         }
+    }
+
+    /**
+     * MediaInfo JSON → track DTOs. Split out of {@link #collectMediaInfo(Path)} so the
+     * mapping can be exercised from fixtures: that method reads the file first, which made
+     * every branch of {@code mapTrackToDto} unreachable in tests without a real media file.
+     * Pure apart from the injected ObjectMapper — no filesystem access.
+     * Package-private for unit testing.
+     */
+    List<TrackDto> parseTracks(String json) {
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode tracks = root.path("media").path("track");
+
+        List<TrackDto> trackDtos = new ArrayList<>();
+
+        if (tracks.isArray()) {
+            int order = 0;
+
+            for (JsonNode node : tracks) {
+                String type = node.path("@type").asText("");
+
+                TrackDto dto = mapTrackToDto(type, node, order++);
+                if (dto != null) trackDtos.add(dto);
+            }
+        }
+        return trackDtos;
     }
 
     private String toRelativePath(Path filePath) {
