@@ -30,7 +30,8 @@ public class CatalogController {
     @GetMapping("/{id}")
     public ApiResponse<RecordDto> getRecord(@PathVariable Long id) {
 
-        RecordDto record = catalogService.getRecord(id);
+        // Public read — a DRAFT (unpublished) record 404s here, but stays visible to admins.
+        RecordDto record = catalogService.getPublicRecord(id);
 
         return ApiResponse.success(record);
     }

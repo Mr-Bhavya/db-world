@@ -18,6 +18,9 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     @EntityGraph(attributePaths = "tracks")
     List<MediaFileEntity> findByRecord_Id(Long recordId);
 
+    /** Whether a record has any media file yet — gates the "new title" publish push. */
+    boolean existsByRecord_Id(Long recordId);
+
     // ── file_path lookups ─────────────────────────────────────────────────────
     // file_path is VARCHAR(1000) and can't be indexed directly, so every lookup goes
     // through the indexed CRC32 hash (file_path_hash) AND a full file_path equality check

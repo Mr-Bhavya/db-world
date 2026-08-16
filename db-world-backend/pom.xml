@@ -46,7 +46,7 @@
         <springdoc.version>3.0.3</springdoc.version>
         <metrics-dropwizard.version>4.2.33</metrics-dropwizard.version>
         <commons-io.version>2.20.0</commons-io.version>
-        <jsoup.version>1.18.3</jsoup.version>
+        <jsoup.version>1.23.1</jsoup.version>
 
         <!-- Explicit so MapStruct's annotation processor picks up a Java 25 compatible build. -->
         <lombok.version>1.18.42</lombok.version>
@@ -413,6 +413,32 @@
                     <forkCount>1</forkCount>
                     <reuseForks>true</reuseForks>
                 </configuration>
+            </plugin>
+
+            <!--
+                JaCoCo — code coverage. prepare-agent sets the `argLine` property that surefire picks
+                up (surefire declares no explicit argLine above, so no @{argLine} late-binding needed);
+                report writes target/site/jacoco/jacoco.xml on `mvn test` for SonarCloud to consume.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

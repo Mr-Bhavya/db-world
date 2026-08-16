@@ -17,7 +17,7 @@ import { Close, Replay } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 
 import IngestionForm from '../form/IngestionForm';
-import { getJobParams } from '../services/ingestionApi';
+import { getJobParams, rerunJob } from '../services/ingestionApi';
 
 /**
  * Map the backend {@code JobParamsDto} snapshot onto the ingestion form's value shape.
@@ -101,10 +101,10 @@ export default function RerunEditDialog({ jobId, open, onClose }) {
           </Box>
           <Box minWidth={0}>
             <Typography variant="subtitle1" fontWeight={800} lineHeight={1.15}>
-              Rerun with edits
+              Rerun job
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Tweak the settings below, then start a fresh job.
+              Submit as-is to rerun, or tweak the settings first.
             </Typography>
           </Box>
         </Stack>
@@ -137,6 +137,7 @@ export default function RerunEditDialog({ jobId, open, onClose }) {
             initialValues={initialValues}
             onCancel={onClose}
             onSubmitted={onClose}
+            submitOverride={(body) => rerunJob(jobId, body)}
           />
         ) : null}
       </DialogContent>

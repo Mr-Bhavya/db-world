@@ -8,10 +8,14 @@
 //   setVolume(0..1) setBrightness(0..1) setOrientation(mode) release()
 //   on(event, cb) -> unsubscribe   events: 'time' 'state' 'ended' 'error'
 import { registerPlugin, Capacitor } from '@capacitor/core';
+import { isNativePlayerEnabled } from './nativePlayerFlag';
 
 const HybridPlayer = registerPlugin('HybridPlayer');
+const NativePlayer = registerPlugin('NativePlayer');
 
 const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume', pip: 'playerPipChanged' };
+
+const NATIVE_EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', closed: 'playerClosed', tracks: 'playerTracks', seek: 'playerSeek' };
 
 function createNativeAdapter() {
   return {
@@ -34,6 +38,45 @@ function createNativeAdapter() {
     on: (event, cb) => {
       let handle;
       HybridPlayer.addListener(EVENT_MAP[event], cb).then(h => { handle = h; });
+      return () => handle?.remove?.();
+    },
+  };
+}
+
+// Module-level (shared across adapter INSTANCES) — a src change recreates the adapter, so the
+// old instance's release() and the new instance's load() must share this timer for the cancel to
+// land. A src change (switch episode / quality) calls release() then load() in the same tick:
+// release() defers the real dismiss, load() cancels it → the native player just swaps the media
+// item (no teardown, no orientation reset). A genuine close (no load follows) fires the dismiss.
+let nativeDismissTimer = null;
+const cancelNativeDismiss = () => {
+  if (nativeDismissTimer) { clearTimeout(nativeDismissTimer); nativeDismissTimer = null; }
+};
+
+function createNativeControllerAdapter() {
+  const cancelDismiss = cancelNativeDismiss;
+  return {
+    kind: 'native-controller',
+    load:    (url, startMs = 0) => { cancelDismiss(); return NativePlayer.present({ url, startMs: Math.max(0, Math.round(startMs)) }); },
+    play:    () => NativePlayer.play(),
+    pause:   () => NativePlayer.pause(),
+    seekTo:  (ms) => NativePlayer.seekTo({ positionMs: Math.max(0, Math.round(ms)) }),
+    setRate: (rate) => NativePlayer.setRate({ rate }),
+    setVolume: () => {},          // Phase-2: native gesture owns volume
+    getVolume: () => Promise.resolve({ value: 1 }),
+    setBrightness: () => {},      // Phase-2
+    setZoom: () => {},            // Phase-2
+    selectAudioTrack: () => {},   // Phase-3
+    selectTextTrack: () => {},    // Phase-3
+    setDecoderMode: () => {},     // Phase-3 (plugin has no setDecoderMode yet)
+    setOrientation: () => {},     // Phase-2
+    enterPip: () => {},           // Phase-2 (plugin has no enterPip yet)
+    release: () => { cancelDismiss(); nativeDismissTimer = setTimeout(() => { nativeDismissTimer = null; NativePlayer.dismiss(); }, 120); },
+    on: (event, cb) => {
+      const name = NATIVE_EVENT_MAP[event];
+      if (!name) return () => {};   // ignore events the Phase-1 plugin doesn't emit (info/volume/pip)
+      let handle;
+      NativePlayer.addListener(name, cb).then(h => { handle = h; });
       return () => handle?.remove?.();
     },
   };
@@ -131,5 +174,6 @@ function createWebAdapter(getVideo) {
 }
 
 export function createPlayerAdapter(getVideo) {
+  if (isNativePlayerEnabled()) return createNativeControllerAdapter();
   return Capacitor.getPlatform() === 'android' ? createNativeAdapter() : createWebAdapter(getVideo);
 }

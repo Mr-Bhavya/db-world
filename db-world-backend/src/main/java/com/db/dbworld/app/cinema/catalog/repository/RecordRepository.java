@@ -448,12 +448,13 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 r.name,
                 r.type,
                 tmdb.id,
-                tmdb.posterPath
+                tmdb.posterPath,
+                r.visibility
             )
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT(:query, '%'))
-               OR LOWER(tmdb.title) LIKE LOWER(CONCAT(:query, '%'))
+            WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(tmdb.title) LIKE LOWER(CONCAT('%', :query, '%'))
             ORDER BY r.createdAt DESC
             """)
     Page<RecordAutocompleteDto> autocomplete(
@@ -472,7 +473,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 r.name,
                 r.type,
                 tmdb.id,
-                tmdb.posterPath
+                tmdb.posterPath,
+                r.visibility
             )
             FROM RecordEntity r
             LEFT JOIN r.tmdb tmdb

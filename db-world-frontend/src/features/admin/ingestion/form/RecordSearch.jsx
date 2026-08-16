@@ -73,6 +73,15 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
                 ID: {option.id}
               </Typography>
             </Box>
+            {option.visibility === 'DRAFT' ? (
+              <Chip
+                label="Draft"
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ fontSize: '0.6rem', mr: 0.5 }}
+              />
+            ) : null}
             <Chip
               label={option.type}
               size="small"

@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.ingestion.processing.strategy;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService;
 import com.db.dbworld.app.media.enrichment.TrackFilter;
@@ -65,6 +67,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final StoryboardService          storyboardService;
     private final NewContentTaggingService   newContentTaggingService;
     private final TrackingService            trackingService;
+    private final SettingsService            settingsService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -277,18 +280,22 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
 
-            // Scrub-preview storyboard (best-effort; never fails ingestion).
-            try {
-                ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
-                trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.STORYBOARD);
-                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
-                        (done, total) -> {
-                            ctx.log("STORYBOARD", done + "/" + total + " tiles");
-                            trackingService.updateFilePercent(ctx.getJobId(), fileIndex,
-                                    FileSubStep.STORYBOARD, total > 0 ? done * 100.0 / total : 0);
-                        });
-            } catch (Exception e) {
-                ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+            // Scrub-preview storyboard (best-effort; never fails ingestion). Admin-toggleable.
+            if (settingsService.getBoolean(ConfigKeys.INGESTION_STORYBOARD_ENABLED)) {
+                try {
+                    ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
+                    trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.STORYBOARD);
+                    storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
+                            (done, total) -> {
+                                ctx.log("STORYBOARD", done + "/" + total + " tiles");
+                                trackingService.updateFilePercent(ctx.getJobId(), fileIndex,
+                                        FileSubStep.STORYBOARD, total > 0 ? done * 100.0 / total : 0);
+                            });
+                } catch (Exception e) {
+                    ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+                }
+            } else {
+                ctx.log("STORYBOARD", "Storyboard generation disabled in settings — skipping");
             }
 
             // Flag new season/episode so the record resurfaces on the home rail (TV only; best-effort).

@@ -85,4 +85,14 @@ public class IngestionRequest {
      */
     private TrackFilter trackFilter;
 
+    /**
+     * Opt-in interactive track review. When {@code true}, once the download finishes the pipeline
+     * probes the file's audio/subtitle tracks and PAUSES (status {@code AWAITING_INPUT}) for the
+     * admin to pick which languages to keep, before the FFmpeg pass. While it waits it holds no
+     * processing slot, so other jobs proceed; if no selection arrives within the configured timeout
+     * the smart-default filter is applied automatically. {@code null}/false = no prompt (the smart
+     * default applies as usual).
+     */
+    private Boolean reviewTracks = false;
+
 }

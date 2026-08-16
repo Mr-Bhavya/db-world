@@ -7,6 +7,7 @@ import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
 import com.db.dbworld.app.ipo.service.IpoMergeService;
 import com.db.dbworld.app.ipo.service.IpoSourcePollService;
+import com.db.dbworld.app.ipo.service.NseHolidayService;
 import com.db.dbworld.app.ipo.source.IpoSource;
 import com.db.dbworld.app.ipo.source.IpoSourceRegistry;
 
@@ -51,26 +52,30 @@ public class IpoPollScheduler {
     private final IpoSourcePollService pollService;
     private final InvestorgainGmpService gmpService;
     private final IpoNotificationService notificationService;
+    private final NseHolidayService holidayService;
     private final Supplier<Instant> now;
 
     @Autowired
     public IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
                              IpoIngestService ingestService, IpoSourcePollService pollService,
-                             InvestorgainGmpService gmpService, IpoNotificationService notificationService) {
-        this(registry, mergeService, ingestService, pollService, gmpService, notificationService, Instant::now);
+                             InvestorgainGmpService gmpService, IpoNotificationService notificationService,
+                             NseHolidayService holidayService) {
+        this(registry, mergeService, ingestService, pollService, gmpService, notificationService,
+                holidayService, Instant::now);
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoPollScheduler(IpoSourceRegistry registry, IpoMergeService mergeService,
                       IpoIngestService ingestService, IpoSourcePollService pollService,
                       InvestorgainGmpService gmpService, IpoNotificationService notificationService,
-                      Supplier<Instant> now) {
+                      NseHolidayService holidayService, Supplier<Instant> now) {
         this.registry = registry;
         this.mergeService = mergeService;
         this.ingestService = ingestService;
         this.pollService = pollService;
         this.gmpService = gmpService;
         this.notificationService = notificationService;
+        this.holidayService = holidayService;
         this.now = now;
     }
 
@@ -112,6 +117,11 @@ public class IpoPollScheduler {
         // behind push.enabled — a push hiccup can never affect the poll outcome.
         notificationService.dispatch(changes);
         notificationService.notifyClosingSoon();
+
+        // Keep the market-holiday calendar current — a once-a-year best-effort NSE fetch (a no-op the
+        // rest of the year) so weekend/holiday notification-gating + timeline derivation stay correct
+        // without manual upkeep. Self-guarded: never throws, so it can't affect the poll outcome.
+        holidayService.refreshIfNeeded();
 
         log.info("IPO poll complete: sourcesPolled={} sourcesFailed={} rawCount={} ipoCount={}",
                 sources.size(), sourcesFailed, allDtos.size(), merged.size());

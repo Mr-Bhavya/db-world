@@ -22,7 +22,7 @@ public class RecordAdminRowView implements RecordAdminRowDto {
     private final Integer year;
     private final Instant createdAt;
     private final Instant updatedAt;
-    private final Boolean hideFromRails;
+    private final String visibility;
     private final String tags;
     private final String syncStatus;
     private final Instant lastSyncedAt;

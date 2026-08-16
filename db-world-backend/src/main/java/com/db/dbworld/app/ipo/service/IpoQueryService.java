@@ -1,5 +1,8 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.ipo.notification.IpoMarketCalendar;
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
@@ -13,12 +16,14 @@ import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.core.exception.DbWorldException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.DayOfWeek;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 
@@ -32,8 +37,12 @@ import java.util.List;
 public class IpoQueryService {
 
     private static final String TYPE_ALL = "all";
+    private static final String STATUS_LISTED = "listed";
     private static final String SORT_GMP = "gmp";
     private static final String SORT_SUBSCRIPTION = "subscription";
+
+    /** Indian IPO calendar zone — "listed long ago" is measured against today in IST. */
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     /** Newest open date first; IPOs with no open date yet (not announced) sort to the end. */
     private static final Comparator<IpoListingEntity> SORT_DATE =
@@ -53,19 +62,42 @@ public class IpoQueryService {
     private final IpoFinancialRepository financialRepository;
     private final IpoSourcePollService pollService;
     private final IpoMapper mapper;
+    private final SettingsService settings;
+    private final IpoMarketCalendar marketCalendar;
+    private final Clock clock;
 
+    @Autowired
     public IpoQueryService(IpoListingRepository listingRepository,
                             IpoGmpHistoryRepository gmpHistoryRepository,
                             IpoSubscriptionHistoryRepository subscriptionHistoryRepository,
                             IpoFinancialRepository financialRepository,
                             IpoSourcePollService pollService,
-                            IpoMapper mapper) {
+                            IpoMapper mapper,
+                            SettingsService settings,
+                            IpoMarketCalendar marketCalendar) {
+        this(listingRepository, gmpHistoryRepository, subscriptionHistoryRepository, financialRepository,
+                pollService, mapper, settings, marketCalendar, Clock.systemUTC());
+    }
+
+    /** Test-friendly constructor with an injectable clock for a deterministic "today" (IST). */
+    IpoQueryService(IpoListingRepository listingRepository,
+                     IpoGmpHistoryRepository gmpHistoryRepository,
+                     IpoSubscriptionHistoryRepository subscriptionHistoryRepository,
+                     IpoFinancialRepository financialRepository,
+                     IpoSourcePollService pollService,
+                     IpoMapper mapper,
+                     SettingsService settings,
+                     IpoMarketCalendar marketCalendar,
+                     Clock clock) {
         this.listingRepository = listingRepository;
         this.gmpHistoryRepository = gmpHistoryRepository;
         this.subscriptionHistoryRepository = subscriptionHistoryRepository;
         this.financialRepository = financialRepository;
         this.pollService = pollService;
         this.mapper = mapper;
+        this.settings = settings;
+        this.marketCalendar = marketCalendar;
+        this.clock = clock;
     }
 
     /**
@@ -80,12 +112,36 @@ public class IpoQueryService {
                 ? listingRepository.findByStatus(canonicalStatus)
                 : listingRepository.findAll();
 
+        LocalDate staleListedCutoff = staleListedCutoff();
         List<IpoSummaryDto> ipos = entities.stream()
                 .filter(e -> matchesType(e, type))
+                .filter(e -> !isStaleListed(e, staleListedCutoff))
                 .sorted(sortComparator(sort))
                 .map(mapper::toSummary)
                 .toList();
         return new IpoListResponse(ipos, pollService.lastSuccessAcrossSources().orElse(null));
+    }
+
+    /**
+     * The cutoff before which an already-listed IPO counts as "listed long ago" and is dropped from
+     * the list, keeping it current. {@code null} disables hiding ({@code ipo.list.hide-listed-after-days}
+     * = 0). Measured against today in IST.
+     */
+    private LocalDate staleListedCutoff() {
+        long hideAfterDays = settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS);
+        return hideAfterDays > 0 ? LocalDate.now(clock.withZone(IST)).minusDays(hideAfterDays) : null;
+    }
+
+    /**
+     * Whether {@code entity} is a listed IPO old enough to hide — status "listed" with a known
+     * listing date before {@code cutoff}. A null cutoff (feature off) or a listed IPO with no
+     * listing date is never hidden.
+     */
+    private static boolean isStaleListed(IpoListingEntity entity, LocalDate cutoff) {
+        return cutoff != null
+                && STATUS_LISTED.equalsIgnoreCase(entity.getStatus())
+                && entity.getListingDate() != null
+                && entity.getListingDate().isBefore(cutoff);
     }
 
     public IpoDetailDto detail(String id) {
@@ -129,7 +185,7 @@ public class IpoQueryService {
      * source value always wins when present. Needs a {@code closeDate} (or a real {@code allotmentDate})
      * to anchor on; otherwise left as-is. Never touches the stored entity — DTO-only.
      */
-    private static IpoDetailDto withDerivedTimelineDates(IpoDetailDto dto) {
+    private IpoDetailDto withDerivedTimelineDates(IpoDetailDto dto) {
         LocalDate allotment = dto.allotmentDate() != null
                 ? dto.allotmentDate()
                 : (dto.closeDate() != null ? nextWorkingDay(dto.closeDate().plusDays(1)) : null);
@@ -155,10 +211,10 @@ public class IpoQueryService {
                 dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
     }
 
-    /** The given date, rolled forward past Sat/Sun to the next weekday (holidays aren't modelled). */
-    private static LocalDate nextWorkingDay(LocalDate date) {
+    /** The given date, rolled forward to the next trading day — skips weekends AND configured NSE holidays. */
+    private LocalDate nextWorkingDay(LocalDate date) {
         LocalDate d = date;
-        while (d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY) {
+        while (!marketCalendar.isTradingDay(d)) {
             d = d.plusDays(1);
         }
         return d;

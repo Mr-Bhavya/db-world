@@ -7,6 +7,7 @@ import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
 import com.db.dbworld.app.ipo.service.IpoMergeService;
 import com.db.dbworld.app.ipo.service.IpoSourcePollService;
+import com.db.dbworld.app.ipo.service.NseHolidayService;
 import com.db.dbworld.app.ipo.source.IpoSource;
 import com.db.dbworld.app.ipo.source.IpoSourceRegistry;
 
@@ -41,13 +42,14 @@ class IpoPollSchedulerTest {
     @Mock IpoSourcePollService pollService;
     @Mock InvestorgainGmpService gmpService;
     @Mock IpoNotificationService notificationService;
+    @Mock NseHolidayService holidayService;
 
     private IpoPollScheduler scheduler;
 
     @BeforeEach
     void setUp() {
         scheduler = new IpoPollScheduler(registry, mergeService, ingestService, pollService, gmpService,
-                notificationService, () -> NOW);
+                notificationService, holidayService, () -> NOW);
     }
 
     private static IpoSource fakeSuccess(String key, List<IpoDto> dtos) {
@@ -96,6 +98,7 @@ class IpoPollSchedulerTest {
         assertThat(captor.getValue()).containsExactlyInAnyOrder(d1, d2, d3);
         verify(ingestService).ingest(mergedResult);
         verify(gmpService).refreshGmp(); // GMP backfill runs after ingest
+        verify(holidayService).refreshIfNeeded(); // yearly market-holiday sync (no-op most cycles)
 
         verify(pollService).recordSuccess("ipoguru", NOW);
         verify(pollService).recordSuccess("nse", NOW);

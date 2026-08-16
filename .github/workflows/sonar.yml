@@ -1,0 +1,54 @@
+name: SonarCloud
+
+# Coverage + static analysis on SonarCloud (free for public repos). Runs the tests to
+# produce coverage — backend JaCoCo XML + frontend Vitest lcov — then the Sonar scanner
+# (config in sonar-project.properties). GitHub-hosted runner, deliberately NOT the Pi:
+# analysis is CPU-heavy and needs network, and the whole point is to spare the Pi.
+#
+# Requires repo secret SONAR_TOKEN. Runs on the two long-lived branches — development
+# (where feature branches land) and main — so analysis happens as you work, not only at
+# release. Short-lived feature/integration branches are covered by their PR into these.
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+  workflow_dispatch: {}
+
+jobs:
+  sonar:
+    name: Coverage & SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history → accurate new-code detection for the quality gate
+
+      # --- Backend: run the suite → target/site/jacoco/jacoco.xml ---
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Backend tests + JaCoCo coverage
+        working-directory: db-world-backend
+        run: mvn -B -ntp test
+
+      # --- Frontend: run the suite → coverage/lcov.info ---
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      # package-lock.json is gitignored (see ci.yml), so resolve fresh with npm install.
+      - name: Frontend deps
+        working-directory: db-world-frontend
+        run: npm install --no-audit --no-fund
+      - name: Frontend tests + coverage
+        working-directory: db-world-frontend
+        run: npm run test:coverage
+
+      # --- SonarCloud scan (reads sonar-project.properties at repo root) ---
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
