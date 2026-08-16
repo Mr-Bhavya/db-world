@@ -22,6 +22,24 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Android App Links — a shared https://db-world.in/db-world/… link opens
+                 straight in the app instead of the browser. autoVerify makes Android
+                 fetch /.well-known/assetlinks.json at install time, so there is no
+                 "open with" chooser. That file is served inline by nginx (10-app.conf
+                 in the db-world-config repo) and must list this package + the release
+                 keystore's SHA-256, or verification fails and links open in Chrome.
+                 Scoped to /db-world so only real app routes are claimed.
+                 The URL is delivered to the web layer via Capacitor's appUrlOpen and
+                 routed by src/shared/deeplink/appLinks.js. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="db-world.in" />
+                <data android:scheme="https" android:host="www.db-world.in" />
+                <data android:pathPrefix="/db-world" />
+            </intent-filter>
         </activity>
 
         <activity

@@ -189,6 +189,14 @@ app:
     signing:
       secret: ${CDN_SIGNING_SECRET:}
 
+  # Public origin of the SPA (NOT the api host). Used to build canonical/redirect
+  # URLs in the server-rendered social preview cards — see SocialPreviewController.
+  public-base-url: ${PUBLIC_BASE_URL:https://db-world.in}
+  social:
+    # Preview image when a record has no TMDB artwork. Relative paths resolve
+    # against public-base-url.
+    fallback-image: /icons/icon-192.png
+
 # =========================================================
 # db-world feature configs
 # =========================================================

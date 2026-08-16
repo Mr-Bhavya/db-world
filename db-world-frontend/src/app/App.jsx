@@ -34,6 +34,7 @@ import PermissionOnboardingGate, { PERMISSIONS_ONBOARDED_KEY } from '@shared/com
 import BiometricGate from '@features/auth/BiometricGate';
 import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import AppLockGate from '@features/auth/AppLockGate';
+import { useAppLinks } from '@shared/deeplink/useAppLinks';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -229,6 +230,10 @@ const ThemedApp = () => {
   // no-op elsewhere). Mounted here (not in the download-queue page) so it
   // keeps listening regardless of which screen is on top.
   useDownloadEventReporter();
+
+  // A tapped https://db-world.in/db-world/… link (Android App Links) routes into
+  // the SPA instead of bouncing to the browser. No-op on web.
+  useAppLinks(navigate);
 
   // A download-notification tap persists a one-shot route flag natively (see
   // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the
