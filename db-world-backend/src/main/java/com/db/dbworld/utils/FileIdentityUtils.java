@@ -27,6 +27,10 @@ public final class FileIdentityUtils {
 
             return size1 == size2 && mod1 == mod2;
         } catch (Exception e) {
+            // Re-assert the interrupt: this method sleeps, so a cancelled ingestion job
+            // lands here. Swallowing the flag left the caller's polling loop believing it
+            // was still live and it carried on after the cancel.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return false;
         }
     }

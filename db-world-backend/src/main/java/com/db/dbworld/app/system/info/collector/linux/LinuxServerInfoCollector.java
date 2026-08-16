@@ -222,6 +222,8 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
             return loads;
         } catch (Exception e) {
+            // The delta measurement sleeps between /proc samples.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.debug("CPU delta measurement failed: {}", e.getMessage());
             return List.of();
         }
@@ -456,7 +458,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     public NetworkInfo getNetworkInfo() {
         // Sample /proc/net/dev twice for live speed
         Map<String, long[]> before = readNetDevStats();
-        try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+        try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Map<String, long[]> after  = readNetDevStats();
 
         List<NetworkAdapter> adapters = new ArrayList<>();
@@ -835,6 +837,8 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             long idleDelta  = (after[3] - before[3]) + (after[4] - before[4]); // idle + iowait
             return totalDelta > 0 ? (totalDelta - idleDelta) * 100.0 / totalDelta : 0.0;
         } catch (Exception e) {
+            // Samples /proc twice with a sleep in between.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return 0.0;
         }
     }

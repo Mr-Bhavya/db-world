@@ -16,7 +16,7 @@ public enum ConfigValueType {
 
     /** True when {@code raw} can be parsed as this type. STRING accepts anything (incl. null → false). */
     public boolean isValid(String raw) {
-        if (raw == null) return this == STRING ? false : false;
+        if (raw == null) return false; // null is invalid for every type, STRING included
         try {
             switch (this) {
                 case BOOLEAN -> {

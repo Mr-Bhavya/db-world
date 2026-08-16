@@ -422,6 +422,8 @@ public class YtFormatService {
             final Throwable cause = e.getCause() != null ? e.getCause() : e;
             return "<unavailable: " + cause.getClass().getSimpleName() + ": " + cause.getMessage() + ">";
         } catch (Exception e) {
+            // Future.get() throws InterruptedException — keep the flag set.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return "<unavailable: " + e.getClass().getSimpleName() + ": " + e.getMessage() + ">";
         }
     }

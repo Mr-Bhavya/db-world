@@ -748,7 +748,9 @@ export default function DbWorldVideoPlayer({
     return () => {
       root?.removeEventListener('pointerdown', onFirst);
       try { window.screen?.orientation?.unlock?.(); } catch { /* ignore */ }
-      try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
+      // exitFullscreen returns a Promise, so a rejection escapes this try/catch entirely
+      // and surfaces as an unhandled rejection — catch it on the promise instead.
+      try { if (document.fullscreenElement) document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     };
   }, [isNative, hasHover, lockLandscape]);
 

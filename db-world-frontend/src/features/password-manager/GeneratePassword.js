@@ -253,7 +253,7 @@ const GeneratePassword = () => {
                 startIcon={copied ? <CheckRounded /> : <ContentCopyRounded sx={{ fontSize: 18 }} />}
                 sx={{
                   minHeight: 44, px: 2, borderRadius: 2, fontWeight: 800, whiteSpace: 'nowrap',
-                  color: copied ? '#fff' : '#fff',
+                  color: '#fff', // white in both states; only the background changes
                   bgcolor: copied ? '#22c55e' : T.teal,
                   transition: 'background .25s ease',
                   '&:hover': { bgcolor: copied ? '#16a34a' : '#0f766e' },

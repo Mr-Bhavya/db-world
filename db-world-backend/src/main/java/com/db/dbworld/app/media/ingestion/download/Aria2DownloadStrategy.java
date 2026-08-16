@@ -132,6 +132,8 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             return pollUntilDone(ctx, gid, tempDir);
 
         } catch (Exception e) {
+            // pollUntilDone sleeps between polls, so a cancel arrives as an interrupt here.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.error("[{}] Aria2 download failed", jobId, e);
             ctx.logError("ARIA2", "Download failed: " + e.getMessage());
             return DownloadResult.failure(jobId, e.getMessage());
