@@ -95,6 +95,8 @@ public final class AppConstants {
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
             "/api/admin/file-manager/download/stream",
             "/api/wallet/shared/**",
+            // Server-rendered OG cards for shared links — nginx proxies social crawlers here.
+            "/api/social/**",
             "/storyboard/**"
     };
 
