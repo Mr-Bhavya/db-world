@@ -29,6 +29,10 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+# scripts/build/ holds the build *scripts*, not build output. The blanket build/
+# rule above was swallowing it, which is why build-dbworld-backend.ps1 went
+# untracked while the .bat launchers that invoke it were committed.
+!scripts/build/
 
 ### VS Code ###
 .vscode/
