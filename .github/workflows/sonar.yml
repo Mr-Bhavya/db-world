@@ -52,3 +52,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          # Name the analysed branch explicitly on push/workflow_dispatch. Without this a
+          # manual dispatch on a feature branch was published as `main`, overwriting main's
+          # analysis with unmerged code (and flipping its quality gate red). This can't live
+          # in sonar-project.properties: a fixed value there would pin every analysis to one
+          # branch name. On pull_request it must stay unset — the action injects the
+          # sonar.pullrequest.* parameters itself, and adding sonar.branch.name alongside
+          # them breaks PR decoration.
+          args: "${{ github.event_name != 'pull_request' && format('-Dsonar.branch.name={0}', github.ref_name) || '' }}"
