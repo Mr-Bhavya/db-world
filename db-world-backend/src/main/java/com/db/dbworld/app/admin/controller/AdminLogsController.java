@@ -230,7 +230,7 @@ public class AdminLogsController {
         } catch (IllegalArgumentException e) {
             try {
                 emitter.send(SseEmitter.event().name("error").data(e.getMessage()));
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) { /* The client is already gone, which is why the error couldn't be delivered. */ }
             emitter.complete();
             sseEmitters.remove(sessionId);
         } catch (Exception e) {
@@ -258,7 +258,7 @@ public class AdminLogsController {
         if (hb != null) hb.cancel(false);
         SseEmitter emitter = sseEmitters.remove(sessionId);
         if (emitter != null) {
-            try { emitter.complete(); } catch (Exception ignored) {}
+            try { emitter.complete(); } catch (Exception ignored) { /* Completing an already-closed emitter is not an error worth reporting. */ }
         }
         Thread t = sseThreads.remove(sessionId);
         if (t != null && t.isAlive()) t.interrupt();

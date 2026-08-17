@@ -130,7 +130,7 @@ public class AdminDashboardService {
             com.sun.management.OperatingSystemMXBean osBean =
                 (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
             cpuPercent = osBean.getProcessCpuLoad() * 100;
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* Not every JVM exposes com.sun.management; cpuPercent stays unset. */ }
 
         return AdminDashboardDto.SystemStats.builder()
                 .cpuPercent(Math.max(0, cpuPercent))
@@ -148,7 +148,7 @@ public class AdminDashboardService {
                     long count = 0;
                     try {
                         count = tagRepository.countByTagType(RecordTagType.valueOf(def.getTagType()));
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) { /* An unknown tagType in the definitions table contributes a count of 0. */ }
                     return AdminDashboardDto.TagEntry.builder()
                             .tagType(def.getTagType())
                             .displayName(def.getDisplayName())

@@ -329,7 +329,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             if (parts.length == 2) {
                 try {
                     result.put(parts[0].trim(), Long.parseLong(parts[1].replace(" kB", "").trim()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) { /* One unusable /proc/meminfo key; the remaining keys still parse. */ }
             }
         }
         return result;
@@ -447,7 +447,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .totalFormatted(formatBytes(total)).usedFormatted(formatBytes(used)).freeFormatted(formatBytes(free))
                         .usedPercent(p[4].replace("%", ""))
                         .build());
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) { /* A df row with non-numeric size columns; that mount is skipped. */ }
         }
         return result;
     }
@@ -634,7 +634,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 String[] vals  = parts[1].trim().split("\\s+");
                 long[] stats   = new long[vals.length];
                 for (int i = 0; i < vals.length; i++) {
-                    try { stats[i] = Long.parseLong(vals[i]); } catch (NumberFormatException ignored) {}
+                    try { stats[i] = Long.parseLong(vals[i]); } catch (NumberFormatException ignored) { /* Leave the slot at 0. Runs per field per interface, so logging would flood. */ }
                 }
                 result.put(iface, stats);
             }
@@ -690,7 +690,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .commandLine(p[10])
                         .name(processName(p[10]))
                         .build());
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed ps row rather than lose the whole listing. */ }
         }
         // Sort by CPU desc, limit to top 50
         processes.sort(Comparator.comparingDouble(ProcessInfo::getCpuUsage).reversed());
@@ -758,7 +758,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .description(p.length > 4 ? p[4] : "")
                         .running("active".equals(p[2]))
                         .build());
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed systemctl row rather than lose the whole listing. */ }
         }
         return services;
     }
@@ -929,7 +929,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                      .temperatureFahrenheit(tempC * 9.0 / 5.0 + 32)
                                      .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                      .build());
-                         } catch (NumberFormatException ignored) {}
+                         } catch (NumberFormatException ignored) { /* A thermal zone whose temp isn't an integer; the other zones still report. */ }
                      });
             }
         } catch (Exception e) {
@@ -961,7 +961,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                     .temperatureFahrenheit(tempC * 9.0 / 5.0 + 32)
                                     .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                     .build());
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) { /* A hwmon input whose temp isn't an integer; the other inputs still report. */ }
                     }
 
                     // Fan inputs: fan1_input, fan2_input...
@@ -977,7 +977,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                             fan.put("rpm",      Long.parseLong(rpm));
                             fan.put("status",   Long.parseLong(rpm) == 0 ? "STOPPED" : "RUNNING");
                             fanSensors.add(fan);
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) { /* A hwmon fan whose rpm isn't an integer; the other fans still report. */ }
                     }
                 });
             }
@@ -1005,7 +1005,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                 .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                 .build());
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) { /* lm-sensors output varies by chip; an unparseable line is skipped. */ }
             }
         }
     }
@@ -1038,7 +1038,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 dev.put("device",     line.replaceAll(".*Device (\\d+).*", "$1"));
                 dev.put("id",         line.replaceAll(".*ID ([\\da-f:]+).*", "$1"));
                 dev.put("description", parts.length >= 3 ? parts[2].trim() : "");
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* The raw lsusb line is already stored, so a failed field extraction still leaves a usable entry. */ }
             devices.add(dev);
         }
         return devices;
@@ -1155,7 +1155,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 port.put("localAddr", p[4]);
                 if (p.length > 6) port.put("process", p[p.length - 1]);
                 ports.add(port);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed ss row rather than lose the whole listing. */ }
         }
         return ports;
     }

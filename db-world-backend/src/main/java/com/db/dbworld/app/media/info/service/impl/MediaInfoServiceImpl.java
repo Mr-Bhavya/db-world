@@ -510,7 +510,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
         try {
             entity.setFileSize(Files.size(filePath));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* File size is best-effort metadata; the probe result is usable without it. */ }
 
         if (recordId != null) {
             recordRepository.findById(recordId).ifPresent(entity::setRecord);
@@ -729,7 +729,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             if (track.getExtraJson() != null) {
                 extra = objectMapper.readValue(track.getExtraJson(), Map.class);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* Malformed extraJson leaves the extra map empty rather than failing the track. */ }
 
         b.rawMediaInfo(extra);
 

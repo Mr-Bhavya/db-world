@@ -175,11 +175,11 @@ public class LogsController {
         try {
             SseEmitter emitter = emitters.remove(sessionId);
             if (emitter != null) {
-                try { emitter.complete(); } catch (Exception ignored) {}
+                try { emitter.complete(); } catch (Exception ignored) { /* Completing an already-closed emitter is not an error worth reporting. */ }
             }
             Thread thread = followThreads.remove(sessionId);
             if (thread != null && thread.isAlive()) thread.interrupt();
             logsService.stopFollowing(sessionId);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* Best-effort teardown; the session is being discarded either way. */ }
     }
 }

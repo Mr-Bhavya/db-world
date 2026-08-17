@@ -215,7 +215,7 @@ public class Aria2WebSocketClientService {
     private void disconnect() {
         WebSocketSession session = connectionState.getSession();
         if (session != null && session.isOpen()) {
-            try { session.close(); } catch (IOException ignored) {}
+            try { session.close(); } catch (IOException ignored) { /* Already disconnecting; a failed close changes nothing. */ }
         }
         connectionState.getIsConnected().set(false);
         log.info("{} Disconnected", TAG);
