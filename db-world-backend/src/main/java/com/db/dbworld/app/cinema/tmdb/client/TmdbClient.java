@@ -27,8 +27,12 @@ public class TmdbClient {
      * types use different names: movies expose per-country release entries under
      * {@code release_dates}, series a flat rating per country under {@code content_ratings}.
      */
-    private static final String APPEND_MOVIE_FULL = APPEND_FULL_DETAILS + ",release_dates";
-    private static final String APPEND_TV_FULL = APPEND_FULL_DETAILS + ",content_ratings";
+    /**
+     * {@code translations} rides along free (the append limit is 20) and is what tells us which
+     * languages are worth an extra videos request — see TmdbVideoLanguageResolver.
+     */
+    private static final String APPEND_MOVIE_FULL = APPEND_FULL_DETAILS + ",release_dates,translations";
+    private static final String APPEND_TV_FULL = APPEND_FULL_DETAILS + ",content_ratings,translations";
 
     private final WebClient webClient;
 
@@ -113,6 +117,16 @@ public class TmdbClient {
         return get("/movie/" + id + "/videos", VideosTmdbResponse.class);
     }
 
+    /**
+     * Videos in one specific language. TMDB has no way to ask for several at once on the movie
+     * endpoints — no {@code include_video_language} there, and the {@code videos} append is
+     * filtered by the request language — so multi-language trailers mean one call per language.
+     */
+    public Mono<VideosTmdbResponse> getMovieVideos(Long id, String language) {
+        return get("/movie/" + id + "/videos", VideosTmdbResponse.class,
+                builder -> builder.queryParam("language", language));
+    }
+
     public Mono<CreditsTmdbResponse> getMovieCredits(Long id) {
         return get("/movie/" + id + "/credits", CreditsTmdbResponse.class);
     }
@@ -153,6 +167,12 @@ public class TmdbClient {
 
     public Mono<VideosTmdbResponse> getTvVideos(Long id) {
         return get("/tv/" + id + "/videos", VideosTmdbResponse.class);
+    }
+
+    /** Series videos in one language; same one-call-per-language constraint as movies. */
+    public Mono<VideosTmdbResponse> getTvVideos(Long id, String language) {
+        return get("/tv/" + id + "/videos", VideosTmdbResponse.class,
+                builder -> builder.queryParam("language", language));
     }
 
     public Mono<CreditsTmdbResponse> getTvCredits(Long id) {

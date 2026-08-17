@@ -22,7 +22,8 @@ public interface VideoRepository extends JpaRepository<VideoEntity, String> {
             SELECT
                 v.tmdb.id as tmdbId,
                 v.key as key,
-                v.type as type
+                v.type as type,
+                v.iso6391 as iso6391
             FROM VideoEntity v
             WHERE v.tmdb.id IN :tmdbIds
             AND v.site = :site
@@ -33,7 +34,8 @@ public interface VideoRepository extends JpaRepository<VideoEntity, String> {
        SELECT
            v.tmdb.id as tmdbId,
            v.key as key,
-           v.type as type
+           v.type as type,
+           v.iso6391 as iso6391
        FROM VideoEntity v
        WHERE v.tmdb.id IN :tmdbIds
        AND v.site = :site

@@ -26,6 +26,7 @@ import com.db.dbworld.app.cinema.tmdb.season.mapper.*;
 import com.db.dbworld.app.cinema.tmdb.season.repository.EpisodeRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
+import com.db.dbworld.app.cinema.tmdb.service.TmdbVideoLanguageResolver;
 
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import jakarta.persistence.EntityManager;
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.*;
@@ -126,7 +128,52 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
             response.setProviders(tuple.getT2());
             response.setReviews(tuple.getT3());
             return response;
-        }).block();
+        })
+        // Chained rather than zipped: which languages are worth requesting is only known
+        // once the detail response (and its translations) has arrived.
+        .flatMap(response -> withExtraLanguageVideos(response, tmdbId, RecordType.MOVIE))
+        .block();
+    }
+
+    /**
+     * Add trailers in the other languages TMDB holds content for.
+     *
+     * <p>The detail call's {@code videos} append only ever returns one language (en-US by
+     * default), and the movie endpoints have no {@code include_video_language}, so each extra
+     * language is a separate request. The {@code translations} append — free, already on the
+     * detail call — narrows that to languages actually worth asking about, so a title with no
+     * Hindi or Gujarati content costs nothing extra.
+     *
+     * <p>Best-effort: a failed language request is logged and skipped rather than failing the
+     * whole ingest, since the English videos are already in hand.
+     */
+    private <T extends TmdbResponse> Mono<T> withExtraLanguageVideos(
+            T response, Long tmdbId, RecordType type) {
+
+        List<String> languages = TmdbVideoLanguageResolver.extraVideoLanguages(response.getTranslations());
+        if (languages.isEmpty()) {
+            return Mono.just(response);
+        }
+
+        return Flux.fromIterable(languages)
+                .concatMap(language -> tmdbService.fetchVideos(tmdbId, type, language)
+                        .onErrorResume(e -> {
+                            log.warn("Extra {} videos failed for {} {}: {}",
+                                    language, type, tmdbId, e.getMessage());
+                            return Mono.empty();
+                        }))
+                .flatMapIterable(videos ->
+                        videos.getResults() == null ? List.<VideoTmdbResponse>of() : videos.getResults())
+                .collectList()
+                .map(extra -> {
+                    VideosTmdbResponse container = response.getVideos();
+                    if (container == null) {
+                        container = new VideosTmdbResponse();
+                        response.setVideos(container);
+                    }
+                    container.setResults(TmdbVideoLanguageResolver.merge(container.getResults(), extra));
+                    return response;
+                });
     }
 
     /* ======================================================
@@ -247,7 +294,9 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
             response.setProviders(tuple.getT2());
             response.setReviews(tuple.getT3());
             return response;
-        }).block();
+        })
+        .flatMap(response -> withExtraLanguageVideos(response, tmdbId, RecordType.TV_SERIES))
+        .block();
     }
 
     private void updateEpisodeReferences(TvSeriesTmdbEntity series, List<SeasonEntity> seasons,
