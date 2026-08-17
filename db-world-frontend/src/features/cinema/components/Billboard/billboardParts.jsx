@@ -90,6 +90,26 @@ export function BillboardContent({ record, ix = {}, m, isTv, reducedMotion, onWa
           )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5, mb: isTv ? 2 : 1.5, textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+            {/* Age rating exactly as the certifying board issued it — CBFC "UA", US "TV-14".
+                Boxed rather than folded into the bullet list so it reads as a rating and not
+                as another genre. Null until TMDB sync has fetched a certification for the
+                title, and then nothing renders rather than an empty box. */}
+            {record.certification && (
+              <Box
+                component="span"
+                aria-label={`Rated ${record.certification}`}
+                sx={{
+                  mr: 1.2, px: 0.7,
+                  border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '3px',
+                  color: 'rgba(255,255,255,0.92)', fontWeight: 700,
+                  // Slightly smaller than the meta text so the border doesn't dominate the row.
+                  fontSize: `calc(${m.metaSize} * 0.86)`,
+                  letterSpacing: '0.04em', lineHeight: 1.6, whiteSpace: 'nowrap',
+                }}
+              >
+                {record.certification}
+              </Box>
+            )}
             {metaItems.map((it, i) => (
               <React.Fragment key={`${it}-${i}`}>
                 {i > 0 && <Box component="span" sx={{ color: 'rgba(255,255,255,0.32)', px: 0.9, fontSize: m.metaSize }}>•</Box>}
