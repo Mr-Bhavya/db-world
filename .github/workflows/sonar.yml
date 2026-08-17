@@ -34,6 +34,14 @@ jobs:
         working-directory: db-world-backend
         run: mvn -B -ntp test
 
+      # Populates target/dependency for sonar.java.libraries. Without the dependency
+      # classpath the Java analyser can't resolve types from Spring, Lombok and friends, and
+      # degrades quietly — "Missing 'sonar.java.libraries'" followed by "Unresolved
+      # imports/types have been detected".
+      - name: Backend dependency classpath for Sonar
+        working-directory: db-world-backend
+        run: mvn -B -ntp dependency:copy-dependencies
+
       # --- Frontend: run the suite → coverage/lcov.info ---
       - uses: actions/setup-node@v7
         with:
