@@ -809,7 +809,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         long prevTime = prevNetTimestamp;
         prevNetTimestamp = nowMs;
         if (prevTime > 0 && nowMs - prevTime < 60_000L && !prevNet.isEmpty()) {
-            double deltaMs = nowMs - prevTime;
+            double deltaMs = (double) nowMs - prevTime;
             for (Map.Entry<String, long[]> e : currentNet.entrySet()) {
                 long[] curr = e.getValue();
                 long[] prev = prevNet.getOrDefault(e.getKey(), new long[16]);
