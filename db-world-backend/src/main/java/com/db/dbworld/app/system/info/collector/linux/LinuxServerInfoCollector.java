@@ -39,25 +39,27 @@ import java.util.stream.Stream;
 @Service("linuxServerInfoCollector")
 public class LinuxServerInfoCollector extends ServerInfoCollector {
 
+    // Pseudo-filesystem locations. Held as literals rather than Path constants so every read
+    // goes through sysPath(...) and can be rerooted at a fixture tree in tests.
     // /proc paths
-    protected static final Path PROC_MEMINFO   = Path.of("/proc/meminfo");
-    protected static final Path PROC_STAT      = Path.of("/proc/stat");
-    protected static final Path PROC_CPUINFO   = Path.of("/proc/cpuinfo");
-    protected static final Path PROC_VERSION   = Path.of("/proc/version");
-    protected static final Path PROC_NET_DEV   = Path.of("/proc/net/dev");
-    protected static final Path PROC_UPTIME    = Path.of("/proc/uptime");
-    protected static final Path PROC_LOADAVG   = Path.of("/proc/loadavg");
-    protected static final Path PROC_NET_TCP   = Path.of("/proc/net/tcp");
+    protected static final String PROC_MEMINFO   = "/proc/meminfo";
+    protected static final String PROC_STAT      = "/proc/stat";
+    protected static final String PROC_CPUINFO   = "/proc/cpuinfo";
+    protected static final String PROC_VERSION   = "/proc/version";
+    protected static final String PROC_NET_DEV   = "/proc/net/dev";
+    protected static final String PROC_UPTIME    = "/proc/uptime";
+    protected static final String PROC_LOADAVG   = "/proc/loadavg";
+    protected static final String PROC_NET_TCP   = "/proc/net/tcp";
 
     // /sys paths
-    protected static final Path SYS_THERMAL    = Path.of("/sys/class/thermal");
-    protected static final Path SYS_HWMON      = Path.of("/sys/class/hwmon");
-    protected static final Path SYS_DMI        = Path.of("/sys/class/dmi/id");
-    protected static final Path SYS_BLOCK       = Path.of("/sys/class/block");
-    protected static final Path SYS_NET         = Path.of("/sys/class/net");
+    protected static final String SYS_THERMAL    = "/sys/class/thermal";
+    protected static final String SYS_HWMON      = "/sys/class/hwmon";
+    protected static final String SYS_DMI        = "/sys/class/dmi/id";
+    protected static final String SYS_BLOCK      = "/sys/class/block";
+    protected static final String SYS_NET        = "/sys/class/net";
 
     // /etc paths
-    protected static final Path ETC_RESOLV_CONF = Path.of("/etc/resolv.conf");
+    protected static final String ETC_RESOLV_CONF = "/etc/resolv.conf";
 
     // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
     private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
@@ -120,7 +122,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         String osRelease = exec("cat", "/etc/os-release");
         Map<String, String> osMap = parseKeyValueOutput(osRelease, "=");
         String prettyName = osMap.getOrDefault("PRETTY_NAME", "").replace("\"", "");
-        String version    = readFileSafe(PROC_VERSION);
+        String version    = readFileSafe(sysPath(PROC_VERSION));
 
         return ServerInfo.builder()
                 .hostname(getHostname())
@@ -168,7 +170,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     @Override
     public CpuInfo getCpuInfo() {
-        Map<String, String> cpuMap = parseKeyValueOutput(readFileSafe(PROC_CPUINFO), ":");
+        Map<String, String> cpuMap = parseKeyValueOutput(readFileSafe(sysPath(PROC_CPUINFO)), ":");
         String model   = cpuMap.getOrDefault("model name", cpuMap.getOrDefault("Model name", "Unknown"));
         String vendor  = cpuMap.getOrDefault("vendor_id", "Unknown");
         int cores      = runtime.availableProcessors();
@@ -235,7 +237,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private long[][] readCpuStats() throws IOException {
         List<long[]> stats = new ArrayList<>();
-        for (String line : Files.readAllLines(PROC_STAT)) {
+        for (String line : Files.readAllLines(sysPath(PROC_STAT))) {
             if (!line.startsWith("cpu")) continue;
             String[] parts = line.trim().split("\\s+");
             if (parts[0].equals("cpu")) continue; // skip aggregate
@@ -322,7 +324,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private Map<String, Long> parseMeminfo() {
         Map<String, Long> result = new HashMap<>();
-        for (String line : readFileSafe(PROC_MEMINFO).split("\n")) {
+        for (String line : readFileSafe(sysPath(PROC_MEMINFO)).split("\n")) {
             String[] parts = line.split(":\\s+");
             if (parts.length == 2) {
                 try {
@@ -524,7 +526,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private String deriveAdapterStatus(String iface) {
         try {
-            String operstate = readFileSafe(SYS_NET.resolve(iface).resolve("operstate"));
+            String operstate = readFileSafe(sysPath(SYS_NET).resolve(iface).resolve("operstate"));
             if (operstate.isEmpty()) return null;
             return operstate.equalsIgnoreCase("up") ? "Up" : capitalize(operstate);
         } catch (Exception e) {
@@ -579,7 +581,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         }
         if (dns.isEmpty()) {
             try {
-                for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
                     line = line.trim();
                     if (line.startsWith("nameserver")) {
                         String[] parts = line.split("\\s+");
@@ -599,7 +601,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private String getNetworkDomain() {
         try {
-            for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+            for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
                 line = line.trim();
                 if (line.startsWith("search ") || line.startsWith("domain ")) {
                     String[] parts = line.split("\\s+");
@@ -624,7 +626,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected Map<String, long[]> readNetDevStats() {
         Map<String, long[]> result = new LinkedHashMap<>();
         try {
-            for (String line : Files.readAllLines(PROC_NET_DEV)) {
+            for (String line : Files.readAllLines(sysPath(PROC_NET_DEV))) {
                 if (!line.contains(":")) continue;
                 String[] parts = line.split(":");
                 String iface   = parts[0].trim();
@@ -686,13 +688,26 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .state(p[7])
                         .startTimeFormatted(p[8])
                         .commandLine(p[10])
-                        .name(p[10].contains("/") ? p[10].substring(p[10].lastIndexOf('/') + 1) : p[10].split("\\s")[0])
+                        .name(processName(p[10]))
                         .build());
             } catch (Exception ignored) {}
         }
         // Sort by CPU desc, limit to top 50
         processes.sort(Comparator.comparingDouble(ProcessInfo::getCpuUsage).reversed());
         return processes.stream().limit(50).collect(Collectors.toList());
+    }
+
+    /**
+     * Short process name from a {@code ps aux} COMMAND column.
+     * Arguments are dropped before the directory prefix, because doing it the other way
+     * round leaves them attached ("python3 /opt/app/main.py" → "main.py", and
+     * "/usr/bin/proc --flag" → "proc --flag").
+     */
+    private static String processName(String commandLine) {
+        String executable = commandLine.split("\\s")[0];
+        return executable.contains("/")
+                ? executable.substring(executable.lastIndexOf('/') + 1)
+                : executable;
     }
 
     /** Returns per-user CPU/memory aggregation. */
@@ -754,8 +769,8 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     @Override
     public PerformanceMetrics getPerformanceMetrics() {
-        String uptime  = readFileSafe(PROC_UPTIME);
-        String loadavg = readFileSafe(PROC_LOADAVG);
+        String uptime  = readFileSafe(sysPath(PROC_UPTIME));
+        String loadavg = readFileSafe(sysPath(PROC_LOADAVG));
 
         long uptimeSeconds = 0;
         String uptimeStr   = "";
@@ -844,7 +859,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     }
 
     private long[] readAggregateCpuStat() throws IOException {
-        for (String line : Files.readAllLines(PROC_STAT)) {
+        for (String line : Files.readAllLines(sysPath(PROC_STAT))) {
             if (line.startsWith("cpu ")) {
                 String[] parts = line.trim().split("\\s+");
                 long[] vals = new long[8];
@@ -896,8 +911,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private void collectThermalZones(List<TemperatureSensor> sensors) {
         try {
-            if (!Files.exists(SYS_THERMAL)) return;
-            try (Stream<Path> zones = Files.list(SYS_THERMAL)) {
+            Path thermalRoot = sysPath(SYS_THERMAL);
+            if (!Files.exists(thermalRoot)) return;
+            try (Stream<Path> zones = Files.list(thermalRoot)) {
                 zones.filter(p -> p.getFileName().toString().startsWith("thermal_zone"))
                      .sorted()
                      .forEach(zone -> {
@@ -923,8 +939,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private void collectHwmonSensors(List<TemperatureSensor> sensors, List<Map<String, Object>> fanSensors) {
         try {
-            if (!Files.exists(SYS_HWMON)) return;
-            try (Stream<Path> hwmons = Files.list(SYS_HWMON)) {
+            Path hwmonRoot = sysPath(SYS_HWMON);
+            if (!Files.exists(hwmonRoot)) return;
+            try (Stream<Path> hwmons = Files.list(hwmonRoot)) {
                 hwmons.sorted().forEach(hwmon -> {
                     String name = readFileSafe(hwmon.resolve("name"));
 
@@ -1057,7 +1074,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     }
 
     public List<String> getCpuFlags() {
-        for (String line : readFileSafe(PROC_CPUINFO).split("\n")) {
+        for (String line : readFileSafe(sysPath(PROC_CPUINFO)).split("\n")) {
             if (line.startsWith("flags") || line.startsWith("Features")) {
                 String[] parts = line.split(":\\s+", 2);
                 if (parts.length == 2) return Arrays.asList(parts[1].split("\\s+"));
@@ -1148,7 +1165,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     // ──────────────────────────────────────────────────────────────────────────
 
     protected String readDmiSafe(String field) {
-        return readFileSafe(SYS_DMI.resolve(field));
+        return readFileSafe(sysPath(SYS_DMI).resolve(field));
     }
 
     private double parseMhz(String mhzStr) {
