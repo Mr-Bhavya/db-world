@@ -22,6 +22,14 @@ public class TmdbClient {
 
     private static final String APPEND_FULL_DETAILS = "images,videos,credits";
 
+    /**
+     * Age ratings live behind a per-type append, not on the flat detail payload, and the two
+     * types use different names: movies expose per-country release entries under
+     * {@code release_dates}, series a flat rating per country under {@code content_ratings}.
+     */
+    private static final String APPEND_MOVIE_FULL = APPEND_FULL_DETAILS + ",release_dates";
+    private static final String APPEND_TV_FULL = APPEND_FULL_DETAILS + ",content_ratings";
+
     private final WebClient webClient;
 
     public TmdbClient(@Qualifier("tmdbWebClient") WebClient webClient) {
@@ -94,7 +102,7 @@ public class TmdbClient {
 
     public Mono<MovieTmdbResponse> getMovieFull(Long id) {
         return get("/movie/" + id, MovieTmdbResponse.class,
-                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
+                builder -> builder.queryParam("append_to_response", APPEND_MOVIE_FULL));
     }
 
     public Mono<ImagesTmdbResponse> getMovieImages(Long id) {
@@ -136,7 +144,7 @@ public class TmdbClient {
 
     public Mono<TvSeriesTmdbResponse> getTvSeriesFull(Long id) {
         return get("/tv/" + id, TvSeriesTmdbResponse.class,
-                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
+                builder -> builder.queryParam("append_to_response", APPEND_TV_FULL));
     }
 
     public Mono<ImagesTmdbResponse> getTvImages(Long id) {

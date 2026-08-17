@@ -15,6 +15,7 @@ import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
 import com.db.dbworld.app.cinema.tmdb.providers.mapper.ProviderMapper;
 import com.db.dbworld.app.cinema.tmdb.review.mapper.ReviewMapper;
 import com.db.dbworld.app.cinema.tmdb.season.mapper.SeasonMapper;
+import com.db.dbworld.app.cinema.tmdb.service.TmdbCertificationResolver;
 import org.mapstruct.*;
 
 import java.util.ArrayList;
@@ -76,6 +77,27 @@ public interface TvSeriesTmdbMapper extends BaseMapper<TvSeriesTmdbDto, TvSeries
     // "collection no longer referenced" HibernateException.
     @Mapping(target = "seasons", ignore = true)
     TvSeriesTmdbEntity fromTmdb(TvSeriesTmdbResponse response);
+
+    /* =========================
+       AGE RATING
+     ========================= */
+
+    /**
+     * Series ratings come from the flat content_ratings append rather than a payload field,
+     * so this can't be a plain {@code @Mapping}. Resolved once so the value and its country
+     * are always set together.
+     */
+    @AfterMapping
+    default void applyCertification(
+            TvSeriesTmdbResponse response,
+            @MappingTarget TvSeriesTmdbEntity entity
+    ) {
+        TmdbCertificationResolver.fromTvSeries(response.getContent_ratings())
+                .ifPresent(c -> {
+                    entity.setCertification(c.value());
+                    entity.setCertificationCountry(c.country());
+                });
+    }
 
     /* =========================
        ADD NETWORKS AS PROVIDERS

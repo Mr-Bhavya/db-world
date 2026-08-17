@@ -29,4 +29,7 @@ public class MovieTmdbResponse extends TmdbResponse {
 
     private CollectionTmdbResponse belongs_to_collection;
 
+    /** Only populated when the request asks for the release_dates append. */
+    private ReleaseDatesTmdbResponse release_dates;
+
 }

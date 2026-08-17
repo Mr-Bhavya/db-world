@@ -431,7 +431,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 tmdb.overview as overview,
                 tmdb.id as tmdbId,
                 TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
-                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons,
+                tmdb.certification as certification
             FROM RecordEntity r
             JOIN r.tmdb tmdb
             WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
@@ -583,7 +584,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 tmdb.overview as overview,
                 tmdb.id as tmdbId,
                 TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
-                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons,
+                tmdb.certification as certification
             FROM RecordEntity r
             JOIN r.tmdb tmdb
             WHERE r.id IN :ids

@@ -29,4 +29,7 @@ public interface RailRecordProjection {
     Integer getRuntime();
 
     Integer getNumberOfSeasons();
+
+    /** Age rating, e.g. "UA". Null until TMDB sync has fetched a certification. */
+    String getCertification();
 }

@@ -49,6 +49,9 @@ public class RailRecordDto {
     // Runtime metadata
     private Integer runtime;         // minutes (movies only)
     private Integer numberOfSeasons; // series only
+    // Age rating as issued (e.g. "UA", "TV-14"); null → the UI renders no badge. The issuing
+    // country is deliberately not sent: it's admin-facing, and the badge shows the value only.
+    private String certification;
 
     // Hover trailer
     private String previewVideoUrl;
