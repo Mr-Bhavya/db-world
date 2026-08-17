@@ -19,7 +19,7 @@
 
 . (Join-Path (Split-Path -Parent $PSScriptRoot) "lib\dbworld-common.ps1")
 
-# This script lives in scripts\run\ — repo root is two levels up.
+# This script lives in scripts\run\ - repo root is two levels up.
 $ActiveProfile = "local"
 $BaseDir    = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $BackendDir = Join-Path $BaseDir "db-world-backend"

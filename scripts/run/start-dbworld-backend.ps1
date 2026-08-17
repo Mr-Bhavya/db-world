@@ -9,10 +9,10 @@
 $ActiveProfile = "local"
 
 $ScriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-# This script lives in scripts\run\ — repo root is two levels up.
+# This script lives in scripts\run\ - repo root is two levels up.
 $BaseDir = Split-Path -Parent (Split-Path -Parent $ScriptsDir)
 
-# Shared helpers (JDK-25 resolver etc.). Optional — fall back gracefully if absent.
+# Shared helpers (JDK-25 resolver etc.). Optional - fall back gracefully if absent.
 $CommonFile = Join-Path (Split-Path -Parent $ScriptsDir) "lib\dbworld-common.ps1"
 if (Test-Path $CommonFile) { . $CommonFile }
 
