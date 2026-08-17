@@ -225,7 +225,7 @@ export default function ReviewsSection({ record, recordId }) {
         <>
           <Divider sx={{ borderColor: alpha(T.text, 0.08), my: 3 }} />
           <SectionHeading>TMDB Reviews ({tmdbReviews.length})</SectionHeading>
-          {tmdbReviews.map((r, i) => <TmdbReviewCard key={i} review={r} T={T} />)}
+          {tmdbReviews.map((r) => <TmdbReviewCard key={r.id} review={r} T={T} />)}
         </>
       )}
     </Box>

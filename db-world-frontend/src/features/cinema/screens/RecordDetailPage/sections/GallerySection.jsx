@@ -133,9 +133,11 @@ export default function GallerySection({ record }) {
                 : { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
               gap: 1,
             }}>
+              {/* The index is still needed for the lightbox's start position, so it stays a
+                  parameter — only the key moves to the image's own identity. */}
               {visible.map((img, i) => (
                 <LazyImage
-                  key={i}
+                  key={img.filePath}
                   src={tmdbImg(img.filePath, 'w500')}
                   alt={type}
                   onClick={() => setLightbox({ images: imgs, startIndex: i })}

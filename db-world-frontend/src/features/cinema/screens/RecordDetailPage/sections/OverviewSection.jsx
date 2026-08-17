@@ -154,8 +154,8 @@ export default function OverviewSection({ record }) {
               <Box sx={{ mt: 3 }}>
                 <SectionHeading sx={{ fontSize: '0.9rem' }}>Companies</SectionHeading>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {companies.map((c, i) => (
-                    <Chip key={i} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
+                  {companies.map((c) => (
+                    <Chip key={c.name} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
@@ -171,8 +171,8 @@ export default function OverviewSection({ record }) {
               <Box sx={{ mb: 3 }}>
                 <SectionHeading sx={{ fontSize: '0.9rem' }}>Countries</SectionHeading>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {countries.map((c, i) => (
-                    <Chip key={i} label={c.name} size="small" sx={subChipSx} />
+                  {countries.map((c) => (
+                    <Chip key={c.name} label={c.name} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
@@ -188,8 +188,8 @@ export default function OverviewSection({ record }) {
               <Box sx={{ mb: 3 }}>
                 <SectionHeading sx={{ fontSize: '0.9rem' }}>Languages</SectionHeading>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {langs.map((l, i) => (
-                    <Chip key={i} label={l._label} size="small" sx={subChipSx} />
+                  {langs.map((l) => (
+                    <Chip key={l._label} label={l._label} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
@@ -203,8 +203,8 @@ export default function OverviewSection({ record }) {
               <Box sx={{ mb: 3 }}>
                 <SectionHeading sx={{ fontSize: '0.9rem' }}>Created By</SectionHeading>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {creators.map((c, i) => (
-                    <Chip key={i} label={c.name} size="small" sx={chipSx} />
+                  {creators.map((c) => (
+                    <Chip key={c.name} label={c.name} size="small" sx={chipSx} />
                   ))}
                 </Box>
               </Box>
@@ -259,10 +259,10 @@ export default function OverviewSection({ record }) {
                       {typeLabel[type] ?? type}
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {grouped[type].map((p, i) => {
+                      {grouped[type].map((p) => {
                         const logoUrl = tmdbImg(p.provider?.logoPath, 'w92');
                         return (
-                          <Box key={i} sx={{
+                          <Box key={`${p.regionCode ?? ''}:${p.provider?.name ?? ''}`} sx={{
                             display: 'flex', alignItems: 'center', gap: 1,
                             bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.08)}`,
                             borderRadius: 1.5, px: 1.25, py: 0.75,
