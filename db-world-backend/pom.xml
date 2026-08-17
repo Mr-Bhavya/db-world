@@ -61,6 +61,17 @@
     <!-- ================================================================ -->
     <dependencies>
 
+        <!-- ── Dev tooling ───────────────────────────────────────────── -->
+        <!-- Hot restart + browser LiveReload during development. Automatically DISABLED when the
+             app runs from a fully-packaged WAR (java -jar / start-dbworld-backend.ps1), and the
+             Boot repackage goal excludes it from the WAR — so it's safe for production. Active only
+             for `mvn spring-boot:run` / IDE runs (see scripts/dev-dbworld-backend.ps1). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- ── Web ───────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

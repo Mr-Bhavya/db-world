@@ -11,7 +11,8 @@ import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
 import HeroBannerMobile from './HeroBannerMobile';
-import HeroBannerDesktop from './HeroBannerDesktop';
+import SpotlightHero from '../Billboard/SpotlightHero';
+import CategoryBillboard from '../Billboard/CategoryBillboard';
 
 import { CYCLE_MS } from './heroUtils';
 import { useHeroColor } from './useHeroColor';
@@ -117,142 +118,134 @@ const HeroSkeletonMobile = ({ isXs }) => {
   );
 };
 
-const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
-  // Mirror HeroBannerDesktop's `metrics` so the skeleton fills the same footprint
-  // at every desktop-class size: desktop, large monitor and TV.
-  const heroHeight = isTv
-    ? 'clamp(760px, 90vh, 1120px)'
-    : isMonitor
-      ? 'clamp(680px, 88vh, 1040px)'
-      : 'clamp(600px, 86vh, 940px)';
+const HeroSkeletonDesktop = ({ isMonitor, isTv, variant = 'spotlight' }) => {
+  // Mirror the live billboard footprint so nothing jumps when the real hero loads.
+  // Home = a rounded "spotlight" card inset in a gutter; Movies/TV = a full-bleed billboard
+  // with a soft bottom fade and a thumbnail-navigator placeholder bottom-right.
+  const isSpotlight = variant !== 'billboard';
 
-  const contentLeft = isTv ? 56 : isMonitor ? 72 : 56;
-  const contentBottom = isTv ? 240 : isMonitor ? 206 : 176;
-  const contentWidth = isTv
-    ? 'min(35vw, 780px)'
-    : isMonitor
-      ? 'min(38vw, 680px)'
-      : 'min(44vw, 560px)';
+  const gutter = isTv || isMonitor ? 40 : 28;
+  const navClear = (isTv ? 76 : 68) + 14;
+  const radius = isTv ? 22 : 18;
+  const padX = isTv ? 60 : isMonitor ? 54 : 46;
+  const padTop = isSpotlight ? (isTv ? 28 : 22) : isTv ? 100 : 88;
+  const padBottom = isSpotlight
+    ? isTv ? 96 : isMonitor ? 84 : 72
+    : isTv ? 190 : isMonitor ? 170 : 150;
+  const spotVh = isMonitor || isTv ? 95 : 110;
 
-  // ~⅔ of the real logoMaxH (200 / 168 / 132) so it reads as a logo, not a slab.
-  const logoW = isTv ? 360 : isMonitor ? 320 : 260;
-  const logoH = isTv ? 132 : isMonitor ? 112 : 92;
-  const buttonHeight = isTv ? 60 : 46;
-  const roundBtn = isTv ? 54 : 42;
-  const navBtn = isTv ? 44 : 36;
-  const thumbW = isTv ? 132 : isMonitor ? 116 : 104;
-  const thumbH = isTv ? 74 : isMonitor ? 66 : 58;
-  const overviewLines = isTv ? 4 : 3;
-  const lineWidths = ['86%', '78%', '70%', '58%'];
+  const contentWidth = isTv ? 'min(42vw, 780px)' : isMonitor ? 'min(44vw, 680px)' : 'min(50vw, 560px)';
+  // ~⅔ of the real logoMaxH so it reads as a title logo, not a slab.
+  const logoW = isTv ? 320 : isMonitor ? 280 : 230;
+  const logoH = isTv ? 116 : isMonitor ? 98 : 80;
+  const btnH = isTv ? 56 : 46;
+  const roundBtn = isTv ? 52 : 42;
+  const overviewLines = isTv ? 4 : isMonitor ? 3 : 2;
+  const lineWidths = ['88%', '80%', '72%', '60%'];
+  const thumbW = isTv ? 108 : isMonitor ? 96 : 84;
+  const thumbH = isTv ? 62 : isMonitor ? 56 : 48;
 
-  return (
+  const frame = (
     <Box
       sx={{
         position: 'relative',
         width: '100%',
-        height: heroHeight,
+        aspectRatio: '16 / 9',
         overflow: 'hidden',
-        bgcolor: 'transparent',
+        bgcolor: shimmerBg,
+        ...(isSpotlight
+          ? {
+              maxHeight: `calc(${spotVh}vh - ${navClear + gutter}px)`,
+              borderRadius: `${radius}px`,
+              border: '1px solid rgba(255,255,255,0.12)',
+            }
+          : { minHeight: isTv ? '92vh' : '90vh', maxHeight: '100vh' }),
       }}
     >
       {/* Image shimmer */}
       <SkeletonBlock
         width="100%"
         height="100%"
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: 0,
-          bgcolor: shimmerStrong,
-        }}
+        sx={{ position: 'absolute', inset: 0, borderRadius: 0, bgcolor: shimmerStrong }}
       />
 
-      {/* Left reading gradient */}
+      {/* Left reading scrim */}
       <Box
         sx={{
           position: 'absolute',
           inset: 0,
+          pointerEvents: 'none',
           background:
             'linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.20) 40%, transparent 72%)',
-          pointerEvents: 'none',
         }}
       />
 
-      {/* Bottom dissolve */}
+      {/* Content shimmer — bottom-left, matching BillboardContent */}
       <Box
         sx={{
           position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '60%',
-          background:
-            'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.16) 48%, rgba(0,0,0,0.42) 100%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Content shimmer */}
-      <Box
-        sx={{
-          position: 'absolute',
-          left: contentLeft,
-          bottom: contentBottom,
-          width: contentWidth,
-          maxWidth: 'calc(100vw - 180px)',
-        }}
-      >
-        {/* Logo placeholder (logo-first layout) */}
-        <SkeletonBlock width={logoW} height={logoH} sx={{ mb: 2, borderRadius: 2 }} />
-
-        {/* Single meta line: rating pill + genres · year · type */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-          <SkeletonBlock width={64} height={22} sx={{ borderRadius: 999 }} />
-          <SkeletonBlock width={56} height={16} />
-          <SkeletonBlock width={44} height={16} />
-        </Box>
-
-        {/* Overview lines */}
-        {Array.from({ length: overviewLines }).map((_, i) => (
-          <SkeletonBlock
-            key={i}
-            width={lineWidths[i] ?? '60%'}
-            height={14}
-            sx={{ mb: i === overviewLines - 1 ? 2.5 : 1 }}
-          />
-        ))}
-
-        {/* Play · More Info · round add */}
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <SkeletonBlock width={140} height={buttonHeight} sx={{ borderRadius: 999 }} />
-          <SkeletonBlock width={170} height={buttonHeight} sx={{ borderRadius: 999 }} />
-          <SkeletonBlock width={roundBtn} height={roundBtn} sx={{ borderRadius: '50%' }} />
-        </Box>
-      </Box>
-
-      {/* Slide navigator placeholder — right-side thumbnail strip */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: contentBottom,
-          right: contentLeft,
+          inset: 0,
+          zIndex: 2,
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          px: `${padX}px`,
+          pt: `${padTop}px`,
+          pb: `${padBottom}px`,
         }}
       >
-        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
-        {[0, 1, 2, 3].map((i) => (
-          <SkeletonBlock
-            key={i}
-            width={thumbW}
-            height={thumbH}
-            sx={{ borderRadius: 1.5, bgcolor: shimmerStrong }}
-          />
-        ))}
-        <SkeletonBlock width={navBtn} height={navBtn} sx={{ borderRadius: '50%' }} />
+        <Box sx={{ width: contentWidth, maxWidth: 'calc(100% - 40px)' }}>
+          {/* Ribbon: app-logo dot + type label */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <SkeletonBlock width={isTv ? 32 : 26} height={isTv ? 32 : 26} sx={{ borderRadius: '50%' }} />
+            <SkeletonBlock width={72} height={12} />
+          </Box>
+
+          {/* Title logo */}
+          <SkeletonBlock width={logoW} height={logoH} sx={{ mb: 2, borderRadius: 2 }} />
+
+          {/* Meta line */}
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <SkeletonBlock width={54} height={16} />
+            <SkeletonBlock width={64} height={16} />
+            <SkeletonBlock width={44} height={16} />
+          </Box>
+
+          {/* Overview lines */}
+          {Array.from({ length: overviewLines }).map((_, i) => (
+            <SkeletonBlock
+              key={i}
+              width={lineWidths[i] ?? '60%'}
+              height={14}
+              sx={{ mb: i === overviewLines - 1 ? 2.5 : 1 }}
+            />
+          ))}
+
+          {/* Play · More Info · round add */}
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <SkeletonBlock width={130} height={btnH} sx={{ borderRadius: 999 }} />
+            <SkeletonBlock width={168} height={btnH} sx={{ borderRadius: 999 }} />
+            <SkeletonBlock width={roundBtn} height={roundBtn} sx={{ borderRadius: '50%' }} />
+          </Box>
+        </Box>
       </Box>
+
+      {/* Movies/TV: thumbnail-navigator placeholder bottom-right */}
+      {!isSpotlight && (
+        <Box sx={{ position: 'absolute', right: `${padX}px`, bottom: `${padBottom}px`, zIndex: 3, display: 'flex', gap: 1 }}>
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} width={thumbW} height={thumbH} sx={{ borderRadius: 2, opacity: i === 0 ? 1 : 0.5 }} />
+          ))}
+        </Box>
+      )}
     </Box>
+  );
+
+  // Home insets the card in a gutter (with nav clearance); Movies/TV is full-bleed.
+  return isSpotlight ? (
+    <Box sx={{ px: `${gutter}px`, pt: `${navClear}px`, pb: `${gutter}px` }}>{frame}</Box>
+  ) : (
+    frame
   );
 };
 
@@ -264,6 +257,10 @@ const HeroBanner = ({
   onWatchlist,
   loading,
   onColorExtracted,
+  variant = 'spotlight',
+  heading = null,
+  breadcrumb = null,
+  ranked = false,
 }) => {
   const theme = useTheme();
 
@@ -390,7 +387,7 @@ const HeroBanner = ({
     return isMobileLike ? (
       <HeroSkeletonMobile isXs={isXs} isTablet={isTablet} />
     ) : (
-      <HeroSkeletonDesktop isMonitor={isMonitor} isTv={isTv} />
+      <HeroSkeletonDesktop isMonitor={isMonitor} isTv={isTv} variant={variant} />
     );
   }
 
@@ -421,11 +418,18 @@ const HeroBanner = ({
     );
   }
 
+  const tier = isTv ? 'tv' : isMonitor ? 'monitor' : 'desktop';
+  const DesktopHero = variant === 'billboard' ? CategoryBillboard : SpotlightHero;
+
   return (
-    <HeroBannerDesktop
+    <DesktopHero
       {...commonProps}
       isMonitor={isMonitor}
       isTv={isTv}
+      tier={tier}
+      heading={heading}
+      breadcrumb={breadcrumb}
+      ranked={ranked}
       onHoverPause={pauseCycle}
       onHoverResume={resumeCycle}
     />

@@ -132,7 +132,7 @@ function Invoke-DeviceInstall($apkPath, [bool] $interactive, [bool] $autoYes) {
 $interactive = [Environment]::UserInteractive
 
 # ─── paths ─────────────────────────────────────────────────────────────────────
-$frontend   = Join-Path $PSScriptRoot '..\db-world-frontend' | Resolve-Path
+$frontend   = Join-Path $PSScriptRoot '..\..\db-world-frontend' | Resolve-Path
 $androidDir = Join-Path $frontend 'android'
 $gradlew    = Join-Path $androidDir 'gradlew.bat'
 $keystore   = Join-Path $androidDir 'keystore.properties'
