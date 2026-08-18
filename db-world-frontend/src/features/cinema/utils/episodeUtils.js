@@ -5,6 +5,33 @@ export function parseEpisode(fileName) {
   return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
 }
 
+/**
+ * Season/episode for a media file, preferring the stored columns.
+ *
+ * `tmdbSeasonNumber` / `tmdbEpisodeNumber` are what the admin UI writes when
+ * someone corrects a mis-named file. Deriving from the filename alone meant
+ * those corrections had no effect anywhere the player looked — and a file whose
+ * name lacks S##E## disappeared from the episode list entirely, which in turn
+ * made `variantFilesFor` treat every episode of the show as a quality variant
+ * of the current one.
+ *
+ * Returns null only when neither source knows.
+ */
+export function episodeRefOf(file) {
+  const s = file?.tmdbSeasonNumber;
+  const e = file?.tmdbEpisodeNumber;
+  if (s != null && e != null) return { season: Number(s), episode: Number(e) };
+
+  const parsed = parseEpisode(file?.general?.fileName);
+  if (!parsed) return null;
+
+  // One side stored, the other only in the name — take the stored one.
+  return {
+    season:  s != null ? Number(s) : parsed.season,
+    episode: e != null ? Number(e) : parsed.episode,
+  };
+}
+
 /** Derive quality label from a mediaFile object (has .video.resolution or .general.fileName) */
 export function getQualityLabel(mediaFile) {
   const res = mediaFile?.video?.resolution;
@@ -23,7 +50,7 @@ export function getQualityLabel(mediaFile) {
 export function buildEpisodeMap(files) {
   const map = {};
   for (const f of files) {
-    const ep = parseEpisode(f?.general?.fileName);
+    const ep = episodeRefOf(f);
     if (!ep) continue;
     const key = `${ep.season}x${ep.episode}`;
     if (!map[key]) map[key] = { ...ep, files: [] };
@@ -72,7 +99,7 @@ export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
   const pad = (n) => String(n).padStart(2, '0');
   return allFiles
     .filter(f => getQualityLabel(f) === quality)
-    .map(f => ({ f, ep: parseEpisode(f?.general?.fileName) }))
+    .map(f => ({ f, ep: episodeRefOf(f) }))
     .filter(({ ep }) => ep !== null)
     .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
     .map(({ f, ep }) => {

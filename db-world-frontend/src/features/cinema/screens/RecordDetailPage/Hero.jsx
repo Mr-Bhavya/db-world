@@ -13,6 +13,9 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
+import DownloadIcon from '@mui/icons-material/Download';
+import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { tmdbImg } from '../../api/cinemaApi';
 import { formatRuntime } from './helpers';
@@ -194,7 +197,8 @@ function autoplayAllowed() {
 
 export default function Hero({
   record, interaction, onToggle,
-  onPlayTrailer, onWatchClick, onBack, inModal = false, preview = null,
+  onPlayTrailer, onWatchClick, onDownloadClick, onRequestClick, requested = false,
+  onBack, inModal = false, preview = null,
   loading = false, files = [], progress = null, trailerKey = null,
 }) {
   const tmdb = record?.tmdb ?? {};
@@ -903,7 +907,38 @@ export default function Hero({
                 </Button>
               )}
 
-              {onPlayTrailer && (
+              {/* Request takes the primary slot when there's nothing to play —
+                  the page shouldn't offer a dead Watch button. */}
+              {onRequestClick && (
+                <Button
+                  component={motion.button}
+                  whileTap={{ scale: 0.97 }}
+                  variant="contained"
+                  startIcon={requested
+                    ? <CheckCircleIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
+                    : <AddIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
+                  onClick={onRequestClick}
+                  sx={{
+                    flex: { xs: 1, sm: '0 0 auto' },
+                    bgcolor: requested ? alpha('#fff', 0.16) : accentColor,
+                    color: '#fff', fontWeight: 800, textTransform: 'none',
+                    px: { xs: 2, sm: 2.5, xl: 3.5 },
+                    py: { xs: 1.05, xl: 1.2 },
+                    borderRadius: 999,
+                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
+                    ...(isTv && { fontSize: '1.2rem', px: 4.5, py: 1.5 }),
+                    border: requested ? `1px solid ${alpha('#fff', 0.28)}` : 'none',
+                    '&:hover': { bgcolor: requested ? alpha('#fff', 0.24) : accentColor, filter: 'brightness(0.92)' },
+                  }}
+                >
+                  {requested ? 'Requested' : 'Request this'}
+                </Button>
+              )}
+
+              {/* Trailer keeps the secondary slot only while there's nothing to
+                  download. When you can't watch the title, the trailer is the
+                  most useful thing left; when you can, the file list is. */}
+              {onPlayTrailer && !onDownloadClick && (
                 <Button
                   component={motion.button}
                   whileTap={{ scale: 0.97 }}
@@ -925,6 +960,34 @@ export default function Hero({
                   }}
                 >
                   Trailer
+                </Button>
+              )}
+
+              {/* Download takes the old Trailer slot. The trailer still autoplays
+                  behind the hero and lives in Gallery, so this slot earns more
+                  as the way into the file list. */}
+              {onDownloadClick && (
+                <Button
+                  component={motion.button}
+                  whileTap={{ scale: 0.97 }}
+                  variant="text"
+                  startIcon={<DownloadIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
+                  onClick={onDownloadClick}
+                  sx={{
+                    flexShrink: 0,
+                    color: '#fff', fontWeight: 700, textTransform: 'none',
+                    px: { xs: 2, sm: 2, xl: 3 },
+                    py: { xs: 1.05, xl: 1.2 },
+                    borderRadius: 999,
+                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
+                    ...(isTv && { fontSize: '1.2rem', px: 4, py: 1.5 }),
+                    bgcolor: alpha('#fff', 0.12),
+                    backdropFilter: 'blur(6px)',
+                    border: `1px solid ${alpha('#fff', 0.2)}`,
+                    '&:hover': { bgcolor: alpha('#fff', 0.22) },
+                  }}
+                >
+                  Download
                 </Button>
               )}
 

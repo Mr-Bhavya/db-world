@@ -272,6 +272,12 @@ export default function DbWorldVideoPlayer({
   const videoRef    = useRef(null);
   const rootRef     = useRef(null);
   const triedQualityRef = useRef(new Set()); // quality urls that failed to decode (avoid loops)
+  // Set the moment the viewer picks a quality by hand. Automatic downgrade is a
+  // guess about the network; an explicit choice is not, so once this is true no
+  // automatic switch may ever run again for this playback. Without it the player
+  // would quietly undo the viewer's decision the next time the buffer dipped.
+  const qualityLockedRef = useRef(false);
+  const stallRef = useRef({ since: 0, downgrades: 0 });
   const adapterRef  = useRef(null);
   const hideTimer   = useRef(null);
   const tapRef      = useRef({ last: 0, x: 0 });
@@ -409,6 +415,11 @@ export default function DbWorldVideoPlayer({
     adapterRef.current = adapter;
     appliedRef.current = false;
     triedQualityRef.current = new Set();
+    // Stall budget is per-source: a new episode deserves a fresh chance at the
+    // quality it was picked for. The user's manual lock deliberately does NOT
+    // reset here — having asked for a quality once, they shouldn't have to keep
+    // re-asking every time the next episode starts.
+    stallRef.current = { since: 0, downgrades: 0 };
     setCurQualityId(fileId);
     setEnded(false); setCountdown(null); setErrorMsg(null); setUpNextDismissed(false);
 
@@ -761,8 +772,18 @@ export default function DbWorldVideoPlayer({
     else    { adapterRef.current?.selectTextTrack(t.id); setCurText(t.id); lsSet(PREF_SUB, t.language); }
   };
   const chooseSpeed = (i) => { setRateIdx(i); adapterRef.current?.setRate(SPEEDS[i]); };
-  const chooseQuality = (v) => {
+  /**
+   * Switch the playing file.
+   *
+   * `byUser` distinguishes an explicit pick from an automatic one. A manual
+   * choice latches `qualityLockedRef`, which permanently disables both the
+   * stall downgrade and the decode-error downgrade for this playback — the
+   * viewer has told us what they want and the player shouldn't argue.
+   */
+  const chooseQuality = (v, byUser = false) => {
+    if (byUser) qualityLockedRef.current = true;
     appliedRef.current = false;                 // re-apply track prefs after the reload
+    stallRef.current = { since: 0, downgrades: stallRef.current.downgrades };
     adapterRef.current?.load(v.url, progressRef.current.positionMs);
     setCurQualityId(v.mediaFileId);
   };
@@ -828,14 +849,22 @@ export default function DbWorldVideoPlayer({
     return () => clearTimeout(pauseTimer.current);
   }, [controls, speedOpen, audioSubsOpen, qualityOpen, infoOpen, episodesOpen, nextOpen, playing, buffering, ended, errorMsg, pipActive]);
 
+  /** Next variant below the current one that we haven't already tried. */
+  const nextLowerVariant = useCallback(() => {
+    const curH = variants.find(v => v.mediaFileId === curQualityId)?.height ?? 0;
+    return variants
+      .filter(v => v.height > 0 && (curH === 0 || v.height < curH) && !triedQualityRef.current.has(v.mediaFileId))
+      .sort((a, b) => b.height - a.height)[0] ?? null;
+  }, [variants, curQualityId]);
+
   // ── auto-downgrade quality on a fatal decode error ──────────────────────────
   // Fires after native HW→SW fallback also failed. Picks the next lower variant.
   useEffect(() => {
     if (!errorMsg) return;
-    const curH = variants.find(v => v.mediaFileId === curQualityId)?.height ?? 0;
-    const lower = variants
-      .filter(v => v.height > 0 && (curH === 0 || v.height < curH) && !triedQualityRef.current.has(v.mediaFileId))
-      .sort((a, b) => b.height - a.height)[0];
+    // An explicit choice wins even here: if the viewer asked for this file and it
+    // won't decode, show them the error rather than silently playing another.
+    if (qualityLockedRef.current) return;
+    const lower = nextLowerVariant();
     if (lower) {
       triedQualityRef.current.add(curQualityId);
       setErrorMsg(null);
@@ -846,6 +875,46 @@ export default function DbWorldVideoPlayer({
     // no lower variant → leave errorMsg set so the error overlay shows
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [errorMsg]);
+
+  // ── auto-downgrade on a sustained stall ─────────────────────────────────────
+  //
+  // Playback is discrete files over progressive HTTP, so there is no manifest to
+  // adapt within: the only lever is to reload a smaller file at the same
+  // position. That costs a visible re-buffer, which is why it waits for a
+  // SUSTAINED stall rather than reacting to the normal dips a progressive
+  // download produces at seeks and keyframes.
+  //
+  // Deliberately conservative:
+  //   • only while nominally playing (a paused/ended video isn't stalling)
+  //   • only after STALL_GRACE_MS of continuous buffering
+  //   • at most MAX_AUTO_DOWNGRADES per playback, so a genuinely bad connection
+  //     walks down the ladder once instead of oscillating
+  //   • never once the viewer has chosen a quality by hand
+  useEffect(() => {
+    const STALL_GRACE_MS = 12000;
+    const MAX_AUTO_DOWNGRADES = 2;
+
+    if (qualityLockedRef.current) return undefined;
+    if (!buffering || !playing || ended || errorMsg) { stallRef.current.since = 0; return undefined; }
+    if (stallRef.current.downgrades >= MAX_AUTO_DOWNGRADES) return undefined;
+    if (variants.length < 2) return undefined;
+
+    stallRef.current.since = Date.now();
+    const timer = setTimeout(() => {
+      // Re-check under the lock: the viewer may have picked a quality, or
+      // playback may have recovered, during the grace window.
+      if (qualityLockedRef.current || !stallRef.current.since) return;
+      const lower = nextLowerVariant();
+      if (!lower) return;
+      stallRef.current.downgrades += 1;
+      setInfoMsg(`Slow connection — switching to ${lower.label}`);
+      setTimeout(() => setInfoMsg(null), 3500);
+      chooseQuality(lower);
+    }, STALL_GRACE_MS);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buffering, playing, ended, errorMsg, variants.length, nextLowerVariant]);
 
   // Keyboard shortcuts (web): space/k play, ←/→ seek, m mute, Esc close; any key reveals controls.
   useEffect(() => {
@@ -1403,8 +1472,10 @@ export default function DbWorldVideoPlayer({
       {/* Quality — resolution picker (decoder removed — HW→SW fallback is automatic). */}
       <Sheet open={qualityOpen} hasHover={hasHover} pos={qualityPos} title="Quality" onClose={() => setQualityOpen(false)}
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        {/* byUser=true latches the lock, so no automatic downgrade can later
+            override what the viewer picked here. */}
         <QualityList variants={variants} curQualityId={curQualityId}
-          onQuality={(v) => { chooseQuality(v); setQualityOpen(false); }} />
+          onQuality={(v) => { chooseQuality(v, true); setQualityOpen(false); }} />
       </Sheet>
 
       {/* Media info — read-only details of the current video/audio/subtitle tracks. */}

@@ -149,3 +149,14 @@ export const searchRecords = async (q) => {
   const res = await axiosInstance.get('/api/cinema/admin/catalog/autocomplete', { params: { q } });
   return res.data;
 };
+
+/**
+ * Full record, including tmdb.seasons[].episodes[].
+ *
+ * The autocomplete above returns a summary with no season data, so the season
+ * and episode pickers need this second call once a TV record is chosen.
+ */
+export const getRecordDetail = async (id) => {
+  const res = await axiosInstance.get(`/api/cinema/catalog/${id}`);
+  return res.data?.data ?? res.data;
+};

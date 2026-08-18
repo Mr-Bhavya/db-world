@@ -10,7 +10,7 @@ import { notify } from '@shared/notify';
 import {
   addLike, addLove, addWatched, addWatchlist,
   fetchInteraction, fetchRecord, fetchSimilarRecords, getContinueWatching,
-  removeLike, removeLove, removeWatched, removeWatchlist,
+  removeLike, removeLove, removeWatched, removeWatchlist, toggleMediaRequestVote,
 } from '../../api/cinemaApi';
 import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
@@ -26,15 +26,16 @@ import CollectionSection from './sections/CollectionSection';
 import GallerySection from './sections/GallerySection';
 import SeasonsSection from './sections/SeasonsSection';
 import ReviewsSection from './sections/ReviewsSection';
-import WatchSection from './sections/WatchSection';
 import RelatedSection from './sections/RelatedSection';
 import PersonDetailView from './PersonDetailView';
 import StickyWatchBar from './StickyWatchBar';
+import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
+import { buildHybridEpisodes } from '../../utils/episodeUtils';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
-  watch: 'rd-watch',
   seasons: 'rd-seasons',
   collection: 'rd-collection',
   cast: 'rd-cast',
@@ -251,6 +252,76 @@ export default function RecordDetailContent({
   }, [record])
 
 
+  // ── Playback & downloads ───────────────────────────────────────────────
+  // The old Watch section made everyone choose a file before they could press
+  // play. Play now resolves the best file for this device and connection and
+  // goes straight to the player; the file list survives as an on-demand sheet.
+
+  const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
+  const [downloadLabel, setDownloadLabel] = useState(null);
+  const [requested, setRequested] = useState(false);
+
+  const hasFiles = mediaFiles.length > 0;
+
+  // The "ask for this title" flow used to live inside the media-files screen,
+  // which only existed once you went looking for files. It belongs here, where
+  // someone who just found the title actually is.
+  const handleRequest = useCallback(async () => {
+    if (!userId) { navigate(Constants.LOGIN_ROUTE, { state: { from: location } }); return; }
+    try {
+      await toggleMediaRequestVote(id, 'NEW_FILES');
+      setRequested((v) => !v);
+      notify.success(requested ? 'Request withdrawn.' : 'Requested — you\'ll be notified when it lands.');
+    } catch {
+      notify.error('Could not send the request.');
+    }
+  }, [userId, navigate, location, id, requested]);
+
+  /** Launch the player on `files`, letting resolveAndBuildMedia auto-pick. */
+  const launch = useCallback(async (candidateFiles, epRef = null) => {
+    const pool = (candidateFiles ?? []).filter(Boolean);
+    if (!pool.length) { notify.warning('No playable file for this title yet.'); return; }
+
+    try {
+      const seed = pool[0];
+      const episodes = buildHybridEpisodes(mediaFiles, seed, record?.tmdb?.seasons);
+      const media = await resolveAndBuildMedia({
+        current: seed,
+        // For an episode the pool IS the variant set; for a movie every file
+        // of the record is a variant of the same picture.
+        variantFiles: epRef ? pool : variantFilesFor(mediaFiles, seed, false),
+        episodes,
+        record,
+        title: record?.tmdb?.title ?? record?.name ?? '',
+        autoPick: true,
+      });
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
+    } catch {
+      notify.error('Failed to prepare the stream.');
+    }
+  }, [mediaFiles, record, navigate]);
+
+  /** Movie play — every file of the record is a quality variant. */
+  const handlePlay = useCallback(() => launch(mediaFiles), [launch, mediaFiles]);
+
+  const handleOpenDownloads = useCallback(() => {
+    setDownloadFiles(mediaFiles);
+    setDownloadLabel(null);
+  }, [mediaFiles]);
+
+  const handlePlayEpisode = useCallback((ep) => {
+    launch(ep?.files, { season: ep?.seasonNumber, episode: ep?.episodeNumber });
+  }, [launch]);
+
+  const handleDownloadEpisode = useCallback((ep) => {
+    setDownloadFiles(ep?.files ?? []);
+    setDownloadLabel(
+      ep?.seasonNumber != null && ep?.episodeNumber != null
+        ? `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+        : null,
+    );
+  }, []);
+
   // ── Page meta ──
   useEffect(() => {
     if (!record) return;
@@ -306,8 +377,7 @@ export default function RecordDetailContent({
 
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
-    { id: SECTION_IDS.watch, label: 'Watch' },
-    ...(hasSeasons ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
+    ...(hasSeasons ? [{ id: SECTION_IDS.seasons, label: 'Episodes' }] : []),
     ...(collectionId ? [{ id: SECTION_IDS.collection, label: 'Collection' }] : []),
     ...(hasCast ? [{ id: SECTION_IDS.cast, label: 'Cast & Crew' }] : []),
     ...(hasGallery ? [{ id: SECTION_IDS.gallery, label: 'Gallery' }] : []),
@@ -328,15 +398,20 @@ export default function RecordDetailContent({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // ── Deep-link to Watch when navigated via Play button ──────────────────
+  // ── Arrived via a Play affordance elsewhere (recordNav's `play` flag) ────
+  // There's no Watch section to jump to any more. A series still needs the
+  // episode picker — you can't play "a series" — but a movie can just go, which
+  // is what the caller was asking for in the first place.
   const didAutoJump = useRef(false);
   useEffect(() => {
-    if (location.state?.defaultTab === 'Watch' && record && !didAutoJump.current) {
-      didAutoJump.current = true;
-      // Wait one tick so the section is mounted.
-      setTimeout(() => scrollToSection(SECTION_IDS.watch), 80);
+    if (location.state?.defaultTab !== 'Watch' || !record || didAutoJump.current) return;
+    didAutoJump.current = true;
+    if (hasSeasons) {
+      setTimeout(() => scrollToSection(SECTION_IDS.seasons), 80);
+    } else if (mediaFiles.length) {
+      handlePlay();
     }
-  }, [record, location.state, scrollToSection]);
+  }, [record, location.state, scrollToSection, hasSeasons, mediaFiles, handlePlay]);
 
   // ── Error / empty states ───────────────────────────────────────────────
   // Only fall back to a bare skeleton when there's NO preview to render from
@@ -390,8 +465,6 @@ export default function RecordDetailContent({
 
   const currentInteraction = interactionState ?? interaction;
 
-  const scrollToWatch = () => scrollToSection(SECTION_IDS.watch);
-
   if (personId) {
     return (
       // Fill the surface (100% of the sheet/modal scroller, 100vh on the full
@@ -410,7 +483,10 @@ export default function RecordDetailContent({
         interaction={currentInteraction}
         onToggle={handleToggle}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
-        onWatchClick={scrollToWatch}
+        onWatchClick={hasFiles ? handlePlay : null}
+        onDownloadClick={hasFiles ? handleOpenDownloads : null}
+        onRequestClick={fullLoaded && !hasFiles ? handleRequest : null}
+        requested={requested}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
         preview={preview}
@@ -445,12 +521,15 @@ export default function RecordDetailContent({
           <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <OverviewSection record={record} />
           </Box>
-          <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <WatchSection recordId={id} record={record} files={mediaFiles} />
-          </Box>
           {hasSeasons && (
             <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-              <SeasonsSection record={record} />
+              <SeasonsSection
+                record={record}
+                files={mediaFiles}
+                onPlayEpisode={handlePlayEpisode}
+                onDownloadEpisode={handleDownloadEpisode}
+                onRequest={handleRequest}
+              />
             </Box>
           )}
           {collectionId && (
@@ -506,14 +585,22 @@ export default function RecordDetailContent({
         </Container>
       )}
 
-      {fullLoaded && (
+      {fullLoaded && hasFiles && (
         <StickyWatchBar
           record={record}
           progress={progress}
-          onWatchClick={scrollToWatch}
+          onWatchClick={handlePlay}
           scrollRoot={scrollRoot}
         />
       )}
+
+      <DownloadSheet
+        open={downloadFiles !== null}
+        onClose={() => setDownloadFiles(null)}
+        files={downloadFiles ?? []}
+        record={record}
+        subheading={downloadLabel}
+      />
 
       {trailerVideo && <VideoDialog video={trailerVideo} onClose={() => setTrailerVideo(null)} />}
     </Box>
