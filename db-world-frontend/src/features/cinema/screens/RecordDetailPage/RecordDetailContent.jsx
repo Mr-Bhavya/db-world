@@ -517,6 +517,14 @@ export default function RecordDetailContent({
           // the last section unless the page reserves its height (bar + the
           // iOS home indicator it clears).
           pb: { xs: 'calc(84px + env(safe-area-inset-bottom))', md: 4 },
+          // Several sections are horizontal rails. Any one of them that fails to
+          // shrink hands the whole PAGE a horizontal scrollbar, which is a
+          // miserable thing to hit on a phone.
+          //
+          // `clip`, deliberately not `hidden`: an ancestor with overflow:hidden
+          // silently kills position:sticky for everything inside it, and the
+          // pill nav depends on that.
+          overflowX: 'clip',
         }}>
           <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <OverviewSection record={record} />

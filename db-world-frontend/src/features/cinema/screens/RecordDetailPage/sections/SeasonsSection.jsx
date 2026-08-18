@@ -370,12 +370,13 @@ export default function SeasonsSection({ record, files = [], onPlayEpisode, onDo
           that used to live here said less than the dropdown itself does. */}
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 2, flexWrap: 'wrap', mb: 2, mt: 1,
+        gap: { xs: 1.25, sm: 2 }, flexWrap: 'wrap', mb: 2, mt: 1,
       }}>
         <Typography sx={{
           color: T.text, fontWeight: 800, letterSpacing: -0.3, lineHeight: 1.2,
           fontSize: { xs: '1.05rem', md: '1.15rem', xl: '1.35rem' },
           '@media (min-width:1920px)': { fontSize: '1.6rem' },
+          flexShrink: 0,
         }}>
           Episodes
         </Typography>
@@ -385,17 +386,37 @@ export default function SeasonsSection({ record, files = [], onPlayEpisode, onDo
         onChange={(e) => setSelected(e.target.value)}
         size="small"
         MenuProps={{
-          PaperProps: {
-            sx: {
-              bgcolor: T.bg === '#000000' ? '#1a1a1a' : T.bg,
-              backgroundImage: 'none',
-              border: `1px solid ${alpha(T.text, 0.12)}`,
-              maxHeight: 420,
+          slotProps: {
+            // Menu's backdrop is invisible by default, so the open list competed
+            // with the episode art behind it. Pushing the page back a little
+            // makes the season you're choosing the only thing in focus.
+            backdrop: {
+              invisible: false,
+              sx: {
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                bgcolor: alpha('#000', 0.32),
+              },
+            },
+            paper: {
+              sx: {
+                bgcolor: T.bg === '#000000' ? '#1a1a1a' : T.bg,
+                backgroundImage: 'none',
+                border: `1px solid ${alpha(T.text, 0.14)}`,
+                boxShadow: `0 18px 48px ${alpha('#000', 0.6)}`,
+                maxHeight: 420,
+              },
             },
           },
         }}
         sx={{
-          minWidth: { xs: '100%', sm: 300 },
+          // Sized to its content rather than pinned to 100% on xs, so it sits
+          // beside the heading on a phone too. The parent still wraps, so a
+          // genuinely long season name drops it to its own line rather than
+          // squeezing the title.
+          minWidth: { xs: 168, sm: 300 },
+          maxWidth: '100%',
+          flexShrink: 1,
           color: T.text,
           bgcolor: alpha(T.text, 0.05),
           borderRadius: 2,

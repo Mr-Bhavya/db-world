@@ -280,6 +280,10 @@ export default function CollectionSection({ collectionId, currentTmdbId, isMobil
     >
       <Box sx={{
         borderRadius: 2, overflow: 'hidden',
+        // Without this the rail's intrinsic width (every card laid end to end)
+        // sets the card's width instead of the container's, and the overflow
+        // escapes upward rather than scrolling inside.
+        minWidth: 0, maxWidth: '100%',
         border: `1px solid ${alpha(T.text, 0.09)}`,
         bgcolor: alpha(T.text, 0.02),
       }}>
