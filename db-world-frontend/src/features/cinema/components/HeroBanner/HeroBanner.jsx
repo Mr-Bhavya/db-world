@@ -14,7 +14,7 @@ import HeroBannerMobile from './HeroBannerMobile';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
-import { CYCLE_MS } from './heroUtils';
+import { CYCLE_MS, heroArtCandidates } from './heroUtils';
 import { useHeroColor } from './useHeroColor';
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────
@@ -35,88 +35,120 @@ const SkeletonBlock = (props) => (
   />
 );
 
-const HeroSkeletonMobile = ({ isXs }) => {
-  // Match HeroBannerMobile's `metrics.cardHeight` exactly so the row doesn't
-  // resize when the real hero card loads in.
-  const cardHeight = isXs ? '66svh' : '60svh';
-  const cardRadius = isXs ? 18 : 22;
+const HeroSkeletonMobile = ({ isXs }) => (
+  // Mirrors HeroBannerMobile exactly: full-bleed frame, MIN-height (never a
+  // fixed height), content bottom-anchored in flow. Same min-height expression
+  // as the real hero so the page doesn't jump when it loads in.
+  <Box
+    sx={{
+      position: 'relative',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-end',
+      minHeight: isXs ? 'clamp(480px, 74vh, 780px)' : 'clamp(540px, 68vh, 900px)',
+      '@supports (height: 1svh)': {
+        minHeight: isXs ? 'clamp(480px, 74svh, 780px)' : 'clamp(540px, 68svh, 900px)',
+      },
+      pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+      overflow: 'hidden',
+      bgcolor: shimmerBg,
+    }}
+  >
+    <SkeletonBlock
+      width="100%"
+      height="100%"
+      sx={{ position: 'absolute', inset: 0, borderRadius: 0, bgcolor: shimmerStrong }}
+    />
 
-  return (
-    <Box sx={{ px: { xs: 1.5, sm: 2 }, pt: { xs: 1, sm: 1.5 }, pb: { xs: 1.5, sm: 2 } }}>
-      {/* Contained fixed-height card skeleton — matches the real hero card */}
+    {/* Same three-layer scrim shape as the real hero, neutral variant */}
+    <Box
+      aria-hidden
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        background: `
+          linear-gradient(to top,
+            #141414 0%, rgba(20,20,20,0.97) 8%, rgba(20,20,20,0.86) 20%,
+            rgba(20,20,20,0.58) 38%, rgba(20,20,20,0.22) 58%, rgba(20,20,20,0) 80%),
+          linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 26%)
+        `,
+      }}
+    />
+
+    <Box
+      sx={{
+        position: 'relative',
+        zIndex: 2,
+        mt: 'auto',
+        px: { xs: 2.5, sm: 5 },
+      }}
+    >
       <Box
         sx={{
-          position: 'relative',
           width: '100%',
-          height: cardHeight,
-          borderRadius: `${cardRadius}px`,
-          overflow: 'hidden',
-          border: '1px solid rgba(255,255,255,0.10)',
-          boxShadow: '0 18px 44px rgba(0,0,0,0.42)',
-          bgcolor: shimmerBg,
+          maxWidth: { xs: 560, sm: 680 },
+          mx: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 1.15,
         }}
       >
-        {/* Image shimmer fills the card */}
-        <SkeletonBlock
-          width="100%"
-          height="100%"
-          sx={{ position: 'absolute', inset: 0, borderRadius: 0, bgcolor: shimmerStrong }}
-        />
+        {/* Ribbon: DB mark + type label */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <SkeletonBlock width={22} height={22} sx={{ borderRadius: '50%' }} />
+          <SkeletonBlock width={54} height={10} />
+        </Box>
 
-        {/* Bottom scrim */}
-        <Box
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 30%, transparent 70%)',
-          }}
-        />
+        {/* Title logo */}
+        <SkeletonBlock width="66%" height={isXs ? 58 : 74} sx={{ borderRadius: 1.5 }} />
 
-        {/* Content placeholders overlaid at the bottom */}
-        <Box
-          sx={{
-            position: 'absolute',
-            left: 0, right: 0, bottom: 0,
-            zIndex: 2,
-            px: 2,
-            pb: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 1,
-          }}
-        >
-          {/* Logo-first layout: taller block reads as the title logo, not a label */}
-          <SkeletonBlock width="62%" height={isXs ? 52 : 60} sx={{ borderRadius: 1 }} />
-          <SkeletonBlock width="44%" height={12} sx={{ mb: 1 }} />
+        {/* Meta line */}
+        <SkeletonBlock width="52%" height={12} />
 
-          {/* My List · Play · Info — Play height matches metrics.btnHeight */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.25 }}>
-            <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
-            <SkeletonBlock width={150} height={isXs ? 44 : 48} sx={{ borderRadius: 1 }} />
-            <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
+        {/* My List · Play · Info — the three-across row */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.75, sm: 3 }, mt: 0.6 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+            <SkeletonBlock width={26} height={26} sx={{ borderRadius: 1 }} />
+            <SkeletonBlock width={44} height={9} />
           </Box>
-
-          <Box sx={{ display: 'flex', gap: 0.7, mt: 1.4 }}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Box
-                key={i}
-                sx={{
-                  width: i === 0 ? 22 : 7,
-                  height: 7,
-                  borderRadius: 999,
-                  bgcolor: i === 0 ? 'rgba(13,148,136,0.55)' : 'rgba(255,255,255,0.18)',
-                }}
-              />
-            ))}
+          <SkeletonBlock width={isXs ? 150 : 190} height={48} sx={{ borderRadius: 1.2 }} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+            <SkeletonBlock width={26} height={26} sx={{ borderRadius: 1 }} />
+            <SkeletonBlock width={28} height={9} />
           </Box>
         </Box>
       </Box>
     </Box>
-  );
-};
+
+    {/* Dots — same 30x44 hit cells as the real hero */}
+    <Box
+      sx={{
+        position: 'relative',
+        zIndex: 2,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        pt: 0.25,
+        pb: 'calc(4px + env(safe-area-inset-bottom, 0px))',
+      }}
+    >
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Box key={i} sx={{ width: 30, height: 44, display: 'grid', placeItems: 'center' }}>
+          <Box
+            sx={{
+              width: i === 0 ? 18 : 6,
+              height: 6,
+              borderRadius: 999,
+              bgcolor: i === 0 ? 'rgba(20,184,166,0.6)' : 'rgba(255,255,255,0.18)',
+            }}
+          />
+        </Box>
+      ))}
+    </Box>
+  </Box>
+);
 
 const HeroSkeletonDesktop = ({ isMonitor, isTv, variant = 'spotlight' }) => {
   // Mirror the live billboard footprint so nothing jumps when the real hero loads.
@@ -260,6 +292,7 @@ const HeroBanner = ({
   variant = 'spotlight',
   heading = null,
   breadcrumb = null,
+  breadcrumbHref = null,
   ranked = false,
 }) => {
   const theme = useTheme();
@@ -280,7 +313,19 @@ const HeroBanner = ({
 
   const timerRef = useRef(null);
 
-  const featured = useMemo(() => records.slice(0, 8), [records]);
+  // Eight suits the desktop thumbnail navigator, but eight segments in the
+  // mobile progress bar read as a broken loading bar rather than a carousel.
+  const featured = useMemo(
+    () => records.slice(0, isMobileLike ? 5 : 8),
+    [records, isMobileLike]
+  );
+
+  // Crossing the breakpoint can leave idx past the end of the shortened list,
+  // which would blank the hero until the next tick.
+  useEffect(() => {
+    setIdx((i) => (i >= featured.length ? 0 : i));
+  }, [featured.length]);
+
   const record = featured[idx] ?? null;
   const ix = interactions[record?.id] ?? {};
 
@@ -296,13 +341,14 @@ const HeroBanner = ({
 
   const startCycle = useCallback(() => {
     clearInterval(timerRef.current);
-    // Auto-advance on desktop only; mobile stays on the tapped/swiped slide.
-    if (featured.length <= 1 || reducedMotion || isMobileLike) return;
+    // Mobile auto-advances too — its segmented progress bar fills across one
+    // CYCLE_MS, so the two would contradict each other if it didn't.
+    if (featured.length <= 1 || reducedMotion) return;
     timerRef.current = setInterval(() => {
       setDir(1);
       setIdx((i) => (i + 1) % featured.length);
     }, CYCLE_MS);
-  }, [featured.length, reducedMotion, isMobileLike]);
+  }, [featured.length, reducedMotion]);
 
   // Pause the auto-advance while the pointer is over the hero, resume on leave.
   const pauseCycle = useCallback(() => clearInterval(timerRef.current), []);
@@ -349,13 +395,19 @@ const HeroBanner = ({
     [idx, startCycle]
   );
 
+  // Must be the SAME image the hero actually paints, at a cheap size. It used
+  // to hardcode `posterPathClean ?? backdropPath`, which diverges from what
+  // gets shown on tablets and desktop (backdrop-first) and on any title whose
+  // clean poster is missing — so the page wash was sometimes keyed to artwork
+  // that was never on screen.
   const colorImage = useMemo(() => {
     if (!record) return null;
-    return tmdbImg(
-      record.posterPathClean ?? record.backdropPath ?? record.backdropPathText,
-      'w342'
-    );
-  }, [record]);
+    const path = heroArtCandidates(record, {
+      portrait: isXs,
+      hasLogo: Boolean(record.logoPath),
+    }).find(Boolean);
+    return path ? tmdbImg(path, 'w342') : null;
+  }, [record, isXs]);
 
   useHeroColor(colorImage, {
     darkenFactor: isMobileLike ? 0.42 : 0.36,
@@ -414,6 +466,11 @@ const HeroBanner = ({
         {...commonProps}
         isXs={isXs}
         isTablet={isTablet}
+        variant={variant}
+        heading={heading}
+        breadcrumb={breadcrumb}
+        breadcrumbHref={breadcrumbHref}
+        ranked={ranked}
       />
     );
   }
@@ -429,6 +486,7 @@ const HeroBanner = ({
       tier={tier}
       heading={heading}
       breadcrumb={breadcrumb}
+      breadcrumbHref={breadcrumbHref}
       ranked={ranked}
       onHoverPause={pauseCycle}
       onHoverResume={resumeCycle}

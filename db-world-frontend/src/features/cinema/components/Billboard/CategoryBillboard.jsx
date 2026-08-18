@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CYCLE_MS, FADE_SECS } from '../HeroBanner/heroUtils';
@@ -28,6 +29,7 @@ export default function CategoryBillboard({
   tier = 'desktop',
   heading = null,
   breadcrumb = null,
+  breadcrumbHref = null,
   ranked = false,
   onHoverPause,
   onHoverResume,
@@ -87,8 +89,22 @@ export default function CategoryBillboard({
         <Box sx={{ position: 'absolute', inset: 0, zIndex: 2, display: 'flex', flexDirection: 'column', justifyContent: hasHeader ? 'space-between' : 'flex-end', px: `${m.padX}px`, pt: `${layout.padTop}px`, pb: `${layout.padBottom}px` }}>
           {hasHeader && (
             <Box sx={{ flexShrink: 0 }}>
-              <Typography sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: m.metaSize, textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
-                {breadcrumb} <Box component="span" sx={{ opacity: 0.5, px: 0.5 }}>›</Box>{' '}
+              <Typography component="div" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: m.metaSize, textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+                {/* Section half links back out of the genre. */}
+                {breadcrumbHref ? (
+                  <Box
+                    component={RouterLink}
+                    to={breadcrumbHref}
+                    sx={{
+                      color: 'inherit', textDecoration: 'none',
+                      '&:hover': { color: '#fff', textDecoration: 'underline' },
+                      '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 3 },
+                    }}
+                  >
+                    {breadcrumb}
+                  </Box>
+                ) : breadcrumb}
+                <Box component="span" aria-hidden sx={{ opacity: 0.5, px: 0.5 }}>›</Box>
                 <Box component="span" sx={{ color: '#fff' }}>{heading}</Box>
               </Typography>
             </Box>

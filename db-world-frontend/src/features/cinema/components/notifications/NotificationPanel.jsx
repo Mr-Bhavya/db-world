@@ -27,6 +27,15 @@ function getRecordRoute(recordType, recordTitle, recordId) {
   return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', param);
 }
 
+// Matches GenreMenu so the two panels hanging off the same app bar read as one
+// system rather than two different apps.
+const PANEL_BG = '#0b0b0b';
+const PANEL_BORDER = 'rgba(255,255,255,0.14)';
+const HIDE_SCROLLBAR = {
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': { display: 'none' },
+};
+
 const NotificationItem = ({ notif, onNavigate }) => {
   const theme = useTheme();
   const isFulfilled = notif.type === 'REQUEST_FULFILLED';
@@ -44,26 +53,33 @@ const NotificationItem = ({ notif, onNavigate }) => {
     : isDismissed ? Block
     : RateReview;
 
+  // Dismissals for a not-yet-created catalog record have nowhere to go.
+  const navigable = Boolean(notif.recordId);
+
   return (
     <ListItemButton
       onClick={() => onNavigate(notif)}
+      disableRipple={!navigable}
       sx={{
         py: 1.5, px: 2, gap: 1.5,
+        minHeight: 56,
         alignItems: 'flex-start',
-        bgcolor: notif.read ? 'transparent' : alpha(accent, 0.07),
+        cursor: navigable ? 'pointer' : 'default',
+        bgcolor: notif.read ? 'transparent' : alpha(accent, 0.09),
         borderLeft: `3px solid ${notif.read ? 'transparent' : accent}`,
-        '&:hover': { bgcolor: alpha(accent, 0.12) },
+        '&:hover': { bgcolor: alpha(accent, navigable ? 0.14 : 0.09) },
       }}
     >
       <Box sx={{
-        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
         bgcolor: alpha(accent, 0.15),
         display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.25,
       }}>
-        <Icon sx={{ fontSize: 15, color: accent }} />
+        <Icon sx={{ fontSize: 17, color: accent }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: '0.83rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
+        {/* 0.875rem floor — 0.83rem/0.7rem was under the readable minimum on a phone. */}
+        <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
           {isCatalogIn && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
@@ -102,11 +118,11 @@ const NotificationItem = ({ notif, onNavigate }) => {
           )}
         </Typography>
         {isDismissed && notif.message && (
-          <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mt: 0.4, fontStyle: 'italic' }}>
+          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mt: 0.4, fontStyle: 'italic' }}>
             “{notif.message}”
           </Typography>
         )}
-        <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', mt: 0.3 }}>
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.disabled', mt: 0.4 }}>
           {relativeTime(notif.createdAt)}
         </Typography>
       </Box>
@@ -114,8 +130,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
   );
 };
 
-const PanelContent = ({ onClose, onUnreadClear }) => {
-  const theme = useTheme();
+const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,10 +142,13 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
       .catch(() => {})
       .finally(() => setLoading(false));
 
+    // Only POST when there is actually something to clear — this used to fire
+    // on every open, including the common case of opening an already-read list.
+    if (!hasUnread) return;
     markNotificationsRead()
       .then(() => onUnreadClear())
       .catch(() => {});
-  }, [onUnreadClear]);
+  }, [onUnreadClear, hasUnread]);
 
   const handleNavigate = useCallback((notif) => {
     // Catalog-request dismissals have no record yet (recordId is the 0 sentinel)
@@ -141,38 +159,52 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
   }, [onClose, navigate]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    // `flex: 1; min-height: 0` — NOT `height: 100%`. The paper's height is
+    // driven by max-height, so it is indefinite, and a percentage height
+    // against it resolves to auto: the list then grew past the paper and was
+    // simply clipped by `overflow: hidden`, with nothing scrollable.
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Header */}
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: 2, py: 1.5,
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        px: 2, py: 1.25,
+        borderBottom: `1px solid ${alpha('#fff', 0.08)}`,
         flexShrink: 0,
       }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Notifications</Typography>
-        <IconButton size="small" onClick={onClose} sx={{ color: 'text.secondary' }}>
-          <Close sx={{ fontSize: 18 }} />
+        <Typography sx={{
+          fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: alpha('#fff', 0.45),
+        }}>
+          Notifications
+        </Typography>
+        {/* 40px, not `size="small"` (~30px) — this is the panel's only control. */}
+        <IconButton
+          onClick={onClose}
+          aria-label="Close notifications"
+          sx={{ width: 40, height: 40, mr: -1, color: alpha('#fff', 0.45), '&:hover': { color: '#fff' } }}
+        >
+          <Close sx={{ fontSize: 19 }} />
         </IconButton>
       </Box>
 
       {/* Body */}
       {loading ? (
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ flex: 1, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CircularProgress size={28} />
         </Box>
       ) : notifications.length === 0 ? (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.disabled', px: 3 }}>
+        <Box sx={{ flex: 1, minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.disabled', px: 3, py: 4 }}>
           <NotificationsNone sx={{ fontSize: 44, opacity: 0.3 }} />
-          <Typography sx={{ fontSize: '0.85rem', textAlign: 'center', opacity: 0.6 }}>
-            No notifications yet. They&apos;ll appear here when someone reviews a title you might like.
+          <Typography sx={{ fontSize: '0.875rem', textAlign: 'center', opacity: 0.6, lineHeight: 1.5 }}>
+            Nothing here yet. New titles, fulfilled requests and reviews will show up in this list.
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ flex: 1, overflowY: 'auto', '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 2 } }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', ...HIDE_SCROLLBAR }}>
           <List disablePadding>
             {notifications.map((n, i) => (
               <React.Fragment key={n.id}>
-                {i > 0 && <Divider />}
+                {i > 0 && <Divider sx={{ borderColor: alpha('#fff', 0.06) }} />}
                 <NotificationItem notif={n} onNavigate={handleNavigate} />
               </React.Fragment>
             ))}
@@ -189,7 +221,7 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
  *   onClose       — called when panel should close
  *   onUnreadClear — called after markNotificationsRead succeeds (to zero the badge)
  */
-const NotificationPanel = ({ anchorEl, onClose, onUnreadClear }) => {
+const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const open = Boolean(anchorEl);
@@ -202,12 +234,28 @@ const NotificationPanel = ({ anchorEl, onClose, onUnreadClear }) => {
         onClose={onClose}
         PaperProps={{
           sx: {
-            borderTopLeftRadius: 16, borderTopRightRadius: 16,
-            height: '70vh', overflow: 'hidden',
+            background: PANEL_BG,
+            backgroundImage: 'none',
+            // The paper must be the flex column, otherwise the scrollable body
+            // inside has no bounded height to scroll within.
+            display: 'flex', flexDirection: 'column',
+            borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            borderTop: `1px solid ${alpha('#fff', 0.08)}`,
+            // maxHeight, not a fixed 70vh: a two-item list used to leave most
+            // of the sheet empty.
+            maxHeight: '76vh',
+            overflow: 'hidden',
+            // Clear the floating bottom-nav pill + the gesture bar, which were
+            // sitting on top of the last notification.
+            pb: 'calc(80px + env(safe-area-inset-bottom, 0px))',
           },
         }}
       >
-        <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} />
+        {/* Drag handle — matches the genre sheet */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5, flexShrink: 0 }}>
+          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: alpha('#fff', 0.2) }} />
+        </Box>
+        <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} />
       </Drawer>
     );
   }
@@ -221,16 +269,22 @@ const NotificationPanel = ({ anchorEl, onClose, onUnreadClear }) => {
       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       PaperProps={{
         sx: {
-          width: 360, height: 480, overflow: 'hidden',
+          width: 'min(380px, calc(100vw - 32px))',
+          // maxHeight so a short list isn't a tall half-empty box.
+          maxHeight: 'min(520px, 70vh)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+          background: PANEL_BG,
+          backgroundImage: 'none',
           borderRadius: 2,
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-          mt: 0.5,
+          border: `1px solid ${PANEL_BORDER}`,
+          boxShadow: `0 16px 48px ${alpha('#000', 0.7)}`,
+          mt: 1,
         },
       }}
       disableScrollLock
     >
-      <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} />
+      <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} />
     </Popover>
   );
 };

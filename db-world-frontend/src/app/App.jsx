@@ -194,6 +194,10 @@ const routeConfig = {
     { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
     { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
     { path: Constants.DB_CINEMA_SERIES_ROUTE, element: <CinemaPageWrapper pageType="series" key="series" /> },
+    // Genre landing pages — same page component, genre read from :genreSlug.
+    { path: Constants.DB_CINEMA_BROWSE_GENRE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home-genre"   /> },
+    { path: Constants.DB_CINEMA_MOVIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies-genre" /> },
+    { path: Constants.DB_CINEMA_SERIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="series" key="series-genre" /> },
     { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },

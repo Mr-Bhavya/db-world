@@ -3,7 +3,10 @@ import { Box, Typography, Button, IconButton } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayArrow, Info, Add, Check, ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
-import { year, clampLines } from '../HeroBanner/heroUtils';
+import { year, clampLines, fmtRuntime } from '../HeroBanner/heroUtils';
+
+// Re-exported for the existing importers of this module.
+export { fmtRuntime };
 import DB_APP_LOGO from '@assets/images/db-circle-icon.webp';
 
 // Shared building blocks for the two billboard variants (Home spotlight + Movies/TV category).
@@ -13,14 +16,6 @@ export const SURFACE_BUTTON = 'rgba(20,20,20,0.55)';
 export const SURFACE_BUTTON_HOVER = 'rgba(28,28,28,0.8)';
 export const BORDER = 'rgba(255,255,255,0.14)';
 const EASE = [0.22, 1, 0.36, 1];
-
-export const fmtRuntime = (min) => {
-  const n = Number(min);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const h = Math.floor(n / 60);
-  const mm = n % 60;
-  return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
-};
 
 export function buildMetaItems(record) {
   if (!record) return [];
