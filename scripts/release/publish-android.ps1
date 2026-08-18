@@ -40,6 +40,8 @@ param(
     [int]    $VersionCode      = 0,                                 # 0 = auto (current + 1)
     [switch] $Mandatory,                                            # force everyone to update
     [int]    $MinSupportedCode = 0,
+    [ValidateSet('all','admin')]
+    [string] $Audience         = 'all',                            # "all" = everyone; "admin" = ADMIN/OWNER only
     [string] $Changelog        = '',
     [ValidateSet('production','local','default')]
     [string] $BuildMode        = 'production',                      # env the web bundle is built with
@@ -202,6 +204,10 @@ try {
     if ($doPublish -and $interactive) {
         if (-not $PSBoundParameters.ContainsKey('Server'))    { $Server    = Read-Default 'Server (ssh target user@host)' $Server }
         if (-not $Mandatory.IsPresent)                        { $isMandatory = Read-YesNo 'Force a MANDATORY update (block older versions from running)?' $false }
+        if (-not $PSBoundParameters.ContainsKey('Audience'))  {
+            $isAdminOnly = Read-YesNo 'Admin-only release? (only ADMIN/OWNER users see the update prompt)' $false
+            if ($isAdminOnly) { $Audience = 'admin' }
+        }
         if (-not $PSBoundParameters.ContainsKey('Changelog')) { $Changelog = Read-Default 'Changelog (optional, shown in the update prompt)' '' }
     }
 
@@ -216,6 +222,7 @@ try {
         Write-Kv 'Server'      $Server
         Write-Kv 'Release dir' $ReleaseDir
         Write-Kv 'Mandatory'   $isMandatory ($(if ($isMandatory) { 'Red' } else { 'White' }))
+        Write-Kv 'Audience'    $Audience ($(if ($Audience -eq 'admin') { 'Yellow' } else { 'White' }))
         Write-Kv 'Min code'    $MinSupportedCode
         if ($Changelog) { Write-Kv 'Changelog' $Changelog }
     }
@@ -268,6 +275,7 @@ try {
             versionName      = $VersionName
             mandatory        = $isMandatory
             minSupportedCode = $MinSupportedCode
+            releaseAudience  = $Audience
             changelog        = $Changelog
         }
         $json     = $meta | ConvertTo-Json -Depth 5
