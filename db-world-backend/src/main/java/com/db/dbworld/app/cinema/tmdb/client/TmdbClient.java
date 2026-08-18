@@ -220,6 +220,14 @@ public class TmdbClient {
     }
 
     /* =====================================
+       COLLECTION
+     ===================================== */
+
+    public Mono<CollectionDetailTmdbResponse> getCollection(Long collectionId) {
+        return get("/collection/" + collectionId, CollectionDetailTmdbResponse.class);
+    }
+
+    /* =====================================
        SEARCH
      ===================================== */
 

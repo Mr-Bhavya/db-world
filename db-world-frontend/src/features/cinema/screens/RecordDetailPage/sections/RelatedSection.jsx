@@ -50,7 +50,10 @@ function RelatedCard({ record, isMobile }) {
       onClick={onClick}
       sx={{
         flexShrink: 0,
-        width: { xs: 130, sm: 150, md: 170 },
+        // Steps up through the breakpoints so a rail of posters stays legible
+        // from a phone at arm's length to a TV across a room.
+        width: { xs: 130, sm: 150, md: 170, xl: 200 },
+        '@media (min-width:1920px)': { width: 240 },
         cursor: 'pointer',
         position: 'relative',
         '&:hover .related-meta': { opacity: 1 },
@@ -58,12 +61,13 @@ function RelatedCard({ record, isMobile }) {
     >
       <Box sx={{
         width: '100%', aspectRatio: '2/3',
-        borderRadius: 1.5, overflow: 'hidden',
+        borderRadius: 2, overflow: 'hidden',
         bgcolor: alpha(T.text, 0.06),
+        border: `1px solid ${alpha(T.text, 0.08)}`,
         boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
         position: 'relative',
-        transition: 'box-shadow 0.2s',
-        '&:hover': { boxShadow: '0 12px 32px rgba(0,0,0,0.6)' },
+        transition: 'box-shadow 0.2s, border-color 0.2s',
+        '&:hover': { boxShadow: '0 12px 32px rgba(0,0,0,0.6)', borderColor: alpha(T.teal, 0.5) },
       }}>
         {poster ? (
           <Box
@@ -83,11 +87,15 @@ function RelatedCard({ record, isMobile }) {
           <Box sx={{
             position: 'absolute', top: 6, right: 6,
             display: 'flex', alignItems: 'center', gap: 0.3,
-            bgcolor: alpha('#000', 0.72), backdropFilter: 'blur(4px)',
-            borderRadius: 0.75, px: 0.6, py: 0.15,
+            bgcolor: alpha('#000', 0.66), backdropFilter: 'blur(8px)',
+            border: `1px solid ${alpha('#fff', 0.15)}`,
+            borderRadius: 1, px: 0.65, py: 0.25,
           }}>
-            <StarIcon sx={{ fontSize: 10, color: '#46d369' }} />
-            <Typography sx={{ color: '#46d369', fontSize: '0.65rem', fontWeight: 700 }}>
+            <StarIcon sx={{ fontSize: { xs: 11, xl: 13 }, color: '#fbbf24' }} />
+            <Typography sx={{
+              color: '#fde68a', fontWeight: 800,
+              fontSize: { xs: '0.65rem', xl: '0.75rem' },
+            }}>
               {Number(record.voteAverage).toFixed(1)}
             </Typography>
           </Box>
@@ -96,21 +104,30 @@ function RelatedCard({ record, isMobile }) {
 
       <Tooltip title={record.title ?? ''}>
         <Typography sx={{
-          color: T.text, fontWeight: 600, fontSize: '0.78rem', mt: 0.75, lineHeight: 1.25,
+          color: T.text, fontWeight: 700, mt: 0.9, lineHeight: 1.3,
+          fontSize: { xs: '0.78rem', xl: '0.88rem' },
+          '@media (min-width:1920px)': { fontSize: '1rem' },
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>
           {record.title}
         </Typography>
       </Tooltip>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.35 }}>
         {year && (
-          <Typography sx={{ color: T.textFaint, fontSize: '0.68rem' }}>{year}</Typography>
+          <Typography sx={{
+            color: T.textFaint, fontWeight: 600,
+            fontSize: { xs: '0.68rem', xl: '0.76rem' },
+          }}>
+            {year}
+          </Typography>
         )}
         <Chip
           label={isMovie ? 'Movie' : 'TV'}
           size="small"
           sx={{
-            height: 16, fontSize: '0.55rem', fontWeight: 700,
+            height: { xs: 16, xl: 19 },
+            fontSize: { xs: '0.55rem', xl: '0.62rem' },
+            fontWeight: 700,
             bgcolor: alpha(T.teal, 0.15), color: T.teal,
             '& .MuiChip-label': { px: 0.6 },
           }}
@@ -155,8 +172,12 @@ export default function RelatedSection({ recordId, isMobile }) {
       }}>
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => (
-              <Box key={i} sx={{ flexShrink: 0, width: { xs: 130, sm: 150, md: 170 } }}>
-                <Skeleton variant="rounded" sx={{ width: '100%', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06) }} />
+              <Box key={i} sx={{
+                flexShrink: 0,
+                width: { xs: 130, sm: 150, md: 170, xl: 200 },
+                '@media (min-width:1920px)': { width: 240 },
+              }}>
+                <Skeleton variant="rounded" sx={{ width: '100%', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06), borderRadius: 2 }} />
                 <Skeleton variant="text" width="80%" sx={{ mt: 0.75, bgcolor: alpha(T.text, 0.06) }} />
                 <Skeleton variant="text" width="40%" sx={{ bgcolor: alpha(T.text, 0.06) }} />
               </Box>

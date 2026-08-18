@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
+import { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
 
@@ -124,22 +125,28 @@ export default function RecordDetailModal() {
       }}
     >
       <Box sx={{ position: 'relative' }}>
+        {/* Scrolls away with the hero rather than staying pinned: a pinned
+            button collided with the sticky pill nav, which occupies the same
+            corner the moment the bar sticks. PillNav grows its own back control
+            when that happens, so there is always one way out and never two
+            stacked on each other. */}
         <IconButton
           onClick={handleClose}
           size="small"
           aria-label="Close detail"
           sx={{
-            position: 'fixed',
-            top: { xs: 12, md: 18 },
-            right: { xs: 12, md: 18 },
+            position: 'absolute',
+            top: HERO_CONTROL_TOP,
+            left: { xs: 12, md: 18 },
             zIndex: 20,
             bgcolor: alpha('#000', 0.6), color: '#fff',
             border: `1px solid ${alpha('#fff', 0.18)}`,
-            width: 38, height: 38,
+            backdropFilter: 'blur(8px)',
+            width: HERO_CONTROL_SIZE, height: HERO_CONTROL_SIZE,
             '&:hover': { bgcolor: alpha('#000', 0.82) },
           }}
         >
-          <CloseIcon sx={{ fontSize: 20 }} />
+          <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
 
         <RecordDetailContent

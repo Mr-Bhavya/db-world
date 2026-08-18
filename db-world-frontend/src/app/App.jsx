@@ -58,6 +58,7 @@ import { ADMIN_MODULES } from '@features/admin/adminModules';
 // Lazy load heavy components for better performance
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
+const LazyCollectionPage      = lazy(() => import('@features/cinema/screens/CollectionPage/index.jsx'));
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
 const LazyRecordDetailSheet   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailSheet.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
@@ -205,6 +206,7 @@ const routeConfig = {
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },

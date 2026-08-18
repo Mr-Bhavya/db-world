@@ -36,7 +36,7 @@ function DoubleThumb({ size, filled }) {
   );
 }
 
-export default function ReactionButton({ liked, loved, onToggle, btnSize, iconSize }) {
+export default function ReactionButton({ liked, loved, onToggle, btnSize, iconSize, flat = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const closeTimer = useRef(null);
@@ -110,7 +110,14 @@ export default function ReactionButton({ liked, loved, onToggle, btnSize, iconSi
           aria-expanded={open}
           aria-label="React"
           onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-          sx={{
+          sx={flat ? {
+            // Flat variant for the phone action rail — see ShareButton.
+            p: 0,
+            color: isActive ? current.color : alpha('#fff', 0.62),
+            width: btnSize, height: btnSize,
+            transition: 'color .18s',
+            '&:hover': { bgcolor: 'transparent', color: isActive ? current.color : '#fff' },
+          } : {
             bgcolor: isActive ? alpha(current.color, 0.25) : alpha('#fff', 0.1),
             border: `1.5px solid ${isActive ? current.color : alpha('#fff', 0.2)}`,
             color: current.color,

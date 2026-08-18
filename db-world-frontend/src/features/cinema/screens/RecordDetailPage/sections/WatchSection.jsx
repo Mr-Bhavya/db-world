@@ -9,7 +9,7 @@ import MediaDownloadViewer from '../../media-files';
  * play/download. Passes showBack/showHeroSection=false so we get the file
  * grid only (Hero + back are owned by the parent RecordDetailContent).
  */
-export default function WatchSection({ recordId, record }) {
+export default function WatchSection({ recordId, record, files }) {
   return (
     <Box
       component={motion.div}
@@ -22,6 +22,7 @@ export default function WatchSection({ recordId, record }) {
       <MediaDownloadViewer
         recordId={recordId}
         record={record}
+        files={files}
         showBack={false}
         showHeroSection={false}
       />

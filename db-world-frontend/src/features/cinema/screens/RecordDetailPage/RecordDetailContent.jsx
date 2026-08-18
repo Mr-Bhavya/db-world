@@ -9,9 +9,11 @@ import { notify } from '@shared/notify';
 
 import {
   addLike, addLove, addWatched, addWatchlist,
-  fetchInteraction, fetchRecord,
+  fetchInteraction, fetchRecord, fetchSimilarRecords, getContinueWatching,
   removeLike, removeLove, removeWatched, removeWatchlist,
 } from '../../api/cinemaApi';
+import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
 
@@ -20,22 +22,34 @@ import PillNav from './PillNav';
 import VideoDialog from './shared/VideoDialog';
 import OverviewSection from './sections/OverviewSection';
 import CastCrewSection from './sections/CastCrewSection';
+import CollectionSection from './sections/CollectionSection';
 import GallerySection from './sections/GallerySection';
 import SeasonsSection from './sections/SeasonsSection';
 import ReviewsSection from './sections/ReviewsSection';
 import WatchSection from './sections/WatchSection';
 import RelatedSection from './sections/RelatedSection';
 import PersonDetailView from './PersonDetailView';
+import StickyWatchBar from './StickyWatchBar';
 import { getUserId } from './helpers';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
   watch: 'rd-watch',
   seasons: 'rd-seasons',
+  collection: 'rd-collection',
   cast: 'rd-cast',
   gallery: 'rd-gallery',
   reviews: 'rd-reviews',
   related: 'rd-related',
+};
+
+/** "1h 45m" / "12m" — the hero's time-remaining subline. */
+const formatRemaining = (ms) => {
+  if (!ms || ms <= 0) return null;
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
 const actionMap = {
@@ -140,6 +154,54 @@ export default function RecordDetailContent({
   const displayRecord = record ?? previewRecord;
   const fullLoaded = !!record;
 
+  // ── Media files ────────────────────────────────────────────────────────
+  // Owned here rather than inside the Watch section so the hero can advertise
+  // the best available quality/HDR/audio, and so both consumers share one fetch.
+  const { data: mediaFiles = [] } = useQuery({
+    queryKey: ['record-media-files', id],
+    queryFn: async () => {
+      const res = await loadStreamFileInfoByRecordId(id);
+      return res?.httpStatusCode === 200
+        ? CommonServices.convertMediaInfoToCustomFormat(null, res.data)
+        : [];
+    },
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── Watch progress ─────────────────────────────────────────────────────
+  // Same query key as the Continue Watching rail, so arriving from the cinema
+  // page costs nothing.
+  const { data: continueItems = [] } = useQuery({
+    queryKey: ['continue-watching'],
+    queryFn: getContinueWatching,
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  });
+
+  const progress = useMemo(() => {
+    const item = continueItems.find((c) => String(c?.recordId) === String(id));
+    const dur = item?.durationMs ?? 0;
+    const pos = item?.positionMs ?? 0;
+    if (!item || dur <= 0 || pos <= 0) return null;
+    return {
+      percent: Math.min(100, Math.max(2, (pos / dur) * 100)),
+      remainingLabel: formatRemaining(dur - pos),
+    };
+  }, [continueItems, id]);
+
+  // ── Similar titles ─────────────────────────────────────────────────────
+  // Same key and params as RelatedSection's own query, so TanStack dedupes it
+  // to a single request. Read here only to decide whether the section (and its
+  // nav pill) should exist at all.
+  const { data: similarRecords = [] } = useQuery({
+    queryKey: ['cinema-similar', id],
+    queryFn: () => fetchSimilarRecords(id, 12),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const hasRelated = similarRecords.length > 0;
+
   // ── Interaction ────────────────────────────────────────────────────────
   const { data: interaction } = useQuery({
     queryKey: ['cinema-interaction', userId, id],
@@ -231,15 +293,30 @@ export default function RecordDetailContent({
   // Watch sits right after Overview — users come here primarily to watch, so
   // surface the files near the top instead of burying them at the bottom.
   const isTv = displayRecord?.type === 'TV_SERIES';
+  // Movies only — TMDB models collections as a movie-side relation.
+  const collectionId = record?.tmdb?.belongsToCollection?.id ?? null;
+
+  // Obscure titles arrive with no credits, no artwork and no videos. Listing
+  // those sections anyway gives the user a pill that scrolls to a blank strip,
+  // so the nav is built from what this record actually has.
+  const hasCast    = (record?.tmdb?.credits?.length ?? 0) > 0;
+  const hasGallery = (record?.tmdb?.videos?.length ?? 0) > 0
+                  || (record?.tmdb?.images?.length ?? 0) > 0;
+  const hasSeasons = isTv && (record?.tmdb?.seasons?.length ?? 0) > 0;
+
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
     { id: SECTION_IDS.watch, label: 'Watch' },
-    ...(isTv ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
-    { id: SECTION_IDS.cast, label: 'Cast & Crew' },
-    { id: SECTION_IDS.gallery, label: 'Gallery' },
+    ...(hasSeasons ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
+    ...(collectionId ? [{ id: SECTION_IDS.collection, label: 'Collection' }] : []),
+    ...(hasCast ? [{ id: SECTION_IDS.cast, label: 'Cast & Crew' }] : []),
+    ...(hasGallery ? [{ id: SECTION_IDS.gallery, label: 'Gallery' }] : []),
+    // Reviews always shows: even with nothing to read, the user can write one.
     { id: SECTION_IDS.reviews, label: 'Reviews' },
-    { id: SECTION_IDS.related, label: 'More Like This' },
-  ], [isTv]);
+    // Related is fetched by its own section and hides itself when empty, so the
+    // pill is only meaningful once we know there's something behind it.
+    ...(hasRelated ? [{ id: SECTION_IDS.related, label: 'More Like This' }] : []),
+  ], [hasSeasons, collectionId, hasCast, hasGallery, hasRelated]);
 
   // Use native scrollIntoView so the browser picks the nearest scrolling
   // ancestor automatically — works for both modal and page modes without
@@ -271,7 +348,12 @@ export default function RecordDetailContent({
         <Box sx={{ position: 'relative', width: '100%', height: { xs: 360, sm: 440, md: 500 }, bgcolor: '#050505', overflow: 'hidden' }}>
           <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
         </Box>
-        <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Container maxWidth={false} sx={{
+          py: 4, px: { xs: 2, md: 3, xl: 5 },
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+        }}>
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} variant="rounded" width={90} height={32} sx={{ bgcolor: alpha(T.text, 0.07) }} />
@@ -332,40 +414,82 @@ export default function RecordDetailContent({
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
         preview={preview}
+        files={mediaFiles}
+        progress={progress}
+        trailerKey={firstTrailer?.site === 'YOUTUBE' ? firstTrailer.key : null}
       />
 
-      <PillNav sections={sectionList} scrollRoot={scrollRoot} stickyOffset={stickyOffset} />
+      {/* onDismiss surfaces a back control inside the bar once it sticks, so the
+          hero's own close can scroll away instead of sitting on top of the tabs. */}
+      <PillNav
+        sections={sectionList}
+        scrollRoot={scrollRoot}
+        stickyOffset={stickyOffset}
+        onDismiss={inModal ? onClose : () => window.history.back()}
+      />
 
       {fullLoaded ? (
-        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 } }}>
+        <Container maxWidth={false} sx={{
+          px: { xs: 2, md: 3, xl: 5 },
+          // A fixed lg cap wasted half a 27" monitor and most of a TV, but an
+          // uncapped column runs unreadably long lines — so the ceiling rises
+          // with the viewport instead of being fixed or absent.
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+          // StickyWatchBar is position:fixed and mobile-only, so it sits OVER
+          // the last section unless the page reserves its height (bar + the
+          // iOS home indicator it clears).
+          pb: { xs: 'calc(84px + env(safe-area-inset-bottom))', md: 4 },
+        }}>
           <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <OverviewSection record={record} />
           </Box>
           <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <WatchSection recordId={id} record={record} />
+            <WatchSection recordId={id} record={record} files={mediaFiles} />
           </Box>
-          {isTv && (
+          {hasSeasons && (
             <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
               <SeasonsSection record={record} />
             </Box>
           )}
-          <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <CastCrewSection record={record} onPersonClick={openPerson} />
-          </Box>
-          <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <GallerySection record={record} />
-          </Box>
+          {collectionId && (
+            <Box id={SECTION_IDS.collection} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <CollectionSection
+                collectionId={collectionId}
+                currentTmdbId={record?.tmdbId ?? record?.tmdb?.id}
+                isMobile={isMobile}
+              />
+            </Box>
+          )}
+          {hasCast && (
+            <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <CastCrewSection record={record} onPersonClick={openPerson} />
+            </Box>
+          )}
+          {hasGallery && (
+            <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <GallerySection record={record} />
+            </Box>
+          )}
           <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <ReviewsSection record={record} recordId={id} />
           </Box>
-          <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <RelatedSection recordId={id} isMobile={isMobile} />
-          </Box>
+          {hasRelated && (
+            <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <RelatedSection recordId={id} isMobile={isMobile} />
+            </Box>
+          )}
         </Container>
       ) : (
         // Same-layout skeletons for the below-the-fold sections; they fill in when
         // the full record arrives (no subtree swap → no flash).
-        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+        <Container maxWidth={false} sx={{
+          px: { xs: 2, md: 3, xl: 5 }, py: 3,
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+        }}>
           <Skeleton variant="text" width={160} height={32} sx={{ bgcolor: alpha(T.text, 0.08), mb: 1.5 }} />
           <Skeleton variant="text" width="94%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
           <Skeleton variant="text" width="88%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
@@ -380,6 +504,15 @@ export default function RecordDetailContent({
             ))}
           </Box>
         </Container>
+      )}
+
+      {fullLoaded && (
+        <StickyWatchBar
+          record={record}
+          progress={progress}
+          onWatchClick={scrollToWatch}
+          scrollRoot={scrollRoot}
+        />
       )}
 
       {trailerVideo && <VideoDialog video={trailerVideo} onClose={() => setTrailerVideo(null)} />}

@@ -10,7 +10,10 @@ import LazyImage from '../shared/LazyImage';
 import VideoDialog from '../shared/VideoDialog';
 import ImageLightbox from '../shared/ImageLightbox';
 
-const VISIBLE_IMAGES = 12;
+/* A popular title can carry several hundred backdrops. Rendering the lot lands
+   thousands of <img> nodes on the page and stalls a phone, so each group grows
+   a page at a time instead of all-or-nothing. */
+const PAGE_SIZE = 12;
 
 export default function GallerySection({ record }) {
   const T = useT();
@@ -20,7 +23,9 @@ export default function GallerySection({ record }) {
 
   const [activeVideo, setActiveVideo] = useState(null);
   const [lightbox, setLightbox] = useState(null);
-  const [showAllImages, setShowAllImages] = useState(false);
+  // Per-group budgets, keyed by image type. A single shared flag meant
+  // expanding Backdrops silently expanded Posters and Stills too.
+  const [shown, setShown] = useState({});
 
   const trailers    = videos.filter((v) => v.type === 'Trailer' || v.type === 'Teaser');
   const otherVideos = videos.filter((v) => v.type !== 'Trailer' && v.type !== 'Teaser');
@@ -59,7 +64,9 @@ export default function GallerySection({ record }) {
                 transition={{ duration: 0.15 }}
                 onClick={() => setActiveVideo(v)}
                 sx={{
-                  flexShrink: 0, width: { xs: 220, md: 260 },
+                  flexShrink: 0,
+                  width: { xs: 220, md: 260, xl: 310 },
+                  '@media (min-width:1920px)': { width: 380 },
                   bgcolor: T.glass, borderRadius: 2, overflow: 'hidden',
                   border: `1px solid ${alpha(T.text, 0.07)}`,
                   cursor: 'pointer',
@@ -67,7 +74,11 @@ export default function GallerySection({ record }) {
                   '&:hover': { boxShadow: '0 12px 32px rgba(0,0,0,0.4)', borderColor: alpha(T.teal, 0.4) },
                 }}
               >
-                <Box sx={{ position: 'relative', width: '100%', height: 140 }}>
+                <Box sx={{
+                  position: 'relative', width: '100%',
+                  height: { xs: 140, xl: 172 },
+                  '@media (min-width:1920px)': { height: 212 },
+                }}>
                   {thumb ? (
                     <Box component="img" src={thumb} alt={v.name} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
@@ -118,20 +129,21 @@ export default function GallerySection({ record }) {
 
       {sortedImageKeys.map((type) => {
         const imgs = imageGroups[type];
-        const visible = showAllImages ? imgs : imgs.slice(0, VISIBLE_IMAGES);
+        const budget = shown[type] ?? PAGE_SIZE;
+        const visible = imgs.slice(0, budget);
+        const remaining = imgs.length - visible.length;
         const isPortrait = type === 'Poster';
         return (
           <Box key={type} sx={{ mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <SectionHeading sx={{ mb: 0 }}>{type}s</SectionHeading>
-              <Typography variant="caption" sx={{ color: T.textFaint }}>{imgs.length} images</Typography>
-            </Box>
+            <SectionHeading action={`${visible.length} of ${imgs.length}`}>
+              {type}s
+            </SectionHeading>
             <Box sx={{
               display: 'grid',
               gridTemplateColumns: isPortrait
-                ? { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(6, 1fr)' }
-                : { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-              gap: 1,
+                ? { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(6, 1fr)', xl: 'repeat(8, 1fr)' }
+                : { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', xl: 'repeat(5, 1fr)' },
+              gap: { xs: 1, xl: 1.5 },
             }}>
               {/* The index is still needed for the lightbox's start position, so it stays a
                   parameter — only the key moves to the image's own identity. */}
@@ -151,14 +163,27 @@ export default function GallerySection({ record }) {
                 />
               ))}
             </Box>
-            {imgs.length > VISIBLE_IMAGES && (
-              <Button
-                size="small"
-                onClick={() => setShowAllImages((v) => !v)}
-                sx={{ mt: 1.5, color: T.teal, textTransform: 'none', fontSize: '0.82rem' }}
-              >
-                {showAllImages ? 'Show less' : `Show all ${imgs.length} images`}
-              </Button>
+            {(remaining > 0 || budget > PAGE_SIZE) && (
+              <Box sx={{ display: 'flex', gap: 1.5, mt: 1.5 }}>
+                {remaining > 0 && (
+                  <Button
+                    size="small"
+                    onClick={() => setShown((s) => ({ ...s, [type]: budget + PAGE_SIZE * 2 }))}
+                    sx={{ color: T.teal, textTransform: 'none', fontWeight: 700, fontSize: '0.82rem', p: 0, minWidth: 0 }}
+                  >
+                    Show {Math.min(remaining, PAGE_SIZE * 2)} more
+                  </Button>
+                )}
+                {budget > PAGE_SIZE && (
+                  <Button
+                    size="small"
+                    onClick={() => setShown((s) => ({ ...s, [type]: PAGE_SIZE }))}
+                    sx={{ color: T.textFaint, textTransform: 'none', fontWeight: 700, fontSize: '0.82rem', p: 0, minWidth: 0 }}
+                  >
+                    Collapse
+                  </Button>
+                )}
+              </Box>
             )}
           </Box>
         );

@@ -179,6 +179,17 @@ export const fetchMyMediaRequests = () =>
 export const fetchPersonDetail = (id) =>
   axiosInstance.get(`${BASE}/persons/${id}`).then(unwrap);
 
+// ─── Collections ──────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/cinema/collections/{id}
+ * → CollectionDetailDto { id, name, overview, posterPath, backdropPath, ownedCount,
+ *                         parts: [{ tmdbId, title, releaseDate, recordId, recordSlug, … }] }
+ * A part with a null recordId is not in the library (or not visible to the caller).
+ */
+export const fetchCollection = (id) =>
+  axiosInstance.get(`${BASE}/collections/${id}`).then(unwrap);
+
 // ─── Catalog Ingest Requests (new titles not yet in the catalog) ─────────────
 
 /** GET /api/cinema/tmdb/search?type=MOVIE&query=... → TmdbSearchItemDto[] */

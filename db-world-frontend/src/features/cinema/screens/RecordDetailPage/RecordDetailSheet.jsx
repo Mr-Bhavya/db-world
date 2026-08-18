@@ -6,6 +6,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
 import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
+import { HERO_CONTROL_SIZE } from './HeroTrailer';
+
+/* Height of the grab-handle block above the scroller: pt:1 (8) + bar (4) +
+   pb:0.5 (4). The hero starts below it, so anything that needs to line up with
+   a control INSIDE the hero has to add this first. */
+const SHEET_HANDLE_H = 16;
 
 const SNAP = { peek: '25%', full: '0%', closed: '100%' };
 
@@ -40,6 +46,11 @@ export default function RecordDetailSheet() {
   const [mode, setMode] = useState('peek');
   const [closing, setClosing] = useState(false);
   const [scrollEl, setScrollEl] = useState(null);
+  // The close sits OUTSIDE the scroller (so it survives at peek height, where
+  // scrolling is disabled), which means it can't scroll away on its own. Once
+  // the pill nav sticks it would sit right on top of it, so it retires and
+  // PillNav's own back control takes over.
+  const [scrolledPastHero, setScrolledPastHero] = useState(false);
 
   // Refs for gesture handlers (avoid stale closures)
   const modeRef = useRef(mode);
@@ -209,19 +220,34 @@ export default function RecordDetailSheet() {
     };
   }, [scrollEl]);
 
+  // Retire the close once the pill nav has taken over the corner.
+  useEffect(() => {
+    const el = scrollEl;
+    if (!el) return undefined;
+    const onScroll = () => setScrolledPastHero(el.scrollTop > 24);
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [scrollEl]);
+
   return (
     <>
-      {/* Dimmed backdrop */}
+      {/* Dimmed backdrop. Blur and dim track the sheet's snap position, so the page
+          behind falls further out of focus as the sheet takes over the screen —
+          the sheet reads as rising through depth rather than sliding over a flat scrim. */}
       <Box
         component={motion.div}
         onClick={close}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: closing ? 0 : 1 }}
-        transition={{ duration: 0.28, ease: 'easeOut' }}
+        initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+        animate={{
+          opacity: closing ? 0 : 1,
+          backdropFilter: closing ? 'blur(0px)' : isFull ? 'blur(14px)' : 'blur(3px)',
+        }}
+        transition={{ duration: 0.34, ease: 'easeOut' }}
         sx={{
           position: 'fixed', inset: 0, zIndex: 1299,
-          bgcolor: alpha('#000', 0.55),
-          backdropFilter: 'blur(2px)',
+          bgcolor: alpha('#000', isFull ? 0.72 : 0.55),
+          transition: 'background-color 0.34s ease-out',
           pointerEvents: closing ? 'none' : 'auto',
         }}
       />
@@ -255,17 +281,29 @@ export default function RecordDetailSheet() {
           </Box>
         )}
 
-        {!personOpen && (
+        {!personOpen && !scrolledPastHero && (
           <IconButton
             onClick={close}
             size="small"
             aria-label="Close"
             sx={{
-              position: 'absolute', top: 8, right: 10, zIndex: 30,
+              // Left, matching the back affordance on the full-page hero and
+              // leaving the top-right free for the trailer controls.
+              //
+              // Top = grab-handle block (pt:1 + 4px bar + pb:0.5 = 16px, which is
+              // what the scroller and therefore the hero start below) + the hero's
+              // own HERO_CONTROL_TOP. That puts this button on exactly the same
+              // line as the trailer's mute/replay, which are positioned inside the
+              // hero rather than here. Both are HERO_CONTROL_SIZE so their centres
+              // agree, not just their top edges.
+              position: 'absolute',
+              top: { xs: SHEET_HANDLE_H + 10, md: SHEET_HANDLE_H + 18 },
+              left: 10, zIndex: 30,
               bgcolor: alpha('#000', 0.55), color: '#fff',
               border: `1px solid ${alpha('#fff', 0.18)}`,
               backdropFilter: 'blur(8px)',
-              width: 34, height: 34,
+              width: HERO_CONTROL_SIZE, height: HERO_CONTROL_SIZE,
+              transition: 'opacity .2s',
               '&:hover': { bgcolor: alpha('#000', 0.8) },
             }}
           >
