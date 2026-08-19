@@ -466,6 +466,9 @@ class CommonServices {
             fileName: mediaFile.fileName,
             filePath: mediaFile.filePath,
             fileSize: bytesToReadable(track?.fileSize) ?? bytesToReadable(mediaFile?.fileSize),
+            // Raw bytes as well as the formatted string: a caller with a LIST of files
+            // (the download sheet's "34 files - 128 GB") can't add up "2.1 GB" strings.
+            fileSizeBytes: Number(track?.fileSize ?? mediaFile?.fileSize) || null,
             duration: toSecs(track?.duration),
             overallBitrate: track?.overallBitRate ? `${bytesToReadable(track.overallBitRate)}/s` : null,
             format: track?.format,
