@@ -6,6 +6,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 
 import { tmdbImg } from '../../api/cinemaApi';
+import { HERO_ACCENT, ctaPrimary, ctaShape } from './shared/ctaShape';
 
 const SHOW_AFTER_PX = 380;
 
@@ -92,14 +93,11 @@ export default function StickyWatchBar({ record, progress, onWatchClick, scrollR
               ? <PlayArrowIcon sx={{ fontSize: '1.1rem !important' }} />
               : <OndemandVideoIcon sx={{ fontSize: '1.1rem !important' }} />}
             onClick={onWatchClick}
-            sx={{
-              flexShrink: 0,
-              bgcolor: '#0d9488', color: '#fff', fontWeight: 800,
-              textTransform: 'none', borderRadius: 999,
-              px: 2, py: 0.75, fontSize: '0.8rem',
-              boxShadow: `0 6px 18px ${alpha('#0d9488', 0.4)}`,
-              '&:hover': { bgcolor: '#0d9488', filter: 'brightness(0.9)' },
-            }}
+            // Same shape and teal as the hero's Watch button, from the same source —
+            // this bar stands in for that button, so a drift in either was visible on
+            // the way back up the page. `compact` keeps it small enough to share the
+            // row with the poster and title.
+            sx={{ ...ctaShape({ compact: true }), ...ctaPrimary(HERO_ACCENT) }}
           >
             {resumable ? 'Resume' : 'Watch'}
           </Button>

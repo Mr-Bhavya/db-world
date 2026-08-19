@@ -9,18 +9,9 @@ import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
 import SectionCard from '../shared/SectionCard';
 import StatRow from '../shared/StatRow';
+import RatingRing from '../shared/RatingRing';
+import { detectUserRegion, pickProviderRegion, providersForRegion } from '../../../utils/providers';
 import { formatCurrency, formatDate, formatRuntime } from '../helpers';
-
-// Best-effort region detection. navigator.language returns "en-IN" / "en-US"
-// etc.; pull the country half. Falls back to IN.
-function detectUserRegion() {
-  try {
-    const lang = navigator.language || (navigator.languages && navigator.languages[0]) || '';
-    const region = lang.split('-')[1]?.toUpperCase();
-    if (region && region.length === 2) return region;
-  } catch { /* ignore */ }
-  return 'IN';
-}
 
 export default function OverviewSection({ record }) {
   const T = useT();
@@ -30,32 +21,13 @@ export default function OverviewSection({ record }) {
   const isMovie = record?.type === 'MOVIE';
   const providers = tmdb.providers ?? [];
 
-  // Available regions from the record's provider list.
-  const availableRegions = useMemo(() => {
-    const set = new Set(providers.map((p) => p.regionCode).filter(Boolean));
-    return Array.from(set);
-  }, [providers]);
-
+  // Region choice lives in utils/providers so the hero's "Streaming on" strip and this
+  // panel can never disagree about which country the viewer is being shown. Locked to
+  // that one region — there is no all-country selector.
   const userRegion = useMemo(detectUserRegion, []);
-
-  // Pick the region we actually want to show. Preference order:
-  //   1. user's detected region (if the title has providers there)
-  //   2. India (if available)
-  //   3. US (common fallback)
-  //   4. first region in the list
-  const defaultRegion = useMemo(() => {
-    if (availableRegions.includes(userRegion)) return userRegion;
-    if (availableRegions.includes('IN')) return 'IN';
-    if (availableRegions.includes('US')) return 'US';
-    return availableRegions[0] ?? null;
-  }, [availableRegions, userRegion]);
-
-  // Lock to the user's region (India default) — no all-country selector.
-  const selectedRegion = defaultRegion;
-
-  // Only show providers for the chosen region.
+  const selectedRegion = useMemo(() => pickProviderRegion(providers, userRegion), [providers, userRegion]);
   const regionalProviders = useMemo(
-    () => (selectedRegion ? providers.filter((p) => p.regionCode === selectedRegion) : []),
+    () => providersForRegion(providers, selectedRegion),
     [providers, selectedRegion],
   );
 
@@ -165,6 +137,33 @@ export default function OverviewSection({ record }) {
       }}>
         <SectionCard>
           <SectionHeading>Details</SectionHeading>
+          {/* The audience score, which the panel never actually showed — the hero's star
+              pill is a glance, this is the number with its sample size. Theme colours are
+              passed in: the ring's defaults are white-on-black and would vanish here in
+              the light theme. */}
+          {tmdb.voteAverage > 0 && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1.75,
+              pb: 1.5, mb: 1, borderBottom: `1px solid ${alpha(T.text, 0.07)}`,
+            }}>
+              <RatingRing
+                value={tmdb.voteAverage}
+                size={58}
+                trackColor={alpha(T.text, 0.12)}
+                labelColor={T.textFaint}
+              />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.86rem' }}>
+                  TMDB score
+                </Typography>
+                <Typography sx={{ color: T.textFaint, fontSize: '0.76rem', fontWeight: 600 }}>
+                  {tmdb.voteCount > 0
+                    ? `${tmdb.voteCount.toLocaleString()} vote${tmdb.voteCount === 1 ? '' : 's'}`
+                    : 'No votes yet'}
+                </Typography>
+              </Box>
+            </Box>
+          )}
           {isMovie ? (
             <>
               <StatRow label="Release Date" value={formatDate(tmdb.releaseDate)} />
@@ -304,7 +303,7 @@ export default function OverviewSection({ record }) {
 
         </SectionCard>
 
-        {availableRegions.length > 0 && (
+        {selectedRegion && (
           <SectionCard>
             <SectionHeading action={selectedRegion || null}>
               Where to Watch

@@ -6,9 +6,13 @@ import { getQuality, getCodec, getHdrTags, qualityRank } from '../../../media/he
 import { QBadge, HdrBadge, CodecBadge } from '../../../media/Badges';
 
 /**
- * "What do I actually get if I press play" — resolution, HDR, object audio, codec,
- * age rating. Derived from the best file on the record rather than any one variant,
- * so a title with a 4K and a 1080p copy advertises the 4K.
+ * "What do I actually get if I press play" — resolution, HDR, object audio, codec.
+ * Derived from the best file on the record rather than any one variant, so a title with
+ * a 4K and a 1080p copy advertises the 4K.
+ *
+ * The age rating used to ride along here and no longer does: it describes the title, not
+ * the file, and among the tech badges a bare "A" read as one more technical tag. It now
+ * sits in the hero's meta row as CertBadge, with a key of its own.
  */
 
 const ATMOS_HINTS = ['ATMOS', 'JOC'];
@@ -26,7 +30,7 @@ function objectAudioTag(audioTracks) {
   return null;
 }
 
-export default function TechBadgeRow({ files = [], certification, sx }) {
+export default function TechBadgeRow({ files = [], sx }) {
   const specs = useMemo(() => {
     if (!files?.length) return null;
 
@@ -53,7 +57,7 @@ export default function TechBadgeRow({ files = [], certification, sx }) {
     };
   }, [files]);
 
-  const hasAnything = specs?.quality || specs?.hdrTags?.length || specs?.codec || specs?.objectAudio || certification;
+  const hasAnything = specs?.quality || specs?.hdrTags?.length || specs?.codec || specs?.objectAudio;
   if (!hasAnything) return null;
 
   return (
@@ -72,17 +76,6 @@ export default function TechBadgeRow({ files = [], certification, sx }) {
         </Box>
       )}
       {specs?.codec && <CodecBadge codec={specs.codec} />}
-      {certification && (
-        <Box sx={{
-          display: 'inline-flex', alignItems: 'center',
-          px: 0.9, py: 0.2, borderRadius: 1,
-          bgcolor: alpha('#fff', 0.12), color: '#e5e5e5',
-          border: `1px solid ${alpha('#fff', 0.22)}`,
-          fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
-        }}>
-          {certification}
-        </Box>
-      )}
     </Box>
   );
 }
