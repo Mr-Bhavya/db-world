@@ -5,24 +5,30 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link as RouterLink } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 
 import { tmdbImg } from '../../api/cinemaApi';
 import { formatRuntime } from './helpers';
+import { genrePath } from '../../utils/genreNav';
 import ShareButton from './shared/ShareButton';
 import ReactionButton from './ReactionButton';
 import HeroTrailer, { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 import TechBadgeRow from './shared/TechBadgeRow';
+import CertBadge from './shared/CertBadge';
+import { HERO_ACCENT, ctaPrimary, ctaSecondary, ctaShape } from './shared/ctaShape';
+import { providerStrip } from '../../utils/providers';
 
 /* ═══════════════════════════════════════════════════════════
    CONSTANTS
@@ -31,8 +37,38 @@ import TechBadgeRow from './shared/TechBadgeRow';
    so only the simple toggles live here.
 ═══════════════════════════════════════════════════════════ */
 
-const WATCHLIST = { key: 'watchlisted', label: 'My List', ActiveIcon: BookmarkIcon, InactiveIcon: BookmarkBorderIcon, activeColor: '#0d9488' };
-const WATCHED = { key: 'watched', label: 'Watched', ActiveIcon: VisibilityIcon, InactiveIcon: VisibilityOffIcon, activeColor: '#22c55e' };
+/*
+   Active states are WHITE, not hue-coded.
+
+   My List was teal, Watched green, Like blue and Love pink — four saturated colours in a
+   four-button row, none of which encoded anything a filled icon doesn't already say. Teal
+   in particular competed with the Watch/Request CTA directly above (the same reason the
+   PillNav's active pill stopped being teal). Colour on this page belongs to the one action
+   the page wants you to take; personal-state toggles say "on" by filling in.
+   The card icons elsewhere in the app already work this way — features/cinema/icons.
+*/
+const WATCHLIST = { key: 'watchlisted', label: 'My List', ActiveIcon: BookmarkIcon, InactiveIcon: BookmarkBorderIcon, activeColor: '#fff' };
+// Inactive is an OUTLINED eye, not a struck-through one: a slashed eye is the
+// universal symbol for "hidden", so the un-watched state read as "hide this".
+const WATCHED = { key: 'watched', label: 'Watched', ActiveIcon: VisibilityIcon, InactiveIcon: VisibilityOutlinedIcon, activeColor: '#fff' };
+
+/**
+ * Colour by what a status MEANS, not by whether it is set: amber for "not out yet",
+ * green for "more is coming", red for "never coming", grey for "that's all of it".
+ * 'Released' is deliberately absent — it never renders (see statusTone).
+ */
+const STATUS_TONES = {
+  'Returning Series': '#4ade80',
+  'In Production': '#fbbf24',
+  'Post Production': '#fbbf24',
+  Planned: '#fbbf24',
+  Rumored: '#fbbf24',
+  Upcoming: '#fbbf24',
+  Canceled: '#f87171',
+  Cancelled: '#f87171',
+  Ended: '#a3a3a3',
+  default: '#a3a3a3',
+};
 
 /* ═══════════════════════════════════════════════════════════
    ENTRY CHOREOGRAPHY
@@ -100,6 +136,35 @@ function ToggleButton({ cfg, active, onToggle, btnSize, iconSize }) {
   );
 }
 
+/**
+ * A one-shot circle (Trailer) among the toggles. Same visual as ToggleButton's inactive
+ * state — it belongs to that row — but with no on/off state to carry.
+ */
+function CircleAction({ label, icon: Icon, onClick, btnSize, iconSize }) {
+  return (
+    <Tooltip title={label} placement="top">
+      <span data-noexpand>
+        <IconButton
+          size="small"
+          onClick={onClick}
+          aria-label={label}
+          sx={{
+            bgcolor: alpha('#fff', 0.1),
+            border: `1.5px solid ${alpha('#fff', 0.2)}`,
+            color: '#e5e5e5',
+            width: btnSize, height: btnSize,
+            backdropFilter: 'blur(6px)',
+            transition: 'all 0.18s',
+            '&:hover': { bgcolor: alpha('#fff', 0.2), transform: 'scale(1.08)' },
+          }}
+        >
+          <Icon sx={{ fontSize: iconSize }} />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    MOBILE ACTION RAIL
 
@@ -150,7 +215,7 @@ function RailAction({ label, active, activeColor, onClick, children }) {
    control ever changes colour under the user.
 ═══════════════════════════════════════════════════════════ */
 
-const DEFAULT_ACCENT = '#0d9488';
+const DEFAULT_ACCENT = HERO_ACCENT;
 
 /* Noise plate over the artwork. TMDB stills are heavily compressed and band
    badly across the scrim gradients; a few percent of grain hides it. */
@@ -323,19 +388,36 @@ export default function Hero({
   // Keeping them in a single wrapping row means the browser decides the line
   // count from the space actually available: a rich title wraps to two lines, a
   // thin one occupies a single line, and neither restructures on load.
+  // Tappable: the genre landing pages already exist as real URLs, and a genre chip is
+  // the most natural place in the app to reach one from. `data-noexpand` keeps the tap
+  // from being read as a drag on the mobile sheet.
+  const genrePage = isMovie ? 'movies' : 'series';
   const genreChips = genres.map((g) => (
     <Chip
       key={g.id}
       label={g.name}
       size="small"
+      clickable
+      component={RouterLink}
+      to={genrePath(genrePage, g)}
+      data-noexpand
       sx={{
         bgcolor: alpha('#fff', 0.08), color: '#e5e5e5',
         fontSize: { xs: '0.68rem', xl: '0.78rem' },
         height: { xs: 22, xl: 26 },
         border: `1px solid ${alpha('#fff', 0.1)}`,
+        textDecoration: 'none',
+        '&:hover': { bgcolor: alpha('#fff', 0.16), borderColor: alpha('#fff', 0.24) },
       }}
     />
   ));
+
+  // "Released" tells you nothing the year hasn't already, and as the only green thing
+  // in the row it was the loudest item with the least to say. A status now only earns a
+  // chip when it changes what you can expect: still coming, cancelled, or — for a
+  // series — whether more episodes are due.
+  const statusTone = !tmdb.status || tmdb.status === 'Released' ? null
+    : STATUS_TONES[tmdb.status] ?? STATUS_TONES.default;
 
   const metaDot = (
     <Box component="span" sx={{ display: 'inline-block', width: 3, height: 3, borderRadius: '50%', bgcolor: alpha('#fff', 0.4), verticalAlign: 'middle' }} />
@@ -343,6 +425,17 @@ export default function Hero({
 
   const btnSize = isTv ? 52 : isXl ? 44 : isXs ? 34 : 38;
   const iconSize = isTv ? 24 : isXl ? 20 : isXs ? 16 : 18;
+
+  // Geometry lives in shared/ctaShape so the sticky watch bar can wear the same shape.
+  const CTA_SHAPE = ctaShape({ isTv });
+
+  // Trailer loses its CTA slot to Download as soon as there are files to download, so
+  // it moves into the action rail rather than disappearing from the hero altogether.
+  const trailerInRail = Boolean(onPlayTrailer && onDownloadClick);
+  const railCount = 4 + (trailerInRail ? 1 : 0);
+
+  // Where to watch. Region-picked once, shared with the Overview panel's provider list.
+  const watchOn = providerStrip(tmdb.providers, isXs ? 3 : 4);
 
   return (
     <Box
@@ -720,8 +813,9 @@ export default function Hero({
               />
             ) : null}
 
-            {/* What you actually get if you press play — resolution, HDR, codec,
-                age rating. Previously this only existed inside the Watch tab. */}
+            {/* What you actually get if you press PLAY — resolution, HDR, codec, object
+                audio. The age rating used to live here too, but it describes the TITLE,
+                not the file, so it sits with the year and runtime below instead. */}
             <Box component={motion.div} variants={SLIDE}>
               {loading && !files.length ? (
                 <Box sx={{ display: 'flex', gap: 0.75, mt: 1 }}>
@@ -731,19 +825,32 @@ export default function Hero({
                   ))}
                 </Box>
               ) : (
-                <TechBadgeRow files={files} certification={tmdb.certification} sx={{ mt: 1 }} />
+                <TechBadgeRow files={files} sx={{ mt: 1 }} />
               )}
             </Box>
 
+            {/* Facts and genres are two GROUPS on one wrapping row.
+            
+                Each group is itself an inline-flex box that refuses to shrink, so the
+                browser keeps them side by side while both fit and drops the genres to
+                their own line the moment they don't — all of them together, rather than
+                stranding one chip at the end of the facts. Still no JS measuring and no
+                branch on record data: the line count comes from the space available. */}
             <Box component={motion.div} variants={SLIDE} sx={{
               display: 'flex', flexWrap: 'wrap', alignItems: 'center',
               gap: { xs: 0.75, md: 1, xl: 1.5 }, mt: 1, mb: 1,
             }}>
+            <Box sx={{
+              display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center',
+              gap: { xs: 0.75, md: 1, xl: 1.5 }, minWidth: 0,
+            }}>
               {rating != null && (
                 <Box sx={{
                   display: 'flex', alignItems: 'center', gap: 0.4,
-                  bgcolor: alpha('#000', 0.35), borderRadius: 1,
-                  px: { xs: 0.75, xl: 1 }, py: 0.25,
+                  // Fully rounded, like the chips it shares the row with; a 4px-radius
+                  // box beside pill-shaped chips looked like a different component.
+                  bgcolor: alpha('#000', 0.35), borderRadius: 999,
+                  px: { xs: 0.85, xl: 1.1 }, py: 0.25,
                 }}>
                   <StarRoundedIcon sx={{ fontSize: { xs: 16, xl: 20 }, color: '#fbbf24' }} />
                   <Typography sx={{
@@ -786,36 +893,106 @@ export default function Hero({
                 </>
               ) : null}
 
-              {tmdb.status ? (
+              {/* Same height as the genre chips beside it — two chip sizes in one row
+                  read as a mistake. No skeleton: the common case is no chip at all,
+                  and a placeholder for something that usually never arrives is worse
+                  than the gap it was hiding. */}
+              {statusTone && (
                 <Chip
                   label={tmdb.status}
                   size="small"
                   sx={{
-                    height: { xs: 18, xl: 22 },
-                    fontSize: { xs: '0.62rem', xl: '0.72rem' },
+                    height: { xs: 22, xl: 26 },
+                    fontSize: { xs: '0.68rem', xl: '0.78rem' },
                     fontWeight: 700,
-                    bgcolor: (tmdb.status === 'Released' || tmdb.status === 'Ended')
-                      ? alpha('#22c55e', 0.16) : alpha('#f59e0b', 0.16),
-                    color: (tmdb.status === 'Released' || tmdb.status === 'Ended')
-                      ? '#4ade80' : '#fbbf24',
+                    bgcolor: alpha(statusTone, 0.16),
+                    color: statusTone,
+                    border: `1px solid ${alpha(statusTone, 0.32)}`,
                     '& .MuiChip-label': { px: 0.8 },
                   }}
                 />
-              ) : loading ? (
-                <Skeleton variant="rounded" width={62}
-                  sx={{ height: { xs: 18, xl: 22 }, bgcolor: alpha('#fff', 0.08), borderRadius: 1 }} />
-              ) : null}
+              )}
 
-              {/* Genres live on the same wrapping row. On a phone this fills the
-                  line the rating and status leave half-empty; on a wide screen
-                  it all sits on one line with room to spare. */}
-              {genres.length > 0 ? genreChips : loading ? (
-                [62, 80, 54].map((w, i) => (
-                  <Skeleton key={i} variant="rounded" width={w} height={isXs ? 22 : 26}
-                    sx={{ bgcolor: alpha('#fff', 0.08), borderRadius: 1 }} />
-                ))
+              {/* Age rating sits with the facts it belongs to. Its own key makes it
+                  readable on its own — see CertBadge. */}
+              {tmdb.certification ? (
+                <CertBadge value={tmdb.certification} country={tmdb.certificationCountry} />
               ) : null}
             </Box>
+
+            {/* The genre group. flexShrink: 0 is what makes it move as one unit;
+                maxWidth keeps it inside the hero once it is on its own line, where it
+                wraps internally if a title really has five long genres. */}
+            {genres.length > 0 ? (
+              <Box sx={{
+                display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center',
+                gap: { xs: 0.75, md: 1, xl: 1.5 }, flexShrink: 0, maxWidth: '100%',
+              }}>
+                {genreChips}
+              </Box>
+            ) : loading ? (
+              <Box sx={{ display: 'inline-flex', gap: { xs: 0.75, md: 1 }, flexShrink: 0 }}>
+                {[62, 80, 54].map((w, i) => (
+                  <Skeleton key={i} variant="rounded" width={w} height={isXs ? 22 : 26}
+                    sx={{ bgcolor: alpha('#fff', 0.08), borderRadius: 1 }} />
+                ))}
+              </Box>
+            ) : null}
+            </Box>
+
+            {/* Where to watch it legitimately, if TMDB knows. Inside the metadata
+                cluster on purpose: the cluster is bottom-aligned, so a record that has
+                providers grows UPWARD into the artwork and the CTA row below never
+                moves. */}
+            {watchOn.items.length > 0 && (
+              <Box component={motion.div} variants={SLIDE} sx={{
+                display: 'flex', alignItems: 'center', flexWrap: 'wrap',
+                gap: { xs: 0.6, md: 0.75 }, mb: 1,
+              }}>
+                <Typography component="span" sx={{
+                  color: alpha('#fff', 0.5), textTransform: 'uppercase',
+                  letterSpacing: 1, fontWeight: 800,
+                  fontSize: { xs: '0.55rem', xl: '0.62rem' },
+                  mr: 0.25,
+                }}>
+                  {watchOn.kind === 'RENT' || watchOn.kind === 'BUY' ? 'Available on' : 'Streaming on'}
+                </Typography>
+                {watchOn.items.map((p) => {
+                  const logo = tmdbImg(p.provider?.logoPath, 'w92');
+                  return logo ? (
+                    <Box
+                      key={p.provider?.name}
+                      component="img"
+                      src={logo}
+                      alt={p.provider?.name ?? ''}
+                      title={p.provider?.name ?? ''}
+                      loading="lazy"
+                      draggable={false}
+                      sx={{
+                        width: { xs: 20, md: 24, xl: 28 },
+                        ...(isTv && { width: 34 }),
+                        aspectRatio: '1', borderRadius: 0.75, objectFit: 'cover',
+                        border: `1px solid ${alpha('#fff', 0.18)}`,
+                        bgcolor: alpha('#000', 0.4),
+                      }}
+                    />
+                  ) : (
+                    <Chip key={p.provider?.name} label={p.provider?.name} size="small" sx={{
+                      height: 20, fontSize: '0.62rem', fontWeight: 700,
+                      bgcolor: alpha('#fff', 0.08), color: '#e5e5e5',
+                    }} />
+                  );
+                })}
+                {watchOn.total > watchOn.items.length && (
+                  <Typography component="span" sx={{
+                    color: alpha('#fff', 0.5), fontWeight: 700,
+                    fontSize: { xs: '0.62rem', xl: '0.7rem' },
+                  }}>
+                    +{watchOn.total - watchOn.items.length}
+                  </Typography>
+                )}
+              </Box>
+            )}
             </Box>
 
             {/* Same containment as the cluster above: a two-line slot that holds
@@ -875,7 +1052,13 @@ export default function Hero({
             )}
 
             <Box component={motion.div} variants={RISE} sx={{
-              display: 'flex',
+              // Phones: equal columns, so Request+Trailer and Watch+Download all split
+              // the width evenly. `gridAutoColumns: 1fr` needs no count — the icon rail
+              // below is display:none here and so claims no track, and a record with a
+              // single CTA gets the full width.
+              display: { xs: 'grid', sm: 'flex' },
+              gridAutoFlow: 'column',
+              gridAutoColumns: '1fr',
               gap: { xs: 1, md: 1, xl: 1.25 },
               alignItems: 'center',
             }}>
@@ -888,20 +1071,7 @@ export default function Hero({
                     ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
                     : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
                   onClick={onWatchClick}
-                  sx={{
-                    // Phones give the primary action the full width it deserves;
-                    // from tablet up it sizes to its label so the row stays tight.
-                    flex: { xs: 1, sm: '0 0 auto' },
-                    bgcolor: accentColor, color: '#fff', fontWeight: 800,
-                    textTransform: 'none',
-                    px: { xs: 2, sm: 2.5, xl: 3.5 },
-                    py: { xs: 1.05, xl: 1.2 },
-                    borderRadius: 999,
-                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
-                    ...(isTv && { fontSize: '1.2rem', px: 4.5, py: 1.5 }),
-                    boxShadow: `0 8px 24px ${alpha(accentColor, 0.4)}`,
-                    '&:hover': { bgcolor: accentColor, filter: 'brightness(0.85)' },
-                  }}
+                  sx={{ ...CTA_SHAPE, ...ctaPrimary(accentColor) }}
                 >
                   {resumable ? 'Resume' : 'Watch Now'}
                 </Button>
@@ -919,16 +1089,10 @@ export default function Hero({
                     : <AddIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
                   onClick={onRequestClick}
                   sx={{
-                    flex: { xs: 1, sm: '0 0 auto' },
-                    bgcolor: requested ? alpha('#fff', 0.16) : accentColor,
-                    color: '#fff', fontWeight: 800, textTransform: 'none',
-                    px: { xs: 2, sm: 2.5, xl: 3.5 },
-                    py: { xs: 1.05, xl: 1.2 },
-                    borderRadius: 999,
-                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
-                    ...(isTv && { fontSize: '1.2rem', px: 4.5, py: 1.5 }),
-                    border: requested ? `1px solid ${alpha('#fff', 0.28)}` : 'none',
-                    '&:hover': { bgcolor: requested ? alpha('#fff', 0.24) : accentColor, filter: 'brightness(0.92)' },
+                    ...CTA_SHAPE,
+                    ...(requested ? ctaSecondary() : ctaPrimary(accentColor)),
+                    // Once it's placed, Request stops being the loud thing on the page.
+                    ...(requested && { fontWeight: 800, border: `1px solid ${alpha('#fff', 0.28)}` }),
                   }}
                 >
                   {requested ? 'Requested' : 'Request this'}
@@ -945,19 +1109,7 @@ export default function Hero({
                   variant="text"
                   startIcon={<PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
                   onClick={onPlayTrailer}
-                  sx={{
-                    flexShrink: 0,
-                    color: '#fff', fontWeight: 700, textTransform: 'none',
-                    px: { xs: 2, sm: 2, xl: 3 },
-                    py: { xs: 1.05, xl: 1.2 },
-                    borderRadius: 999,
-                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
-                    ...(isTv && { fontSize: '1.2rem', px: 4, py: 1.5 }),
-                    bgcolor: alpha('#fff', 0.12),
-                    backdropFilter: 'blur(6px)',
-                    border: `1px solid ${alpha('#fff', 0.2)}`,
-                    '&:hover': { bgcolor: alpha('#fff', 0.22) },
-                  }}
+                  sx={{ ...CTA_SHAPE, ...ctaSecondary() }}
                 >
                   Trailer
                 </Button>
@@ -973,19 +1125,7 @@ export default function Hero({
                   variant="text"
                   startIcon={<DownloadIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
                   onClick={onDownloadClick}
-                  sx={{
-                    flexShrink: 0,
-                    color: '#fff', fontWeight: 700, textTransform: 'none',
-                    px: { xs: 2, sm: 2, xl: 3 },
-                    py: { xs: 1.05, xl: 1.2 },
-                    borderRadius: 999,
-                    fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
-                    ...(isTv && { fontSize: '1.2rem', px: 4, py: 1.5 }),
-                    bgcolor: alpha('#fff', 0.12),
-                    backdropFilter: 'blur(6px)',
-                    border: `1px solid ${alpha('#fff', 0.2)}`,
-                    '&:hover': { bgcolor: alpha('#fff', 0.22) },
-                  }}
+                  sx={{ ...CTA_SHAPE, ...ctaSecondary() }}
                 >
                   Download
                 </Button>
@@ -1021,6 +1161,16 @@ export default function Hero({
                   iconSize={iconSize}
                 />
 
+                {trailerInRail && (
+                  <CircleAction
+                    label="Trailer"
+                    icon={PlayCircleOutlineIcon}
+                    onClick={onPlayTrailer}
+                    btnSize={btnSize}
+                    iconSize={iconSize}
+                  />
+                )}
+
                 <Box component="span" data-noexpand sx={{ display: 'inline-flex' }}>
                   <ShareButton record={record} size={btnSize} />
                 </Box>
@@ -1034,7 +1184,9 @@ export default function Hero({
                 equal grid tracks spread them evenly regardless. */}
             <Box component={motion.div} variants={RISE} sx={{
               display: { xs: 'grid', sm: 'none' },
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              // Track count follows the actions actually shown — Trailer joins the rail
+              // whenever Download has taken its slot in the CTA row above.
+              gridTemplateColumns: `repeat(${railCount}, 1fr)`,
               alignItems: 'start',
               justifyItems: 'center',
               gap: 1, mt: 2, width: '100%',
@@ -1066,7 +1218,7 @@ export default function Hero({
                 />
                 <Typography component="span" sx={{
                   fontSize: '0.6rem', fontWeight: 700, letterSpacing: 0.2,
-                  color: (interaction?.liked || interaction?.loved) ? '#3b82f6' : alpha('#fff', 0.62),
+                  color: (interaction?.liked || interaction?.loved) ? '#fff' : alpha('#fff', 0.62),
                 }}>
                   Rate
                 </Typography>
@@ -1080,8 +1232,14 @@ export default function Hero({
               >
                 {interaction?.watched
                   ? <VisibilityIcon sx={{ fontSize: 22 }} />
-                  : <VisibilityOffIcon sx={{ fontSize: 22 }} />}
+                  : <VisibilityOutlinedIcon sx={{ fontSize: 22 }} />}
               </RailAction>
+
+              {trailerInRail && (
+                <RailAction label="Trailer" onClick={onPlayTrailer}>
+                  <PlayCircleOutlineIcon sx={{ fontSize: 22 }} />
+                </RailAction>
+              )}
 
               <Box sx={{
                 width: '100%', minWidth: 0,
