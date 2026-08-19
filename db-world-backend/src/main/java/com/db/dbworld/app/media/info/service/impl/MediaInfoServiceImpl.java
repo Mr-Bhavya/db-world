@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.info.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.events.MediaFilesChangedEvent;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
 import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
@@ -19,6 +20,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -43,6 +45,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final ProcessExecutor processExecutor;
     private final MediaFileRepository mediaFileRepository;
     private final RecordRepository recordRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final AppProperties properties;
     private final StoryboardService storyboardService;
@@ -125,6 +128,12 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
         log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
                 saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
+
+        // What is playable for this record just changed. Consumed by the media-request
+        // auto-fulfiller, which listens AFTER_COMMIT so a rolled-back ingest announces nothing.
+        if (recordId != null) {
+            eventPublisher.publishEvent(new MediaFilesChangedEvent(recordId));
+        }
 
         return toDto(saved);
     }
@@ -384,7 +393,13 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + id));
         entity.setTmdbSeasonNumber(season);
         entity.setTmdbEpisodeNumber(episode);
-        return toDto(mediaFileRepository.save(entity));
+        MediaFileDto dto = toDto(mediaFileRepository.save(entity));
+        // A file that was already here can start answering an episode request the moment its
+        // numbering is corrected, so this counts as a change to what the record holds.
+        if (entity.getRecord() != null) {
+            eventPublisher.publishEvent(new MediaFilesChangedEvent(entity.getRecord().getId()));
+        }
+        return dto;
     }
 
     @Override

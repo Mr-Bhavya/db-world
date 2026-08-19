@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 
@@ -37,13 +38,14 @@ class MediaInfoServiceImplParseTest {
     @Mock AppProperties       properties;
     @Mock StoryboardService   storyboardService;
     @Mock SymlinkService      symlinkService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     MediaInfoServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new MediaInfoServiceImpl(
-                processExecutor, mediaFileRepository, recordRepository,
+                processExecutor, mediaFileRepository, recordRepository, eventPublisher,
                 new ObjectMapper(), properties, storyboardService, symlinkService);
     }
 
