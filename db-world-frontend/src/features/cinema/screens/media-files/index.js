@@ -778,9 +778,13 @@ function useMediaRequestVote(recordId) {
     fetchMyMediaRequests()
       .then(entries => {
         if (!alive || !Array.isArray(entries)) return;
+        // Whole-title entries only: /mine now also returns season and episode scoped
+        // requests, and this screen has no scope of its own to compare them against —
+        // without the null check one requested episode would light up "Requested"
+        // for the entire record.
         const next = new Set(
           entries
-            .filter(e => Number(e?.recordId) === rid)
+            .filter(e => Number(e?.recordId) === rid && e?.season == null && e?.episode == null)
             .map(e => e.kind)
         );
         setRequestedKinds(next);

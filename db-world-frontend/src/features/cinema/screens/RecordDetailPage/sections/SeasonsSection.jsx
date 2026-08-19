@@ -6,11 +6,14 @@ import StarIcon from '@mui/icons-material/Star';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import MovieIcon from '@mui/icons-material/Movie';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import AddRoundedIcon from '@mui/icons-material/Add';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import { getQuality, getHdrTags, qualityRank } from '../../../media/helpers';
 import { QUALITY_META } from '../../../media/constants';
 import { episodeRefOf } from '../../../utils/episodeUtils';
+import { coveringRequest, requestScopeKey } from '../../../utils/requestScope';
 import SectionHeading from '../shared/SectionHeading';
 import { formatDate, formatRuntime } from '../helpers';
 
@@ -115,10 +118,76 @@ function buildSeasons(tmdbSeasons, files) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   REQUEST AFFORDANCE
+
+   A request carries a scope, so "request" means something
+   different on the season bar than on an episode row. Both
+   use this one pill: outlined to ask, teal once you have.
+═══════════════════════════════════════════════════════════ */
+
+function RequestPill({ label, requestedLabel, request, onClick, size = 'sm' }) {
+  const T = useT();
+  const mine = !!request?.hasMyVote;
+  const count = request?.voteCount ?? 0;
+  // Your own vote is already in the count, so it only tells you something once
+  // somebody else is waiting too.
+  const others = mine ? count - 1 : count;
+
+  return (
+    <Box
+      component={motion.button}
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      aria-pressed={mine}
+      sx={{
+        display: 'inline-flex', alignItems: 'center', gap: 0.6,
+        borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+        bgcolor: mine ? alpha(T.teal, 0.16) : 'transparent',
+        color: mine ? T.teal : T.textFaint,
+        border: `1px solid ${mine ? alpha(T.teal, 0.42) : alpha(T.text, 0.14)}`,
+        px: size === 'md' ? 1.75 : 1.5,
+        py: size === 'md' ? 0.65 : 0.55,
+        fontWeight: 700,
+        fontSize: size === 'md' ? '0.75rem' : '0.72rem',
+        '&:hover': {
+          color: mine ? T.teal : T.text,
+          borderColor: mine ? alpha(T.teal, 0.6) : alpha(T.text, 0.28),
+          bgcolor: mine ? alpha(T.teal, 0.24) : alpha(T.text, 0.06),
+        },
+      }}
+    >
+      {mine ? <CheckRoundedIcon sx={{ fontSize: 15 }} /> : <AddRoundedIcon sx={{ fontSize: 15 }} />}
+      {mine ? (requestedLabel ?? 'Requested') : label}
+      {others > 0 && (
+        <Box component="span" sx={{ color: mine ? T.teal : T.textMuted, fontWeight: 600, opacity: 0.85 }}>
+          · {others} {mine ? 'more' : 'waiting'}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Non-interactive marker for something a wider request of yours already asks for. */
+function CoveredNote({ request }) {
+  const T = useT();
+  const label = request?.scopeLabel === 'All'
+    ? 'In your request for this show'
+    : `In your ${request?.scopeLabel} request`;
+  return (
+    <Box sx={{
+      display: 'inline-flex', alignItems: 'center', gap: 0.5,
+      color: alpha(T.teal, 0.85), fontWeight: 700, fontSize: '0.72rem',
+    }}>
+      <CheckRoundedIcon sx={{ fontSize: 14 }} /> {label}
+    </Box>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    EPISODE ROW
 ═══════════════════════════════════════════════════════════ */
 
-function EpisodeRow({ ep, index, onPlay, onDownload, onRequest }) {
+function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests }) {
   const T = useT();
   const meta = ep.tmdb;
   const still = tmdbImg(meta?.stillPath, 'w300');
@@ -131,6 +200,14 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest }) {
     : [];
 
   const title = meta?.name || (ep.orphan ? `Episode ${ep.episodeNumber}` : `Episode ${ep.episodeNumber}`);
+
+  // This episode's own request, and the widest one of yours that already covers it —
+  // asking again from an episode row when you have already asked for the season would
+  // file a second, redundant row for an admin to work through.
+  const epScope = { season: ep.seasonNumber, episode: ep.episodeNumber };
+  const own = requests?.get(requestScopeKey(epScope)) ?? null;
+  const cover = own?.hasMyVote ? null : coveringRequest(requests, epScope);
+  const coveredByMine = !own?.hasMyVote && !!cover?.hasMyVote && cover !== own;
 
   return (
     <Box
@@ -237,6 +314,11 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest }) {
               Not in TMDB
             </Box>
           )}
+          {!ep.available && (
+            <Box component="span" sx={{ color: T.textFaint, fontWeight: 600 }}>
+              Not in library
+            </Box>
+          )}
           {ep.available && ep.files.length > 1 && (
             <Box component="span" sx={{ color: T.teal, fontWeight: 700 }}>
               {ep.files.length} files
@@ -295,22 +377,14 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest }) {
                 <DownloadIcon sx={{ fontSize: 15 }} /> Download
               </Box>
             </>
+          ) : coveredByMine ? (
+            <CoveredNote request={cover} />
           ) : (
-            <Box
-              component={motion.button}
-              whileTap={{ scale: 0.95 }}
-              onClick={onRequest}
-              sx={{
-                display: 'inline-flex', alignItems: 'center', gap: 0.6,
-                borderRadius: 999, cursor: 'pointer',
-                bgcolor: 'transparent', color: T.textFaint,
-                border: `1px solid ${alpha(T.text, 0.14)}`,
-                px: 1.5, py: 0.55, fontWeight: 700, fontSize: '0.72rem',
-                '&:hover': { color: T.text, borderColor: alpha(T.text, 0.28) },
-              }}
-            >
-              Not in library · request
-            </Box>
+            <RequestPill
+              label="Request episode"
+              request={own}
+              onClick={() => onRequest(epScope)}
+            />
           )}
         </Box>
       </Box>
@@ -319,10 +393,73 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   SEASON GAP BAR
+═══════════════════════════════════════════════════════════ */
+
+function SeasonGapBar({ season, requests, onRequest }) {
+  const T = useT();
+  const total = season.episodes.length;
+  const owned = season.episodes.filter((e) => e.available).length;
+  const missing = total - owned;
+
+  const seasonScope = { season: season.seasonNumber };
+  const seasonReq = requests?.get(requestScopeKey(seasonScope)) ?? null;
+  const titleReq = requests?.get(requestScopeKey({})) ?? null;
+  // A show-wide request of yours already asks for this season; a season request of
+  // your own takes precedence over it in the UI.
+  const coveredByTitle = !seasonReq?.hasMyVote && !!titleReq?.hasMyVote;
+
+  if (total === 0) return null;
+
+  const complete = missing === 0;
+
+  return (
+    <Box sx={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 1.5, flexWrap: 'wrap',
+      px: { xs: 1.25, sm: 1.75 }, py: 1.1, mb: 1.5,
+      borderRadius: 2,
+      bgcolor: alpha(T.text, complete ? 0.03 : 0.05),
+      border: `1px solid ${alpha(complete ? T.teal : T.text, complete ? 0.18 : 0.08)}`,
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+        {complete && <CheckRoundedIcon sx={{ fontSize: 16, color: T.teal, flexShrink: 0 }} />}
+        <Typography sx={{
+          color: complete ? T.teal : T.textMuted,
+          fontSize: { xs: '0.74rem', sm: '0.78rem' }, fontWeight: 600,
+        }}>
+          {complete
+            ? `All ${total} episode${total === 1 ? '' : 's'} in your library`
+            : owned === 0
+              ? `None of the ${total} episodes are in your library yet`
+              : `${owned} of ${total} episodes in your library`}
+        </Typography>
+      </Box>
+
+      {!complete && (coveredByTitle ? (
+        <CoveredNote request={titleReq} />
+      ) : (
+        <RequestPill
+          size="md"
+          label={owned === 0
+            ? `Request ${season.isSpecials ? 'the specials' : `Season ${season.seasonNumber}`}`
+            : `Request the missing ${missing === 1 ? 'episode' : `${missing} episodes`}`}
+          requestedLabel={owned === 0 ? 'Season requested' : 'Missing episodes requested'}
+          request={seasonReq}
+          onClick={() => onRequest(seasonScope)}
+        />
+      ))}
+    </Box>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    SEASONS SECTION
 ═══════════════════════════════════════════════════════════ */
 
-export default function SeasonsSection({ record, files = [], onPlayEpisode, onDownloadEpisode, onRequest }) {
+export default function SeasonsSection({
+  record, files = [], onPlayEpisode, onDownloadEpisode, onRequest, requests,
+}) {
   const T = useT();
   const tmdb = record?.tmdb ?? {};
 
@@ -504,6 +641,11 @@ export default function SeasonsSection({ record, files = [], onPlayEpisode, onDo
         </Box>
       )}
 
+      {/* What is missing from THIS season, and one button to ask for it. A gap is a
+          property of the season, not of the show: asking per episode across a whole
+          missing season would file 20 rows for an admin to tick off one at a time. */}
+      <SeasonGapBar season={season} requests={requests} onRequest={onRequest} />
+
       <AnimatePresence mode="wait">
         <Box key={selected}>
           {season.episodes.map((ep, i) => (
@@ -514,6 +656,7 @@ export default function SeasonsSection({ record, files = [], onPlayEpisode, onDo
               onPlay={onPlayEpisode}
               onDownload={onDownloadEpisode}
               onRequest={onRequest}
+              requests={requests}
             />
           ))}
         </Box>

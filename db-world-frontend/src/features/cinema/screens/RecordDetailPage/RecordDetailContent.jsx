@@ -10,7 +10,8 @@ import { notify } from '@shared/notify';
 import {
   addLike, addLove, addWatched, addWatchlist,
   fetchInteraction, fetchRecord, fetchSimilarRecords, getContinueWatching,
-  removeLike, removeLove, removeWatched, removeWatchlist, toggleMediaRequestVote,
+  removeLike, removeLove, removeWatched, removeWatchlist,
+  fetchRecordMediaRequests, toggleMediaRequestVote,
 } from '../../api/cinemaApi';
 import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
@@ -33,6 +34,9 @@ import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
 import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
 import { buildHybridEpisodes } from '../../utils/episodeUtils';
+import {
+  DEFAULT_KIND, applyVote, indexRequests, requestScopeKey, scopeSuffix,
+} from '../../utils/requestScope';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
@@ -259,23 +263,53 @@ export default function RecordDetailContent({
 
   const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
   const [downloadLabel, setDownloadLabel] = useState(null);
-  const [requested, setRequested] = useState(false);
 
   const hasFiles = mediaFiles.length > 0;
 
-  // The "ask for this title" flow used to live inside the media-files screen,
-  // which only existed once you went looking for files. It belongs here, where
-  // someone who just found the title actually is.
-  const handleRequest = useCallback(async () => {
+  // ── Requests ───────────────────────────────────────────────────────────
+  // Every PENDING request on this record, at whatever scope: the whole title, a
+  // season, a single episode. One call feeds the hero button AND every episode row,
+  // and it carries the vote counts, so "3 waiting" is the server's number and not
+  // an optimistic guess.
+  //
+  // It also replaces a local boolean that started false on every mount, so a
+  // returning voter was shown "Request this" and their click silently WITHDREW
+  // the request they had already made.
+  const { data: pendingRequests = [] } = useQuery({
+    queryKey: ['cinema-media-requests', id],
+    queryFn: () => fetchRecordMediaRequests(id),
+    enabled: !!userId && !!id,
+    staleTime: 60 * 1000,
+  });
+  const requestIndex = useMemo(() => indexRequests(pendingRequests), [pendingRequests]);
+  const recordRequest = requestIndex.get(requestScopeKey({ kind: DEFAULT_KIND }));
+
+  const requestMutation = useMutation({
+    mutationFn: ({ season, episode }) => toggleMediaRequestVote(id, DEFAULT_KIND, { season, episode }),
+    onSuccess: (res) => {
+      // Fold the authoritative row back in rather than refetching: the response
+      // already carries the new count for exactly the scope that was pressed.
+      qc.setQueryData(['cinema-media-requests', id], (prev) => applyVote(prev, res));
+      const what = scopeSuffix(res?.scopeLabel);
+      notify[res?.hasMyVote ? 'success' : 'info'](res?.hasMyVote
+        ? `Requested${what} — you'll be notified when it lands.`
+        : `Request${what} withdrawn.`);
+    },
+    onError: (err) => {
+      if (err?.response?.status === 401) navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+      else notify.error('Could not send the request.');
+    },
+  });
+
+  /**
+   * Toggle a request. No argument asks for the whole title (a movie, or a series with
+   * nothing in the library at all); `{ season }` asks for one season and
+   * `{ season, episode }` for one episode.
+   */
+  const handleRequest = useCallback((scope = {}) => {
     if (!userId) { navigate(Constants.LOGIN_ROUTE, { state: { from: location } }); return; }
-    try {
-      await toggleMediaRequestVote(id, 'NEW_FILES');
-      setRequested((v) => !v);
-      notify.success(requested ? 'Request withdrawn.' : 'Requested — you\'ll be notified when it lands.');
-    } catch {
-      notify.error('Could not send the request.');
-    }
-  }, [userId, navigate, location, id, requested]);
+    requestMutation.mutate({ season: scope.season ?? null, episode: scope.episode ?? null });
+  }, [userId, navigate, location, requestMutation]);
 
   /** Launch the player on `files`, letting resolveAndBuildMedia auto-pick. */
   const launch = useCallback(async (candidateFiles, epRef = null) => {
@@ -485,8 +519,8 @@ export default function RecordDetailContent({
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
         onWatchClick={hasFiles ? handlePlay : null}
         onDownloadClick={hasFiles ? handleOpenDownloads : null}
-        onRequestClick={fullLoaded && !hasFiles ? handleRequest : null}
-        requested={requested}
+        onRequestClick={fullLoaded && !hasFiles ? () => handleRequest() : null}
+        requested={!!recordRequest?.hasMyVote}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
         preview={preview}
@@ -537,6 +571,7 @@ export default function RecordDetailContent({
                 onPlayEpisode={handlePlayEpisode}
                 onDownloadEpisode={handleDownloadEpisode}
                 onRequest={handleRequest}
+                requests={requestIndex}
               />
             </Box>
           )}

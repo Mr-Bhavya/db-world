@@ -163,15 +163,43 @@ export const markNotificationsRead = () =>
 // ─── Media Requests ───────────────────────────────────────────────────────────
 // Kinds: NEW_FILES (empty state), HIGHER_QUALITY, LOWER_QUALITY.
 
-/** POST /api/cinema/media-requests/{recordId}/vote?kind=KIND → { recordId, kind, voteCount, hasMyVote } */
-export const toggleMediaRequestVote = (recordId, kind = 'NEW_FILES') =>
+// Scope: omit season for the whole title (the only shape a movie has); season alone asks
+// for a season; season + episode narrows it to one episode. Series only.
+
+/**
+ * POST /api/cinema/media-requests/{recordId}/vote?kind=KIND[&season=&episode=]
+ * -> { recordId, kind, season, episode, scopeLabel, voteCount, hasMyVote }
+ */
+export const toggleMediaRequestVote = (recordId, kind = 'NEW_FILES', scope = {}) =>
   axiosInstance
-    .post(`${BASE}/media-requests/${recordId}/vote`, null, { params: { kind } })
+    .post(`${BASE}/media-requests/${recordId}/vote`, null, {
+      // Omitted rather than sent as null: the backend reads a missing param as
+      // "whole title", and Spring rejects an empty string for an Integer.
+      params: {
+        kind,
+        ...(scope?.season != null ? { season: scope.season } : {}),
+        ...(scope?.episode != null ? { episode: scope.episode } : {}),
+      },
+    })
     .then(unwrap);
 
-/** GET /api/cinema/media-requests/mine → [{ recordId, kind }] pending requests caller voted for */
+/**
+ * GET /api/cinema/media-requests/mine
+ * -> [{ recordId, kind, season, episode }] pending requests caller voted for.
+ * season/episode are null for a whole-title request - match on them, or a per-episode
+ * request will read as an ask for the whole show.
+ */
 export const fetchMyMediaRequests = () =>
   axiosInstance.get(`${BASE}/media-requests/mine`).then(unwrap);
+
+/**
+ * GET /api/cinema/media-requests/record/{recordId}
+ * -> [{ requestId, kind, season, episode, scopeLabel, voteCount, hasMyVote }]
+ * Every PENDING request on one record, so the detail page can show demand per season
+ * and per episode from a single call.
+ */
+export const fetchRecordMediaRequests = (recordId) =>
+  axiosInstance.get(`${BASE}/media-requests/record/${recordId}`).then(unwrap);
 
 // ─── Persons ──────────────────────────────────────────────────────────────────
 

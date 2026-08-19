@@ -17,6 +17,12 @@ public class MediaRequestDto {
     private String recordTitle;
     private String recordType;
     private MediaRequestKind kind;
+    /** null when the request covers the whole title. */
+    private Integer season;
+    /** null when the request covers a whole season (or the whole title). */
+    private Integer episode;
+    /** Pre-rendered scope for the admin queue: "All", "Season 2", "Specials", "S02E05". */
+    private String scopeLabel;
     private MediaRequestStatus status;
     private int voteCount;
     private boolean hasMyVote;
