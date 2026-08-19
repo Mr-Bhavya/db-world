@@ -98,3 +98,5 @@ logs/
 ### Local build artifacts & DB dumps — never commit ###
 db-world-frontend/android/app/release/
 MySqlDb/
+# Added by code-review-graph
+.code-review-graph/
