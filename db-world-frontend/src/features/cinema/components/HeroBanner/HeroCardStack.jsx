@@ -271,11 +271,14 @@ function DeckCard({
             someone forgot to style, and each fact was hard to pick out at a glance. As
             small glass pills it reads as a designed row, matches the genre chips on the
             record detail hero, and wraps cleanly instead of ellipsing a fact away. */}
+        {/* NO maxHeight clamp here. A 56px cap looked like it just limited the row to two
+            lines, but a chip is ~24px and the cert badge ~26px, so two rows plus the gap
+            came to ~57px — the cap shaved a hairline off the bottom row and took its
+            border with it. There is nothing to clamp anyway: buildMobileMeta returns at
+            most four items, so this is five chips at the very worst. */}
         <Box sx={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap',
           gap: 0.6, minWidth: 0,
-          // Two rows at most; a title with five genres shouldn't climb the poster.
-          maxHeight: 56, overflow: 'hidden',
         }}>
           {record?.certification && (
             <CertBadge value={record.certification} sx={{ flexShrink: 0 }} />
