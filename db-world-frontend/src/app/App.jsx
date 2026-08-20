@@ -272,9 +272,14 @@ const ThemedApp = () => {
   // detail overlay on top — a bottom sheet on mobile, a modal on desktop.
   const background = location.state?.background;
   const isSheetViewport = useMediaQuery('(max-width:899.95px)');
-  // While the mobile sheet is open, shrink the page behind it slightly for an
-  // iOS-style "card stack" depth cue.
-  const pageScaled = !!background && isSheetViewport;
+  // While a detail overlay is open, shrink the page behind it for an iOS-style
+  // "card stack" depth cue. The mobile sheet covers most of the screen so the page
+  // can recede a long way; the desktop modal leaves a visible frame of page around
+  // itself, where the same cue only works if it is slight.
+  const overlayOpen = !!background;
+  const pageScaled = overlayOpen;
+  const pageScale = isSheetViewport ? 0.94 : 0.985;
+  const pageRadius = '16px';
 
   const renderRoutes = (routes) =>
     routes.map((route, i) => (
@@ -352,9 +357,10 @@ const ThemedApp = () => {
       <NotifyProvider>
         <CategoryProvider>
           {/* Transparent by default so the hybrid player's native video layer
-              (behind the transparent WebView) shows through. Only paint the dark
-              backdrop when the mobile detail sheet scales the page back. */}
-          <div style={{ background: pageScaled ? '#000' : 'transparent' }}>
+              (behind the transparent WebView) shows through. Painted dark only while a
+              detail overlay has scaled the page back, so the gap the recede opens up
+              shows black rather than the native layer behind the WebView. */}
+          <div style={{ background: overlayOpen ? '#000' : 'transparent' }}>
             <AppLockGate />
             <BackButtonHandler />
             <AppUpdateGate />
@@ -372,10 +378,16 @@ const ThemedApp = () => {
                 nav, AppBar) anchor to this box instead of the viewport. */}
             <Box
               sx={{
-                transform: pageScaled ? 'scale(0.94)' : 'none',
-                borderRadius: pageScaled ? '16px' : 0,
+                transform: pageScaled ? `scale(${pageScale})` : 'none',
+                // Rounding and clipping are MOBILE ONLY, and that restriction is
+                // load-bearing on desktop: `overflow: hidden` removes the page's own
+                // scroll height, so the browser's scrollbar disappears the moment the
+                // modal opens, the viewport gets ~15px wider, and the whole page reflows
+                // — a visible flicker and a scrollbar that comes and goes. A transform
+                // alone changes no layout, so the depth cue is free there.
+                borderRadius: pageScaled && isSheetViewport ? pageRadius : 0,
                 transformOrigin: 'top center',
-                overflow: pageScaled ? 'hidden' : 'visible',
+                overflow: pageScaled && isSheetViewport ? 'hidden' : 'visible',
                 transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
                 minHeight: '100vh',
               }}

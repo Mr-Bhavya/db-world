@@ -536,6 +536,7 @@ export default function RecordDetailContent({
         scrollRoot={scrollRoot}
         stickyOffset={stickyOffset}
         onDismiss={inModal ? onClose : () => window.history.back()}
+        title={displayRecord?.tmdb?.title ?? displayRecord?.name ?? null}
       />
 
       {fullLoaded ? (

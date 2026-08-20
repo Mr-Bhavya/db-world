@@ -19,8 +19,15 @@ import { useT } from '@shared/theme/ThemeContext';
  * hero's own close scrolls away with the artwork, and the sticky header takes
  * over the job — so there is always exactly one visible way out, and the two
  * never sit on top of each other.
+ *
+ * `title` rides along with it: once the hero has gone, this bar is the only thing on
+ * screen that says WHICH record you are reading, and a page of cast and reviews looks
+ * much like any other. Tablet and up only — on a phone the pill row already fills the
+ * width, and squeezing a title in would cost more than it tells you.
  */
-export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0, onDismiss = null }) {
+export default function PillNav({
+  sections, scrollRoot = null, stickyOffset = 0, onDismiss = null, title = null,
+}) {
   const T = useT();
   const [active, setActive] = useState(sections[0]?.id);
   const [stuck, setStuck] = useState(false);
@@ -124,8 +131,13 @@ export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0,
       bgcolor: alpha(T.bg === '#000000' ? '#141414' : T.bg, 0.72),
       backdropFilter: 'blur(22px) saturate(180%)',
       WebkitBackdropFilter: 'blur(22px) saturate(180%)',
-      borderBottom: `1px solid ${alpha(T.text, 0.08)}`,
-      boxShadow: `0 2px 16px ${alpha(T.text, 0.06)}`,
+      // Edge and shadow ONLY while stuck. In normal flow the bar has nothing to separate
+      // itself from — the border was just a line drawn across the page under the pills.
+      // It earns its keep the moment the bar starts floating over scrolled content, which
+      // is exactly what `stuck` already tells us.
+      borderBottom: `1px solid ${stuck ? alpha(T.text, 0.08) : 'transparent'}`,
+      boxShadow: stuck ? `0 2px 16px ${alpha(T.text, 0.06)}` : 'none',
+      transition: 'border-color .2s ease, box-shadow .2s ease',
     }}>
       {/* Width ladder must match RecordDetailContent's content Container, or the
           pills drift out of alignment with the sections they scroll to. */}
@@ -163,6 +175,31 @@ export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0,
                   <ArrowBackIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </Tooltip>
+            </Box>
+          )}
+        </AnimatePresence>
+
+        {/* Appears with the back control and retires with it, so the two read as one
+            header rather than a button that arrives on its own. */}
+        <AnimatePresence initial={false}>
+          {title && stuck && (
+            <Box
+              component={motion.div}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              sx={{
+                display: { xs: 'none', sm: 'block' },
+                flexShrink: 1, minWidth: 0,
+                maxWidth: { sm: 200, md: 300, xl: 420 },
+                mr: 0.5,
+                color: T.text, fontWeight: 800, letterSpacing: -0.2,
+                fontSize: { sm: '0.92rem', xl: '1.05rem' },
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+            >
+              {title}
             </Box>
           )}
         </AnimatePresence>

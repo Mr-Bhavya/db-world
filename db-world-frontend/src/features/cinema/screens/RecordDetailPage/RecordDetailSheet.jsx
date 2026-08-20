@@ -6,12 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
 import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
-import { HERO_CONTROL_SIZE } from './HeroTrailer';
-
-/* Height of the grab-handle block above the scroller: pt:1 (8) + bar (4) +
-   pb:0.5 (4). The hero starts below it, so anything that needs to line up with
-   a control INSIDE the hero has to add this first. */
-const SHEET_HANDLE_H = 16;
+import { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 
 const SNAP = { peek: '25%', full: '0%', closed: '100%' };
 
@@ -238,16 +233,18 @@ export default function RecordDetailSheet() {
       <Box
         component={motion.div}
         onClick={close}
-        initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+        initial={{ opacity: 0, backdropFilter: 'blur(0px)', backgroundColor: alpha('#000', 0) }}
         animate={{
           opacity: closing ? 0 : 1,
           backdropFilter: closing ? 'blur(0px)' : isFull ? 'blur(14px)' : 'blur(3px)',
+          // Dim animated by framer alongside the blur instead of by a CSS transition:
+          // two properties of one movement were being driven by two different curves,
+          // so the darkening and the defocusing arrived at slightly different times.
+          backgroundColor: alpha('#000', closing ? 0 : isFull ? 0.72 : 0.55),
         }}
-        transition={{ duration: 0.34, ease: 'easeOut' }}
+        transition={{ duration: 0.34, ease: [0.32, 0.72, 0, 1] }}
         sx={{
           position: 'fixed', inset: 0, zIndex: 1299,
-          bgcolor: alpha('#000', isFull ? 0.72 : 0.55),
-          transition: 'background-color 0.34s ease-out',
           pointerEvents: closing ? 'none' : 'auto',
         }}
       />
@@ -275,10 +272,22 @@ export default function RecordDetailSheet() {
           overscrollBehavior: 'none',
         }}
       >
+        {/* The handle FLOATS over the artwork rather than sitting in a 16px band of its
+            own above it. That band read as a border drawn across the top of the sheet,
+            and it pushed the artwork down away from the sheet's rounded edge; overlaid,
+            the poster runs right to the top and the sheet reads as the artwork itself
+            rising into view — which is what iOS sheets, Apple Music and Hotstar all do.
+            
+            White with a shadow, not a theme colour: it now sits on ARTWORK, which can be
+            any brightness, so `T.text` would vanish against a pale poster. */}
         {!personOpen && (
-          <Box sx={{ flexShrink: 0, display: 'flex', justifyContent: 'center', pt: 1, pb: 0.5 }}>
-            <Box sx={{ width: 42, height: 4, borderRadius: 2, bgcolor: alpha(T.text, 0.22) }} />
-          </Box>
+          <Box aria-hidden sx={{
+            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 31, pointerEvents: 'none',
+            width: 42, height: 4, borderRadius: 2,
+            bgcolor: alpha('#fff', 0.62),
+            boxShadow: '0 1px 4px rgba(0,0,0,0.55)',
+          }} />
         )}
 
         {!personOpen && !scrolledPastHero && (
@@ -290,14 +299,14 @@ export default function RecordDetailSheet() {
               // Left, matching the back affordance on the full-page hero and
               // leaving the top-right free for the trailer controls.
               //
-              // Top = grab-handle block (pt:1 + 4px bar + pb:0.5 = 16px, which is
-              // what the scroller and therefore the hero start below) + the hero's
-              // own HERO_CONTROL_TOP. That puts this button on exactly the same
-              // line as the trailer's mute/replay, which are positioned inside the
-              // hero rather than here. Both are HERO_CONTROL_SIZE so their centres
-              // agree, not just their top edges.
+              // Plain HERO_CONTROL_TOP now: the scroller starts at the sheet's very top,
+              // so this shares an origin with the trailer's mute/replay controls inside
+              // the hero. It used to add the grab-handle band's 16px on top, which is
+              // exactly the kind of arithmetic that goes stale when the layout changes.
+              // Both are HERO_CONTROL_SIZE, so their centres agree and not just their
+              // top edges.
               position: 'absolute',
-              top: { xs: SHEET_HANDLE_H + 10, md: SHEET_HANDLE_H + 18 },
+              top: HERO_CONTROL_TOP,
               left: 10, zIndex: 30,
               bgcolor: alpha('#000', 0.55), color: '#fff',
               border: `1px solid ${alpha('#fff', 0.18)}`,
