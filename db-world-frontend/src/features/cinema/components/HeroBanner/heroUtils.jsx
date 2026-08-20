@@ -55,13 +55,19 @@ export const ratingColor = (v) => {
 //
 // `tmdbImg` is passed in rather than imported to keep this module free of an
 // API dependency (heroUtils is imported by pure helpers and tests).
-export function heroArtCandidates(record, { portrait, hasLogo }) {
+// `titled: true` inverts the poster preference: the phone card stack paints the poster
+// AS the hero and draws no title of its own, so there the poster's own title art is the
+// title and the text-bearing variant is the one we want first.
+export function heroArtCandidates(record, { portrait, hasLogo, titled = false }) {
   const posterClean = record?.posterPathClean;
   const posterText = record?.posterPath;
   const backdropClean = record?.backdropPath;
   const backdropText = record?.backdropPathText;
 
   if (portrait) {
+    if (titled) {
+      return [posterText, posterClean, backdropText, backdropClean];
+    }
     return hasLogo
       ? [posterClean, backdropClean, posterText, backdropText]
       : [posterClean, posterText, backdropClean, backdropText];
@@ -69,6 +75,55 @@ export function heroArtCandidates(record, { portrait, hasLogo }) {
   return hasLogo
     ? [backdropClean, posterClean, backdropText, posterText]
     : [backdropClean, backdropText, posterClean, posterText];
+}
+
+/**
+ * The one contextual badge the phone hero card carries, or null.
+ *
+ * The tag has to be TRUE, which means distinguishing two things the old version merged.
+ * The red TOP 10 mark is Netflix's own device for their top-ten row; a "Trending Now" or
+ * "Popular" rail is an ordered list, not a top ten, and stamping TOP 10 on it is simply
+ * false. So a genuine top-ten rail gets `top10`, any other ordered rail gets `rank` and
+ * carries THAT RAIL'S NAME ("#3 in Trending Now"), and an unranked rail falls through to
+ * what is true of the record itself: unreleased, or released recently.
+ *
+ * JioHotstar's card says "New Season" here, which we cannot honestly produce: a season's
+ * own air date isn't in the rail payload (only the show's first air date and a season
+ * COUNT), so a returning show is indistinguishable from an old one. If that badge is
+ * wanted, the rail projection has to start sending the latest season's air date.
+ */
+export const NEW_WINDOW_DAYS = 45;
+
+export function heroBadge(record, {
+  ranked = false,
+  top10 = false,
+  rankLabel = null,
+  idx = 0,
+  now = Date.now(),
+} = {}) {
+  if (!record) return null;
+
+  const position = `#${idx + 1}`;
+
+  if (top10) {
+    return { kind: 'top10', label: `${position} in ${record.type === 'MOVIE' ? 'Movies' : 'Shows'}` };
+  }
+
+  // An ordered rail that isn't a top ten: the position is real, so say where it is real.
+  if (ranked) {
+    return {
+      kind: 'rank',
+      label: rankLabel ? `${position} in ${rankLabel}` : `${position} trending`,
+    };
+  }
+
+  const released = record.releaseDate ? Date.parse(record.releaseDate) : NaN;
+  if (!Number.isFinite(released)) return null;
+
+  const days = (released - now) / 86_400_000;
+  if (days > 0) return { kind: 'soon', label: 'Coming soon' };
+  if (days > -NEW_WINDOW_DAYS) return { kind: 'new', label: 'New' };
+  return null;
 }
 
 export const clampLines = (lines) => ({

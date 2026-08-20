@@ -2,6 +2,8 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 
+import { useT } from '@shared/theme/ThemeContext';
+
 /**
  * An age rating, with enough context to be read as one.
  *
@@ -13,6 +15,10 @@ import { alpha } from '@mui/material/styles';
  *
  * The word RATED is hidden on phones, where the country code alone plus the tooltip is
  * enough and the row is fighting for width.
+ *
+ * `tone` picks the palette. Over artwork ('art', the default) it is always white on a
+ * dark scrim; on a page surface ('page') it has to follow the theme, because white on
+ * white is what the light theme would otherwise give you.
  */
 
 /** Rating boards worth naming in the tooltip. Anything else falls back to the country. */
@@ -39,8 +45,12 @@ function regionName(code) {
   }
 }
 
-export default function CertBadge({ value, country, sx }) {
+export default function CertBadge({ value, country, tone = 'art', sx }) {
+  const T = useT();
   if (!value) return null;
+
+  const ink = tone === 'page' ? T.text : '#fff';
+  const strong = tone === 'page' ? T.text : '#f5f5f5';
 
   const code = country ? String(country).toUpperCase() : null;
   const where = regionName(code);
@@ -56,7 +66,7 @@ export default function CertBadge({ value, country, sx }) {
       sx={{
         display: 'inline-flex', alignItems: 'stretch',
         borderRadius: 1, overflow: 'hidden', flexShrink: 0,
-        border: `1px solid ${alpha('#fff', 0.22)}`,
+        border: `1px solid ${alpha(ink, 0.22)}`,
         fontSize: { xs: '0.64rem', xl: '0.72rem' },
         fontWeight: 700, lineHeight: 1.7,
         ...sx,
@@ -64,8 +74,8 @@ export default function CertBadge({ value, country, sx }) {
     >
       <Box component="span" sx={{
         display: 'inline-flex', alignItems: 'center',
-        px: 0.7, bgcolor: alpha('#fff', 0.06),
-        color: alpha('#fff', 0.55),
+        px: 0.7, bgcolor: alpha(ink, 0.06),
+        color: alpha(ink, 0.55),
         fontSize: { xs: '0.55rem', xl: '0.62rem' }, letterSpacing: 0.7,
       }}>
         {code ? (
@@ -77,7 +87,7 @@ export default function CertBadge({ value, country, sx }) {
       </Box>
       <Box component="span" sx={{
         display: 'inline-flex', alignItems: 'center',
-        px: 0.9, bgcolor: alpha('#fff', 0.12), color: '#f5f5f5',
+        px: 0.9, bgcolor: alpha(ink, 0.12), color: strong,
       }}>
         {value}
       </Box>

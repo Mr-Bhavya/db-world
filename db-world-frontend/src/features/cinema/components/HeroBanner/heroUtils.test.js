@@ -3,6 +3,7 @@ import {
   fmtRuntime,
   buildMobileMeta,
   heroArtCandidates,
+  heroBadge,
   classifyLogoTone,
   interpolateRgb,
   darken,
@@ -36,6 +37,21 @@ describe('heroArtCandidates', () => {
 
     expect(withLogo.filter(Boolean)[0]).toBe('/backdrop-clean.jpg');
     expect(withoutLogo.filter(Boolean)[0]).toBe('/poster-text.jpg');
+  });
+
+  it('leads with the TITLED poster when the card draws no title of its own', () => {
+    // The phone card stack paints the poster AS the hero, so there the poster's own
+    // title art is the title and the clean variant would leave the card nameless.
+    expect(heroArtCandidates(full, { portrait: true, hasLogo: false, titled: true })[0])
+      .toBe('/poster-text.jpg');
+    expect(heroArtCandidates(full, { portrait: true, hasLogo: true, titled: true })[0])
+      .toBe('/poster-text.jpg');
+  });
+
+  it('falls back through the clean poster when there is no titled one', () => {
+    const noTitledPoster = { ...full, posterPath: null };
+    expect(heroArtCandidates(noTitledPoster, { portrait: true, titled: true }).filter(Boolean)[0])
+      .toBe('/poster-clean.jpg');
   });
 
   it('still offers the text-bearing artwork as a last resort', () => {
@@ -205,5 +221,54 @@ describe('darken', () => {
 
   it('clamps nothing but rounds half-up per channel', () => {
     expect(darken([1, 3, 5], 0.5)).toBe('1,2,3');
+  });
+});
+
+
+// ─── heroBadge ─────────────────────────────────────────────────────────────
+// The single contextual chip on the phone hero card. Pure so the precedence is
+// pinned down: a rail-supplied rank beats anything inferred from a date.
+
+describe('heroBadge', () => {
+  const NOW = Date.parse('2026-08-20T00:00:00Z');
+  const movie = (releaseDate) => ({ type: 'MOVIE', releaseDate });
+
+  it('prefers a real Top 10 rank over anything date-derived', () => {
+    const badge = heroBadge(movie('2026-08-19'), { ranked: true, top10: true, idx: 2, now: NOW });
+    expect(badge).toEqual({ kind: 'top10', label: '#3 in Movies' });
+  });
+
+  it('names the right list for a series', () => {
+    const badge = heroBadge({ type: 'TV_SERIES' }, { ranked: true, top10: true, idx: 0, now: NOW });
+    expect(badge.label).toBe('#1 in Shows');
+  });
+
+  it('does NOT claim Top 10 for a merely-ordered rail, and names that rail instead', () => {
+    // A "Trending Now" rail is ordered but is not a top ten; borrowing the badge would
+    // be a straight lie about what the number means.
+    const badge = heroBadge(movie('2026-01-01'), {
+      ranked: true, top10: false, rankLabel: 'Trending Now', idx: 4, now: NOW,
+    });
+    expect(badge).toEqual({ kind: 'rank', label: '#5 in Trending Now' });
+  });
+
+  it('falls back to a plain trending position when the rail has no name', () => {
+    const badge = heroBadge(movie('2026-01-01'), { ranked: true, idx: 0, now: NOW });
+    expect(badge).toEqual({ kind: 'rank', label: '#1 trending' });
+  });
+
+  it('marks an unreleased title as coming soon', () => {
+    expect(heroBadge(movie('2026-09-01'), { now: NOW })).toEqual({ kind: 'soon', label: 'Coming soon' });
+  });
+
+  it('marks a recent release as new, and an old one as nothing', () => {
+    expect(heroBadge(movie('2026-08-01'), { now: NOW })?.kind).toBe('new');
+    expect(heroBadge(movie('2026-01-01'), { now: NOW })).toBeNull();
+  });
+
+  it('says nothing when there is no usable date', () => {
+    expect(heroBadge(movie(null), { now: NOW })).toBeNull();
+    expect(heroBadge(movie('not-a-date'), { now: NOW })).toBeNull();
+    expect(heroBadge(null)).toBeNull();
   });
 });

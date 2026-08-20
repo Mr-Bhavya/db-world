@@ -244,14 +244,27 @@ const CinemaPage = ({ pageType = 'home' }) => {
     ? { xs: 0, md: '-8px', lg: '-12px' }
     : { xs: 0, md: '-90px', lg: '-110px', xl: '-130px' };
 
-  // Only show the "#N in Movies/Shows" Top-10 badge when the hero rail is actually a ranked rail
-  // (top-10 / trending / popular) — otherwise it would be a meaningless number.
+  // Two separate questions, because the badge has to be true.
+  //
+  //   heroRanked — is this rail ORDERED, so a "#3" means something? (top-10, trending,
+  //                popular, rewatch-trending)
+  //   heroTop10  — is it actually a TOP TEN? Only then does the red TOP 10 mark, which
+  //                is Netflix's device for exactly that row, belong on the card.
+  //
+  // Everything ordered but not a top ten shows "#3 in <rail name>" instead, which is
+  // both honest and more informative than a borrowed badge.
   const heroRanked = useMemo(() => {
     if (!heroRail) return false;
     const t = (heroRail.type ?? '').toLowerCase();
     const title = (heroRail.title ?? '').toLowerCase();
     const ruleType = (heroRail.rule?.type ?? '').toLowerCase();
     return t === 'top10' || ruleType === 'rewatchtrending' || /top\s*10|trending|popular/.test(title);
+  }, [heroRail]);
+
+  const heroTop10 = useMemo(() => {
+    if (!heroRail) return false;
+    const t = (heroRail.type ?? '').toLowerCase();
+    return t === 'top10' || /top\s*10/.test((heroRail.title ?? '').toLowerCase());
   }, [heroRail]);
 
   const safeHeroColor = heroColor || '20,20,20';
@@ -300,7 +313,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
     if (isTablet) {
       return { height: '175vh', solidEnd: 44, fadeMid: 64 };
     }
-    // mobile xs — taller hero card; keep the wash solid around it, fade into rails
+    // mobile xs — the card deck; keep the wash solid around it, fade into the rails
     return { height: '175vh', solidEnd: 52, fadeMid: 68 };
   }, [isDesktop, isMonitor, isTablet, isTv]);
 
@@ -366,12 +379,19 @@ const CinemaPage = ({ pageType = 'home' }) => {
           height: isTv ? '72vh' : isMonitor ? '68vh' : isTablet ? '58vh' : '52vh',
           pointerEvents: 'none',
           zIndex: 0,
+          // Explicit radii, and transparent well before the element's own edge.
+          // `ellipse at 50% 0%` sizes itself to the farthest CORNER, which puts the
+          // element's bottom edge at roughly 70% along the gradient ray — so a last stop
+          // of `transparent 70%` was landing right ON that edge and leaving a faint hard
+          // line across the page. `ellipse 130% 100%` pins the vertical radius to the
+          // element's height, so 58% is provably 58% of the way down.
           background: `
             radial-gradient(
-              ellipse at 50% 0%,
+              ellipse 130% 100% at 50% 0%,
               rgba(var(--cinema-wash, 20,20,20), 0.20) 0%,
               rgba(var(--cinema-wash, 20,20,20), 0.08) 30%,
-              transparent 70%
+              transparent 58%,
+              transparent 100%
             )
           `,
           opacity: showWash ? 1 : 0,
@@ -397,6 +417,8 @@ const CinemaPage = ({ pageType = 'home' }) => {
             breadcrumb={billboardBreadcrumb}
             breadcrumbHref={billboardBreadcrumbHref}
             ranked={heroRanked}
+            top10={heroTop10}
+            rankLabel={heroRail?.title ?? null}
           />
         </Box>
 

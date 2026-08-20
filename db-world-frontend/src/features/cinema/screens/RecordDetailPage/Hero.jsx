@@ -26,7 +26,7 @@ import ShareButton from './shared/ShareButton';
 import ReactionButton from './ReactionButton';
 import HeroTrailer, { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 import TechBadgeRow from './shared/TechBadgeRow';
-import CertBadge from './shared/CertBadge';
+import CertBadge from '../../components/CertBadge';
 import { HERO_ACCENT, ctaPrimary, ctaSecondary, ctaShape } from './shared/ctaShape';
 import { providerStrip } from '../../utils/providers';
 

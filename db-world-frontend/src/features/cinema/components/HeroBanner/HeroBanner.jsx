@@ -10,7 +10,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
-import HeroBannerMobile from './HeroBannerMobile';
+import HeroCardStack from './HeroCardStack';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
@@ -36,114 +36,26 @@ const SkeletonBlock = (props) => (
 );
 
 const HeroSkeletonMobile = ({ isXs }) => (
-  // Mirrors HeroBannerMobile exactly: full-bleed frame, MIN-height (never a
-  // fixed height), content bottom-anchored in flow. Same min-height expression
-  // as the real hero so the page doesn't jump when it loads in.
-  <Box
-    sx={{
-      position: 'relative',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'flex-end',
-      minHeight: isXs ? 'clamp(480px, 74vh, 780px)' : 'clamp(540px, 68vh, 900px)',
-      '@supports (height: 1svh)': {
-        minHeight: isXs ? 'clamp(480px, 74svh, 780px)' : 'clamp(540px, 68svh, 900px)',
-      },
-      pt: 'calc(56px + env(safe-area-inset-top, 0px))',
-      overflow: 'hidden',
-      bgcolor: shimmerBg,
-    }}
-  >
-    <SkeletonBlock
-      width="100%"
-      height="100%"
-      sx={{ position: 'absolute', inset: 0, borderRadius: 0, bgcolor: shimmerStrong }}
-    />
-
-    {/* Same three-layer scrim shape as the real hero, neutral variant */}
-    <Box
-      aria-hidden
-      sx={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        background: `
-          linear-gradient(to top,
-            #141414 0%, rgba(20,20,20,0.97) 8%, rgba(20,20,20,0.86) 20%,
-            rgba(20,20,20,0.58) 38%, rgba(20,20,20,0.22) 58%, rgba(20,20,20,0) 80%),
-          linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 26%)
-        `,
-      }}
-    />
-
-    <Box
-      sx={{
-        position: 'relative',
-        zIndex: 2,
-        mt: 'auto',
-        px: { xs: 2.5, sm: 5 },
-      }}
-    >
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: { xs: 560, sm: 680 },
-          mx: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 1.15,
-        }}
-      >
-        {/* Ribbon: DB mark + type label */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <SkeletonBlock width={22} height={22} sx={{ borderRadius: '50%' }} />
-          <SkeletonBlock width={54} height={10} />
-        </Box>
-
-        {/* Title logo */}
-        <SkeletonBlock width="66%" height={isXs ? 58 : 74} sx={{ borderRadius: 1.5 }} />
-
-        {/* Meta line */}
-        <SkeletonBlock width="52%" height={12} />
-
-        {/* My List · Play · Info — the three-across row */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.75, sm: 3 }, mt: 0.6 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-            <SkeletonBlock width={26} height={26} sx={{ borderRadius: 1 }} />
-            <SkeletonBlock width={44} height={9} />
-          </Box>
-          <SkeletonBlock width={isXs ? 150 : 190} height={48} sx={{ borderRadius: 1.2 }} />
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-            <SkeletonBlock width={26} height={26} sx={{ borderRadius: 1 }} />
-            <SkeletonBlock width={28} height={9} />
-          </Box>
-        </Box>
-      </Box>
-    </Box>
-
-    {/* Dots — same 30x44 hit cells as the real hero */}
-    <Box
-      sx={{
-        position: 'relative',
-        zIndex: 2,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        pt: 0.25,
-        pb: 'calc(4px + env(safe-area-inset-bottom, 0px))',
-      }}
-    >
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Box key={i} sx={{ width: 30, height: 44, display: 'grid', placeItems: 'center' }}>
-          <Box
-            sx={{
-              width: i === 0 ? 18 : 6,
-              height: 6,
-              borderRadius: 999,
-              bgcolor: i === 0 ? 'rgba(20,184,166,0.6)' : 'rgba(255,255,255,0.18)',
-            }}
+  // Mirrors HeroCardStack: the same inset card at the same 2:3 ratio and the same
+  // title/meta block underneath, so the page doesn't jump when the real hero lands.
+  // The card's height comes from its aspect ratio, exactly as it does there.
+  <Box sx={{
+    position: 'relative',
+    overflow: 'hidden',
+    pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+    pb: 3,
+  }}>
+    <Box sx={{ pl: { xs: 2.5, sm: 3 }, display: 'flex' }}>
+      {[0, 1].map((i) => (
+        <Box key={i} sx={{ flex: `0 0 ${isXs ? 86 : 46}%`, pr: { xs: 1.5, sm: 2 } }}>
+          <SkeletonBlock
+            width="100%"
+            sx={{ aspectRatio: '2 / 3', borderRadius: 4, bgcolor: shimmerStrong }}
           />
+          <Box sx={{ pt: 1.25 }}>
+            <SkeletonBlock width="72%" height={18} sx={{ borderRadius: 0.8 }} />
+            <SkeletonBlock width="54%" height={12} sx={{ borderRadius: 0.8, mt: 0.75 }} />
+          </Box>
         </Box>
       ))}
     </Box>
@@ -294,6 +206,8 @@ const HeroBanner = ({
   breadcrumb = null,
   breadcrumbHref = null,
   ranked = false,
+  top10 = false,
+  rankLabel = null,
 }) => {
   const theme = useTheme();
 
@@ -403,11 +317,14 @@ const HeroBanner = ({
   const colorImage = useMemo(() => {
     if (!record) return null;
     const path = heroArtCandidates(record, {
-      portrait: isXs,
+      portrait: isMobileLike,
       hasLogo: Boolean(record.logoPath),
+      // Phones and tablets show the card stack, which paints the poster WITH its own
+      // title art and draws no logo of its own.
+      titled: isMobileLike,
     }).find(Boolean);
     return path ? tmdbImg(path, 'w342') : null;
-  }, [record, isXs]);
+  }, [record, isMobileLike]);
 
   useHeroColor(colorImage, {
     darkenFactor: isMobileLike ? 0.42 : 0.36,
@@ -462,15 +379,23 @@ const HeroBanner = ({
 
   if (isMobileLike) {
     return (
-      <HeroBannerMobile
+      <HeroCardStack
         {...commonProps}
         isXs={isXs}
         isTablet={isTablet}
+        // The whole map, not just the active record's slice: the stack shows more than
+        // one card at a time and each needs its own My List state.
+        interactions={interactions}
         variant={variant}
         heading={heading}
         breadcrumb={breadcrumb}
         breadcrumbHref={breadcrumbHref}
         ranked={ranked}
+        top10={top10}
+        rankLabel={rankLabel}
+        // A swipe should not be fighting the auto-advance clock.
+        onInteract={pauseCycle}
+        onInteractEnd={resumeCycle}
       />
     );
   }
