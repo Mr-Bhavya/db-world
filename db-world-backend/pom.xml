@@ -358,6 +358,40 @@
             </exclusions>
         </dependency>
 
+        <!-- ── Test: in-memory DB for @DataJpaTest ────────────────────────
+             Boots the real JPA context so a broken @Query (JPQL) or a broken
+             Hibernate mapping fails the build instead of failing in prod.
+             Test-scope only — production still runs on MySQL. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ── Test: the JPA test slice ────────────────────────────────────
+             Spring Boot 4 broke spring-boot-test-autoconfigure apart into
+             per-module artifacts, and spring-boot-starter-test no longer pulls
+             them in. @DataJpaTest is NOT on the classpath without this:
+               spring-boot-data-jpa-test → @DataJpaTest
+                   (org.springframework.boot.data.jpa.test.autoconfigure,
+                    was ...boot.test.autoconfigure.orm.jpa in Boot 3)
+               spring-boot-jdbc-test     → @AutoConfigureTestDatabase
+                   (org.springframework.boot.jdbc.test.autoconfigure)
+             @DataJpaTest meta-annotates @AutoConfigureTestDatabase, so the
+             jdbc-test artifact is required even though data-jpa-test doesn't
+             declare it as a transitive dependency. Both are managed by the
+             Spring Boot BOM, hence no <version>. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jdbc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <!-- ================================================================ -->

@@ -60,6 +60,18 @@ public interface RailService {
 
     void deleteRail(Long id);
 
+    /**
+     * Applies a new display order in one transaction.
+     *
+     * <p>Replaces the frontend's previous approach of firing one full PUT per rail — dragging a
+     * single rail in a 30-rail list sent 30 requests, each rewriting that rail's entire JSON rule,
+     * and a partial failure left priorities inconsistent. Only {@code priority} is touched here.
+     *
+     * @param order rail id → new priority
+     * @return how many rails actually changed position
+     */
+    int reorderRails(java.util.Map<Long, Integer> order);
+
     void addRecordToRail(Long railId, Long recordId, Integer priority);
 
     void removeRailItem(Long railItemId);

@@ -5,7 +5,6 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.repository.RecordTagRepository;
 import com.db.dbworld.app.cinema.catalog.tags.entity.TagDefinitionRepository;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
@@ -145,10 +144,10 @@ public class AdminDashboardService {
         return tagDefinitionRepository.findByActiveTrueOrderByTagType()
                 .stream()
                 .map(def -> {
-                    long count = 0;
-                    try {
-                        count = tagRepository.countByTagType(RecordTagType.valueOf(def.getTagType()));
-                    } catch (Exception ignored) { /* An unknown tagType in the definitions table contributes a count of 0. */ }
+                    // Tag types are plain strings now, so this no longer has to guard against a
+                    // definition row that isn't a valid enum constant. The old try/catch reported 0
+                    // for any tag outside the enum — which is now every admin-created tag.
+                    long count = tagRepository.countByTagType(def.getTagType());
                     return AdminDashboardDto.TagEntry.builder()
                             .tagType(def.getTagType())
                             .displayName(def.getDisplayName())

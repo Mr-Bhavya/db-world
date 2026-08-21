@@ -34,4 +34,7 @@ public class RecordDto {
 
     private Instant newReleaseNotifiedAt;
 
+    /** When the record first went PUBLISHED. Null for records never published. */
+    private Instant publishedAt;
+
 }

@@ -42,33 +42,10 @@ public class FeaturedTagStrategy implements TagStrategy {
         return RecordTagType.FEATURED;
     }
 
-    @Override
-    public int priority() {
-        return 20;
-    }
+
 
     @Override
     public String selectSql() {
-        return """
-                SELECT scored.id
-                FROM (
-                    SELECT r.id,
-                        (COALESCE(t.vote_average, 0) * 10 + COALESCE(t.popularity, 0) * 0.1)
-                        * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 90.0
-                        ) AS score
-                    FROM records r
-                    JOIN tmdb_data t ON r.tmdb_id = t.id
-                    WHERE t.vote_average >= %s
-                      AND COALESCE(t.popularity, 0) >= %s
-                ) scored
-                ORDER BY scored.score DESC
-                LIMIT %d
-                """.formatted(MIN_VOTE_AVERAGE, MIN_POPULARITY, POOL_SIZE);
-    }
-
-    @Override
-    public String selectSqlWithScore() {
         return """
                 SELECT scored.id, CAST(scored.score AS UNSIGNED) AS score
                 FROM (

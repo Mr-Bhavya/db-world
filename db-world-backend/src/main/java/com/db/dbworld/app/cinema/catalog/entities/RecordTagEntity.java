@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.catalog.entities;
 
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,9 +27,21 @@ public class RecordTagEntity {
     @JoinColumn(name = "record_id", nullable = false)
     private RecordEntity record;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    private RecordTagType tagType;
+    /**
+     * The tag's identity, matching {@code tag_definitions.tag_type}.
+     *
+     * <p>A free-form String rather than the {@link com.db.dbworld.app.cinema.enums.RecordTagType}
+     * enum, so admins can create their own curated tags ("Diwali Special", "Hidden Gems") without a
+     * deploy. The enum still exists as the registry of BUILT-IN tags — the ones with a
+     * {@code TagStrategy} behind them — and code that needs compile-time safety uses it, calling
+     * {@code .name()} at the boundary. The column type and every JPQL comparison are unchanged;
+     * this was already stored as a VARCHAR via {@code @Enumerated(STRING)}.
+     *
+     * <p>Always a value present in {@code tag_definitions}; validated on the way in by
+     * {@code TagAdminService} rather than by the type system.
+     */
+    @Column(name = "tag_type", nullable = false, length = 50)
+    private String tagType;
 
     private Integer priority;
 

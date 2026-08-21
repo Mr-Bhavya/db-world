@@ -7,7 +7,6 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
@@ -51,7 +50,6 @@ class CatalogServiceVisibilityTest {
     @Mock RecordRepository recordRepository;
     @Mock TmdbRepository tmdbRepository;
     @Mock SeasonRepository seasonRepository;
-    @Mock RecordTaggingService recordTaggingService;
     @Mock TmdbIngestionService tmdbIngestionService;
     @Mock TmdbRecordSyncService tmdbRecordSyncService;
     @Mock ApplicationEventPublisher publisher;
@@ -65,7 +63,7 @@ class CatalogServiceVisibilityTest {
     @BeforeEach
     void setUp() {
         service = new CatalogServiceImpl(recordRepository, tmdbRepository, seasonRepository,
-                recordTaggingService, tmdbIngestionService, tmdbRecordSyncService, publisher,
+                tmdbIngestionService, tmdbRecordSyncService, publisher,
                 recordMapper, pushService, mediaFileRepository, settingsService);
         when(recordMapper.toDto(any())).thenReturn(new RecordDto());
         when(recordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -151,6 +149,78 @@ class CatalogServiceVisibilityTest {
 
         assertThat(r.getNewReleaseNotifiedAt()).isNotNull();
         verify(pushService).broadcast(eq("New on DB World"), any(), any(), eq("cinema"));
+    }
+
+    /* ================================================================
+       publishedAt — the "Recently published" rail sort key
+    ================================================================= */
+
+    @Test
+    void setVisibility_firstPublish_stampsPublishedAt() {
+        RecordEntity r = record(1L, RecordVisibility.DRAFT);
+        when(recordRepository.findByIdWithTmdb(1L)).thenReturn(Optional.of(r));
+
+        service.setVisibility(1L, RecordVisibility.PUBLISHED);
+
+        assertThat(r.getPublishedAt()).isNotNull();
+    }
+
+    @Test
+    void setVisibility_rePublish_keepsOriginalPublishedAt() {
+        // Write-once: unpublishing to fix a typo and re-publishing must NOT shove the record
+        // back to the top of a "Recently published" rail.
+        Instant original = Instant.parse("2026-01-01T00:00:00Z");
+        RecordEntity r = record(1L, RecordVisibility.DRAFT);
+        r.setPublishedAt(original);
+        when(recordRepository.findByIdWithTmdb(1L)).thenReturn(Optional.of(r));
+
+        service.setVisibility(1L, RecordVisibility.PUBLISHED);
+
+        assertThat(r.getPublishedAt()).isEqualTo(original);
+    }
+
+    @Test
+    void setVisibility_draftOrUnlisted_neverStampsPublishedAt() {
+        RecordEntity r = record(1L, RecordVisibility.DRAFT);
+        when(recordRepository.findByIdWithTmdb(1L)).thenReturn(Optional.of(r));
+
+        service.setVisibility(1L, RecordVisibility.UNLISTED);
+
+        // UNLISTED is reachable by direct link but deliberately off the rails, so it has no
+        // place in a publish-ordered rail until it actually goes PUBLISHED.
+        assertThat(r.getPublishedAt()).isNull();
+    }
+
+    @Test
+    void onMediaIngested_autoPublish_stampsPublishedAt() {
+        RecordEntity r = record(1L, RecordVisibility.DRAFT);
+        when(recordRepository.findById(1L)).thenReturn(Optional.of(r));
+        when(settingsService.getBoolean(ConfigKeys.CINEMA_RECORD_AUTO_PUBLISH)).thenReturn(true);
+
+        service.onMediaIngested(1L);
+
+        assertThat(r.getPublishedAt()).isNotNull();
+    }
+
+    @Test
+    void updateRecord_publishViaEdit_stampsPublishedAt() {
+        // The third way a record gets published: the edit form sending visibility=PUBLISHED.
+        MovieTmdbEntity tmdb = mock(MovieTmdbEntity.class);
+        when(tmdb.getId()).thenReturn(1402L);
+        when(tmdb.getTitle()).thenReturn("Acme");
+        RecordEntity r = RecordEntity.builder()
+                .id(7L).name("Acme").type(RecordType.MOVIE)
+                .visibility(RecordVisibility.DRAFT).tmdb(tmdb).build();
+        when(recordRepository.findByIdWithTmdb(7L)).thenReturn(Optional.of(r));
+
+        UpdateRecordRequest req = new UpdateRecordRequest();
+        req.setTmdbId(1402L);
+        req.setType(RecordType.MOVIE);
+        req.setVisibility(RecordVisibility.PUBLISHED);
+
+        service.updateRecord(7L, req);
+
+        assertThat(r.getPublishedAt()).isNotNull();
     }
 
     @Test
