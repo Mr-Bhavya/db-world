@@ -10,9 +10,7 @@ import java.util.List;
 
 public interface RailResolver {
 
-    List<RecordEntity> resolve(RailEntity rail);
 
-    Slice<RecordEntity> resolveSlice(RailEntity rail, Pageable pageable);
 
     Slice<Long> resolveIds(RailEntity rail, Pageable pageable);
 

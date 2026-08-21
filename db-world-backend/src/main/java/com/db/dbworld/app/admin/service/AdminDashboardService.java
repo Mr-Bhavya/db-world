@@ -145,10 +145,10 @@ public class AdminDashboardService {
         return tagDefinitionRepository.findByActiveTrueOrderByTagType()
                 .stream()
                 .map(def -> {
-                    long count = 0;
-                    try {
-                        count = tagRepository.countByTagType(RecordTagType.valueOf(def.getTagType()));
-                    } catch (Exception ignored) {}
+                    // Tag types are plain strings now, so this no longer has to guard against a
+                    // definition row that isn't a valid enum constant — which used to silently
+                    // report 0 for any tag outside the enum.
+                    long count = tagRepository.countByTagType(def.getTagType());
                     return AdminDashboardDto.TagEntry.builder()
                             .tagType(def.getTagType())
                             .displayName(def.getDisplayName())

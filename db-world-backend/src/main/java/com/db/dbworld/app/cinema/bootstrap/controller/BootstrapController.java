@@ -12,11 +12,14 @@ public class BootstrapController {
 
     private final CatalogBootstrapService bootstrapService;
 
+    /**
+     * Seeds any missing default rails. SAFE to re-run: existing rails are left exactly as they are,
+     * so an admin's sort/priority/limit edits are never overwritten. Previously this rewrote the
+     * sort and tag on every rail it recognised, which quietly undid UI changes.
+     */
     @GetMapping
-    public ApiResponse<Void> bootstrap() {
-
-        bootstrapService.bootstrap();
-
-        return ApiResponse.success("Catalog bootstrap completed");
+    public ApiResponse<String> bootstrap() {
+        String summary = bootstrapService.bootstrap();
+        return ApiResponse.success(summary, summary);
     }
 }

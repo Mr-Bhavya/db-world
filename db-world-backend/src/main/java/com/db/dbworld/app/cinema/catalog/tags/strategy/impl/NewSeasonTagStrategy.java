@@ -22,25 +22,11 @@ public class NewSeasonTagStrategy implements TagStrategy {
         return RecordTagType.NEW_SEASON;
     }
 
-    @Override
-    public int priority() {
-        return 35;
-    }
 
-    @Override
-    public String selectSql() {
-        return """
-                SELECT r.id
-                FROM records r
-                WHERE r.type = 'TV_SERIES'
-                  AND r.new_content_kind = 'NEW_SEASON'
-                  AND r.new_content_at >= NOW() - INTERVAL %d DAY
-                """.formatted(WINDOW_DAYS);
-    }
 
     /** Newer additions score higher so the rail orders newest-first via tagPriority. */
     @Override
-    public String selectSqlWithScore() {
+    public String selectSql() {
         return """
                 SELECT r.id,
                     GREATEST(1, %d - DATEDIFF(CURDATE(), DATE(r.new_content_at))) AS score

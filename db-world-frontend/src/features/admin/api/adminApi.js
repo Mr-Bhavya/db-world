@@ -75,22 +75,16 @@ export const refreshRecordFromTmdb = (id) =>
 export const deleteRecord = (id) =>
   axiosInstance.delete(`/api/cinema/admin/catalog/${id}`).then(r => r.data);
 
-// Quick add/remove by tagType (used by RecordTagsInline for inline table operations)
+// Quick add/remove by tagType (used by RecordTagsInline and RecordEditModal).
+// These now hit TagAdminController rather than the catalog controller: the old
+// /catalog/{id}/tags pair duplicated these without the automatic-tag guard, so the inline chip
+// could write to a tag the scheduler then wiped. Adding to an AUTO tag now returns 400.
 export const addRecordTag = (recordId, body) =>
-  axiosInstance.post(`/api/cinema/admin/catalog/${recordId}/tags`, body).then(r => r.data.data);
-
-export const removeRecordTag = (recordId, tagType) =>
-  axiosInstance.delete(`/api/cinema/admin/catalog/${recordId}/tags/${tagType}`).then(r => r.data);
-
-// Full tag CRUD by tagId — supports priority field (used by RecordEditModal for full management)
-export const createTag = (recordId, body) =>
   axiosInstance.post(`/api/cinema/admin/tags/record/${recordId}`, body).then(r => r.data.data);
 
-export const updateTag = (tagId, body) =>
-  axiosInstance.put(`/api/cinema/admin/tags/entry/${tagId}`, body).then(r => r.data.data);
+export const removeRecordTag = (recordId, tagType) =>
+  axiosInstance.delete(`/api/cinema/admin/tags/record/${recordId}/${tagType}`).then(r => r.data);
 
-export const deleteTag = (tagId) =>
-  axiosInstance.delete(`/api/cinema/admin/tags/entry/${tagId}`).then(r => r.data);
 
 /* ─── TMDB SEARCH & DETAIL ──────────────────────────────────────── */
 
@@ -200,6 +194,25 @@ export const getTagDefinitions = () =>
 export const updateTagDefinition = (tagType, body) =>
   axiosInstance.put(`/api/cinema/admin/tags/definitions/${tagType}`, body).then(r => r.data.data);
 
+/**
+ * Creates an admin-curated tag. Body: { name, displayName, description, defaultSort, defaultDirection }.
+ * `name` is slugged to UPPER_SNAKE server-side; the tag is always manual (no strategy computes it).
+ */
+export const createTagDefinition = (body) =>
+  axiosInstance.post('/api/cinema/admin/tags/definitions', body).then(r => r.data.data);
+
+/**
+ * Dry-runs a tag rule and reports how many records it would tag, writing nothing.
+ * Body: { rule, limit } → { matched, recordIds, cappedAt }.
+ */
+export const previewTagRule = (rule, limit = 60) =>
+  axiosInstance.post('/api/cinema/admin/tags/definitions/preview', { rule, limit })
+    .then(r => r.data.data);
+
+/** Deletes an admin-created tag and untags every record. Built-in tags are refused (400). */
+export const deleteTagDefinition = (tagType) =>
+  axiosInstance.delete(`/api/cinema/admin/tags/definitions/${tagType}`).then(r => r.data.data);
+
 /** Returns { sortFields, ruleTypes, pageTypes, recordTypes, tagTypes } */
 export const getRailMetadata = () =>
   axiosInstance.get('/api/cinema/admin/tags/rail-metadata').then(r => r.data.data);
@@ -218,10 +231,18 @@ export const updateRail = (id, body) =>
 export const deleteRail = (id) =>
   axiosInstance.delete(`/api/cinema/rails/${id}`).then(r => r.data);
 
+/**
+ * Saves a new rail order in ONE request.
+ *
+ * Previously this fired a full PUT per rail — dragging one rail in a 30-rail list sent 30 requests,
+ * each rewriting that rail's entire JSON rule, and a partial failure left priorities inconsistent.
+ * The batch endpoint touches only `priority`, in a single transaction.
+ */
 export const reorderRails = (orderedRails) =>
-  Promise.all(orderedRails.map((rail, i) =>
-    axiosInstance.put(`/api/cinema/rails/${rail.id}`, { ...rail, priority: i }).then(r => r.data.data)
-  ));
+  axiosInstance
+    .patch('/api/cinema/rails/reorder',
+      orderedRails.map((rail, i) => ({ id: rail.id, priority: i })))
+    .then(r => r.data.data);
 
 /* ─── TMDB SYNC ─────────────────────────────────────────────── */
 

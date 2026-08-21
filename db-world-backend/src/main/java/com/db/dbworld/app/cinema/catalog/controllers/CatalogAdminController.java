@@ -4,12 +4,10 @@ import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
-import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.catalog.service.SearchService;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
@@ -152,27 +150,12 @@ public class CatalogAdminController {
         );
     }
 
-    @AdminAccess
-    @PostMapping("/{recordId}/tags")
-    public ApiResponse<Void> addTag(
-            @PathVariable Long recordId,
-            @Valid @RequestBody AddTagRequest request
-    ) {
-
-        catalogService.addTag(recordId, request);
-
-        return ApiResponse.success("Tag assigned");
-    }
-
-    @AdminAccess
-    @DeleteMapping("/{recordId}/tags/{tagType}")
-    public ApiResponse<Void> removeTag(
-            @PathVariable Long recordId,
-            @PathVariable RecordTagType tagType
-    ) {
-
-        catalogService.removeTag(recordId, tagType);
-
-        return ApiResponse.success("Tag removed");
-    }
+    /* =========================
+       TAGS
+       Moved to TagAdminController:
+         POST   /api/cinema/admin/tags/record/{recordId}
+         DELETE /api/cinema/admin/tags/record/{recordId}/{tagType}
+       The pair that used to live here duplicated those, but skipped the automatic-tag guard — so
+       the inline chip could add to a tag the scheduler then wiped, while the Tags page refused it.
+       ========================= */
 }

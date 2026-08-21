@@ -1,49 +1,47 @@
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getTagDefinitions } from '../api/adminApi';
-import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from './tagConstants';
+import { tagColorFor, humanizeTagType } from './tagConstants';
 
-const FALLBACK_COLORS = [
-  '#6366f1', '#f59e0b', '#10b981', '#ef4444',
-  '#ec4899', '#06b6d4', '#8b5cf6', '#f97316',
-];
-
-let colorIdx = 0;
-const dynamicColors = {};
-
-function resolveColor(tagType) {
-  if (TAG_COLORS[tagType]) return TAG_COLORS[tagType];
-  if (!dynamicColors[tagType]) {
-    dynamicColors[tagType] = FALLBACK_COLORS[colorIdx % FALLBACK_COLORS.length];
-    colorIdx++;
-  }
-  return dynamicColors[tagType];
-}
-
-const STATIC_DEFS = ALL_TAGS.map(tagType => ({
-  tagType,
-  displayName: TAG_LABELS[tagType] ?? tagType.replace(/_/g, ' '),
-  automatic: AUTO_TAGS.has(tagType),
-  active: true,
-}));
-
+/**
+ * The single source of truth for tag metadata in the admin UI.
+ *
+ * Everything comes from `GET /tags/definitions`, which the backend reconciles against the
+ * registered TagStrategy beans on boot. In particular `automatic` is authoritative: it means
+ * "code exists to recompute this tag", so anything the scheduler would overwrite is never
+ * offered for manual editing. Adding a tag on the backend needs no change here.
+ */
 export function useTagDefs() {
-  const { data: fetched = [], isLoading } = useQuery({
+  const { data: defs = [], isLoading } = useQuery({
     queryKey:  ['tagDefinitions'],
     queryFn:   getTagDefinitions,
     staleTime: 60_000,
   });
 
-  // Fall back to static constants if API hasn't returned anything yet
-  const defs = fetched.length > 0 ? fetched : STATIC_DEFS;
+  // Tags the scheduler recomputes — manual edits to these would be silently wiped, so callers
+  // use this to hide add/remove controls.
+  const autoTagTypes = useMemo(
+    () => new Set(defs.filter(d => d.automatic).map(d => d.tagType)),
+    [defs],
+  );
 
-  const autoTagTypes  = new Set(defs.filter(d => d.automatic).map(d => d.tagType));
-  const manualTagDefs = defs.filter(d => !d.automatic && d.active !== false);
+  // Tags an admin may curate by hand: no strategy, and not deactivated.
+  const manualTagDefs = useMemo(
+    () => defs.filter(d => !d.automatic && d.active !== false),
+    [defs],
+  );
 
-  const tagColor = (tagType) => resolveColor(tagType);
-  const tagLabel = (tagType) => {
+  /** All known tag types, in the order the backend returned them. */
+  const allTagTypes = useMemo(() => defs.map(d => d.tagType), [defs]);
+
+  // Memoised so callers can list these in a useCallback/useEffect dependency array without
+  // the identity churning on every render.
+  const tagColor = useCallback((tagType) => tagColorFor(tagType), []);
+
+  const tagLabel = useCallback((tagType) => {
     const def = defs.find(d => d.tagType === tagType);
-    return def?.displayName ?? tagType.replace(/_/g, ' ');
-  };
+    return def?.displayName ?? humanizeTagType(tagType);
+  }, [defs]);
 
-  return { defs, autoTagTypes, manualTagDefs, tagColor, tagLabel, isLoading };
+  return { defs, allTagTypes, autoTagTypes, manualTagDefs, tagColor, tagLabel, isLoading };
 }

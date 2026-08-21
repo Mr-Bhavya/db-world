@@ -6,7 +6,6 @@ import com.db.dbworld.app.cinema.catalog.specification.RecordSpecification;
 import com.db.dbworld.app.cinema.catalog.tags.entity.TagDefinitionEntity;
 import com.db.dbworld.app.cinema.catalog.tags.services.TagDefinitionService;
 import com.db.dbworld.app.cinema.enums.PageType;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.audit.activity.recommend.GenreAffinityService;
@@ -40,65 +39,9 @@ public class RailResolverImpl implements RailResolver {
     private final UserContext userContext;
     private final GenreAffinityService genreAffinityService;
     private final RewatchTrendService rewatchTrendService;
+    private final RailSortBuilder railSortBuilder;
 
-    /**
-     * Legacy resolver (non paginated).
-     */
-    @Override
-    public List<RecordEntity> resolve(RailEntity rail) {
 
-        int limit = rail.getLimitSize() != null ? rail.getLimitSize() : 20;
-        Pageable pageable = PageRequest.of(0, limit);
-        return resolveSlice(rail, pageable).getContent();
-    }
-
-    /**
-     * Infinite scroll resolver.
-     */
-    @Override
-    public Slice<RecordEntity> resolveSlice(RailEntity rail, Pageable pageable) {
-
-        RailRule rule = rail.getRule();
-        Sort sort = resolveSort(rule);
-
-        Pageable sortedPageable = PageRequest.of(
-                pageable.getPageNumber(),
-                pageable.getPageSize(),
-                sort
-        );
-
-        return switch (rule.getType()) {
-
-            case "manual" -> railItemRepository
-                    .findByRailIdOrderByPriorityAsc(rail.getId(), sortedPageable)
-                    .map(RailItemEntity::getRecord);
-
-            case "tag" -> {
-                List<RecordTagType> tags = parseTags(rule);
-                if (!tags.isEmpty()) {
-                    yield recordRepository.findByTags(tags, sortedPageable);
-                }
-                RecordTagType tag;
-                try {
-                    tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    yield new SliceImpl<>(List.of(), pageable, false);
-                }
-                yield recordRepository.findByTag(tag, sortedPageable);
-            }
-
-            case "genre"    -> recordRepository.findByGenre(rule.getGenreId(), sortedPageable);
-            case "language" -> recordRepository.findByLanguages(rule.getLanguages(), sortedPageable);
-
-            case "filter" -> {
-                Specification<RecordEntity> spec =
-                        RecordSpecification.filter(rule.getField(), rule.getValue());
-                yield recordRepository.findAll(spec, sortedPageable);
-            }
-
-            default -> new SliceImpl<>(List.of(), pageable, false);
-        };
-    }
 
     /**
      * ID-only resolver (no category filter).
@@ -285,7 +228,7 @@ public class RailResolverImpl implements RailResolver {
 
         // Multi-tag union (combined rails). No genre/type sub-filtering — these rails
         // are simple "any of these tags, newest first" home rails.
-        List<RecordTagType> tags = parseTags(rule);
+        List<String> tags = parseTags(rule);
         if (!tags.isEmpty()) {
             if (RailSortBuilder.isTagPrioritySort(pageable.getSort())) {
                 Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
@@ -294,10 +237,8 @@ public class RailResolverImpl implements RailResolver {
             return recordRepository.findIdsByTags(tags, pageable);
         }
 
-        RecordTagType tag;
-        try {
-            tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
-        } catch (IllegalArgumentException e) {
+        String tag = normalizeTag(rule.getTag());
+        if (tag == null) {
             return new SliceImpl<>(List.of(), pageable, false);
         }
 
@@ -416,7 +357,7 @@ public class RailResolverImpl implements RailResolver {
 
         // Explicit override on the rail takes precedence
         if (rule.getSort() != null && !rule.getSort().isBlank()) {
-            Sort explicit = RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            Sort explicit = railSortBuilder.build(rule.getSort(), rule.getDirection());
             // tagPriority is the computed record_tags.priority score — only the tag
             // resolution path can ORDER BY it. On genre/language/filter/manual rails the
             // sentinel would leak into the SQL as `ORDER BY __TAG_PRIORITY__` and throw,
@@ -432,29 +373,40 @@ public class RailResolverImpl implements RailResolver {
         if ("tag".equals(rule.getType()) && rule.getTag() != null && !rule.getTag().isBlank()) {
             TagDefinitionEntity def = tagDefinitionService.getOrDefault(rule.getTag().toUpperCase());
             if (def.getDefaultSort() != null && !def.getDefaultSort().isBlank()) {
-                return RailSortBuilder.build(def.getDefaultSort(), def.getDefaultDirection());
+                return railSortBuilder.build(def.getDefaultSort(), def.getDefaultDirection());
             }
         }
 
         // Multi-tag (union) rails sort by the computed per-record score, newest-first.
         if ("tag".equals(rule.getType()) && rule.getTags() != null && !rule.getTags().isEmpty()) {
-            return RailSortBuilder.build("tagPriority", "DESC");
+            return railSortBuilder.build("tagPriority", "DESC");
         }
 
         return Sort.unsorted();
     }
 
-    /** Parses {@code rule.tags} into valid {@link RecordTagType}s; empty when none/unset. */
-    private List<RecordTagType> parseTags(RailRule rule) {
+    /**
+     * Canonical form of a rail's configured tag name, or null when unusable.
+     *
+     * <p>Tag names are stored as UPPER_SNAKE slugs — {@code TagAdminService} normalises them on
+     * creation and {@code displayName} carries the human label — so upper-casing here is safe for
+     * admin-created tags as well as the built-ins. A tag that no longer exists simply matches no
+     * rows, which renders as an empty rail exactly as an unparseable enum value used to.
+     */
+    private String normalizeTag(String tag) {
+        if (tag == null || tag.isBlank()) return null;
+        return tag.trim().toUpperCase();
+    }
+
+    /** Parses {@code rule.tags} into canonical tag names; empty when none/unset. */
+    private List<String> parseTags(RailRule rule) {
         if (rule.getTags() == null || rule.getTags().isEmpty()) {
             return List.of();
         }
-        List<RecordTagType> result = new java.util.ArrayList<>();
+        List<String> result = new java.util.ArrayList<>();
         for (String t : rule.getTags()) {
-            if (t == null || t.isBlank()) continue;
-            try {
-                result.add(RecordTagType.valueOf(t.toUpperCase()));
-            } catch (IllegalArgumentException ignored) { /* skip unknown */ }
+            String normalized = normalizeTag(t);
+            if (normalized != null) result.add(normalized);
         }
         return result;
     }

@@ -109,6 +109,18 @@ public class RecordEntity implements Serializable {
     private Instant newReleaseNotifiedAt;
 
     /**
+     * When this record first became PUBLISHED — i.e. when users could first see it. Stamped once, on
+     * the first transition to PUBLISHED, and never overwritten (un-publishing and re-publishing keeps
+     * the original date so a rail doesn't reshuffle).
+     *
+     * <p>This is what "newest first" on a rail should actually mean. {@code createdAt} is when the
+     * DRAFT was created, which can be days or weeks earlier, and {@code tmdb.primaryDate} is the
+     * title's own theatrical/air date. Exposed to rails as the {@code publishedAt} sort field.
+     */
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
+    /**
      * When this record last gained genuinely new content (a season/episode it didn't
      * have before), set at ingest. Drives the NEW_SEASON/NEW_EPISODE tag strategies
      * (30-day window) so an old show resurfaces on rails when a new season arrives.

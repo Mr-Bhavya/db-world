@@ -1,141 +1,33 @@
 package com.db.dbworld.app.cinema.bootstrap.service;
 
-import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
-import com.db.dbworld.app.cinema.enums.RecordType;
-import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
-import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
-import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-
+/**
+ * Manual catalog bootstrap, triggered by {@code GET /api/cinema/admin/bootstrap}.
+ *
+ * <p>Only seeds rails now. The TMDB demo-title ingestion and the FEATURED seeding that used to live
+ * here had been commented out at the call site for a long time, so ~110 lines of {@code ingestMovies}
+ * / {@code ingestSeries} / {@code assignTags} were unreachable; they've been removed. Real titles
+ * come in through the admin catalog UI, and tags are owned by {@code TagStrategyExecutor}.
+ */
 @Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class CatalogBootstrapService {
 
-    private final TmdbIngestionService tmdbIngestionService;
-    private final RecordRepository recordRepository;
     private final RailBootstrapService railBootstrapService;
 
-    public void bootstrap() {
-
+    public String bootstrap() {
         long start = System.currentTimeMillis();
         log.info("Catalog bootstrap started");
 
-        List<RecordEntity> records = new ArrayList<>();
+        String summary = railBootstrapService.generateRails();
 
-//        records.addAll(ingestMovies(List.of(
-//                157336L, // Interstellar
-//                27205L,  // Inception
-//                603L,    // Matrix
-//                550L,    // Fight Club
-//                680L     // Pulp Fiction
-//        )));
-//
-//        records.addAll(ingestSeries(List.of(
-//                1399L,   // Game of Thrones
-//                1396L,   // Breaking Bad
-//                66732L   // Stranger Things
-//        )));
-
-//        assignTags(records);
-
-        railBootstrapService.generateRails();
-
-        log.info("Catalog bootstrap completed; recordsIngested={}, took={}ms",
-                records.size(), System.currentTimeMillis() - start);
-    }
-
-    /* ======================================================
-       INGEST MOVIES
-       ====================================================== */
-
-    private List<RecordEntity> ingestMovies(List<Long> ids) {
-
-        List<RecordEntity> records = new ArrayList<>();
-
-        for (Long tmdbId : ids) {
-
-            MovieTmdbEntity tmdb = tmdbIngestionService.ingestMovie(tmdbId);
-
-            RecordEntity record = recordRepository.findByTmdb_Id(tmdbId)
-                    .orElseGet(() -> {
-
-                        RecordEntity entity = RecordEntity.builder()
-                                .name(tmdb.getTitle())
-                                .type(RecordType.MOVIE)
-                                .tmdb(tmdb)
-                                .build();
-
-                        return recordRepository.save(entity);
-                    });
-
-            records.add(record);
-        }
-
-        return records;
-    }
-
-    /* ======================================================
-       INGEST SERIES
-       ====================================================== */
-
-    private List<RecordEntity> ingestSeries(List<Long> ids) {
-
-        List<RecordEntity> records = new ArrayList<>();
-
-        for (Long tmdbId : ids) {
-
-            TvSeriesTmdbEntity tmdb = tmdbIngestionService.ingestTvSeries(tmdbId);
-
-            RecordEntity record = recordRepository.findByTmdb_Id(tmdbId)
-                    .orElseGet(() -> {
-
-                        RecordEntity entity = RecordEntity.builder()
-                                .name(tmdb.getTitle())
-                                .type(RecordType.TV_SERIES)
-                                .tmdb(tmdb)
-                                .build();
-
-                        return recordRepository.save(entity);
-                    });
-
-            records.add(record);
-        }
-
-        return records;
-    }
-
-    /* ======================================================
-       ASSIGN TAGS
-       ====================================================== */
-
-    private void assignTags(List<RecordEntity> records) {
-
-        int priority = 1;
-
-        for (RecordEntity record : records) {
-
-            if (record.getTags() == null || record.getTags().isEmpty()) {
-
-                RecordTagEntity tag = new RecordTagEntity();
-                tag.setRecord(record);
-                tag.setTagType(RecordTagType.FEATURED);
-                tag.setPriority(priority++);
-
-                record.getTags().add(tag);
-            }
-        }
-
-        recordRepository.saveAll(records);
+        log.info("Catalog bootstrap completed; took={}ms", System.currentTimeMillis() - start);
+        return summary;
     }
 }

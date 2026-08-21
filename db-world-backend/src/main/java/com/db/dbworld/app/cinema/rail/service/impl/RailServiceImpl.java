@@ -65,6 +65,9 @@ public class RailServiceImpl implements RailService {
 
     private static final int MAX_PAGE_SIZE = 50;
 
+    /** Fallback when a rail has no limitSize — matches RailEntity's own column default. */
+    private static final int DEFAULT_PAGE_SIZE = 20;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -447,17 +450,40 @@ public class RailServiceImpl implements RailService {
        CRUD
     ---------------------------------------------------- */
 
+    /**
+     * Single rail with a preview of its records (admin rail editor).
+     *
+     * <p>Resolves through {@code resolveIds} — the same path the public pages use — rather than the
+     * old {@code resolveSlice}, which was a second, narrower switch handling only 5 of the 10 rule
+     * types. Previewing a Watchlist / Continue Watching / Picks-For-You / Popular-Rewatches rail
+     * therefore came back empty, and the page/category filtering was skipped too.
+     *
+     * <p>The per-user types still resolve against whoever is calling, so an admin previewing someone
+     * else's Continue Watching legitimately sees their own — there is no other sensible answer.
+     */
     @Override
     @Transactional(readOnly = true)
     public RailDto getRail(Long railId) {
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found: " + railId));
-        Pageable pageable = PageRequest.of(0, rail.getLimitSize());
 
-        Slice<RecordEntity> slice = railResolver.resolveSlice(rail, pageable);
+        int limit = rail.getLimitSize() != null ? rail.getLimitSize() : DEFAULT_PAGE_SIZE;
+        Pageable pageable = PageRequest.of(0, limit);
+
+        // Page context matters: a HOME+MOVIES rail resolves different records per page, so preview
+        // it as its first configured page rather than with no context at all.
+        PageType previewPage = rail.getPageTypes() != null && !rail.getPageTypes().isEmpty()
+                ? rail.getPageTypes().iterator().next()
+                : null;
+
+        List<Long> ids = railResolver.resolveIds(rail, pageable, null, previewPage).getContent();
 
         RailDto dto = railMapper.toDto(rail);
-        dto.setRecords(recordMapper.toDtoList(slice.getContent()));
+        // Preserve the resolver's ordering — findAllById returns rows in whatever order it likes.
+        Map<Long, RecordEntity> byId = recordRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(RecordEntity::getId, r -> r));
+        List<RecordEntity> ordered = ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+        dto.setRecords(recordMapper.toDtoList(ordered));
 
         return dto;
     }
@@ -497,6 +523,31 @@ public class RailServiceImpl implements RailService {
             throw new EntityNotFoundException("Rail not found");
         railRepository.deleteById(railId);
         log.info("Rail deleted; railId={}", railId);
+    }
+
+    @Override
+    public int reorderRails(Map<Long, Integer> order) {
+        if (order == null || order.isEmpty()) return 0;
+
+        // One query for all of them rather than findById per entry.
+        List<RailEntity> rails = railRepository.findAllById(order.keySet());
+
+        int changed = 0;
+        for (RailEntity rail : rails) {
+            Integer next = order.get(rail.getId());
+            if (next == null || next.equals(rail.getPriority())) continue;
+            rail.setPriority(next);
+            changed++;
+        }
+        if (changed > 0) railRepository.saveAll(rails);
+
+        // An id in the payload with no matching rail means the admin's list is stale (someone else
+        // deleted a rail). Worth a warning, but the rest of the reorder still stands.
+        if (rails.size() != order.size()) {
+            log.warn("Rail reorder referenced {} unknown rail id(s)", order.size() - rails.size());
+        }
+        log.info("Rails reordered; requested={}, changed={}", order.size(), changed);
+        return changed;
     }
 
     @Override
