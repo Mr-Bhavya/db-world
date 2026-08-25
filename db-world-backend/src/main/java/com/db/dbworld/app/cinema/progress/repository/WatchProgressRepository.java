@@ -24,6 +24,12 @@ public interface WatchProgressRepository extends JpaRepository<WatchProgressEnti
     /** All of a user's progress rows, newest first (for building Continue Watching). */
     List<WatchProgressEntity> findByUserIdOrderByUpdatedAtDesc(Long userId);
 
+    /**
+     * Every file of one record the user has progress on — the per-episode "watched"
+     * bars in the player's episode list. Covered by idx_wp_user_record.
+     */
+    List<WatchProgressEntity> findByUserIdAndRecordId(Long userId, Long recordId);
+
     /** Remove from Continue Watching: drop all of a user's progress for one record. */
     long deleteByUserIdAndRecordId(Long userId, Long recordId);
 
