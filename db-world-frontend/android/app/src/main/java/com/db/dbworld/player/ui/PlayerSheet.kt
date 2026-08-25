@@ -197,10 +197,14 @@ fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, o
     }
 }
 
+/** Rows the sheet already prints live from ExoPlayer — the decoder is the authority on these. */
+private val LIVE_VIDEO_ROWS = setOf("Resolution", "Codec", "Frame rate")
+
 /**
  * Read-only media details as TWO independently-scrolling columns (like the Audio & Subtitles
- * sheet): Video on the LEFT; Audio, Subtitles, and Playback on the RIGHT, split by a vertical
- * divider. Multiple audio/subtitle tracks each render name + detail; empty subtitles show "None".
+ * sheet): Video and File on the LEFT; Audio, Subtitles, and Playback on the RIGHT, split by a
+ * vertical divider. Multiple audio/subtitle tracks each render name + detail; empty subtitles
+ * show "None". The rows ExoPlayer can't report are pushed from JS as videoSpecs/fileSpecs.
  */
 @Composable
 fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
@@ -242,6 +246,16 @@ fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
                         InfoLine("Codec", state.videoCodec.ifEmpty { "—" })
                         InfoLine("Dynamic range", state.dynamicRange.ifEmpty { "—" })
                         InfoLine("Frame rate", fpsText(state.frameRate))
+                        // Everything the decoder can't tell us — profile, bit depth, colour,
+                        // bitrate, HDR format — comes pre-formatted from the API MediaInfo.
+                        state.videoSpecs
+                            .filter { it.name !in LIVE_VIDEO_ROWS }
+                            .forEach { InfoLine(it.name, it.detail) }
+                        if (state.fileSpecs.isNotEmpty()) {
+                            InfoDivider()
+                            SheetSection("File")
+                            state.fileSpecs.forEach { InfoLine(it.name, it.detail) }
+                        }
                         InfoDivider()
                         SheetSection("Playback")
                         InfoLine("Speed", "${if (state.speed % 1f == 0f) state.speed.toInt().toString() else state.speed.toString()}×")

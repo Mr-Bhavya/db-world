@@ -3,7 +3,7 @@
 // HTML5 <video> (web), abstracted by playerAdapter. Phase 1: transport + scrub +
 // double-tap seek + brightness/volume gestures + rotation/lock + speed + buffering.
 // Audio/subtitle/quality + settings sheet + episodes arrive in later phases.
-import React, { useEffect, useRef, useState, useCallback, useContext } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useContext, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -34,6 +34,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
+import { videoSpecs, fileSpecs, techBadges, qualityLabel } from './mediaSpecs';
 import { tmdbImg } from '../../api/cinemaApi';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];   // Netflix-style set
@@ -169,7 +170,6 @@ const subtitleLabel = (t) => {
   const name = t.language || t.title || `Subtitle ${(Number(t.id) || 0) + 1}`;
   return [name, subFormat(t), isForced(t) ? 'Forced' : ''].filter(Boolean).join(' · ');
 };
-const qualityLabel = (v) => [v.label, v.codec, ...(v.hdr || [])].filter(Boolean).join(' · ');
 
 // ── media-info helpers (the read-only Info panel) ────────────────────────────
 // Fuller, human codec name (the compact track menu uses the short audioCodec()).
@@ -258,6 +258,7 @@ export default function DbWorldVideoPlayer({
   episodes = [], currentEpisodeId, onSelectEpisode,
   onProgress, onClose,
   audio = [], // file audio-track metadata (seeds the audio menu on web)
+  info = null, // full MediaInfo of the playing file (Info panel + pause-card tech badges)
   storyboard = null, // scrub-preview sprite { url, intervalMs, cols, rows, tileW, tileH, count } | null
   overview = '', // show/movie synopsis — shown on the pause info card (episodes use their own)
   requestId = null, mediaFileId = null, recordId = null, // stream telemetry session (null → reporting is skipped)
@@ -309,7 +310,10 @@ export default function DbWorldVideoPlayer({
   const [textTracks, setTextTracks]     = useState([]);
   const [curAudio, setCurAudio]   = useState(-1);
   const [curText, setCurText]     = useState(-1);
-  const [curQualityId, setCurQualityId] = useState(fileId); // active quality, by mediaFileId (urls can collide)
+  // Active quality, by mediaFileId (urls can collide). Seeded from the file actually
+  // on screen — `fileId` keys watch progress and can name a different quality of the
+  // same episode (auto-pick), which left the running quality unmarked in the menu.
+  const [curQualityId, setCurQualityId] = useState(mediaFileId ?? fileId);
   const [episodesOpen, setEpisodesOpen] = useState(false);
   const [epPos, setEpPos] = useState(null);   // { left, width, bottom } — popover anchored above its button
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -320,13 +324,20 @@ export default function DbWorldVideoPlayer({
   const [countdown, setCountdown] = useState(null);    // seconds to next-episode autoplay
   const appliedRef = useRef(false);                    // preferred tracks applied for this load
 
-  const curIdx = episodes.findIndex(e => e.id === currentEpisodeId || e.fileId === currentEpisodeId);
+  // The row whose file is on screen. A quality switch changes the file without
+  // changing the episode, so a row also matches on any of its own variants —
+  // otherwise the current episode reads as "not in the list" and Next disappears.
+  const curIdx = episodes.findIndex(e =>
+    e.id === currentEpisodeId || e.fileId === currentEpisodeId
+    || (e.variants || []).some(v => String(v.mediaFileId) === String(curQualityId)));
   const curEp = curIdx >= 0 ? episodes[curIdx] : null;
   const nextEpisode = curIdx >= 0 && curIdx < episodes.length - 1 ? episodes[curIdx + 1] : null;
   const seasonsMap = episodes.reduce((m, ep) => { (m[ep.season] ||= []).push(ep); return m; }, {});
   // Quality picker only makes sense when there's more than one variant; the button shows
   // the active resolution (e.g. "1080p") as its label — like the speed button shows "1×".
   const hasQuality = variants.length > 1;
+  // Same badges the record page shows, for the file actually playing.
+  const specBadges = useMemo(() => techBadges(info), [info]);
   const curQualityLabel = variants.find(v => v.mediaFileId === curQualityId)?.label || '';
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
@@ -420,7 +431,7 @@ export default function DbWorldVideoPlayer({
     // reset here — having asked for a quality once, they shouldn't have to keep
     // re-asking every time the next episode starts.
     stallRef.current = { since: 0, downgrades: 0 };
-    setCurQualityId(fileId);
+    setCurQualityId(mediaFileId ?? fileId);
     setEnded(false); setCountdown(null); setErrorMsg(null); setUpNextDismissed(false);
 
     let prevHtmlBg, prevBodyBg;
@@ -1177,6 +1188,7 @@ export default function DbWorldVideoPlayer({
                 {curEp?.overview || overview}
               </div>
             )}
+            <SpecBadges badges={specBadges} scale={uiScale} />
           </div>
         </motion.div>
       )}
@@ -1451,7 +1463,7 @@ export default function DbWorldVideoPlayer({
       <Sheet open={episodesOpen} hasHover={hasHover} pos={epPos} title="Episodes" onClose={() => setEpisodesOpen(false)}
         mobileFull desktopHeader desktopPad="12px 0" desktopMaxH="62vh"
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
-        <EpisodeList seasonsMap={seasonsMap} currentEpisodeId={currentEpisodeId}
+        <EpisodeList seasonsMap={seasonsMap} currentEpisodeId={curEp?.id ?? currentEpisodeId}
           onPick={(ep) => { switchEpisode(ep); setEpisodesOpen(false); }} />
       </Sheet>
 
@@ -1482,7 +1494,7 @@ export default function DbWorldVideoPlayer({
       <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos} title="Media info" onClose={() => setInfoOpen(false)}
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <MediaInfoContent
-          variants={variants} curQualityId={curQualityId}
+          variants={variants} curQualityId={curQualityId} info={info}
           audioTracks={audioTracks} textTracks={textTracks} curAudio={curAudio} curText={curText} />
       </Sheet>
       </>)}
@@ -1894,6 +1906,26 @@ function QualityList({ variants, curQualityId, onQuality }) {
   );
 }
 
+// The record page's tech badges (4K / HDR10 / ATMOS / H.265) in the player's own flat
+// style — the resolution chip solid, the rest tinted outlines. Colours come from the
+// same QUALITY/HDR/CODEC metadata the record page uses, so the two agree on sight.
+function SpecBadges({ badges, scale }) {
+  if (!badges?.length) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: Math.round(6 * scale), marginTop: Math.round(12 * scale) }}>
+      {badges.map(b => (
+        <span key={b.label} style={{
+          padding: `${Math.round(2 * scale)}px ${Math.round(8 * scale)}px`, borderRadius: 4,
+          fontSize: Math.round(11 * scale), fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap',
+          background: b.filled ? b.color : `${b.color}2e`,
+          color:      b.filled ? '#fff' : b.color,
+          border:     `1px solid ${b.filled ? b.color : `${b.color}66`}`,
+        }}>{b.label}</span>
+      ))}
+    </div>
+  );
+}
+
 // One key/value line in the Media-info panel.
 function InfoKV({ k, v }) {
   const scale = useContext(ScaleCtx);
@@ -1950,19 +1982,32 @@ function InfoCard({ name, playing, rows }) {
 // Read-only details of the current video + all audio/subtitle tracks (the currently
 // playing one flagged). Doubles as a diagnostic: shows whether a subtitle is actually
 // selected and its format.
-function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, curAudio, curText }) {
+function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, curAudio, curText, info }) {
   const scale = useContext(ScaleCtx);
   const cur = variants.find(v => v.mediaFileId === curQualityId) || variants[0] || null;
+  // Full MediaInfo when the resolve carried it; otherwise the variant descriptor is
+  // all we know, which is the tier/codec/HDR the quality menu already shows.
+  const video = videoSpecs(info);
+  const file  = fileSpecs(info);
+  const videoRows = video.length ? video : (cur ? [
+    ['Resolution', cur.label || '—'],
+    ...(cur.codec ? [['Codec', cur.codec]] : []),
+    ['Dynamic range', (cur.hdr && cur.hdr.length) ? cur.hdr.join(', ') : 'SDR'],
+  ] : []);
   return (
     <div style={{ paddingBottom: Math.round(10 * scale) }}>
-      {cur && (
+      {videoRows.length > 0 && (
         <>
           <InfoSectionTitle label="Video" />
-          <InfoCard rows={[
-            ['Resolution', cur.label || '—'],
-            ...(cur.codec ? [['Codec', cur.codec]] : []),
-            ['Dynamic range', (cur.hdr && cur.hdr.length) ? cur.hdr.join(', ') : 'SDR'],
-          ]} />
+          <InfoCard rows={videoRows} />
+          <InfoDivider />
+        </>
+      )}
+
+      {file.length > 0 && (
+        <>
+          <InfoSectionTitle label="File" />
+          <InfoCard rows={file} />
           <InfoDivider />
         </>
       )}
@@ -1992,6 +2037,7 @@ function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, cur
           rows={[
             ['Format', subFormat(t) || t.format || 'Unknown'],
             ['Forced', isForced(t) ? 'Yes' : 'No'],
+            ...(t.defaultFlag != null ? [['Default', t.defaultFlag ? 'Yes' : 'No']] : []),
           ]} />
       )) : <SheetEmpty>No subtitles</SheetEmpty>}
     </div>
@@ -2002,6 +2048,13 @@ function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, cur
 // current episode highlighted. Shared by the desktop popover and the mobile sheet.
 function EpisodeList({ seasonsMap, currentEpisodeId, onPick }) {
   const scale = useContext(ScaleCtx);
+  const curRef = useRef(null);
+  // Open ON the episode you're watching, not at season 1 episode 1. `center` leaves the
+  // neighbours either side visible, which is the whole point of opening the list mid-season.
+  // The sheet mounts its children when it opens, so this runs at exactly the right moment.
+  useEffect(() => {
+    curRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, []);
   return (
     <>
       {Object.keys(seasonsMap).sort((a, b) => a - b).map(s => (
@@ -2011,6 +2064,7 @@ function EpisodeList({ seasonsMap, currentEpisodeId, onPick }) {
             const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
             return (
               <button key={ep.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
+                ref={isCur ? curRef : null}
                 onClick={() => onPick(ep)}
                 style={{ display: 'flex', gap: Math.round(12 * scale), width: '100%',
                   padding: `${Math.round(10 * scale)}px ${Math.round(16 * scale)}px`, textAlign: 'left',
@@ -2026,6 +2080,12 @@ function EpisodeList({ seasonsMap, currentEpisodeId, onPick }) {
                   {isCur && (
                     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.4)' }}>
                       <PlayArrowIcon sx={{ fontSize: Math.round(30 * scale), color: TEAL }} /></div>)}
+                  {ep.progress > 0 && (
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: Math.round(3 * scale),
+                      background: 'rgba(255,255,255,0.28)' }}>
+                      <div style={{ width: `${Math.round(ep.progress * 100)}%`, height: '100%', background: TEAL }} />
+                    </div>
+                  )}
                 </div>
                 {/* text */}
                 <div style={{ minWidth: 0, flex: 1 }}>

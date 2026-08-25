@@ -1,3 +1,5 @@
+import { heightOf, variantOf } from '../media/helpers';
+
 /** Parse S##E## from a filename → { season, episode } or null */
 export function parseEpisode(fileName) {
   const m = (fileName ?? '').match(/[Ss](\d{1,2})[Ee](\d{1,3})/);
@@ -30,20 +32,6 @@ export function episodeRefOf(file) {
     season:  s != null ? Number(s) : parsed.season,
     episode: e != null ? Number(e) : parsed.episode,
   };
-}
-
-/** Derive quality label from a mediaFile object (has .video.resolution or .general.fileName) */
-export function getQualityLabel(mediaFile) {
-  const res = mediaFile?.video?.resolution;
-  if (!res) {
-    return mediaFile?.general?.fileName?.match(/(\d{3,4}p|4K|8K)/i)?.[1] ?? 'SD';
-  }
-  const [, h] = res.split('x').map(Number);
-  if (h >= 2160) return '4K';
-  if (h >= 1080) return '1080p';
-  if (h >= 720)  return '720p';
-  if (h >= 480)  return '480p';
-  return 'SD';
 }
 
 /** Build { [season]: [{season, episode, files}] } from an allFiles array */
@@ -87,26 +75,69 @@ export function tmdbEpisodeName(tmdbSeasons, season, episode) {
   return tmdbEpisode(tmdbSeasons, season, episode)?.name ?? '';
 }
 
+const depthOf   = (f) => Number(f?.video?.bitDepth) || 0;
+const bitRateOf = (f) => Number(f?.video?.bitRate) || 0;
+
 /**
- * Rich episode list for the hybrid player: same quality as currentFile, sorted,
- * each with a resolved url + stable id. Returns [] for movies.
+ * The file that best matches `ref` from a best-first `ranked` list: the closest
+ * resolution without going over (the smallest when all exceed it), then — because a
+ * 1080p episode routinely exists as both an 8-bit and a 10-bit master — the one whose
+ * bit depth matches what the viewer is already watching, and finally the fatter file.
+ */
+function pickLike(ranked, ref) {
+  const targetH = heightOf(ref);
+  const withinTarget = targetH ? ranked.filter(f => heightOf(f) <= targetH) : ranked;
+  const pool = withinTarget.length ? withinTarget : [ranked[ranked.length - 1]];
+
+  // Same resolution, different masters — resolution alone can't separate these.
+  const tier = pool.filter(f => heightOf(f) === heightOf(pool[0]));
+  if (tier.length === 1) return tier[0];
+  return tier.find(f => depthOf(f) === depthOf(ref))
+    ?? [...tier].sort((a, b) => bitRateOf(b) - bitRateOf(a))[0];
+}
+
+/**
+ * Rich episode list for the hybrid player — ONE entry per episode, sorted, each
+ * with a stable id. Returns [] for movies.
+ *
+ * An episode that exists in several qualities is a single row whose alternatives
+ * live in `variants`; the list used to be built per FILE, so such an episode
+ * appeared twice and "Next episode" stepped onto a duplicate of the one already
+ * playing instead of the next episode.
+ *
+ * The file a row plays is the one closest to `currentFile`'s quality without
+ * going over, so changing episode keeps the quality the viewer is watching.
  *
  * @param {Array} [tmdbSeasons] record.tmdb.seasons — used to attach episode names.
  */
 export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
   if (!Array.isArray(allFiles) || !currentFile) return [];
-  const quality = getQualityLabel(currentFile);
-  const pad = (n) => String(n).padStart(2, '0');
-  return allFiles
-    .filter(f => getQualityLabel(f) === quality)
-    .map(f => ({ f, ep: episodeRefOf(f) }))
-    .filter(({ ep }) => ep !== null)
+  const pad     = (n) => String(n).padStart(2, '0');
+  const idOf    = (f) => String(f?.id ?? f?.mediaFileId ?? '');
+
+  const groups = new Map();   // 'season-episode' → { ep, files }
+  for (const f of allFiles) {
+    const ep = episodeRefOf(f);
+    if (!ep) continue;
+    const key = `${ep.season}-${ep.episode}`;
+    if (!groups.has(key)) groups.set(key, { ep, files: [] });
+    groups.get(key).files.push(f);
+  }
+
+  return [...groups.values()]
     .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
-    .map(({ f, ep }) => {
+    .map(({ ep, files }) => {
+      // Best first: resolution, then bit depth, then bitrate — so two 1080p masters
+      // of one episode have a stable order instead of whatever the API listed first.
+      const ranked = [...files].sort((a, b) =>
+        (heightOf(b) - heightOf(a)) || (depthOf(b) - depthOf(a)) || (bitRateOf(b) - bitRateOf(a)));
+      // The viewer's own file always represents its own episode — picking by
+      // height instead could hand its row a sibling id and break the highlight.
+      const f = ranked.find(x => idOf(x) === idOf(currentFile)) ?? pickLike(ranked, currentFile);
       const meta = tmdbEpisode(tmdbSeasons, ep.season, ep.episode);
       return {
-        id:          String(f.id ?? f.mediaFileId ?? ''),
-        fileId:      String(f.id ?? f.mediaFileId ?? ''),
+        id:          idOf(f),
+        fileId:      idOf(f),
         mediaFileId: f.mediaFileId ?? f.id ?? '',
         season:      ep.season,
         episode:     ep.episode,
@@ -117,6 +148,9 @@ export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
         airDate:     meta?.airDate ?? null,
         label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
         url:         f.streamUrl ?? '',          // may be empty → resolved lazily on selection
+        // This episode's quality alternatives, best first. Urls are resolved when
+        // the episode is selected so the Quality menu can follow the episode.
+        variants:    ranked.map(variantOf),
       };
     });
 }

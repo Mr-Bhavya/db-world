@@ -27,6 +27,7 @@ class PlayerUiState {
     var episodes by mutableStateOf<List<com.db.dbworld.player.PlayerEpisode>>(emptyList())
     var variants by mutableStateOf<List<com.db.dbworld.player.PlayerVariant>>(emptyList())
     var currentFileId by mutableStateOf("")
+    var currentVariantId by mutableStateOf("")    // mediaFileId of the quality on screen
     var ended by mutableStateOf(false)
     var buffering by mutableStateOf(false)        // player is BUFFERING (show a spinner)
     var scrubbing by mutableStateOf(false)        // user is dragging the progress bar (hide play button)
@@ -52,5 +53,10 @@ class PlayerUiState {
     // Scrub-preview storyboard (null if the file has no sprite).
     var storyboard by mutableStateOf<com.db.dbworld.player.PlayerStoryboard?>(null)
     // Full audio-track detail from the API (for the Info sheet).
-    var audioInfo by mutableStateOf<List<com.db.dbworld.player.PlayerAudioInfo>>(emptyList())
+    var audioInfo by mutableStateOf<List<com.db.dbworld.player.PlayerSpec>>(emptyList())
+    // Extra MediaInfo rows ExoPlayer can't report (container, bitrates, colour, HDR
+    // format) and the record page's tech badges for the pause card.
+    var videoSpecs by mutableStateOf<List<com.db.dbworld.player.PlayerSpec>>(emptyList())
+    var fileSpecs by mutableStateOf<List<com.db.dbworld.player.PlayerSpec>>(emptyList())
+    var badges by mutableStateOf<List<com.db.dbworld.player.PlayerBadge>>(emptyList())
 }

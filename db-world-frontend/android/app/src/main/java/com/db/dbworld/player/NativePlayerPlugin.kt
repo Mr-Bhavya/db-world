@@ -145,7 +145,7 @@ class NativePlayerPlugin : Plugin() {
                         onSelectSubtitle = { selectSubtitle(it) },
                         onSetSpeed = { setSpeedNative(it) },
                         onSelectEpisode = { requestEpisode(it) },
-                        onSelectQuality = { selectQuality(it) },
+                        onSelectQuality = { v -> selectQuality(v) },
                     )
                     com.db.dbworld.player.ui.NextEpisodeCard(
                         state = uiState,
@@ -211,6 +211,7 @@ class NativePlayerPlugin : Plugin() {
                 overview = o.optString("overview"),
                 still = o.optString("still"),
                 runtime = o.optString("runtime"),
+                progress = o.optDouble("progress", 0.0).toFloat(),
             ))
         }
         return out
@@ -221,7 +222,7 @@ class NativePlayerPlugin : Plugin() {
         if (arr == null) return out
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(PlayerVariant(o.optString("url"), o.optString("label")))
+            out.add(PlayerVariant(o.optString("url"), o.optString("label"), o.optString("mediaFileId")))
         }
         return out
     }
@@ -230,28 +231,46 @@ class NativePlayerPlugin : Plugin() {
     fun setPlaylist(call: PluginCall) {
         val eps = call.getArray("episodes"); val vars = call.getArray("variants")
         val cur = call.getString("currentFileId") ?: ""
+        val curVariant = call.getString("currentVariantId") ?: ""
         val playlistTitle = call.getString("title") ?: ""
         val playlistOverview = call.getString("overview") ?: ""
         val sb = call.getObject("storyboard")
         val audioInfoArr = call.getArray("audioInfo")
+        val videoSpecsArr = call.getArray("videoSpecs")
+        val fileSpecsArr = call.getArray("fileSpecs")
+        val badgesArr = call.getArray("badges")
         activity.runOnUiThread {
             uiState.episodes = parseEpisodes(eps)
             uiState.variants = parseVariants(vars)
             uiState.currentFileId = cur
+            uiState.currentVariantId = curVariant
             uiState.title = playlistTitle
             uiState.overview = playlistOverview
             uiState.storyboard = parseStoryboard(sb)
-            uiState.audioInfo = parseAudioInfo(audioInfoArr)
+            uiState.audioInfo = parseSpecs(audioInfoArr)
+            uiState.videoSpecs = parseSpecs(videoSpecsArr)
+            uiState.fileSpecs = parseSpecs(fileSpecsArr)
+            uiState.badges = parseBadges(badgesArr)
         }
         call.resolve()
     }
 
-    private fun parseAudioInfo(arr: com.getcapacitor.JSArray?): List<PlayerAudioInfo> {
-        val out = ArrayList<PlayerAudioInfo>()
+    private fun parseSpecs(arr: com.getcapacitor.JSArray?): List<PlayerSpec> {
+        val out = ArrayList<PlayerSpec>()
         if (arr == null) return out
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(PlayerAudioInfo(o.optString("name"), o.optString("detail")))
+            out.add(PlayerSpec(o.optString("name"), o.optString("detail")))
+        }
+        return out
+    }
+
+    private fun parseBadges(arr: com.getcapacitor.JSArray?): List<PlayerBadge> {
+        val out = ArrayList<PlayerBadge>()
+        if (arr == null) return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(PlayerBadge(o.optString("label"), o.optString("color"), o.optBoolean("filled")))
         }
         return out
     }
@@ -277,9 +296,10 @@ class NativePlayerPlugin : Plugin() {
     }
 
     /** Native quality switch — variants already carry resolved URLs, so just reload at pos. */
-    fun selectQuality(url: String) = activity.runOnUiThread {
+    fun selectQuality(v: PlayerVariant) = activity.runOnUiThread {
         val pos = player?.currentPosition ?: 0L
-        doReload(url, pos)
+        uiState.currentVariantId = v.mediaFileId
+        doReload(v.url, pos)
     }
 
     fun selectAudio(id: Int) = activity.runOnUiThread {

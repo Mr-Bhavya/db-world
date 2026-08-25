@@ -11,10 +11,9 @@ import CommonServices from '@shared/services/CommonServices';
 import { buildStoryboard } from '../utils/storyboard';
 import { episodeRefOf, buildHybridEpisodes } from '../utils/episodeUtils';
 import { fetchRecord } from '../api/cinemaApi';
-import { getQuality, getCodec, getHdrTags } from './helpers';
+import { variantOf } from './helpers';
+import { mediaInfoOf } from '../player/hybrid/mediaSpecs';
 import { pickAutoQuality } from './pickAutoQuality';
-
-const heightOf = (f) => Number(f?.video?.resolution?.split('x')?.[1]) || 0;
 
 /** Stable season-episode key: prefer TMDB season/episode fields, else parse the filename. */
 export function episodeKey(f) {
@@ -71,19 +70,7 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
   const variants = files
     .map((f) => {
       const r = byId.get(f?.mediaFileId);
-      if (!r?.cdnUrl) return null;
-      return {
-        url: r.cdnUrl,
-        label: getQuality(f.video, f.general?.fileName),
-        height: heightOf(f),
-        mediaFileId: f.mediaFileId,
-        codec: getCodec(f.video?.format),                                          // H.265 / H.264 / AV1…
-        // hdrDetails is the key convertMediaInfoToCustomFormat actually writes;
-        // hdrFormat/hdrFormatCompatibility are the backend TrackDto names and
-        // never survive the conversion, so reading those made every variant's
-        // HDR tag fall back to guessing from the filename.
-        hdr: getHdrTags(f.video?.hdrDetails, f.general?.fileName),                 // ['DV','HDR10']
-      };
+      return r?.cdnUrl ? { ...variantOf(f), url: r.cdnUrl } : null;
     })
     .filter(Boolean);
 
@@ -92,6 +79,11 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
   if (!url) throw new Error('No stream URL');
 
   const storyboard = buildStoryboard(url, start?.mediaFileId, currentResolved?.mediaFile) || null;
+
+  // Full MediaInfo of the file being opened, for the player's Info panel and tech
+  // badges. The resolve carries it; `start` is the same file already converted, so
+  // it stands in when the resolve came back without track data.
+  const mediaInfo = mediaInfoOf(currentResolved?.mediaFile) ?? (start?.video ? start : null);
 
   return {
     url,
@@ -103,7 +95,8 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
     fileName:    start?.general?.fileName || '',
     overview:    record?.tmdb?.overview ?? '',   // shown on the pause info card (movies)
     recordId:    record?.id ?? record?.recordId ?? currentResolved?.recordId ?? null,
-    audio:       currentResolved?.mediaFile?.audio || start?.audio || [],
+    audio:       mediaInfo?.audio || start?.audio || [],
+    mediaInfo,
     variants,
     episodes,
     storyboard,

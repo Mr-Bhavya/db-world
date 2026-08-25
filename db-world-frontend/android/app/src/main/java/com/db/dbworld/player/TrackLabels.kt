@@ -94,13 +94,22 @@ data class PlayerEpisode(
     val overview: String = "",
     val still: String = "",
     val runtime: String = "",
+    /** How much of this episode has been watched, 0..1. 0 hides the bar. */
+    val progress: Float = 0f,
 )
 
-/** A quality variant (URL already resolved by JS). */
-data class PlayerVariant(val url: String, val label: String)
+/** A quality variant (URL already resolved by JS). [mediaFileId] marks the running one. */
+data class PlayerVariant(val url: String, val label: String, val mediaFileId: String = "")
 
-/** Full audio-track detail from the API MediaInfo (pre-formatted by JS) for the Info sheet. */
-data class PlayerAudioInfo(val name: String, val detail: String)
+/**
+ * One "label: value" row of the Info sheet, pre-formatted by JS from the file's MediaInfo.
+ * ExoPlayer only knows what it is decoding — container, bitrates, colour primaries and HDR
+ * format all come from the API, so JS formats them once and both players print the same text.
+ */
+data class PlayerSpec(val name: String, val detail: String)
+
+/** A tech badge for the pause card (4K / HDR10 / ATMOS / H.265). [color] is "#rrggbb". */
+data class PlayerBadge(val label: String, val color: String, val filled: Boolean)
 
 /**
  * Scrub-preview storyboard: one sprite sheet at [url], a [cols]×[rows] grid of [tileW]×[tileH]

@@ -399,6 +399,13 @@ export const getWatchProgress = async (fileId) => {
   return response.data?.data ?? null; // { fileId, positionMs, durationMs, ... } | null
 };
 
+// Every saved position for one record, for the player's per-episode watched bars.
+// One request for the whole series instead of one per episode.
+export const getRecordProgress = async (recordId) => {
+  const response = await axiosInstance.get(`/api/cinema/progress/record/${encodeURIComponent(recordId)}`);
+  return response.data?.data ?? [];   // [{ fileId, positionMs, durationMs, ... }]
+};
+
 export const saveWatchProgress = async (fileId, { positionMs, durationMs = 0, recordId, audioLang, subLang } = {}) => {
   const params = { positionMs: Math.round(positionMs || 0), durationMs: Math.round(durationMs || 0) };
   if (recordId != null)  params.recordId = recordId;

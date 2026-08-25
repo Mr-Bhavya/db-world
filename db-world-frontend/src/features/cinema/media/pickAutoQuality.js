@@ -10,7 +10,7 @@
 // candidate set, and if they narrow it to nothing we fall back to the smallest
 // file rather than refusing to play.
 
-import { getCodec, getQuality, qualityRank } from './helpers';
+import { getCodec, getQuality, heightOf, qualityRank } from './helpers';
 
 /** Height of the largest picture this display can actually resolve. */
 function deviceMaxHeight() {
@@ -103,18 +103,6 @@ function requiredMbps(file) {
   const bps = Number(file?.video?.bitRate);
   if (Number.isFinite(bps) && bps > 0) return bps / 1e6;
   return null;
-}
-
-function heightOf(file) {
-  const res = file?.video?.resolution;
-  if (typeof res === 'string' && res.includes('x')) {
-    const h = Number(res.split('x')[1]);
-    if (Number.isFinite(h) && h > 0) return h;
-  }
-  // Fall back to the quality tier parsed from the filename.
-  const q = getQuality(file?.video ?? {}, file?.general?.fileName);
-  const map = { '8K': 4320, '4K': 2160, '2160p': 2160, '2K': 1440, '1440p': 1440, '1080p': 1080, '720p': 720, '480p': 480, '360p': 360 };
-  return map[q] ?? 0;
 }
 
 /** Best-first: highest resolution, then highest bitrate as the tie-break. */

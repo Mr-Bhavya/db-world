@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 
-import { getQuality, getCodec, getHdrTags, qualityRank } from '../../../media/helpers';
+import { getQuality, getCodec, getHdrTags, objectAudioTag, qualityRank } from '../../../media/helpers';
 import { QBadge, HdrBadge, CodecBadge } from '../../../media/Badges';
 
 /**
@@ -14,21 +14,6 @@ import { QBadge, HdrBadge, CodecBadge } from '../../../media/Badges';
  * the file, and among the tech badges a bare "A" read as one more technical tag. It now
  * sits in the hero's meta row as CertBadge, with a key of its own.
  */
-
-const ATMOS_HINTS = ['ATMOS', 'JOC'];
-const DTSX_HINTS = ['DTS:X', 'DTS-X'];
-
-function objectAudioTag(audioTracks) {
-  const haystack = (audioTracks ?? [])
-    .flatMap((a) => [a?.format, a?.commercialName, a?.formatCommercial, a?.title])
-    .filter(Boolean)
-    .join(' ')
-    .toUpperCase();
-
-  if (ATMOS_HINTS.some((h) => haystack.includes(h))) return 'ATMOS';
-  if (DTSX_HINTS.some((h) => haystack.includes(h))) return 'DTS:X';
-  return null;
-}
 
 export default function TechBadgeRow({ files = [], sx }) {
   const specs = useMemo(() => {
