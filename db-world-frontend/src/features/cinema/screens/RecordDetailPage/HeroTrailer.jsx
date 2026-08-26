@@ -60,6 +60,20 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
   // Latches on an unplayable video so the reveal fallback can't fire afterwards.
   const [failed, setFailed] = useState(false);
 
+  // Is the hero meaningfully on screen? Drives BOTH whether the iframe exists at all
+  // and, once it does, whether the video is playing.
+  const [visible, setVisible] = useState(false);
+  // Latched once the hero has been seen. The iframe is not mounted before that — so
+  // landing on an already-scrolled page costs no bandwidth and can't autoplay audio —
+  // and is not unmounted after, so scrolling back up RESUMES instead of restarting.
+  const [seen, setSeen] = useState(false);
+  // YouTube only obeys postMessage once the embed has completed its `listening`
+  // handshake. Commands sent before that are silently dropped.
+  const [ready, setReady] = useState(false);
+  // The message listener must not re-subscribe (it would miss the state change it
+  // exists to catch), so it reads visibility through a ref rather than a closure.
+  const visibleRef = useRef(false);
+
   // Keep the newest onStop reachable from listeners that must not re-subscribe
   // (re-registering the message listener would miss the state change it exists
   // to catch).
@@ -92,6 +106,9 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
   useEffect(() => {
     const onMessage = (e) => {
       if (typeof e.origin !== 'string' || !e.origin.includes('youtube.com')) return;
+      // Anything arriving from the embed proves the channel is up — more reliable than
+      // the iframe load event alone, which the Capacitor webview does not always give us.
+      setReady(true);
       let data;
       try {
         data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -113,13 +130,18 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
         ? data.info
         : data?.info?.playerState;
 
-      if (state === 1) setStarted(true);   // PLAYING → safe to reveal
+      if (state === 1) {
+        setStarted(true);                  // PLAYING → safe to reveal
+        // Autoplay can win the race against the first pause command; stop it dead
+        // rather than leaving a trailer running under content already scrolled past.
+        if (!visibleRef.current) command('pauseVideo');
+      }
       if (state === 0) onStopRef.current?.();  // ENDED → hand back to artwork
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [command]);
 
   const handleLoad = useCallback(() => {
     // Required before YouTube will emit any events to this window.
@@ -128,6 +150,7 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
       'https://www.youtube.com',
     );
     if (!muted) command('unMute');
+    setReady(true);
   }, [command, muted]);
 
   // Safety net for environments where the event channel doesn't come up — the
@@ -135,23 +158,46 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
   // listener would mean the trailer never reveals at all, which is a worse
   // failure than revealing a beat early.
   useEffect(() => {
-    if (started || failed) return undefined;
+    // Only once there is something to reveal — without the `seen` guard this would fade
+    // in the trailer's own controls over bare artwork on a page opened scrolled down.
+    if (started || failed || !seen) return undefined;
     const t = setTimeout(() => { if (!failed) setStarted(true); }, REVEAL_FALLBACK_MS);
     return () => clearTimeout(t);
-  }, [started, failed]);
+  }, [started, failed, seen]);
 
   // Pause while the hero is off screen — a trailer playing under content the user
   // has scrolled past is just wasted bandwidth (and audio, if they unmuted).
+  //
+  // The observer RECORDS the desired state rather than issuing the command itself.
+  // Issuing it here missed twice over: the iframe does not exist until a measurement
+  // tick after mount, and even once it does it ignores commands until the `listening`
+  // handshake completes. Either way the command was dropped, and the observer does not
+  // fire again until the intersection changes — so a page opened already scrolled kept
+  // playing, unpausable.
   useEffect(() => {
     const el = wrapRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const see = (onScreen) => {
+      visibleRef.current = onScreen;
+      setVisible(onScreen);
+      if (onScreen) setSeen(true);
+    };
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      see(true);          // no observer support — behave as before, always playing
+      return undefined;
+    }
     const io = new IntersectionObserver(
-      ([entry]) => command(entry.intersectionRatio > 0.35 ? 'playVideo' : 'pauseVideo'),
+      ([entry]) => see(entry.intersectionRatio > 0.35),
       { threshold: [0, 0.35, 1] },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [command]);
+  }, []);
+
+  // Apply that state whenever it changes OR the player becomes able to obey.
+  useEffect(() => {
+    if (!ready) return;
+    command(visible ? 'playVideo' : 'pauseVideo');
+  }, [visible, ready, command]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
@@ -183,7 +229,7 @@ export default function HeroTrailer({ videoKey, title, onStop }) {
       sx={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
     >
       <Box aria-hidden sx={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-        {box && (
+        {box && seen && (
           <Box
             component="iframe"
             ref={iframeRef}
