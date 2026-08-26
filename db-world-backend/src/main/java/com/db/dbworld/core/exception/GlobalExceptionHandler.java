@@ -8,7 +8,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -61,6 +65,34 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         log.warn("Bad credentials attempt");
         return build(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+    }
+
+    /**
+     * Method security ({@code @PreAuthorize} / {@code @AnyRole}) refused the call.
+     *
+     * <p>Without this handler it fell through to the catch-all and became a **500 with a
+     * full stack trace at ERROR** — so a signed-out visitor hitting a members-only
+     * endpoint looked like a server fault, both to them and in the logs.
+     *
+     * <p>The two cases are answered differently because they mean different things to
+     * the client: nobody is signed in (401 — sign in and retry), versus signed in
+     * without the required role (403 — retrying will not help).
+     */
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthorizationDenied(AuthorizationDeniedException ex) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean anonymous = auth == null
+                || !auth.isAuthenticated()
+                || auth instanceof AnonymousAuthenticationToken;
+
+        if (anonymous) {
+            log.debug("Anonymous request to a protected endpoint: {}", ex.getMessage());
+            return build(HttpStatus.UNAUTHORIZED, "Please sign in to continue");
+        }
+
+        log.warn("Authorization denied for user [{}]: {}", auth.getName(), ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, "You do not have permission to do that");
     }
 
     @ExceptionHandler(JwtException.class)

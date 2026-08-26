@@ -6,7 +6,6 @@ import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
 import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.SubscriptionPointDto;
 import com.db.dbworld.app.ipo.service.IpoQueryService;
-import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +22,21 @@ import java.util.List;
  * {@link IpoQueryService}.
  */
 @RestController
+/**
+ * Public read surface for the IPO tracker.
+ *
+ * <p>The class-level {@code @AnyRole} was removed so anonymous visitors can browse.
+ * Listing the paths in {@code PUBLIC_GET_APIS} alone is not enough: method security
+ * runs after the filter chain has already allowed the request, and would still deny it
+ * — as a 500, not a 401.
+ *
+ * <p>{@code IpoApplicationController} shares this base path and KEEPS its
+ * {@code @AnyRole}, because everything there is scoped to a signed-in user's own
+ * applications. That is why the rules in {@code AppConstants.PUBLIC_GET_APIS} are
+ * GET-scoped and single-segment.
+ */
 @RequestMapping("/api/ipo")
 @RequiredArgsConstructor
-@AnyRole
 public class IpoController {
 
     private final IpoQueryService queryService;

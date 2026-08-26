@@ -7,13 +7,25 @@ import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.catalog.service.SearchService;
-import com.db.dbworld.core.role.annotations.AnyRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Public read surface for the catalog.
+ *
+ * <p>No {@code @AnyRole} on these methods, deliberately. Opening the browse pages to
+ * anonymous visitors needs BOTH halves: {@code PUBLIC_GET_APIS} lets the request past
+ * the filter chain, and the absence of a {@code @PreAuthorize} lets it past method
+ * security. With only the first, every one of these 500s for a signed-out visitor —
+ * {@code AuthorizationDeniedException} is thrown after the filter chain has already
+ * allowed the request through.
+ *
+ * <p>Draft records are still not disclosed: {@code getPublicRecord} 404s them, and the
+ * rail-backed reads run under the {@code excludeHidden} filter.
+ */
 @RestController
 @RequestMapping("/api/cinema/catalog")
 @RequiredArgsConstructor
@@ -26,7 +38,6 @@ public class CatalogController {
        GET RECORD
        ========================= */
 
-    @AnyRole
     @GetMapping("/{id}")
     public ApiResponse<RecordDto> getRecord(@PathVariable Long id) {
 
@@ -40,7 +51,6 @@ public class CatalogController {
        MORE LIKE THIS
        ========================= */
 
-    @AnyRole
     @GetMapping("/{id}/similar")
     public ApiResponse<List<SearchRecordDto>> getSimilar(
             @PathVariable Long id,
@@ -53,7 +63,6 @@ public class CatalogController {
        SEARCH
        ========================= */
 
-    @AnyRole
     @GetMapping("/search")
     public ApiResponse<PageResponse<SearchRecordDto>> search(
             @RequestParam String q,
@@ -67,7 +76,6 @@ public class CatalogController {
        AUTOCOMPLETE
        ========================= */
 
-    @AnyRole
     @GetMapping("/autocomplete")
     public ApiResponse<List<RecordAutocompleteDto>> autocomplete(
             @RequestParam String q
