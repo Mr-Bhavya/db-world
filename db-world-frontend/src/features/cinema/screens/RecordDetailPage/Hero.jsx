@@ -380,6 +380,7 @@ export default function Hero({
   const heroOverview = overview.length > 200 ? overview.slice(0, 200).trimEnd() + '…' : overview;
 
   const resumable = progress?.percent > 0 && progress?.percent < 97;
+  const resumePercent = resumable ? Math.min(100, Math.max(0, progress?.percent ?? 0)) : 0;
 
   // Rating, year, runtime, status and genres share ONE wrapping row.
   //
@@ -1027,30 +1028,6 @@ export default function Hero({
             ) : null}
             </Box>
 
-            {/* Continue-watching bar. Only rendered mid-title, so a finished or
-                never-started record keeps the plain Watch Now affordance. */}
-            {resumable && (
-              <Box component={motion.div} variants={RISE} sx={{ mb: 1.5, maxWidth: { xs: '100%', sm: 340 } }}>
-                <Box sx={{
-                  height: 3, borderRadius: 999, overflow: 'hidden',
-                  bgcolor: alpha('#fff', 0.18),
-                }}>
-                  <Box sx={{
-                    height: '100%', width: `${progress.percent}%`,
-                    bgcolor: accentColor, borderRadius: 999,
-                  }} />
-                </Box>
-                {progress.remainingLabel && (
-                  <Typography sx={{
-                    mt: 0.6, fontSize: { xs: '0.7rem', xl: '0.8rem' },
-                    fontWeight: 600, color: alpha('#fff', 0.62),
-                  }}>
-                    {progress.remainingLabel} left
-                  </Typography>
-                )}
-              </Box>
-            )}
-
             <Box component={motion.div} variants={RISE} sx={{
               // Phones: equal columns, so Request+Trailer and Watch+Download all split
               // the width evenly. `gridAutoColumns: 1fr` needs no count — the icon rail
@@ -1063,18 +1040,54 @@ export default function Hero({
               alignItems: 'center',
             }}>
               {onWatchClick && (
-                <Button
-                  component={motion.button}
-                  whileTap={{ scale: 0.97 }}
-                  variant="contained"
-                  startIcon={resumable
-                    ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
-                    : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
-                  onClick={onWatchClick}
-                  sx={{ ...CTA_SHAPE, ...ctaPrimary(accentColor) }}
-                >
-                  {resumable ? 'Resume' : 'Watch Now'}
-                </Button>
+                <Box sx={{
+                  display: 'flex', flexDirection: 'column', minWidth: 0,
+                  width: { xs: '100%', sm: 'auto' },
+                  alignItems: { xs: 'stretch', sm: 'flex-start' },
+                }}>
+                  <Button
+                    component={motion.button}
+                    whileTap={{ scale: 0.97 }}
+                    variant="contained"
+                    startIcon={resumable
+                      ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
+                      : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
+                    onClick={onWatchClick}
+                    sx={{
+                      ...CTA_SHAPE,
+                      ...ctaPrimary(accentColor),
+                      width: { xs: '100%', sm: 'auto' },
+                      ...(resumable && {
+                        position: 'relative', overflow: 'hidden',
+                        pb: { xs: 1.45, xl: 1.6 },
+                      }),
+                    }}
+                  >
+                    {resumable ? 'Resume' : 'Watch Now'}
+                    {resumable && (
+                      <Box aria-hidden sx={{
+                        position: 'absolute', left: { xs: 14, sm: 18, xl: 24 }, right: { xs: 14, sm: 18, xl: 24 },
+                        bottom: { xs: 7, xl: 8 }, height: 3,
+                        borderRadius: 999, overflow: 'hidden',
+                        bgcolor: alpha('#fff', 0.26), pointerEvents: 'none',
+                      }}>
+                        <Box sx={{
+                          height: '100%', width: `${resumePercent}%`,
+                          bgcolor: '#fff', borderRadius: 999,
+                        }} />
+                      </Box>
+                    )}
+                  </Button>
+                  {resumable && progress.remainingLabel && (
+                    <Typography sx={{
+                      mt: 0.55, pl: { xs: 0.25, sm: 1.25 },
+                      fontSize: { xs: '0.68rem', xl: '0.78rem' },
+                      fontWeight: 700, color: alpha('#fff', 0.62),
+                    }}>
+                      {progress.remainingLabel} left
+                    </Typography>
+                  )}
+                </Box>
               )}
 
               {/* Request takes the primary slot when there's nothing to play —
