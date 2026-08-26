@@ -436,10 +436,16 @@ const HeroCardStack = ({
       : { x: -cardW * 1.15, rotate: -5, opacity: 0, zIndex: LAYERS + 1 }),
   }), [cardW, slot]);
 
-  // Memoised: a fresh object per render would rebuild every callback that depends on it.
+  /**
+   * Deck motion. A tween, deliberately not a spring: a spring settles by oscillating
+   * around its target, and even a barely-underdamped one puts a wobble on the end of
+   * every turn. easeOutQuint decelerates hard into place and never passes it.
+   *
+   * Memoised — a fresh object per render rebuilds every callback holding it.
+   */
   const springTo = useMemo(() => (reducedMotion
     ? { duration: 0.16 }
-    : { type: 'spring', stiffness: 340, damping: 34, mass: 0.6 }), [reducedMotion]);
+    : { duration: 0.34, ease: [0.22, 1, 0.36, 1] }), [reducedMotion]);
 
   // A decisive flick or a fifth of a card of travel turns the page.
   const threshold = Math.min(96, Math.max(48, cardW * 0.22));
@@ -472,11 +478,11 @@ const HeroCardStack = ({
    */
   const peekTravel = Math.max(threshold, cardW * 0.5);
 
-  // Softer than the deck's own spring, which is tuned to snap. This one is finishing a
-  // movement the finger started, so it should read as a continuation of it.
+  // Finishing a movement the finger started, so it wants to read as a continuation of
+  // it: same curve as the deck, a touch quicker, and no overshoot to argue with.
   const peekSpring = useMemo(() => (reducedMotion
     ? { duration: 0.18 }
-    : { type: 'spring', stiffness: 210, damping: 30, mass: 1 }), [reducedMotion]);
+    : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }), [reducedMotion]);
 
   useEffect(() => { peekX.set(peekRest); peekOpacity.set(0); }, [peekRest, peekX, peekOpacity]);
 
@@ -513,6 +519,25 @@ const HeroCardStack = ({
     hidePeekAfterCommit.current = false;
     resetPeek();
   });
+
+  /**
+   * Warm the posters that are about to enter the deck, from either end.
+   *
+   * Only LAYERS cards are mounted, so the card that appears at the BACK on a forward
+   * turn has never been rendered and its poster has never been fetched: it mounts
+   * empty and pops in a beat later, at the deck's right edge where the peek shows.
+   * Fetching it now costs nothing — it is the next thing the deck will need either way.
+   */
+  useEffect(() => {
+    if (count < 2 || typeof Image === 'undefined') return;
+    [(safeIdx + LAYERS) % count, (safeIdx - 2 + count * 2) % count].forEach((i) => {
+      const path = heroArtCandidates(items[i], { portrait: true, hasLogo: false, titled: true })
+        .find(Boolean);
+      if (!path) return;
+      const img = new Image();
+      img.src = tmdbImg(path, isXs ? 'w500' : 'w780');
+    });
+  }, [safeIdx, count, items, isXs]);
 
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;
@@ -650,7 +675,15 @@ const HeroCardStack = ({
                   initial="enter"
                   animate={slot(k)}
                   exit="exit"
-                  transition={springTo}
+                  // z-index snaps; everything else eases.
+                  //
+                  // CSS z-index takes INTEGERS only. Animating it meant framer handed the
+                  // browser 2.7, then 2.4 — each an invalid declaration, dropped, leaving
+                  // the card at `z-index: auto` and stacking by DOM order for the whole
+                  // turn. Cards swapped in front of each other mid-animation, in both
+                  // directions. Zero duration keeps the ordering this deck depends on
+                  // (the leaving card rides above the rest) without ever interpolating it.
+                  transition={{ ...springTo, zIndex: { duration: 0 } }}
                   drag={isFront && count > 1 && measured ? 'x' : false}
                   dragDirectionLock
                   // Anchored: the card rubber-bands off its resting position and springs
@@ -667,6 +700,9 @@ const HeroCardStack = ({
                   // the turn belongs to the card actually arriving.
                   dragElastic={{ left: 0.42, right: 0.07, top: 0, bottom: 0 }}
                   dragMomentum={false}
+                  // Critically damped, so a swipe that doesn't commit settles back
+                  // instead of wobbling there.
+                  dragTransition={{ bounceStiffness: 500, bounceDamping: 45 }}
                   onDragStart={() => { flushPendingBack(); onInteract?.(); }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
