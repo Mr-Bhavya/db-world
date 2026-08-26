@@ -3,6 +3,7 @@ package com.db.dbworld.app.cinema.social;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -19,6 +20,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -64,32 +67,50 @@ public class SitemapController {
     @Transactional(readOnly = true)
     public ResponseEntity<String> sitemap() {
 
+        // Records are gathered BEFORE anything is written, so the landing pages can
+        // carry a lastmod of their own — the newest title on them is exactly when
+        // those listings last changed.
+        List<RecordEntity> publicRecords = recordRepository.findAllWithTmdbAndTags().stream()
+                .filter(r -> r.getVisibility() != null && r.getVisibility().isPublic())
+                .toList();
+
+        Instant newestMovie  = newestOf(publicRecords, RecordType.MOVIE);
+        Instant newestSeries = newestOf(publicRecords, RecordType.TV_SERIES);
+        Instant newestAny    = latest(newestMovie, newestSeries);
+
+        List<IpoListingEntity> ipos = ipoListingRepository.findAll().stream()
+                .filter(i -> i.getId() != null && !i.getId().isBlank())
+                .toList();
+
+        Instant newestIpo = ipos.stream()
+                .map(IpoListingEntity::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElse(null);
+
         StringBuilder xml = new StringBuilder(1 << 16);
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
            .append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
         // Landing pages, most important first.
-        url(xml, publicBaseUrl + "/db-world/db-cinema/browse",    null, "daily",  "1.0");
-        url(xml, publicBaseUrl + "/db-world/db-cinema/movie",     null, "daily",  "0.9");
-        url(xml, publicBaseUrl + "/db-world/db-cinema/tv-shows",  null, "daily",  "0.9");
-        url(xml, publicBaseUrl + "/db-world/db-ipo",                 null, "hourly", "1.0");
+        url(xml, publicBaseUrl + "/db-world/db-cinema/browse",   newestAny,    "daily",  "1.0");
+        url(xml, publicBaseUrl + "/db-world/db-cinema/movie",    newestMovie,  "daily",  "0.9");
+        url(xml, publicBaseUrl + "/db-world/db-cinema/tv-shows", newestSeries, "daily",  "0.9");
+        url(xml, publicBaseUrl + "/db-world/db-ipo",             newestIpo,    "hourly", "1.0");
 
         // Legal pages. Low priority, but AdSense and Search Console both expect them
-        // to be discoverable rather than orphaned behind a footer link alone.
+        // to be discoverable rather than orphaned behind a footer link alone. No
+        // lastmod: nothing tracks when the prose was last edited, and inventing a date
+        // is worse than omitting the field.
         url(xml, publicBaseUrl + "/db-world/privacy", null, "yearly", "0.3");
         url(xml, publicBaseUrl + "/db-world/terms",   null, "yearly", "0.3");
         url(xml, publicBaseUrl + "/db-world/contact", null, "yearly", "0.3");
 
-        int records = 0;
-        for (RecordEntity record : recordRepository.findAllWithTmdbAndTags()) {
-            if (record.getVisibility() == null || !record.getVisibility().isPublic()) continue;
-            url(xml, canonicalUrl(record), null, "weekly", "0.8");
-            records++;
+        for (RecordEntity record : publicRecords) {
+            url(xml, canonicalUrl(record), lastModOf(record), "weekly", "0.8");
         }
 
-        int ipos = 0;
-        for (var ipo : ipoListingRepository.findAll()) {
-            if (ipo.getId() == null || ipo.getId().isBlank()) continue;
+        for (IpoListingEntity ipo : ipos) {
             url(xml,
                 publicBaseUrl + "/db-world/db-ipo/" + ipo.getId(),
                 ipo.getUpdatedAt(),
@@ -97,11 +118,10 @@ public class SitemapController {
                 // closed one is effectively frozen.
                 "daily",
                 "0.7");
-            ipos++;
         }
 
         xml.append("</urlset>\n");
-        log.debug("sitemap: {} records, {} IPOs", records, ipos);
+        log.debug("sitemap: {} records, {} IPOs", publicRecords.size(), ipos.size());
 
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
@@ -112,6 +132,43 @@ public class SitemapController {
     /* ===============================
        HELPERS
        =============================== */
+
+    /**
+     * When this record's page last meaningfully changed.
+     *
+     * <p>{@code publishedAt} is the primary signal: it is stamped once, when a record
+     * first becomes public, and never moves again. {@code updatedAt} would look like the
+     * more natural choice, but it is touched by every TMDB re-sync and scheduler pass
+     * even when nothing a visitor sees has changed — and a lastmod that churns without
+     * the page changing is one Google learns to ignore entirely, which is worse than
+     * sending none.
+     *
+     * <p>The fallbacks cover rows published before {@code publishedAt} existed. Null is
+     * returned rather than defaulted to "now", for the same reason: an invented date is
+     * worse than an absent one.
+     */
+    private Instant lastModOf(RecordEntity record) {
+        if (record.getPublishedAt() != null) return record.getPublishedAt();
+        if (record.getUpdatedAt()   != null) return record.getUpdatedAt();
+        return record.getCreatedAt();
+    }
+
+    /** Newest publish date across the records of one type, or null if none carry a date. */
+    private Instant newestOf(List<RecordEntity> records, RecordType type) {
+        return records.stream()
+                .filter(r -> r.getType() == type)
+                .map(this::lastModOf)
+                .filter(Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElse(null);
+    }
+
+    /** Later of two possibly-null instants. */
+    private Instant latest(Instant a, Instant b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return a.isAfter(b) ? a : b;
+    }
 
     private void url(StringBuilder xml, String loc, Instant lastMod, String changeFreq, String priority) {
         xml.append("  <url>\n")
