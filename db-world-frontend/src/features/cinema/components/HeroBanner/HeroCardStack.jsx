@@ -410,13 +410,31 @@ const HeroCardStack = ({
    * and a card that entered with a tilt keeps it forever. That was the "images are
    * sometimes tilted" bug, and it is exactly the kind that survives a re-render.
    */
-  const slot = useCallback((k) => ({
-    x: k * offset,
-    rotate: 0,
-    scale: 1 - k * SCALE_STEP,
-    opacity: Math.max(0, 1 - k * DIM_STEP),
-    zIndex: LAYERS - k,
-  }), [offset]);
+  const slot = useCallback((k) => {
+    // k === -1 is the card already turned past: parked off to the left with only its
+    // edge showing, mirroring the room the deck keeps on the right. It is a REAL layer,
+    // not a preview — a forward turn slides the top card into it and a backward turn
+    // brings it back out, so neither transition mounts or unmounts anything.
+    //
+    // It sits under the deck at rest, and is raised only while being pulled back in;
+    // otherwise its edge would paint over the front card's corner.
+    if (k === -1) {
+      return {
+        x: -(cardW - offset),
+        rotate: 0,
+        scale: 1,
+        opacity: 1,
+        zIndex: pullingBack ? LAYERS + 1 : 0,
+      };
+    }
+    return {
+      x: k * offset,
+      rotate: 0,
+      scale: 1 - k * SCALE_STEP,
+      opacity: Math.max(0, 1 - k * DIM_STEP),
+      zIndex: LAYERS - k,
+    };
+  }, [offset, cardW, pullingBack]);
 
   /**
    * Enter and exit, direction-aware. Forward, the top card leaves to the left like a
@@ -425,11 +443,11 @@ const HeroCardStack = ({
    * already unmounting — its own props are a render behind by then.
    */
   const variants = useMemo(() => ({
-    // Backward, the card appears already at rest. The peek card above carried it in
-    // under the finger, so replaying that slide here would show the journey twice.
-    // Nothing else turns the deck backward — go(-1) is reached only from a drag.
+    // Only the far ends mount and unmount now: the deck's own front-to-left transition
+    // is one element moving between two slots. Backward, a card fades in at the left
+    // slot; forward, one fades in at the back. Their opposites fade out the same way.
     enter: (d) => (d < 0
-      ? slot(0)
+      ? { ...slot(-1), opacity: 0 }
       : { ...slot(LAYERS), opacity: 0 }),
     exit: (d) => (d < 0
       ? { ...slot(LAYERS), opacity: 0 }
@@ -450,75 +468,45 @@ const HeroCardStack = ({
   // A decisive flick or a fifth of a card of travel turns the page.
   const threshold = Math.min(96, Math.max(48, cardW * 0.22));
 
-  /* ── the card arriving from the left ──────────────────────────────────────
+  /* ── pulling the left-hand card back in ───────────────────────────────────
    *
-   * Going forward, the top card IS what leaves, so the drag can just move it. Going
-   * back it is not: the card that should arrive was never mounted, so a backward swipe
-   * had nothing to show until the finger lifted and it flew in afterwards.
+   * The card lives in the deck at slot -1; this is only the finger's contribution to
+   * where it sits, applied on a wrapper INSIDE each card so it composes with the slot
+   * transform rather than fighting it.
    *
-   * This is that card, mounted for the length of the gesture and positioned straight
-   * from the drag — a plain motion value, so tracking the finger costs no React
-   * renders. It sits ABOVE the deck and lands exactly on slot 0, which is why the
-   * handoff below can be a swap rather than a crossfade.
+   * That composition is what makes the commit seamless. On release both animate to
+   * their targets on the same curve, so their sum runs smoothly from wherever the
+   * finger left the card to slot 0 — no handoff between two elements, and therefore
+   * nothing that can paint out of step.
    */
-  const peekX = useMotionValue(0);
-  const peekOpacity = useMotionValue(0);
+  const liftX = useMotionValue(0);
+  // Which card the finger is carrying. Held by id, not by slot: a card that commits a
+  // backward turn becomes slot 0 mid-animation and must keep its offset until it lands.
+  const [liftFor, setLiftFor] = useState(null);
+  // Raises the left card above the deck while it is being pulled in.
+  const [pullingBack, setPullingBack] = useState(false);
 
-  /**
-   * Mounted only while a drag is in flight — and that is load-bearing, not an
-   * optimisation.
-   *
-   * Hiding it through its motion value could not work: framer batches style writes into
-   * its own frame, while go() schedules a React render. Whichever order they were
-   * issued in, the browser painted one frame with the peek still up — and by then its
-   * record had already recomputed one step further back, which is the previous card
-   * that kept flashing over the new one. Mounting is React's to do, so unmounting in
-   * the SAME commit that mounts the replacement is atomic by construction.
-   */
-  const [peekShown, setPeekShown] = useState(false);
-
-  // Resting place during a drag: far enough left that only its edge shows, mirroring
-  // the room the deck leaves on the right. A forward swipe drifts it further out.
-  const peekSliver = -(cardW - offset);
   const peekTravel = Math.max(threshold, cardW * 0.5);
 
-  // Finishing a movement the finger started, so it wants to read as a continuation of
-  // it: same curve as the deck, a touch quicker, and no overshoot to argue with.
-  const peekSpring = useMemo(() => (reducedMotion
-    ? { duration: 0.18 }
-    : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }), [reducedMotion]);
-
-  const startPeek = useCallback(() => {
-    peekX.set(peekSliver);
-    peekOpacity.set(1);
-    setPeekShown(true);
-  }, [peekSliver, peekX, peekOpacity]);
-
-  const endPeek = useCallback(() => setPeekShown(false), []);
-
-  // A turn already decided but still sliding home. Held so a second swipe landing
-  // mid-flight completes it instead of cancelling the animation and losing the turn.
-  const pendingBack = useRef(null);
-  const flushPendingBack = useCallback(() => {
-    if (!pendingBack.current) return;
-    pendingBack.current = null;
-    // Both in one callback: React batches them into a single commit, so the peek comes
-    // down in the very paint that puts its replacement up.
-    go?.(-1);
-    endPeek();
-  }, [go, endPeek]);
+  const settleLift = useCallback((done) => {
+    animate(liftX, 0, springTo).then(() => {
+      setLiftFor(null);
+      setPullingBack(false);
+      done?.();
+    });
+  }, [liftX, springTo]);
 
   /**
-   * Warm the posters that are about to enter the deck, from either end.
+   * Warm the posters about to enter the deck, from either end.
    *
-   * Only LAYERS cards are mounted, so the card that appears at the BACK on a forward
-   * turn has never been rendered and its poster has never been fetched: it mounts
-   * empty and pops in a beat later, at the deck's right edge where the peek shows.
-   * Fetching it now costs nothing — it is the next thing the deck will need either way.
+   * Only a few cards are mounted, so the one arriving at the BACK on a forward turn has
+   * never been rendered and its poster has never been fetched: it mounts empty and
+   * fills in a beat later, at the deck's right edge where it shows. Fetching now costs
+   * nothing — it is the next thing the deck will need either way.
    */
   useEffect(() => {
     if (count < 2 || typeof Image === 'undefined') return;
-    [(safeIdx + LAYERS) % count, (safeIdx - 1 + count) % count].forEach((i) => {
+    [(safeIdx + LAYERS) % count, (safeIdx - 2 + count * 2) % count].forEach((i) => {
       const path = heroArtCandidates(items[i], { portrait: true, hasLogo: false, titled: true })
         .find(Boolean);
       if (!path) return;
@@ -531,53 +519,56 @@ const HeroCardStack = ({
     if (count < 2) return;
     const dx = info.offset.x;
     if (dx >= 0) {
-      // Coming in: from its sliver to slot 0, mapped over half a card width so it stays
-      // roughly with the finger rather than racing ahead of it.
+      // Coming in: mapped over half a card width, so it stays roughly with the finger
+      // instead of racing ahead of it.
       const p = Math.min(1, dx / peekTravel);
-      peekX.set(peekSliver * (1 - p));
+      liftX.set((cardW - offset) * p);
+      if (p > 0 && !pullingBack) setPullingBack(true);
     } else {
-      // Going forward: drift it out at a fraction of the finger, so the deck reads as
-      // continuous in that direction too instead of the top card leaving over nothing.
-      peekX.set(peekSliver + dx * 0.25);
+      // Going forward: drift it further out at a fraction of the finger, so the deck
+      // reads as continuous that way too rather than the top card leaving over nothing.
+      liftX.set(dx * 0.25);
     }
-  }, [count, peekTravel, peekSliver, peekX]);
+  }, [count, peekTravel, cardW, offset, liftX, pullingBack]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
     onInteractEnd?.();
-    if (count < 2) { endPeek(); return; }
+    if (count < 2) { settleLift(); return; }
     const { offset: o, velocity: v } = info;
 
     // Both directions wrap, because the index is taken modulo the list.
-    if (o.x < -threshold || v.x < -450) { go?.(1); endPeek(); return; }
+    if (o.x < -threshold || v.x < -450) { go?.(1); settleLift(); return; }
 
     if (o.x > threshold || v.x > 450) {
-      // Carry the card the rest of the way, and only THEN advance the index: by that
-      // point it is sitting on slot 0 showing the artwork its replacement mounts with,
-      // so the swap has nothing to give itself away with.
-      const run = animate(peekX, 0, peekSpring);
-      pendingBack.current = run;
-      run.then(() => { if (pendingBack.current === run) flushPendingBack(); });
+      // Turn NOW and let the lift settle alongside it. The card is one element moving
+      // from slot -1 to slot 0 while its lift returns to zero on the same curve; the
+      // two compose into a single unbroken travel from under the finger into place.
+      go?.(-1);
+      settleLift();
       return;
     }
 
-    // Not decisive — see it back out, then take it down.
-    animate(peekX, peekSliver, peekSpring).then(endPeek);
-  }, [count, endPeek, flushPendingBack, go, onInteractEnd, peekSliver, peekSpring, peekX,
-    threshold]);
+    // Not decisive — let it fall back to its edge.
+    settleLift();
+  }, [count, go, onInteractEnd, settleLift, threshold]);
 
   if (!count) return null;
 
-  // The card a backward swipe pulls in — one step behind the front, wrapped.
-  const prevIdx = (safeIdx - 1 + count) % count;
-  const prevItem = items[prevIdx];
-
   // The top card plus the two behind it, wrapped — which is what makes the deck endless
   // in both directions without a long slide from the last card back to the first.
+  //
+  // Plus, once you have turned at least one card, the one you turned PAST, parked at
+  // slot -1. Nothing sits there on the first card: there is no card behind you yet, and
+  // an edge showing there would claim otherwise. It needs more cards than the deck
+  // mounts, or slot -1 and the last slot would resolve to the same record and collide
+  // on key.
+  const showLeft = count > LAYERS && safeIdx > 0;
   const deck = Array.from({ length: Math.min(LAYERS, count) }, (_, k) => ({
     k,
     item: items[(safeIdx + k) % count],
   }));
+  if (showLeft) deck.unshift({ k: -1, item: items[(safeIdx - 1 + count) % count] });
 
   return (
     <Box
@@ -652,6 +643,7 @@ const HeroCardStack = ({
           <AnimatePresence initial={false} custom={dir}>
             {deck.map(({ k, item }) => {
               const isFront = k === 0;
+              const isLeft = k === -1;
               return (
                 <Box
                   key={item.id ?? `slot-${k}`}
@@ -671,6 +663,8 @@ const HeroCardStack = ({
                   // (the leaving card rides above the rest) without ever interpolating it.
                   transition={{ ...springTo, zIndex: { duration: 0 } }}
                   drag={isFront && count > 1 && measured ? 'x' : false}
+                  // The left card is scenery: a tap on it turns back rather than opening it.
+                  aria-hidden={isLeft || undefined}
                   dragDirectionLock
                   // Anchored: the card rubber-bands off its resting position and springs
                   // back on its own when the swipe wasn't decisive enough to turn it.
@@ -689,7 +683,7 @@ const HeroCardStack = ({
                   // Critically damped, so a swipe that doesn't commit settles back
                   // instead of wobbling there.
                   dragTransition={{ bounceStiffness: 500, bounceDamping: 45 }}
-                  onDragStart={() => { flushPendingBack(); onInteract?.(); startPeek(); }}
+                  onDragStart={() => { onInteract?.(); setLiftFor(deck[0]?.k === -1 ? deck[0].item?.id : null); }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
                   style={{
@@ -703,6 +697,13 @@ const HeroCardStack = ({
                     cursor: isFront ? 'grab' : 'pointer',
                   }}
                 >
+                  {/* The finger's contribution, composed with the slot transform above
+                      rather than replacing it — see the lift block. Identity for every
+                      card except the one being carried. */}
+                  <Box
+                    component={motion.div}
+                    style={{ x: item.id === liftFor ? liftX : 0 }}
+                  >
                   <DeckCard
                     record={item}
                     front={isFront}
@@ -718,59 +719,19 @@ const HeroCardStack = ({
                     // committing to a title you can only half see is never what you meant.
                     onOpen={() => {
                       if (Date.now() - dragEndedAt.current < 220) return;
-                      if (isFront) goToDetail?.(); else go?.(1);
+                      if (isFront) goToDetail?.();
+                      else if (isLeft) go?.(-1);
+                      else go?.(1);
                     }}
                     onPlay={() => { if (isFront) goToPlay?.(); }}
                     onWatchlist={onWatchlist ? () => onWatchlist(item) : undefined}
                   />
+                  </Box>
                 </Box>
               );
             })}
           </AnimatePresence>
 
-          {/* The card a backward swipe pulls in. Always mounted — so its poster is in
-              cache before the gesture wants it, and so no state changes mid-drag (that
-              re-render restarted every card's animation on the first frame of every
-              swipe) — and hidden by a motion value until the finger moves right. Inert:
-              the drag it belongs to lives on the card underneath. */}
-          {peekShown && count > 1 && measured && (
-            <Box
-              component={motion.div}
-              aria-hidden
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                x: peekX,
-                opacity: peekOpacity,
-                zIndex: LAYERS + 1,
-                transformOrigin: 'center top',
-                pointerEvents: 'none',
-              }}
-            >
-              <DeckCard
-                record={prevItem}
-                // Drawn exactly as the card it becomes, or the difference shows up as a
-                // jump at the swap. `front` was the shadow and, less obviously,
-                // onWatchlist: DeckCard renders My List only when that handler exists,
-                // so without it the peek carried ONE button and its replacement carried
-                // two — the Play disc jumping 60px up the column at the handoff. The
-                // handlers are inert here anyway; the wrapper takes no pointer events.
-                front
-                isXs={isXs}
-                cardW={cardW}
-                cardH={cardH}
-                badge={heroBadge(prevItem, {
-                  ranked, top10, rankLabel,
-                  idx: prevIdx,
-                })}
-                inList={Boolean(interactions[prevItem?.id]?.watchlisted)}
-                onOpen={() => {}}
-                onPlay={() => {}}
-                onWatchlist={onWatchlist ? () => onWatchlist(prevItem) : undefined}
-              />
-            </Box>
-          )}
         </Box>
 
       </Box>
