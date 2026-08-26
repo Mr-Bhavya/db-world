@@ -274,7 +274,7 @@ export default function IpoDetailPage() {
 
           {/* Below the tab panel — the unit sits under real content on every tab
               rather than between the header and the data the visitor came for. */}
-          <AdSlot slot="ipoDetailBelow" minHeight={120} />
+          <AdSlot slot="ipoDetail" minHeight={120} />
         </Box>
       </Box>
     </motion.div>

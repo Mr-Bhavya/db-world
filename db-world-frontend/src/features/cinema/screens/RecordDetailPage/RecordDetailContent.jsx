@@ -676,7 +676,7 @@ export default function RecordDetailContent({
 
           {/* Last thing on the page, below every real section. Kept out of the hero
               and away from the action row so a mis-tap can never land on an ad. */}
-          <AdSlot slot="cinemaDetailBelow" minHeight={120} />
+          <AdSlot slot="cinemaDetail" minHeight={120} />
         </Container>
       ) : (
         // Same-layout skeletons for the below-the-fold sections; they fill in when

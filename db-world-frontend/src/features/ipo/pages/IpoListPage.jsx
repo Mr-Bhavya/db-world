@@ -119,7 +119,7 @@ export default function IpoListPage() {
 
       {/* Below the grid, above the explainer blocks — in view only after the visitor
           has actually read the list, which is where AdSense wants a display unit. */}
-      <AdSlot slot="ipoListTop" minHeight={120} />
+      <AdSlot slot="ipoList" minHeight={120} />
 
       <WhyUseThis />
       <IpoLearn />

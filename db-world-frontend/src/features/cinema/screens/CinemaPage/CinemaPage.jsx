@@ -10,6 +10,7 @@ import RailRow from '../../components/RailRow/RailRow';
 import RailSkeleton from '../../components/RailRow/RailSkeleton';
 import ContinueRailRow from '../../components/ContinueRailRow/ContinueRailRow';
 import AdSlot from '@shared/ads/AdSlot';
+import { cinemaSlotFor } from '@shared/ads/adsConfig';
 import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords from '../../hooks/useRailRecords';
@@ -464,7 +465,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
               {/* After the last rail. Deliberately NOT between rails: the cards carry
                   hover actions and a unit in that flow invites mis-clicks, which is
                   exactly the invalid-traffic pattern AdSense penalises. */}
-              <AdSlot slot="cinemaBrowseTop" minHeight={120} sx={{ px: { xs: 2, md: 4 } }} />
+              <AdSlot slot={cinemaSlotFor(pageType)} minHeight={120} sx={{ px: { xs: 2, md: 4 } }} />
             </>
           )}
         </Box>
