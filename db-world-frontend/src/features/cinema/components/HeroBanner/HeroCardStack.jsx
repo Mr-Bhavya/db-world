@@ -51,24 +51,24 @@ import { buildMobileMeta, heroArtCandidates, heroBadge } from './heroUtils';
 import CertBadge from '../CertBadge';
 
 /** Cards mounted at once: the one you're looking at, plus the two behind it. */
-export const LAYERS = 3;
+const LAYERS = 3;
 
 /** How far each card behind the top one is offset to the right, in px. */
-export const OFFSET_XS = 22;
-export const OFFSET_SM = 26;
+const OFFSET_XS = 22;
+const OFFSET_SM = 26;
 
 /** Room kept to the right of the top card for the deck to peek into. */
 export const PEEK_ROOM = 38;
 
 /** Posters are 2:3. A number, because the card's height is computed rather than declared. */
-export const POSTER_RATIO = 3 / 2;
+const POSTER_RATIO = 3 / 2;
 
 /** Widest the card gets before the deck simply centres itself on a big tablet. */
 export const MAX_CARD_W = 420;
 
 /** Each step back in the deck shrinks and dims the card by this much. */
-export const SCALE_STEP = 0.055;
-export const DIM_STEP = 0.22;
+const SCALE_STEP = 0.055;
+const DIM_STEP = 0.22;
 
 /* ── the badge chip ─────────────────────────────────────────────────────────
    Self-contained: its own blurred plate, because there is no scrim on the card
@@ -488,12 +488,31 @@ const HeroCardStack = ({
   // A turn already decided but still sliding home. Held so a second swipe landing
   // mid-flight completes it instead of cancelling the animation and losing the turn.
   const pendingBack = useRef(null);
+  // Hiding the peek is deferred to the commit that replaces it — see below.
+  const hidePeekAfterCommit = useRef(false);
   const flushPendingBack = useCallback(() => {
     if (!pendingBack.current) return;
     pendingBack.current = null;
+    hidePeekAfterCommit.current = true;
     go?.(-1);
+  }, [go]);
+
+  /**
+   * Hide the peek only once the card replacing it is in the DOM.
+   *
+   * Motion values write to the DOM synchronously; go(-1) only SCHEDULES a React render.
+   * Doing both in one callback therefore hid the peek immediately and mounted its
+   * replacement a frame later, leaving one painted frame with neither — the deck
+   * showing through where the front card should be. That was the flicker on completion.
+   *
+   * useLayoutEffect runs after the new card is committed but before the browser paints,
+   * so the swap never reaches the screen as two separate states.
+   */
+  useLayoutEffect(() => {
+    if (!hidePeekAfterCommit.current) return;
+    hidePeekAfterCommit.current = false;
     resetPeek();
-  }, [go, resetPeek]);
+  });
 
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;

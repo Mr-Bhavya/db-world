@@ -10,9 +10,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
-import HeroCardStack, {
-  LAYERS, OFFSET_XS, OFFSET_SM, PEEK_ROOM, MAX_CARD_W, SCALE_STEP, DIM_STEP,
-} from './HeroCardStack';
+import HeroCardStack, { PEEK_ROOM, MAX_CARD_W } from './HeroCardStack';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
@@ -23,6 +21,8 @@ import { useHeroColor } from './useHeroColor';
 
 const shimmerBg = 'rgba(255,255,255,0.06)';
 const shimmerStrong = 'rgba(255,255,255,0.09)';
+// Furniture sitting ON a card, which is already lighter than the page behind it.
+const shimmerOnCard = 'rgba(255,255,255,0.15)';
 
 const SkeletonBlock = (props) => (
   <Skeleton
@@ -44,21 +44,21 @@ const SkeletonBlock = (props) => (
 );
 
 /**
- * Mirrors HeroCardStack — a DECK, not a rail.
+ * Mirrors HeroCardStack.
  *
- * It used to draw two cards side by side with a title and meta block underneath, which
- * was the horizontal track the deck replaced: the wrong silhouette, ~19px too tall
- * (the caption reserves space the deck doesn't use, since its meta sits ON the artwork),
- * and left-aligned where the deck centres itself. Every number below is imported from
- * HeroCardStack rather than copied, so this cannot drift out of step again.
+ * One card, drawn the way the real one is: the deck's own frame width and gutters, and
+ * the card's furniture sketched ON the artwork — badge, meta chips, the two round
+ * actions — because that is where HeroCardStack puts them. Its predecessor drew two
+ * cards side by side with a caption underneath, which was the horizontal rail the deck
+ * replaced: wrong silhouette, and ~19px too tall for a caption the deck doesn't have.
+ *
+ * The card's width still leaves PEEK_ROOM to its right even though no peek cards are
+ * drawn, so the real deck lands at exactly this size and position.
  */
 const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
-  const gutter = isXs ? 14 : 20;          // HeroCardStack's own gutter
-  const offset = isXs ? OFFSET_XS : OFFSET_SM;
-  // The frame is the card plus the room the deck peeks into, centred and capped exactly
-  // as `cardW = min(frameW - PEEK_ROOM, MAX_CARD_W)` works out to.
+  const gutter = isXs ? 14 : 20;            // HeroCardStack's own gutter
+  const actionSize = isXs ? 50 : 54;        // DeckCard's round actions
   const frameW = `min(100%, ${MAX_CARD_W + PEEK_ROOM}px)`;
-  const cardW = `calc(100% - ${PEEK_ROOM}px)`;
 
   return (
     <Box sx={{
@@ -73,34 +73,42 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
         <SkeletonBlock width={150} height={20} sx={{ borderRadius: 0.8, mb: 1.5 }} />
       )}
 
-      <Box sx={{ position: 'relative', width: frameW, maxWidth: '100%', mx: 'auto' }}>
-        {/* The cards behind, furthest back first, stepped and dimmed by the deck's own
-            constants. Absolute, so only the front card contributes height. */}
-        {Array.from({ length: LAYERS - 1 }, (_, i) => LAYERS - 1 - i).map((k) => (
+      <Box sx={{ width: frameW, maxWidth: '100%', mx: 'auto' }}>
+        <Box sx={{
+          position: 'relative',
+          width: `calc(100% - ${PEEK_ROOM}px)`,
+          aspectRatio: '2 / 3',
+          borderRadius: 4,
+          overflow: 'hidden',
+          bgcolor: shimmerStrong,
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 22px 48px rgba(0,0,0,0.55)',
+        }}>
+          {/* badge chip, top-left */}
           <SkeletonBlock
-            key={k}
-            sx={{
-              position: 'absolute', top: 0, left: 0,
-              width: cardW, height: '100%',
-              borderRadius: 4,
-              transform: `translateX(${k * offset}px) scale(${1 - k * SCALE_STEP})`,
-              transformOrigin: 'center top',
-              opacity: Math.max(0, 1 - k * DIM_STEP),
-            }}
+            width={92} height={24}
+            sx={{ position: 'absolute', top: 12, left: 12, borderRadius: 999, bgcolor: shimmerOnCard }}
           />
-        ))}
 
-        {/* The front card is the one in flow — its 2:3 ratio is what gives the deck its
-            height, exactly as the measured cardH does in the real thing. */}
-        <SkeletonBlock
-          sx={{
-            position: 'relative',
-            width: cardW,
-            aspectRatio: '2 / 3',
-            borderRadius: 4,
-            bgcolor: shimmerStrong,
-          }}
-        />
+          {/* title + meta chips, bottom-left — clear of the action column, as on the card */}
+          <Box sx={{ position: 'absolute', left: 14, right: 72, bottom: 14 }}>
+            <SkeletonBlock height={20} sx={{ width: '82%', borderRadius: 0.8, bgcolor: shimmerOnCard }} />
+            <Box sx={{ display: 'flex', gap: 0.6, mt: 0.9 }}>
+              {[54, 44, 62].map((w) => (
+                <SkeletonBlock key={w} width={w} height={20} sx={{ borderRadius: 1, bgcolor: shimmerOnCard }} />
+              ))}
+            </Box>
+          </Box>
+
+          {/* the two round actions, bottom-right */}
+          <Box sx={{
+            position: 'absolute', right: 12, bottom: 14,
+            display: 'flex', flexDirection: 'column', gap: 1.25,
+          }}>
+            <SkeletonBlock width={actionSize} height={actionSize} sx={{ borderRadius: '50%', bgcolor: shimmerOnCard }} />
+            <SkeletonBlock width={actionSize} height={actionSize} sx={{ borderRadius: '50%', bgcolor: shimmerOnCard }} />
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
