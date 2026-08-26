@@ -60,6 +60,15 @@ const OFFSET_SM = 26;
 /** Room kept to the right of the top card for the deck to peek into. */
 export const PEEK_ROOM = 38;
 
+/**
+ * And room on the LEFT for the card already turned past.
+ *
+ * Without it the top card sat flush against the frame's left edge, so the card behind
+ * it had only the screen's own margin to show in — a sliver squeezed against the bezel
+ * and clipped by the page. This gives it somewhere to actually be.
+ */
+export const LEFT_ROOM = 26;
+
 /** Posters are 2:3. A number, because the card's height is computed rather than declared. */
 const POSTER_RATIO = 3 / 2;
 
@@ -394,13 +403,18 @@ const HeroCardStack = ({
   // ONE measurement, every size derived from it. The frame is measured at full width on
   // the first pass and then sizes itself to the card, so this reads the width it needs
   // before it constrains itself.
-  const cardW = Math.max(0, Math.min(frameW - PEEK_ROOM, MAX_CARD_W));
+  const cardW = Math.max(0, Math.min(frameW - PEEK_ROOM - LEFT_ROOM, MAX_CARD_W));
   const cardH = Math.round(cardW * POSTER_RATIO);
   const measured = cardW > 0;
 
   // No wash of its own: CinemaPage paints the per-title colour across the top of the page
   // and this sits on it. Two layers of tint is what made the hero's frame read as a
   // different shade from the rails in an earlier round.
+
+  // Raises the left card above the deck while it is being pulled in. Declared here
+  // rather than with the rest of the lift state below because slot() names it in its
+  // dependency array, and a dep array is evaluated the moment useCallback is called.
+  const [pullingBack, setPullingBack] = useState(false);
 
   /**
    * Resting transform for the card k steps back in the deck.
@@ -483,9 +497,6 @@ const HeroCardStack = ({
   // Which card the finger is carrying. Held by id, not by slot: a card that commits a
   // backward turn becomes slot 0 mid-animation and must keep its offset until it lands.
   const [liftFor, setLiftFor] = useState(null);
-  // Raises the left card above the deck while it is being pulled in.
-  const [pullingBack, setPullingBack] = useState(false);
-
   const peekTravel = Math.max(threshold, cardW * 0.5);
 
   const settleLift = useCallback((done) => {
@@ -523,13 +534,12 @@ const HeroCardStack = ({
       // instead of racing ahead of it.
       const p = Math.min(1, dx / peekTravel);
       liftX.set((cardW - offset) * p);
-      if (p > 0 && !pullingBack) setPullingBack(true);
     } else {
       // Going forward: drift it further out at a fraction of the finger, so the deck
       // reads as continuous that way too rather than the top card leaving over nothing.
       liftX.set(dx * 0.25);
     }
-  }, [count, peekTravel, cardW, offset, liftX, pullingBack]);
+  }, [count, peekTravel, cardW, offset, liftX]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
@@ -629,7 +639,7 @@ const HeroCardStack = ({
           position: 'relative', zIndex: 1,
           // Sized to the card once measured and centred, so a wide tablet doesn't leave
           // the deck stranded against the left edge.
-          width: measured ? cardW + PEEK_ROOM : '100%',
+          width: measured ? cardW + PEEK_ROOM + LEFT_ROOM : '100%',
           maxWidth: '100%',
           mx: 'auto',
         }}
@@ -683,13 +693,17 @@ const HeroCardStack = ({
                   // Critically damped, so a swipe that doesn't commit settles back
                   // instead of wobbling there.
                   dragTransition={{ bounceStiffness: 500, bounceDamping: 45 }}
-                  onDragStart={() => { onInteract?.(); setLiftFor(deck[0]?.k === -1 ? deck[0].item?.id : null); }}
+                  onDragStart={() => {
+                    onInteract?.();
+                    setLiftFor(deck[0]?.k === -1 ? deck[0].item?.id : null);
+                    setPullingBack(true);
+                  }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
                   style={{
                     position: 'absolute',
                     top: 0,
-                    left: 0,
+                    left: LEFT_ROOM,
                     touchAction: 'pan-y',
                     // Scaling from the top keeps the deck's shoulders visible above and
                     // beside the top card instead of tucking them behind it.

@@ -10,7 +10,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
-import HeroCardStack, { PEEK_ROOM, MAX_CARD_W } from './HeroCardStack';
+import HeroCardStack, { PEEK_ROOM, LEFT_ROOM, MAX_CARD_W } from './HeroCardStack';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
@@ -52,13 +52,14 @@ const SkeletonBlock = (props) => (
  * cards side by side with a caption underneath, which was the horizontal rail the deck
  * replaced: wrong silhouette, and ~19px too tall for a caption the deck doesn't have.
  *
- * The card's width still leaves PEEK_ROOM to its right even though no peek cards are
- * drawn, so the real deck lands at exactly this size and position.
+ * The card still leaves the deck's own margins either side — room for the turned-past
+ * card on the left, room for the deck to peek into on the right — even though nothing is
+ * drawn in them, so the real hero lands at exactly this size and position.
  */
 const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
   const gutter = isXs ? 14 : 20;            // HeroCardStack's own gutter
   const actionSize = isXs ? 50 : 54;        // DeckCard's round actions
-  const frameW = `min(100%, ${MAX_CARD_W + PEEK_ROOM}px)`;
+  const frameW = `min(100%, ${LEFT_ROOM + MAX_CARD_W + PEEK_ROOM}px)`;
 
   return (
     <Box sx={{
@@ -76,7 +77,8 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
       <Box sx={{ width: frameW, maxWidth: '100%', mx: 'auto' }}>
         <Box sx={{
           position: 'relative',
-          width: `calc(100% - ${PEEK_ROOM}px)`,
+          width: `calc(100% - ${LEFT_ROOM + PEEK_ROOM}px)`,
+          ml: `${LEFT_ROOM}px`,
           aspectRatio: '2 / 3',
           borderRadius: 4,
           overflow: 'hidden',
