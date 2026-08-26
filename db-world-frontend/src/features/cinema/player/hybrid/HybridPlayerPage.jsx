@@ -19,7 +19,8 @@ import { addWatched, tmdbImg } from '../../api/cinemaApi';
 import { getWatchProgress, saveWatchProgress, resolveMediaBatch, getRecordProgress } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
-import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, toBridgeRows, qualityLabel } from './mediaSpecs';
+import { watchedFraction, progressByFile } from '../../utils/watchProgress';
+import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, toBridgeRows, qualityLabel, variantDetail } from './mediaSpecs';
 
 const NativePlayer = registerPlugin('NativePlayer');
 
@@ -72,17 +73,6 @@ async function resumePointFor(fileId) {
     if (pos > 5000 && (dur === 0 || pos < dur - 30000)) return pos;
   } catch { /* none */ }
   return 0;
-}
-
-// A saved position as a 0..1 fraction. The last 5% counts as finished — the same
-// threshold the backend uses to drop a title from Continue Watching — so a row the
-// viewer sat through doesn't show a bar with a sliver of credits left.
-function watchedFraction({ positionMs, durationMs } = {}) {
-  const pos = Number(positionMs) || 0;
-  const dur = Number(durationMs) || 0;
-  if (dur <= 0 || pos <= 0) return 0;
-  const f = pos / dur;
-  return f >= 0.95 ? 1 : Math.min(1, f);
 }
 
 export default function HybridPlayerPage() {
@@ -152,13 +142,19 @@ export default function HybridPlayerPage() {
     getRecordProgress(recordId)
       .then((rows) => {
         if (cancelled) return;
-        setWatched(Object.fromEntries(
-          (rows || []).map((r) => [String(r.fileId), watchedFraction(r)]),
-        ));
+        setWatched(progressByFile(rows));
       })
       .catch(() => { /* bars are decoration — a failure just means none */ });
     return () => { cancelled = true; };
   }, [recordId, episodes.length]);
+
+  // Leaving the player refreshes what was fetched before this session's watching: the
+  // record page's per-episode bars, and Continue Watching — which is also what the hero
+  // Resume button reads, so a stale entry would send it back to the previous episode.
+  useEffect(() => () => {
+    qc.invalidateQueries({ queryKey: ['record-progress'] });
+    qc.invalidateQueries({ queryKey: ['continue-watching'] });
+  }, [qc]);
 
   const episodesWithProgress = useMemo(
     () => episodes.map((e) => ({ ...e, progress: watched[String(e.fileId)] ?? 0 })),
@@ -222,7 +218,8 @@ export default function HybridPlayerPage() {
       progress: e.progress,     // 0..1 watched bar on the native episode row
     }));
     const variants = (cur.variants || []).map((v) => ({
-      url: v.url, label: qualityLabel(v), mediaFileId: String(v.mediaFileId ?? ''),
+      url: v.url, label: qualityLabel(v), detail: variantDetail(v),
+      mediaFileId: String(v.mediaFileId ?? ''),
     }));
     NativePlayer.setPlaylist({
       episodes: eps,

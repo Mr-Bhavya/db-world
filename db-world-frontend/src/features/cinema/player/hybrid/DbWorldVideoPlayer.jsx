@@ -34,7 +34,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
-import { videoSpecs, fileSpecs, techBadges, qualityLabel } from './mediaSpecs';
+import { videoSpecs, fileSpecs, techBadges, qualityLabel, variantDetail, mbps } from './mediaSpecs';
 import { tmdbImg } from '../../api/cinemaApi';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];   // Netflix-style set
@@ -1504,7 +1504,7 @@ export default function DbWorldVideoPlayer({
 }
 
 // ── settings-sheet helpers ──────────────────────────────────────────────────
-function SheetRow({ label, selected, onClick }) {
+function SheetRow({ label, detail, selected, onClick }) {
   const scale = useContext(ScaleCtx);
   return (
     <button onClick={onClick} className="dbw-row"
@@ -1512,7 +1512,13 @@ function SheetRow({ label, selected, onClick }) {
         minHeight: Math.round(44 * scale),
         padding: `${Math.round(10 * scale)}px 16px`, border: 'none', cursor: 'pointer',
         color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left' }}>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        {detail && (
+          <span style={{ display: 'block', color: '#9aa0a6', fontWeight: 500, fontSize: Math.round(11.5 * scale),
+            marginTop: Math.round(2 * scale), whiteSpace: 'nowrap' }}>{detail}</span>
+        )}
+      </span>
       {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0 }} />}
     </button>
   );
@@ -1900,7 +1906,7 @@ function QualityList({ variants, curQualityId, onQuality }) {
     <>
       {variants.map(v => (
         <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId}
-          label={qualityLabel(v)} onClick={() => onQuality(v)} />
+          label={qualityLabel(v)} detail={variantDetail(v)} onClick={() => onQuality(v)} />
       ))}
     </>
   );
@@ -1990,9 +1996,11 @@ function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, cur
   const video = videoSpecs(info);
   const file  = fileSpecs(info);
   const videoRows = video.length ? video : (cur ? [
-    ['Resolution', cur.label || '—'],
+    ['Resolution', cur.resolution ? `${cur.resolution.replace('x', ' × ')} (${cur.label})` : (cur.label || '—')],
     ...(cur.codec ? [['Codec', cur.codec]] : []),
+    ...(cur.depth ? [['Bit depth', `${cur.depth}-bit`]] : []),
     ['Dynamic range', (cur.hdr && cur.hdr.length) ? cur.hdr.join(', ') : 'SDR'],
+    ...(mbps(cur.bitRate) ? [['Bitrate', mbps(cur.bitRate)]] : []),
   ] : []);
   return (
     <div style={{ paddingBottom: Math.round(10 * scale) }}>

@@ -222,7 +222,7 @@ class NativePlayerPlugin : Plugin() {
         if (arr == null) return out
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(PlayerVariant(o.optString("url"), o.optString("label"), o.optString("mediaFileId")))
+            out.add(PlayerVariant(o.optString("url"), o.optString("label"), o.optString("mediaFileId"), o.optString("detail")))
         }
         return out
     }

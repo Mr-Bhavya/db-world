@@ -28,8 +28,9 @@ import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { tmdbImg } from '../../api/cinemaApi';
-import { resolveAndBuildMedia } from '../../media/playerLaunch';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
 import { mediaInfoOf } from '../../player/hybrid/mediaSpecs';
+import { episodeRefOf } from '../../utils/episodeUtils';
 import { buildStoryboard } from '../../utils/storyboard';
 
 
@@ -107,7 +108,9 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
         // Record-linked file: shared batch resolve + uniform payload (storyboard, requestId, ids).
         media = await resolveAndBuildMedia({
           current,
-          variantFiles: files,
+          // Only this episode's files are quality alternatives of it — passing the
+          // record's whole file list offered every other episode as a "quality".
+          variantFiles: variantFilesFor(files, current, files.some((f) => episodeRefOf(f))),
           record,
           title,
           fileId: mediaInfo.id || mediaInfo.mediaFileId,

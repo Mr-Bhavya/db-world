@@ -296,7 +296,11 @@ fun PlayerControls(
             )
             "quality" -> PlayerSheet("Quality", { sheet = null }) {
                 state.variants.forEach { v ->
-                    SheetRow(v.label, v.mediaFileId == state.currentVariantId) { onSelectQuality(v); sheet = null }
+                    // The label is a tier ("1080p"); the subtitle carries the geometry and
+                    // bitrate that actually separate two masters of the same episode.
+                    SheetRow(v.label, v.mediaFileId == state.currentVariantId, v.detail.ifEmpty { null }) {
+                        onSelectQuality(v); sheet = null
+                    }
                 }
             }
             "info" -> InfoSheet(state = state, onDismiss = { sheet = null })

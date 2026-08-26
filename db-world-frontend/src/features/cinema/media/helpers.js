@@ -120,6 +120,7 @@ export function variantOf(file) {
     mediaFileId: file?.mediaFileId ?? file?.id ?? '',
     label:  getQuality(file?.video, file?.general?.fileName),
     height: heightOf(file),
+    resolution: file?.video?.resolution ?? null,     // exact '1920x1080'
     // Two 1080p masters of the same episode differ by bit depth far more often than
     // by anything else, and without it both rows of the quality menu read "1080p".
     depth:  Number(file?.video?.bitDepth) || 0,

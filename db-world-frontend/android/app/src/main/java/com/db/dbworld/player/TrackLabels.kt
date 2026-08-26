@@ -98,8 +98,16 @@ data class PlayerEpisode(
     val progress: Float = 0f,
 )
 
-/** A quality variant (URL already resolved by JS). [mediaFileId] marks the running one. */
-data class PlayerVariant(val url: String, val label: String, val mediaFileId: String = "")
+/**
+ * A quality variant (URL already resolved by JS). [mediaFileId] marks the running one;
+ * [detail] is the geometry + bitrate line under the label, since the label is only a tier.
+ */
+data class PlayerVariant(
+    val url: String,
+    val label: String,
+    val mediaFileId: String = "",
+    val detail: String = "",
+)
 
 /**
  * One "label: value" row of the Info sheet, pre-formatted by JS from the file's MediaInfo.

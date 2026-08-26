@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, qualityLabel } from './mediaSpecs';
+import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, qualityLabel, variantDetail } from './mediaSpecs';
 
 /** A converted MediaInfo (what the record page reads for a file). */
 const info = {
@@ -118,5 +118,18 @@ describe('qualityLabel', () => {
 
   it('skips whatever is missing', () => {
     expect(qualityLabel({ label: '720p' })).toBe('720p');
+  });
+});
+
+describe('variantDetail', () => {
+  it('spells out the geometry and bitrate the tier label hides', () => {
+    expect(variantDetail({ resolution: '1920x1080', bitRate: 8_400_000 }))
+      .toBe('1920 × 1080 · 8.4 Mb/s');
+  });
+
+  it('shows whichever half MediaInfo knows', () => {
+    expect(variantDetail({ resolution: '1280x720' })).toBe('1280 × 720');
+    expect(variantDetail({ bitRate: 2_500_000 })).toBe('2.5 Mb/s');
+    expect(variantDetail({})).toBe('');
   });
 });

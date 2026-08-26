@@ -13,7 +13,7 @@ import {
   removeLike, removeLove, removeWatched, removeWatchlist,
   fetchRecordMediaRequests, toggleMediaRequestVote,
 } from '../../api/cinemaApi';
-import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByRecordId, getRecordProgress } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
@@ -26,6 +26,7 @@ import CastCrewSection from './sections/CastCrewSection';
 import CollectionSection from './sections/CollectionSection';
 import GallerySection from './sections/GallerySection';
 import SeasonsSection from './sections/SeasonsSection';
+import { progressByFile } from '../../utils/watchProgress';
 import ReviewsSection from './sections/ReviewsSection';
 import RelatedSection from './sections/RelatedSection';
 import PersonDetailView from './PersonDetailView';
@@ -33,7 +34,7 @@ import StickyWatchBar from './StickyWatchBar';
 import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
 import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
-import { buildHybridEpisodes } from '../../utils/episodeUtils';
+import { buildHybridEpisodes, episodeRefOf } from '../../utils/episodeUtils';
 import {
   DEFAULT_KIND, applyVote, indexRequests, requestScopeKey, scopeSuffix,
 } from '../../utils/requestScope';
@@ -184,21 +185,37 @@ export default function RecordDetailContent({
     staleTime: 60 * 1000,
   });
 
+  // This record's Continue Watching entry: how far along the hero bar draws, and which
+  // file the Watch button should open. Completed titles are filtered out server-side,
+  // so a finished series simply has no entry and starts over.
+  const continueItem = useMemo(
+    () => continueItems.find((c) => String(c?.recordId) === String(id)) ?? null,
+    [continueItems, id],
+  );
+
   const progress = useMemo(() => {
-    const item = continueItems.find((c) => String(c?.recordId) === String(id));
-    const dur = item?.durationMs ?? 0;
-    const pos = item?.positionMs ?? 0;
-    if (!item || dur <= 0 || pos <= 0) return null;
+    const dur = continueItem?.durationMs ?? 0;
+    const pos = continueItem?.positionMs ?? 0;
+    if (!continueItem || dur <= 0 || pos <= 0) return null;
     return {
       percent: Math.min(100, Math.max(2, (pos / dur) * 100)),
       remainingLabel: formatRemaining(dur - pos),
     };
-  }, [continueItems, id]);
+  }, [continueItem]);
 
   // ── Similar titles ─────────────────────────────────────────────────────
   // Same key and params as RelatedSection's own query, so TanStack dedupes it
   // to a single request. Read here only to decide whether the section (and its
   // nav pill) should exist at all.
+  // Per-episode watched bars. Same one-request-per-record call the player uses, so the
+  // bar on an episode row here and in the player's episode list agree.
+  const { data: watchProgress = {} } = useQuery({
+    queryKey: ['record-progress', id, userId],
+    queryFn: () => getRecordProgress(id).then(progressByFile),
+    enabled: !!id && !!userId,
+    staleTime: 30_000,
+  });
+
   const { data: similarRecords = [] } = useQuery({
     queryKey: ['cinema-similar', id],
     queryFn: () => fetchSimilarRecords(id, 12),
@@ -321,9 +338,11 @@ export default function RecordDetailContent({
       const episodes = buildHybridEpisodes(mediaFiles, seed, record?.tmdb?.seasons);
       const media = await resolveAndBuildMedia({
         current: seed,
-        // For an episode the pool IS the variant set; for a movie every file
-        // of the record is a variant of the same picture.
-        variantFiles: epRef ? pool : variantFilesFor(mediaFiles, seed, false),
+        // For an episode the pool IS the variant set; for a movie every file of the
+        // record is a variant of the same picture. Hard-coding that second case as
+        // "not a series" put EVERY episode of a show in the player's quality menu
+        // whenever playback started from the hero button rather than an episode row.
+        variantFiles: epRef ? pool : variantFilesFor(mediaFiles, seed, episodes.length > 0),
         episodes,
         record,
         title: record?.tmdb?.title ?? record?.name ?? '',
@@ -335,8 +354,28 @@ export default function RecordDetailContent({
     }
   }, [mediaFiles, record, navigate]);
 
-  /** Movie play — every file of the record is a quality variant. */
-  const handlePlay = useCallback(() => launch(mediaFiles), [launch, mediaFiles]);
+  /**
+   * The hero's Watch/Resume button.
+   *
+   * Continue Watching already resolves where to pick up — a part-watched episode, or
+   * the next one after a finished episode — so the button reads `resumeFileId` instead
+   * of re-deriving it, and therefore can't disagree with the Home rail. Without this it
+   * always opened mediaFiles[0]: episode 1 of a show you were ten episodes into, and
+   * for a movie the wrong master, which lost the saved position too.
+   */
+  const handlePlay = useCallback(() => {
+    const resumeFile = continueItem?.resumeFileId
+      ? mediaFiles.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
+      : null;
+    if (!resumeFile) { launch(mediaFiles); return; }
+
+    const ref = episodeRefOf(resumeFile);
+    // Seed the pool with the file being resumed: `launch` takes pool[0] as the file
+    // whose saved position and progress key are used.
+    const siblings = variantFilesFor(mediaFiles, resumeFile, !!ref);
+    const pool = [resumeFile, ...siblings.filter((f) => f !== resumeFile)];
+    launch(pool, ref ? { season: ref.season, episode: ref.episode } : null);
+  }, [launch, mediaFiles, continueItem]);
 
   const handleOpenDownloads = useCallback(() => {
     setDownloadFiles(mediaFiles);
@@ -573,6 +612,7 @@ export default function RecordDetailContent({
                 onDownloadEpisode={handleDownloadEpisode}
                 onRequest={handleRequest}
                 requests={requestIndex}
+                progress={watchProgress}
               />
             </Box>
           )}

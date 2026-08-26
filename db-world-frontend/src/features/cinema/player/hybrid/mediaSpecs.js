@@ -23,7 +23,8 @@ export function mediaInfoOf(mediaFile) {
   return CommonServices.convertMediaInfoToCustomFormat(null, [mediaFile])[0] ?? null;
 }
 
-const mbps = (bps) => {
+/** Bits per second as "8.4 Mb/s", or null when unknown. */
+export const mbps = (bps) => {
   const n = Number(bps);
   return Number.isFinite(n) && n > 0 ? `${(n / 1e6).toFixed(1)} Mb/s` : null;
 };
@@ -114,4 +115,14 @@ export const qualityLabel = (v) => [
   v?.codec,
   v?.depth > 8 ? `${v.depth}-bit` : null,
   ...(v?.hdr || []),
+].filter(Boolean).join(' · ');
+
+/**
+ * The second line of a quality row: "1920 × 1080 · 8.4 Mb/s". The label above it is a
+ * TIER — two rows both reading "1080p" say nothing about which is the bigger file, and
+ * the bitrate is what actually decides whether a connection can carry it.
+ */
+export const variantDetail = (v) => [
+  v?.resolution ? v.resolution.replace('x', ' × ') : null,
+  mbps(v?.bitRate),
 ].filter(Boolean).join(' · ');

@@ -13,6 +13,7 @@ import { tmdbImg } from '../../../api/cinemaApi';
 import { getQuality, getHdrTags, qualityRank } from '../../../media/helpers';
 import { QUALITY_META } from '../../../media/constants';
 import { episodeRefOf } from '../../../utils/episodeUtils';
+import { episodeProgress } from '../../../utils/watchProgress';
 import { coveringRequest, requestScopeKey } from '../../../utils/requestScope';
 import SectionHeading from '../shared/SectionHeading';
 import { formatDate, formatRuntime } from '../helpers';
@@ -187,7 +188,7 @@ function CoveredNote({ request }) {
    EPISODE ROW
 ═══════════════════════════════════════════════════════════ */
 
-function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests }) {
+function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progress }) {
   const T = useT();
   const meta = ep.tmdb;
   const still = tmdbImg(meta?.stillPath, 'w300');
@@ -200,6 +201,8 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests }) {
     : [];
 
   const title = meta?.name || (ep.orphan ? `Episode ${ep.episodeNumber}` : `Episode ${ep.episodeNumber}`);
+  // How far through this episode the viewer is, across whichever master they played.
+  const watched = episodeProgress(progress, ep.files);
 
   // This episode's own request, and the widest one of yours that already covers it —
   // asking again from an episode row when you have already asked for the season would
@@ -266,6 +269,17 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests }) {
             {ep.seasonNumber === 0 ? 'SP' : 'E'}{String(ep.episodeNumber).padStart(2, '0')}
           </Typography>
         </Box>
+
+        {/* Watched bar, same as the player's episode list — this is where episodes get
+            started from, so it's where "did I already see this one" needs answering. */}
+        {watched > 0 && (
+          <Box sx={{
+            position: 'absolute', left: 0, right: 0, bottom: 0, height: 3,
+            bgcolor: alpha('#fff', 0.28),
+          }}>
+            <Box sx={{ width: `${Math.round(watched * 100)}%`, height: '100%', bgcolor: T.teal }} />
+          </Box>
+        )}
       </Box>
 
       {/* Body */}
@@ -458,7 +472,7 @@ function SeasonGapBar({ season, requests, onRequest }) {
 ═══════════════════════════════════════════════════════════ */
 
 export default function SeasonsSection({
-  record, files = [], onPlayEpisode, onDownloadEpisode, onRequest, requests,
+  record, files = [], onPlayEpisode, onDownloadEpisode, onRequest, requests, progress = {},
 }) {
   const T = useT();
   const tmdb = record?.tmdb ?? {};
@@ -657,6 +671,7 @@ export default function SeasonsSection({
               onDownload={onDownloadEpisode}
               onRequest={onRequest}
               requests={requests}
+              progress={progress}
             />
           ))}
         </Box>
