@@ -133,3 +133,21 @@ describe('variantDetail', () => {
     expect(variantDetail({})).toBe('');
   });
 });
+
+// Switching quality reloads the video in place, so whatever describes it has to follow
+// the ACTIVE variant. Reading one launch-time MediaInfo left the pause card quoting the
+// quality you had just switched away from.
+describe('per-variant MediaInfo', () => {
+  const sd = { general: { fileName: 'A.1080p.mkv' }, video: { resolution: '1920x1080', format: 'AVC' }, audio: [] };
+  const uhd = { general: { fileName: 'A.2160p.mkv' }, video: { resolution: '3840x2160', format: 'HEVC', hdrDetails: 'HDR10' }, audio: [] };
+
+  it('describes whichever variant is playing', () => {
+    expect(techBadges(sd).map(b => b.label)).toEqual(['1080p', 'H.264']);
+    expect(techBadges(uhd).map(b => b.label)).toEqual(['4K', 'HDR10', 'H.265']);
+  });
+
+  it("reports that variant's own geometry", () => {
+    expect(row(videoSpecs(sd), 'Resolution')).toBe('1920 × 1080 (1080p)');
+    expect(row(videoSpecs(uhd), 'Resolution')).toBe('3840 × 2160 (4K)');
+  });
+});

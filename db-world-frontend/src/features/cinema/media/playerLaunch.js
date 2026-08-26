@@ -67,10 +67,16 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
   const resolved = ids.length ? await resolveMediaBatch(ids, 'ONLINE') : [];
   const byId = new Map((resolved || []).map((r) => [r.mediaFileId, r]));
 
+  // Each variant carries its OWN MediaInfo. Switching quality doesn't reload the route,
+  // so anything reading a single `mediaInfo` kept describing the file the player opened
+  // with — the pause card's badges and the Info panel both went stale the moment you
+  // picked a different quality. The resolve already returned all of it.
   const variants = files
     .map((f) => {
       const r = byId.get(f?.mediaFileId);
-      return r?.cdnUrl ? { ...variantOf(f), url: r.cdnUrl } : null;
+      return r?.cdnUrl
+        ? { ...variantOf(f), url: r.cdnUrl, info: mediaInfoOf(r.mediaFile) ?? (f?.video ? f : null) }
+        : null;
     })
     .filter(Boolean);
 

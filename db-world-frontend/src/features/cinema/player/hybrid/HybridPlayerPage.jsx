@@ -189,8 +189,10 @@ export default function HybridPlayerPage() {
 
     const variants = descrs
       .map((v) => {
-        const cdnUrl = byId.get(v.mediaFileId)?.cdnUrl;
-        return cdnUrl ? { ...v, url: cdnUrl } : null;
+        const r = byId.get(v.mediaFileId);
+        // Its own MediaInfo travels with it — see playerLaunch. Only this episode's
+        // variants carry it; the episode LIST keeps light descriptors.
+        return r?.cdnUrl ? { ...v, url: r.cdnUrl, info: mediaInfoOf(r.mediaFile) } : null;
       })
       .filter(Boolean);
 
@@ -228,6 +230,12 @@ export default function HybridPlayerPage() {
     const variants = (cur.variants || []).map((v) => ({
       url: v.url, label: qualityLabel(v), detail: variantDetail(v),
       mediaFileId: String(v.mediaFileId ?? ''),
+      // Each variant's own rows and badges. A native quality switch never round-trips
+      // through JS, so it can only keep the Info sheet and pause card honest if it
+      // already holds what every variant would say.
+      videoSpecs: toBridgeRows(videoSpecs(v.info)),
+      fileSpecs: toBridgeRows(fileSpecs(v.info)),
+      badges: techBadges(v.info),
     }));
     NativePlayer.setPlaylist({
       episodes: eps,

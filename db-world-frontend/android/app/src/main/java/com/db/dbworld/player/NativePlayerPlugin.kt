@@ -222,7 +222,15 @@ class NativePlayerPlugin : Plugin() {
         if (arr == null) return out
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            out.add(PlayerVariant(o.optString("url"), o.optString("label"), o.optString("mediaFileId"), o.optString("detail")))
+            out.add(PlayerVariant(
+                url = o.optString("url"),
+                label = o.optString("label"),
+                mediaFileId = o.optString("mediaFileId"),
+                detail = o.optString("detail"),
+                videoSpecs = parseSpecs(o.optJSONArray("videoSpecs")),
+                fileSpecs = parseSpecs(o.optJSONArray("fileSpecs")),
+                badges = parseBadges(o.optJSONArray("badges")),
+            ))
         }
         return out
     }
@@ -255,7 +263,7 @@ class NativePlayerPlugin : Plugin() {
         call.resolve()
     }
 
-    private fun parseSpecs(arr: com.getcapacitor.JSArray?): List<PlayerSpec> {
+    private fun parseSpecs(arr: org.json.JSONArray?): List<PlayerSpec> {
         val out = ArrayList<PlayerSpec>()
         if (arr == null) return out
         for (i in 0 until arr.length()) {
@@ -265,7 +273,7 @@ class NativePlayerPlugin : Plugin() {
         return out
     }
 
-    private fun parseBadges(arr: com.getcapacitor.JSArray?): List<PlayerBadge> {
+    private fun parseBadges(arr: org.json.JSONArray?): List<PlayerBadge> {
         val out = ArrayList<PlayerBadge>()
         if (arr == null) return out
         for (i in 0 until arr.length()) {
@@ -299,6 +307,12 @@ class NativePlayerPlugin : Plugin() {
     fun selectQuality(v: PlayerVariant) = activity.runOnUiThread {
         val pos = player?.currentPosition ?: 0L
         uiState.currentVariantId = v.mediaFileId
+        // The file on screen is changing, so what describes it has to change with it.
+        // Otherwise the Info sheet and the pause card keep quoting the quality you just
+        // switched away from.
+        if (v.videoSpecs.isNotEmpty()) uiState.videoSpecs = v.videoSpecs
+        if (v.fileSpecs.isNotEmpty()) uiState.fileSpecs = v.fileSpecs
+        if (v.badges.isNotEmpty()) uiState.badges = v.badges
         doReload(v.url, pos)
     }
 

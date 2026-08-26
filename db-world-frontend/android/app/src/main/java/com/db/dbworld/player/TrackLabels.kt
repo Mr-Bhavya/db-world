@@ -107,6 +107,12 @@ data class PlayerVariant(
     val label: String,
     val mediaFileId: String = "",
     val detail: String = "",
+    // What the Info sheet and pause card should say once THIS variant is playing. A
+    // native quality switch never round-trips through JS, so it can only keep them
+    // honest by already holding every variant's answer.
+    val videoSpecs: List<PlayerSpec> = emptyList(),
+    val fileSpecs: List<PlayerSpec> = emptyList(),
+    val badges: List<PlayerBadge> = emptyList(),
 )
 
 /**

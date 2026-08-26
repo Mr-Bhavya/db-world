@@ -339,8 +339,22 @@ export default function DbWorldVideoPlayer({
   // Quality picker only makes sense when there's more than one variant; the button shows
   // the active resolution (e.g. "1080p") as its label — like the speed button shows "1×".
   const hasQuality = variants.length > 1;
+
+  /**
+   * MediaInfo for the file actually on screen — the ACTIVE variant's, not the one the
+   * player was launched with.
+   *
+   * Switching quality reloads the video in place; it does not reload the route. So
+   * anything reading a single `info` went on describing the file opened with, which is
+   * how the pause card kept showing the old quality's badges after you had changed it.
+   */
+  const activeInfo = useMemo(
+    () => variants.find(v => v.mediaFileId === curQualityId)?.info ?? info,
+    [variants, curQualityId, info],
+  );
+
   // Same badges the record page shows, for the file actually playing.
-  const specBadges = useMemo(() => techBadges(info), [info]);
+  const specBadges = useMemo(() => techBadges(activeInfo), [activeInfo]);
   const curQualityLabel = variants.find(v => v.mediaFileId === curQualityId)?.label || '';
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
@@ -1518,7 +1532,7 @@ export default function DbWorldVideoPlayer({
       <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos} title="Media info" onClose={() => setInfoOpen(false)}
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <MediaInfoContent
-          variants={variants} curQualityId={curQualityId} info={info}
+          variants={variants} curQualityId={curQualityId} info={activeInfo}
           audioTracks={audioTracks} textTracks={textTracks} curAudio={curAudio} curText={curText} />
       </Sheet>
       </>)}
