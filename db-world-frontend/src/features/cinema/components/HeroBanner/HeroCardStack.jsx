@@ -88,10 +88,11 @@ function BadgeChip({ badge }) {
       display: 'inline-flex', alignItems: 'center', gap: 0.6,
       pl: isTop10 ? 0.5 : 0.9, pr: 1.1, py: 0.5,
       borderRadius: 999,
-      bgcolor: alpha('#000', 0.55),
+      // Flat plate, NOT backdrop-filter. Blur here is re-rasterised every frame the deck
+      // moves, and there are up to twenty of these across the mounted cards — it was the
+      // bulk of the swipe jank on Android. A more opaque black reads the same over artwork.
+      bgcolor: alpha('#000', 0.7),
       border: `1px solid ${alpha('#fff', 0.18)}`,
-      backdropFilter: 'blur(10px) saturate(160%)',
-      WebkitBackdropFilter: 'blur(10px) saturate(160%)',
       maxWidth: 'calc(100% - 24px)',
     }}>
       {/* The red TOP 10 mark is Netflix's own thing and belongs ONLY to a real top-10
@@ -137,11 +138,9 @@ function RoundAction({ label, onClick, children, primary = false, size }) {
         width: size, height: size, flexShrink: 0,
         display: 'grid', placeItems: 'center',
         borderRadius: '50%', cursor: 'pointer',
-        bgcolor: primary ? alpha('#fff', 0.94) : alpha('#000', 0.5),
+        bgcolor: primary ? alpha('#fff', 0.94) : alpha('#000', 0.62),
         color: primary ? '#111' : '#fff',
         border: `1px solid ${primary ? alpha('#fff', 0.9) : alpha('#fff', 0.34)}`,
-        backdropFilter: primary ? 'none' : 'blur(10px)',
-        WebkitBackdropFilter: primary ? 'none' : 'blur(10px)',
         boxShadow: primary ? '0 8px 22px rgba(0,0,0,0.45)' : '0 6px 18px rgba(0,0,0,0.4)',
         transition: 'background-color .16s',
         '&:hover': { bgcolor: primary ? '#fff' : alpha('#000', 0.66) },
@@ -172,10 +171,12 @@ function DeckCard({
     const path = heroArtCandidates(record, { portrait: true, hasLogo: false, titled: true })
       .find(Boolean);
     return {
-      src: path ? tmdbImg(path, 'w780') : null,
+      // w780 into a ~300px-wide phone card is 2.6x oversampled: three of them to decode,
+      // hold in texture memory and rescale on every frame of a swipe.
+      src: path ? tmdbImg(path, isXs ? 'w500' : 'w780') : null,
       hasBakedTitle: Boolean(path) && path === record?.posterPath,
     };
-  }, [record]);
+  }, [record, isXs]);
 
   const { src, hasBakedTitle } = art;
   const meta = buildMobileMeta(record);
@@ -216,7 +217,13 @@ function DeckCard({
           src={src}
           alt={record?.title ?? ''}
           draggable={false}
-          loading={front ? 'eager' : 'lazy'}
+          // The cards behind are two swipes away at most, so they are fetched now but at
+          // low priority. Left lazy, the decode landed in the middle of the turn that
+          // promoted them — a stall exactly when the deck is moving. `async` decoding
+          // keeps that work off the main thread either way.
+          loading="eager"
+          fetchPriority={front ? 'high' : 'low'}
+          decoding="async"
           sx={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
@@ -289,10 +296,8 @@ function DeckCard({
               component="span"
               sx={{
                 px: 0.85, py: 0.3, borderRadius: 1,
-                bgcolor: alpha('#000', 0.42),
+                bgcolor: alpha('#000', 0.58),   // see BadgeChip: no blur on a moving card
                 border: `1px solid ${alpha('#fff', 0.2)}`,
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
                 color: '#fff', fontWeight: 700, lineHeight: 1.5,
                 fontSize: 'clamp(0.66rem, 2.8vw, 0.76rem)',
                 whiteSpace: 'nowrap', flexShrink: 0,
@@ -305,27 +310,29 @@ function DeckCard({
       </Box>
 
       {/* Only on the card in focus. A card behind showing its own pair read as two live
-          heroes competing, and on the peek they were clipped in half besides. */}
-      <Box sx={{
-        position: 'absolute', right: 12, bottom: 14, zIndex: 2,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25,
-        opacity: front ? 1 : 0,
-        pointerEvents: front ? 'auto' : 'none',
-        transition: 'opacity .24s ease',
-      }}>
-        {onWatchlist && (
-          <RoundAction
-            label={inList ? `Remove ${record?.title ?? ''} from My List` : `Add ${record?.title ?? ''} to My List`}
-            onClick={onWatchlist}
-            size={actionSize}
-          >
-            {inList ? <CheckRoundedIcon sx={{ fontSize: 22 }} /> : <AddRoundedIcon sx={{ fontSize: 24 }} />}
+          heroes competing, and on the peek they were clipped in half besides.
+
+          Mounted rather than faded: hiding them with opacity still cost two shadowed
+          discs of layout and paint on every card behind, for something never visible. */}
+      {front && (
+        <Box sx={{
+          position: 'absolute', right: 12, bottom: 14, zIndex: 2,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25,
+        }}>
+          {onWatchlist && (
+            <RoundAction
+              label={inList ? `Remove ${record?.title ?? ''} from My List` : `Add ${record?.title ?? ''} to My List`}
+              onClick={onWatchlist}
+              size={actionSize}
+            >
+              {inList ? <CheckRoundedIcon sx={{ fontSize: 22 }} /> : <AddRoundedIcon sx={{ fontSize: 24 }} />}
+            </RoundAction>
+          )}
+          <RoundAction label={`Play ${record?.title ?? ''}`} onClick={onPlay} primary size={actionSize}>
+            <PlayArrowRoundedIcon sx={{ fontSize: 30 }} />
           </RoundAction>
-        )}
-        <RoundAction label={`Play ${record?.title ?? ''}`} onClick={onPlay} primary size={actionSize}>
-          <PlayArrowRoundedIcon sx={{ fontSize: 30 }} />
-        </RoundAction>
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -539,7 +546,16 @@ const HeroCardStack = ({
                   // Anchored: the card rubber-bands off its resting position and springs
                   // back on its own when the swipe wasn't decisive enough to turn it.
                   dragConstraints={{ left: 0, right: 0 }}
-                  dragElastic={0.42}
+                  // Asymmetric ON PURPOSE.
+                  //
+                  // Forward, the top card IS what leaves, so it follows the finger. Backward
+                  // it is not: the card that should come up is the PREVIOUS one, entering from
+                  // the left. Letting the top card swing right meant the thing tracking your
+                  // finger was the card that then had to snap back and sit down again, while a
+                  // different card flew in from the opposite side — two contradictory motions
+                  // for one gesture. It now barely gives, so the gesture still feels alive but
+                  // the turn belongs to the card actually arriving.
+                  dragElastic={{ left: 0.42, right: 0.07, top: 0, bottom: 0 }}
                   dragMomentum={false}
                   onDragStart={() => onInteract?.()}
                   onDragEnd={handleDragEnd}
