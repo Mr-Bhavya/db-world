@@ -230,6 +230,7 @@ class NativePlayerPlugin : Plugin() {
                 videoSpecs = parseSpecs(o.optJSONArray("videoSpecs")),
                 fileSpecs = parseSpecs(o.optJSONArray("fileSpecs")),
                 badges = parseBadges(o.optJSONArray("badges")),
+                audioInfo = parseSpecs(o.optJSONArray("audioInfo")),
             ))
         }
         return out
@@ -313,6 +314,7 @@ class NativePlayerPlugin : Plugin() {
         if (v.videoSpecs.isNotEmpty()) uiState.videoSpecs = v.videoSpecs
         if (v.fileSpecs.isNotEmpty()) uiState.fileSpecs = v.fileSpecs
         if (v.badges.isNotEmpty()) uiState.badges = v.badges
+        if (v.audioInfo.isNotEmpty()) uiState.audioInfo = v.audioInfo
         doReload(v.url, pos)
     }
 

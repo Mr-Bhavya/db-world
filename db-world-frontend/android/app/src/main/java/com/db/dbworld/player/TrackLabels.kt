@@ -113,6 +113,7 @@ data class PlayerVariant(
     val videoSpecs: List<PlayerSpec> = emptyList(),
     val fileSpecs: List<PlayerSpec> = emptyList(),
     val badges: List<PlayerBadge> = emptyList(),
+    val audioInfo: List<PlayerSpec> = emptyList(),
 )
 
 /**

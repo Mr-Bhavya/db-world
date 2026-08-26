@@ -152,6 +152,48 @@ function enrichAudioTracks(nativeTracks, meta) {
     };
   });
 }
+/**
+ * Same idea as enrichAudioTracks, for subtitles.
+ *
+ * The player reports a text track's language and little else; forced and default flags
+ * and the real format (PGS vs SRT vs ASS) live in the file's MediaInfo. Enriching rather
+ * than seeding matters here: the Subtitles list is a SELECTOR as well as a description,
+ * so it must never offer a track the player cannot actually switch to.
+ */
+function enrichTextTracks(nativeTracks, meta) {
+  if (!Array.isArray(nativeTracks) || !nativeTracks.length) return nativeTracks || [];
+  if (!Array.isArray(meta) || !meta.length) return nativeTracks;
+  const sameLen = nativeTracks.length === meta.length;
+  const used = new Set();
+  const byLang = (lang) => {
+    const i = meta.findIndex((m, idx) => !used.has(idx)
+      && String(m.language || '').toLowerCase() === String(lang || '').toLowerCase());
+    if (i < 0) return null;
+    used.add(i); return meta[i];
+  };
+  return nativeTracks.map((t, i) => {
+    const m = sameLen ? meta[i] : byLang(t.language);
+    if (!m) return t;
+    return {
+      ...t,
+      language:    t.language || m.language,
+      title:       t.title || m.title,
+      format:      t.format || m.format,
+      codecId:     t.codecId || m.codecID,
+      forced:      t.forced ?? m.forced,
+      defaultFlag: t.defaultFlag ?? m.defaultFlag,
+    };
+  });
+}
+
+/** The audio menu's rows, built from a file's own MediaInfo (the web seed). */
+const webAudioTracks = (meta) => (meta || []).map((a, i) => ({
+  id: i, language: a.language, title: a.title,
+  channels: a.channels, channelLayout: a.channelLayout,
+  format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
+  bitRate: a.bitRate, sampleRate: a.sampleRate, samplingRate: a.samplingRate,
+}));
+
 const subFormat = (t) => {
   const raw = String(t.format || t.codecId || '').toUpperCase();
   if (raw.includes('PGS') || raw.includes('HDMV'))    return 'PGS';
@@ -355,6 +397,16 @@ export default function DbWorldVideoPlayer({
 
   // Same badges the record page shows, for the file actually playing.
   const specBadges = useMemo(() => techBadges(activeInfo), [activeInfo]);
+
+  // The active file's own track metadata. Held in a ref because the adapter's handlers
+  // are built once per SOURCE, and a quality switch reloads the video without changing
+  // the source — so a closure over the prop would keep describing the file the player
+  // opened with, which is how the audio rows kept quoting the old master's bitrate.
+  const trackMetaRef = useRef({ audio: [], subtitle: [] });
+  trackMetaRef.current = {
+    audio: activeInfo?.audio?.length ? activeInfo.audio : audio,
+    subtitle: activeInfo?.subtitle ?? [],
+  };
   const curQualityLabel = variants.find(v => v.mediaFileId === curQualityId)?.label || '';
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
@@ -492,8 +544,8 @@ export default function DbWorldVideoPlayer({
       adapter.on('tracks', d => {
         // `audio` (the file-metadata prop) enriches native tracks so the menu shows clean
         // labels instead of ExoPlayer's raw channel-position dump.
-        const audioTr = enrichAudioTracks(d.audio || [], audio);
-        const text = d.text || [];
+        const audioTr = enrichAudioTracks(d.audio || [], trackMetaRef.current.audio);
+        const text = enrichTextTracks(d.text || [], trackMetaRef.current.subtitle);
         setAudioTracks(audioTr); setTextTracks(text);
         setCurAudio(d.selectedAudio); setCurText(d.selectedText);
         if (!appliedRef.current && (audioTr.length || text.length)) {
@@ -525,15 +577,10 @@ export default function DbWorldVideoPlayer({
     // the file metadata and reflect which track is active up front (preferred
     // language if present, else the first). Native (ExoPlayer) emits 'tracks' and
     // applies prefs via applyPreferredTracks instead.
-    if (!isNative && audio.length) {
-      const webTracks = audio.map((a, i) => ({
-        id: i, language: a.language, title: a.title,
-        channels: a.channels, channelLayout: a.channelLayout,
-        format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
-        bitRate: a.bitRate, sampleRate: a.sampleRate, samplingRate: a.samplingRate,
-      }));
-      setAudioTracks(webTracks);
-      let idx = audio.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
+    if (!isNative && trackMetaRef.current.audio.length) {
+      const meta = trackMetaRef.current.audio;
+      setAudioTracks(webAudioTracks(meta));
+      let idx = meta.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
       if (idx < 0) idx = 0;
       setCurAudio(idx);
       appliedRef.current = true;
@@ -820,6 +867,32 @@ export default function DbWorldVideoPlayer({
     else    { adapterRef.current?.selectTextTrack(t.id); setCurText(t.id); lsSet(PREF_SUB, t.language); }
   };
   const chooseSpeed = (i) => { setRateIdx(i); adapterRef.current?.setRate(SPEEDS[i]); };
+
+  /**
+   * Re-seed the audio menu when the quality changes.
+   *
+   * On web the adapter emits no 'tracks' event, so the menu is seeded from MediaInfo
+   * once per source — and a quality switch reloads the video WITHOUT changing the
+   * source. The rows therefore went on describing the master the player opened with,
+   * down to its bitrate and sample rate. Guarded so the source's own seed isn't
+   * immediately redone.
+   */
+  const seededFor = useRef(null);
+  useEffect(() => {
+    if (isNative || !curQualityId) return;
+    if (seededFor.current === curQualityId) return;
+    const first = seededFor.current === null;
+    seededFor.current = curQualityId;
+    if (first) return;                        // the [src] effect already seeded this one
+
+    const meta = trackMetaRef.current.audio;
+    if (!meta.length) return;
+    setAudioTracks(webAudioTracks(meta));
+    let idx = meta.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
+    if (idx < 0) idx = 0;
+    setCurAudio(idx);
+    adapterRef.current?.selectAudioTrack?.(idx);
+  }, [curQualityId, isNative]);
   /**
    * Switch the playing file.
    *

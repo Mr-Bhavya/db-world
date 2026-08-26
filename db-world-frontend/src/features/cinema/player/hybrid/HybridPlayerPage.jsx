@@ -236,6 +236,9 @@ export default function HybridPlayerPage() {
       videoSpecs: toBridgeRows(videoSpecs(v.info)),
       fileSpecs: toBridgeRows(fileSpecs(v.info)),
       badges: techBadges(v.info),
+      // Audio detail too: ExoPlayer names the tracks, but their codec, channels,
+      // bitrate and sample rate come from MediaInfo, and those belong to the master.
+      audioInfo: buildAudioInfo(v.info?.audio),
     }));
     NativePlayer.setPlaylist({
       episodes: eps,
