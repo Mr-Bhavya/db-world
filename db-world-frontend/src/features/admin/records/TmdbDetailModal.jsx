@@ -168,8 +168,8 @@ function OverviewTab({ tmdb, isMovie }) {
         {tmdb.productionCompanies?.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <SectionTitle>Production Companies</SectionTitle>
-            {tmdb.productionCompanies.map((c, i) => (
-              <Typography key={i} sx={{ fontSize: 12, color: T.textPrimary, py: 0.3 }}>
+            {tmdb.productionCompanies.map((c) => (
+              <Typography key={c.name} sx={{ fontSize: 12, color: T.textPrimary, py: 0.3 }}>
                 {c.name}{c.originCountry ? ` (${c.originCountry})` : ''}
               </Typography>
             ))}
@@ -197,8 +197,8 @@ function OverviewTab({ tmdb, isMovie }) {
         {!isMovie && tmdb.createdBy?.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <SectionTitle>Created By</SectionTitle>
-            {tmdb.createdBy.map((p, i) => (
-              <Typography key={i} sx={{ fontSize: 12, color: T.textPrimary }}>{p.name}</Typography>
+            {tmdb.createdBy.map((p) => (
+              <Typography key={p.name} sx={{ fontSize: 12, color: T.textPrimary }}>{p.name}</Typography>
             ))}
           </Box>
         )}
@@ -311,8 +311,8 @@ function MediaTab({ tmdb }) {
         <>
           <SectionTitle>Videos ({videos.length})</SectionTitle>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-            {videos.map((v, i) => (
-              <Box key={i} sx={{ p: 1.5, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 1 }}>
+            {videos.map((v) => (
+              <Box key={v.key} sx={{ p: 1.5, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 600, color: T.textPrimary, flex: 1 }}>{v.name}</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0, ml: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -360,8 +360,8 @@ function MediaTab({ tmdb }) {
             <Typography sx={{ fontSize: 10, color: T.textFaint, flex: 1, fontWeight: 700 }}>Path</Typography>
             <Typography sx={{ fontSize: 10, color: T.textFaint, minWidth: 80, flexShrink: 0, textAlign: 'right', fontWeight: 700 }}>Dimensions</Typography>
           </Box>
-          {images.map((img, i) => (
-            <Box key={i} sx={{ display: 'flex', gap: 1, py: 0.4, borderBottom: `1px solid ${T.border}` }}>
+          {images.map((img) => (
+            <Box key={img.filePath} sx={{ display: 'flex', gap: 1, py: 0.4, borderBottom: `1px solid ${T.border}` }}>
               <Typography sx={{ fontSize: 11, color: T.textMuted, minWidth: 80, flexShrink: 0 }}>
                 {img.imageType ?? '—'}
               </Typography>
@@ -408,8 +408,10 @@ function ProvidersTab({ tmdb }) {
           <SectionTitle>{PROVIDER_TYPE_LABEL[type] ?? type} ({list.length})</SectionTitle>
           {[...list]
             .sort((a, b) => (a.provider?.displayPriority ?? 99) - (b.provider?.displayPriority ?? 99))
-            .map((p, i) => (
-              <Box key={i} sx={{
+            // Re-sorted by displayPriority just above, so an index key would reattach
+            // state to whichever provider happens to land in that position.
+            .map((p) => (
+              <Box key={`${p.regionCode ?? ''}:${p.provider?.name ?? ''}`} sx={{
                 display: 'flex', alignItems: 'center', gap: 1.5,
                 py: 0.75, borderBottom: `1px solid ${T.border}`,
               }}>
@@ -483,7 +485,7 @@ function ReviewsTab({ tmdb }) {
   return (
     <Box>
       <SectionTitle>Reviews ({reviews.length})</SectionTitle>
-      {reviews.map((r, i) => <ReviewCard key={i} review={r} />)}
+      {reviews.map((r) => <ReviewCard key={r.author} review={r} />)}
     </Box>
   );
 }
@@ -535,8 +537,8 @@ function SeasonRow({ season }) {
             <Typography sx={{ fontSize: 12, color: T.textMuted, lineHeight: 1.6, mb: 1 }}>{season.overview}</Typography>
           )}
           {season.episodes?.length > 0 ? (
-            season.episodes.map((ep, i) => (
-              <Box key={i} sx={{ display: 'flex', gap: 1, py: 0.4, borderBottom: `1px solid ${T.border}`, alignItems: 'flex-start' }}>
+            season.episodes.map((ep) => (
+              <Box key={ep.episodeNumber} sx={{ display: 'flex', gap: 1, py: 0.4, borderBottom: `1px solid ${T.border}`, alignItems: 'flex-start' }}>
                 <Typography sx={{ fontSize: 11, color: T.textFaint, minWidth: 36, flexShrink: 0, fontFamily: 'monospace' }}>
                   E{String(ep.episodeNumber).padStart(2, '0')}
                 </Typography>
@@ -569,7 +571,7 @@ function SeasonsTab({ tmdb }) {
   return (
     <Box>
       <SectionTitle>Seasons ({seasons.length})</SectionTitle>
-      {seasons.map((s, i) => <SeasonRow key={i} season={s} />)}
+      {seasons.map((s) => <SeasonRow key={s.seasonNumber} season={s} />)}
     </Box>
   );
 }

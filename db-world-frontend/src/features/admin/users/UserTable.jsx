@@ -101,13 +101,13 @@ function DesktopTable({ users, loading, size, T, actions }) {
       <Table size="small" stickyHeader sx={{ minWidth: 720 }}>
         <TableHead>
           <TableRow>
-            {HEAD.map((h, i) => <TableCell key={i} sx={{ ...headSx, ...(i === 3 ? { textAlign: 'center' } : {}) }}>{h}</TableCell>)}
+            {HEAD.map((h, i) => <TableCell key={h} sx={{ ...headSx, ...(i === 3 ? { textAlign: 'center' } : {}) }}>{h}</TableCell>)}
           </TableRow>
         </TableHead>
         <TableBody>
           {loading && Array.from({ length: Math.min(size, 10) }).map((_, i) => (
             <TableRow key={i}>
-              {HEAD.map((_h, j) => <TableCell key={j} sx={cellSx}><Skeleton height={j === 0 ? 36 : 18} /></TableCell>)}
+              {HEAD.map((h, j) => <TableCell key={h} sx={cellSx}><Skeleton height={j === 0 ? 36 : 18} /></TableCell>)}
             </TableRow>
           ))}
 

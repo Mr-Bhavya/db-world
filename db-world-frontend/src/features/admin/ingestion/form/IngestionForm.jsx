@@ -63,6 +63,7 @@ import RecordSearch from './RecordSearch';
 import YtFormatPicker from './YtFormatPicker';
 import PlaylistPicker from './PlaylistPicker';
 import { detectUrlType, isYtDlp, sourceLabel } from './UrlDetector';
+import { EpisodePicker, SeasonPicker, useTmdbSeasons } from './EpisodePickers';
 import { startIngestion } from '../services/ingestionApi';
 import { useYtFormats } from '../hooks/useYtFormats';
 import useIngestionStore from '../store/ingestionStore';
@@ -71,22 +72,26 @@ import useIngestionStore from '../store/ingestionStore';
 // Schema
 // ─────────────────────────────────────────────────────────────────────────────
 
-const positiveOptionalInt = z
+// Season 0 is TMDB's Specials season — bonus episodes, behind-the-scenes,
+// recaps. Rejecting it here made specials unlinkable from the ingestion form
+// even though the backend, the TMDB sync and the viewer all handle season 0
+// perfectly well. Episode numbers still start at 1 within that season.
+const nonNegativeOptionalInt = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
   .transform((value) => {
     if (value === '' || value === null || value === undefined) return null;
     const num = Number(value);
     return Number.isFinite(num) ? num : null;
   })
-  .refine((value) => value === null || (Number.isInteger(value) && value > 0), {
-    message: 'Must be a positive integer',
+  .refine((value) => value === null || (Number.isInteger(value) && value >= 0), {
+    message: 'Must be 0 or a positive integer',
   });
 
 const urlSchema = z.object({
   url: z.string().trim().optional().default(''),
   customName: z.string().optional().default(''),
   rename: z.boolean().default(false),
-  episode: positiveOptionalInt.optional().nullable(),
+  episode: nonNegativeOptionalInt.optional().nullable(),
 });
 
 const schema = z.object({
@@ -94,8 +99,8 @@ const schema = z.object({
     { url: '', customName: '', rename: false, episode: null },
   ]),
   record: z.any().optional().nullable(),
-  season: positiveOptionalInt.optional().nullable(),
-  episode: positiveOptionalInt.optional().nullable(),
+  season: nonNegativeOptionalInt.optional().nullable(),
+  episode: nonNegativeOptionalInt.optional().nullable(),
 
   username: z.string().optional().default(''),
   password: z.string().optional().default(''),
@@ -327,6 +332,8 @@ const UrlRow = memo(function UrlRow({
   canRemove,
   isYtMode,
   showPerUrlEpisode,
+  tmdbSeasons = [],
+  watchedSeason = null,
   compact = false,
 }) {
   const T = useT();
@@ -413,29 +420,19 @@ const UrlRow = memo(function UrlRow({
             alignItems={{ xs: 'stretch', md: 'center' }}
           >
             {showPerUrlEpisode ? (
-              <Box sx={{ width: { xs: '100%', md: 120 } }}>
+              <Box sx={{ width: { xs: '100%', md: 210 } }}>
                 <Controller
                   name={`urls.${index}.episode`}
                   control={control}
                   render={({ field, fieldState }) => (
-                    <TextField
-                      {...field}
-                      value={field.value ?? ''}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      label="Episode"
-                      size="small"
-                      type="number"
-                      fullWidth
-                      inputProps={{ min: 1 }}
+                    <EpisodePicker
+                      seasons={tmdbSeasons}
+                      seasonNumber={watchedSeason}
+                      value={field.value ?? null}
+                      onChange={field.onChange}
                       error={!!fieldState.error}
                       helperText={fieldState.error?.message || ' '}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Tv sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          </InputAdornment>
-                        ),
-                      }}
+                      sx={{ width: '100%' }}
                     />
                   )}
                 />
@@ -585,6 +582,11 @@ export default function IngestionForm({
     () => isTvRecord && fields.length > 1,
     [isTvRecord, fields.length]
   );
+
+  // TMDB seasons/episodes for the season + episode pickers. Empty for movies,
+  // for an unpicked record, or when the fetch fails — the pickers stay usable
+  // as plain numeric fields in all three cases.
+  const tmdbSeasons = useTmdbSeasons(isTvRecord ? record : null);
 
   const nonEmptyUrlsCount = useMemo(
     () => urls.filter((u) => (u?.url || '').trim()).length,
@@ -753,8 +755,8 @@ export default function IngestionForm({
         const body = {
           ...sharedOptions,
           uri: uris[0] || undefined,
-          season: data.season ? Number(data.season) : null,
-          episode: data.episode ? Number(data.episode) : null,
+          season: data.season != null ? Number(data.season) : null,
+          episode: data.episode != null ? Number(data.episode) : null,
           rename: !!validUrls[0]?.rename,
           fileName: validUrls[0]?.rename ? validUrls[0]?.customName : undefined,
         };
@@ -781,8 +783,8 @@ export default function IngestionForm({
           return;
         }
 
-        const seasonNumber = data.season ? Number(data.season) : null;
-        const episodeBase = data.episode ? Number(data.episode) : null;
+        const seasonNumber = data.season != null ? Number(data.season) : null;
+        const episodeBase = data.episode != null ? Number(data.episode) : null;
 
         // ONE job — a single card that downloads + processes every selected item.
         const playlistItems = toDownload.map((entry, i) => ({
@@ -822,13 +824,13 @@ export default function IngestionForm({
       }
 
       if (showPerUrlEpisode && uris.length > 1) {
-        const seasonNumber = data.season ? Number(data.season) : null;
+        const seasonNumber = data.season != null ? Number(data.season) : null;
 
         const jobs = validUrls.map((u) => ({
           ...sharedOptions,
           uris: [u.url],
           season: seasonNumber,
-          episode: u.episode ? Number(u.episode) : null,
+          episode: u.episode != null ? Number(u.episode) : null,
           rename: !!u.rename,
           fileName: u.rename ? u.customName : undefined,
         }));
@@ -851,8 +853,8 @@ export default function IngestionForm({
       const body = {
         ...sharedOptions,
         uris,
-        season: data.season ? Number(data.season) : null,
-        episode: data.episode ? Number(data.episode) : null,
+        season: data.season != null ? Number(data.season) : null,
+        episode: data.episode != null ? Number(data.episode) : null,
         rename: !!validUrls[0]?.rename,
         fileName: validUrls[0]?.rename ? validUrls[0]?.customName : undefined,
       };
@@ -967,17 +969,14 @@ export default function IngestionForm({
                           name="season"
                           control={control}
                           render={({ field, fieldState }) => (
-                            <TextField
-                              {...field}
-                              value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value)}
-                              label="Season"
-                              size="small"
-                              type="number"
-                              fullWidth
-                              inputProps={{ min: 1 }}
+                            <SeasonPicker
+                              seasons={tmdbSeasons}
+                              value={field.value ?? null}
+                              onChange={field.onChange}
                               error={!!fieldState.error}
-                              helperText={fieldState.error?.message || ' '}
+                              helperText={fieldState.error?.message
+                                || (tmdbSeasons.length ? ' ' : 'Type a number — TMDB has no seasons listed')}
+                              sx={{ width: '100%' }}
                             />
                           )}
                         />
@@ -987,17 +986,14 @@ export default function IngestionForm({
                             name="episode"
                             control={control}
                             render={({ field, fieldState }) => (
-                              <TextField
-                                {...field}
-                                value={field.value ?? ''}
-                                onChange={(e) => field.onChange(e.target.value)}
-                                label="Episode"
-                                size="small"
-                                type="number"
-                                fullWidth
-                                inputProps={{ min: 1 }}
+                              <EpisodePicker
+                                seasons={tmdbSeasons}
+                                seasonNumber={season}
+                                value={field.value ?? null}
+                                onChange={field.onChange}
                                 error={!!fieldState.error}
                                 helperText={fieldState.error?.message || ' '}
+                                sx={{ width: '100%' }}
                               />
                             )}
                           />
@@ -1054,6 +1050,8 @@ export default function IngestionForm({
                         canRemove={fields.length > 1}
                         isYtMode={isYtMode}
                         showPerUrlEpisode={showPerUrlEpisode}
+                        tmdbSeasons={tmdbSeasons}
+                        watchedSeason={season}
                         compact={isSmDown}
                       />
                     ))}

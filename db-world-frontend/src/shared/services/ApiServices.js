@@ -399,14 +399,63 @@ export const getWatchProgress = async (fileId) => {
   return response.data?.data ?? null; // { fileId, positionMs, durationMs, ... } | null
 };
 
-export const saveWatchProgress = async (fileId, { positionMs, durationMs = 0, recordId, audioLang, subLang } = {}) => {
+// Every saved position for one record, for the player's per-episode watched bars.
+// One request for the whole series instead of one per episode.
+export const getRecordProgress = async (recordId) => {
+  const response = await axiosInstance.get(`/api/cinema/progress/record/${encodeURIComponent(recordId)}`);
+  return response.data?.data ?? [];   // [{ fileId, positionMs, durationMs, ... }]
+};
+
+const progressParams = ({ positionMs, durationMs = 0, recordId, audioLang, subLang } = {}) => {
   const params = { positionMs: Math.round(positionMs || 0), durationMs: Math.round(durationMs || 0) };
   if (recordId != null)  params.recordId = recordId;
   if (audioLang)         params.audioLang = audioLang;
   if (subLang)           params.subLang = subLang;
-  // keepalive-style: best effort, never block UI on it
-  return axiosInstance.put(`/api/cinema/progress/${encodeURIComponent(fileId)}`, null, { params });
+  return params;
 };
+
+export const saveWatchProgress = async (fileId, opts = {}) => {
+  // best effort, never block UI on it
+  return axiosInstance.put(`/api/cinema/progress/${encodeURIComponent(fileId)}`, null,
+    { params: progressParams(opts) });
+};
+
+/**
+ * The same save, issued so the browser finishes it even as the page goes away.
+ *
+ * A request fired from an unload/pagehide handler can be cancelled in flight, which
+ * silently drops the last stretch of playback. `keepalive` is the browser's contract for
+ * "send this anyway". navigator.sendBeacon would also survive, but it cannot carry the
+ * Authorization header this API needs, so it isn't an option here.
+ */
+export const saveWatchProgressOnExit = (fileId, opts = {}) =>
+  keepaliveSend(`/api/cinema/progress/${encodeURIComponent(fileId)}?${new URLSearchParams(progressParams(opts))}`,
+    { method: 'PUT' });
+
+/** Flush queued stream events on the way out, with the same unload guarantee. */
+export const postStreamTrackEventsOnExit = (events, { app = false } = {}) => {
+  if (!events?.length) return false;
+  return keepaliveSend('/api/track/events', {
+    method: 'POST',
+    body: JSON.stringify({ events }),
+    headers: app ? { 'X-DbWorld-Client': 'app' } : undefined,
+  });
+};
+
+function keepaliveSend(path, { method, body, headers } = {}) {
+  try {
+    const token = localStorage.getItem('token');
+    fetch(`${REACT_APP_BASEURL}${path}`, {
+      method, body, keepalive: true, credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(headers || {}),
+      },
+    }).catch(() => {});
+    return true;
+  } catch { return false; }
+}
 
 // Interaction APIs
 export const likeRecord = async (recordId, userId) => {

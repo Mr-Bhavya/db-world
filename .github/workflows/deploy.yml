@@ -40,12 +40,22 @@ on:
         description: "Android: force (mandatory) update?"
         type: boolean
         default: false
+      audience:
+        description: "Android: who sees the update prompt — 'all' (everyone) or 'admin' (ADMIN/OWNER only, for admin-only changes)"
+        type: choice
+        options:
+          - all
+          - admin
+        default: all
       changelog:
         description: "Android: release notes shown in the update dialog"
         required: false
 
+# Least privilege by default: only android-release publishes a Release, so only that
+# job gets contents:write (see its own permissions block). The build/deploy jobs just
+# need to read the repo.
 permissions:
-  contents: write   # publish the Release
+  contents: read
 
 concurrency:
   group: deploy-release
@@ -109,7 +119,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production
@@ -148,6 +158,8 @@ jobs:
     name: Android · publish APK release
     if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the only job that publishes a GitHub Release
     steps:
       - uses: actions/checkout@v7
         with:
@@ -169,7 +181,9 @@ jobs:
           NAME="$IN_NAME"
           # Blank version → auto-bump the patch of the latest published release (3.1.0 -> 3.1.1).
           if [ -z "$NAME" ]; then
-            LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+            # --proto '=https' --proto-redir '=https' so -L can't be walked down to
+            # plaintext http by a redirect; the resolved version drives the release tag.
+            LATEST=$(curl -fsSL --proto '=https' --proto-redir '=https' "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
                      | grep -m1 '"tag_name"' | sed 's/.*: *"\(.*\)".*/\1/' || true)
             LATEST="${LATEST#v}"
             if [ -z "$LATEST" ]; then NAME="3.0.0"; else
@@ -190,7 +204,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production
@@ -242,18 +256,22 @@ jobs:
           CODE: ${{ steps.ver.outputs.code }}
           NAME: ${{ steps.ver.outputs.name }}
           MAND: ${{ github.event.inputs.mandatory }}
+          AUDIENCE: ${{ github.event.inputs.audience }}
           LOG: ${{ github.event.inputs.changelog }}
         run: |
           [ -z "$MAND" ] && MAND=false
+          [ -z "$AUDIENCE" ] && AUDIENCE=all
           APK="https://github.com/${{ github.repository }}/releases/download/v${NAME}/db-world-${NAME}.apk"
           jq -n --argjson code "$CODE" --arg name "$NAME" --argjson mandatory "$MAND" \
-                --arg apk "$APK" --arg changelog "$LOG" \
-             '{versionCode:$code, versionName:$name, mandatory:$mandatory, minSupportedCode:0, apkUrl:$apk, changelog:$changelog}' \
+                --arg audience "$AUDIENCE" --arg apk "$APK" --arg changelog "$LOG" \
+             '{versionCode:$code, versionName:$name, mandatory:$mandatory, minSupportedCode:0, releaseAudience:$audience, apkUrl:$apk, changelog:$changelog}' \
              > "$GITHUB_WORKSPACE/version.json"
           cat "$GITHUB_WORKSPACE/version.json"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        # Pinned to a full commit SHA: a mutable tag on a third-party action can be
+        # repointed at malicious code, and this job holds contents:write. v3 = 3d0d988.
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: v${{ steps.ver.outputs.name }}
           name: v${{ steps.ver.outputs.name }}

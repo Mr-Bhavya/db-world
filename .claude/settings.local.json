@@ -208,7 +208,12 @@
       "Bash(npx vitest *)",
       "WebFetch(domain:www.chittorgarh.com)",
       "WebFetch(domain:www.ipoguru.in)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(command -v jq)",
+      "Bash(rm package-lock.json)",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);s=d['projectStatus'];print\\('GATE:',s['status']\\);[print\\(' -',c['metricKey'],c['status'],'actual='+c.get\\('actualValue','?'\\),'threshold='+str\\(c.get\\('errorThreshold','?'\\)\\)\\) for c in s.get\\('conditions',[]\\)]\")",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);s=d['projectStatus'];print\\('BRANCH GATE:',s['status']\\);[print\\(' -',c['metricKey'],c['status'],'actual='+c.get\\('actualValue','?'\\),'threshold='+str\\(c.get\\('errorThreshold','?'\\)\\)\\) for c in s.get\\('conditions',[]\\)]\")",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);[print\\(b['name'],'| main='+str\\(b.get\\('isMain'\\)\\),'|',b.get\\('status',{}\\)\\)for b in d.get\\('branches',[]\\)]\")"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -25,27 +25,37 @@ import java.util.regex.Pattern;
 @Service("raspberryPiServerInfoCollector")
 public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
-    // Common paths for Raspberry Pi
-    private static final Path CPU_INFO_PATH = Path.of("/proc/cpuinfo");
-    private static final Path MEM_INFO_PATH = Path.of("/proc/meminfo");
-    private static final Path DEVICE_TREE_MODEL_PATH = Path.of("/proc/device-tree/model");
-    private static final Path DEVICE_TREE_SERIAL_PATH = Path.of("/proc/device-tree/serial-number");
-    private static final Path VERSION_PATH = Path.of("/proc/version");
-    private static final Path CPU_TEMP_PATH = Path.of("/sys/class/thermal/thermal_zone0/temp");
-    private static final Path GPU_TEMP_PATH = Path.of("/sys/class/thermal/thermal_zone1/temp");
-    private static final Path VC_GENCMD_PATH = Path.of("/usr/bin/vcgencmd");
-    private static final Path CONFIG_TXT_PATH = Path.of("/boot/config.txt");
-    private static final Path OTP_DUMP_PATH = Path.of("/sys/firmware/devicetree/base/soc/ranges");
+    // Pseudo-filesystem locations, read via sysPath(...) so tests can reroot them.
+    private static final String CPU_INFO_PATH = "/proc/cpuinfo";
+    private static final String MEM_INFO_PATH = "/proc/meminfo";
+    private static final String DEVICE_TREE_MODEL_PATH = "/proc/device-tree/model";
+    private static final String DEVICE_TREE_SERIAL_PATH = "/proc/device-tree/serial-number";
+    private static final String DEVICE_TREE_HAT_PATH = "/proc/device-tree/hat";
+    private static final String DEVICE_TREE_DISPLAY_PATH = "/proc/device-tree/display";
+    private static final String VERSION_PATH = "/proc/version";
+    private static final String UPTIME_PATH = "/proc/uptime";
+    private static final String OS_RELEASE_PATH = "/etc/os-release";
+    private static final String CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp";
+    private static final String GPU_TEMP_PATH = "/sys/class/thermal/thermal_zone1/temp";
+    private static final String CONFIG_TXT_PATH = "/boot/config.txt";
+    private static final String OTP_DUMP_PATH = "/sys/firmware/devicetree/base/soc/ranges";
+    private static final String GPIO_SYSFS_PATH = "/sys/class/gpio";
+    private static final String GPIO_CHIP_PATH = "/dev/gpiochip0";
+    private static final String CPUFREQ_PATH = "/sys/devices/system/cpu/cpu0/cpufreq";
+    private static final String MMC_LIFETIME_PATH = "/sys/block/mmcblk0/device/life_time";
+
+    // Executable to run — not part of the rerooted tree, so it stays a plain command path.
+    private static final String VC_GENCMD = "/usr/bin/vcgencmd";
 
     // Common commands for Raspberry Pi
-    private static final String[] GET_THROTTLED_STATUS = {VC_GENCMD_PATH.toString(), "get_throttled"};
-    private static final String[] GET_VOLTAGES = {VC_GENCMD_PATH.toString(), "measure_volts"};
-    private static final String[] GET_CLOCK_SPEEDS = {VC_GENCMD_PATH.toString(), "measure_clock", "arm"};
-    private static final String[] GET_MEMORY_SPLIT = {VC_GENCMD_PATH.toString(), "get_mem", "arm"};
-    private static final String[] GET_CONFIG = {VC_GENCMD_PATH.toString(), "get_config", "int"};
-    private static final String[] GET_CAMERA_STATUS = {VC_GENCMD_PATH.toString(), "get_camera"};
-    private static final String[] GET_DISPLAY_STATUS = {VC_GENCMD_PATH.toString(), "get_display_power"};
-    private static final String[] GET_GPIO_STATUS = {VC_GENCMD_PATH.toString(), "get_gpio"};
+    private static final String[] GET_THROTTLED_STATUS = {VC_GENCMD, "get_throttled"};
+    private static final String[] GET_VOLTAGES = {VC_GENCMD, "measure_volts"};
+    private static final String[] GET_CLOCK_SPEEDS = {VC_GENCMD, "measure_clock", "arm"};
+    private static final String[] GET_MEMORY_SPLIT = {VC_GENCMD, "get_mem", "arm"};
+    private static final String[] GET_CONFIG = {VC_GENCMD, "get_config", "int"};
+    private static final String[] GET_CAMERA_STATUS = {VC_GENCMD, "get_camera"};
+    private static final String[] GET_DISPLAY_STATUS = {VC_GENCMD, "get_display_power"};
+    private static final String[] GET_GPIO_STATUS = {VC_GENCMD, "get_gpio"};
 
     public RaspberryPiServerInfoCollector(ProcessExecutor processExecutor) {
         super(processExecutor);
@@ -110,7 +120,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Read model from device tree
-            String model = readFileSafe(DEVICE_TREE_MODEL_PATH);
+            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
             if (!model.isEmpty()) {
                 info.setModel(model.trim());
 
@@ -141,14 +151,14 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Read serial number
-            String serial = readFileSafe(DEVICE_TREE_SERIAL_PATH);
+            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
             if (!serial.isEmpty()) {
                 info.setSerial(serial.trim());
             }
 
             // Get revision from cpuinfo
-            String cpuInfo = readFileSafe(CPU_INFO_PATH);
-            String revision = extractFromCpuInfo(cpuInfo, "Revision");
+            String cpuInfo = readFileSafe(sysPath(CPU_INFO_PATH));
+            String revision = extractKeyedValue(cpuInfo, "Revision");
             if (revision != null) {
                 info.setRevision(revision);
 
@@ -175,21 +185,21 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Get hardware from cpuinfo
-            String hardware = extractFromCpuInfo(cpuInfo, "Hardware");
+            String hardware = extractKeyedValue(cpuInfo, "Hardware");
             if (hardware != null) {
                 info.setHardware(hardware);
             }
 
             // Get firmware version using vcgencmd
-            String firmwareVersion = exec(VC_GENCMD_PATH.toString(), "version");
+            String firmwareVersion = exec(VC_GENCMD, "version");
             if (!firmwareVersion.isEmpty()) {
                 info.setFirmwareVersion(firmwareVersion.trim());
             }
 
             // Get memory from meminfo
-            String memInfo = readFileSafe(MEM_INFO_PATH);
+            String memInfo = readFileSafe(sysPath(MEM_INFO_PATH));
             if (!memInfo.isEmpty()) {
-                String totalMem = extractFromMemInfo(memInfo, "MemTotal");
+                String totalMem = extractKeyedValue(memInfo, "MemTotal");
                 if (totalMem != null) {
                     try {
                         // Convert from KB to MB
@@ -205,14 +215,14 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             info.setMaker("Raspberry Pi Foundation");
 
             // Check warranty status using vcgencmd
-            String otpDump = readFileSafe(OTP_DUMP_PATH);
+            String otpDump = readFileSafe(sysPath(OTP_DUMP_PATH));
             if (!otpDump.isEmpty()) {
                 // Check specific bits for warranty
                 info.setWarrantyVoid("Unknown");
             }
 
             // Get board version
-            String boardVersion = extractFromCpuInfo(cpuInfo, "Revision");
+            String boardVersion = extractKeyedValue(cpuInfo, "Revision");
             if (boardVersion != null) {
                 try {
                     // Convert hex revision to board version
@@ -246,8 +256,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             List<GpioPin> pins = new ArrayList<>();
 
             // Check if GPIO is accessible
-            boolean gpioAccessible = Files.exists(Path.of("/sys/class/gpio")) ||
-                    Files.exists(Path.of("/dev/gpiochip0"));
+            boolean gpioAccessible = Files.exists(sysPath(GPIO_SYSFS_PATH)) ||
+                    Files.exists(sysPath(GPIO_CHIP_PATH));
 
             gpioInfo.setGpioAccessible(gpioAccessible);
 
@@ -306,11 +316,24 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check if camera is enabled in config
-            if (Files.exists(CONFIG_TXT_PATH)) {
-                String config = readFileSafe(CONFIG_TXT_PATH);
+            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
+                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
                 boolean startCameraEnabled = config.contains("start_x=1");
-                boolean gpuMemoryAllocated = config.contains("gpu_mem") &&
-                        Integer.parseInt(config.split("gpu_mem=")[1].split("\n")[0].trim()) >= 128;
+
+                // Guard on "gpu_mem=", not the bare "gpu_mem" prefix: board-specific keys like
+                // gpu_mem_1024= satisfy the prefix but leave nothing to split on, and the
+                // resulting exception used to abandon the whole method — losing the
+                // detected/supported/model fields that vcgencmd reports below.
+                boolean gpuMemoryAllocated = false;
+                int gpuMemAt = config.indexOf("gpu_mem=");
+                if (gpuMemAt >= 0) {
+                    String gpuMemValue = config.substring(gpuMemAt + "gpu_mem=".length()).split("\n", 2)[0].trim();
+                    try {
+                        gpuMemoryAllocated = Integer.parseInt(gpuMemValue) >= 128;
+                    } catch (NumberFormatException e) {
+                        log.debug("Unparseable gpu_mem value in config.txt: '{}'", gpuMemValue);
+                    }
+                }
 
                 cameraInfo.setCameraEnabled(startCameraEnabled && gpuMemoryAllocated);
             }
@@ -332,10 +355,10 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
             // Check camera firmware/driver
             try {
-                String vcgencmdOutput = exec(VC_GENCMD_PATH.toString(), "get_camera");
+                String vcgencmdOutput = exec(VC_GENCMD, "get_camera");
                 if (vcgencmdOutput.contains("supported")) {
                     cameraInfo.setCameraDriver("vcgencmd");
-                    cameraInfo.setCameraFirmware(getStringValue(exec(VC_GENCMD_PATH.toString(), "version"), "Unknown"));
+                    cameraInfo.setCameraFirmware(getStringValue(exec(VC_GENCMD, "version"), "Unknown"));
                 }
             } catch (Exception e) {
                 log.debug("Error checking camera firmware", e);
@@ -380,33 +403,33 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check for HAT EEPROM
-            Path hatEepromPath = Path.of("/proc/device-tree/hat");
+            Path hatEepromPath = sysPath(DEVICE_TREE_HAT_PATH);
             if (Files.exists(hatEepromPath)) {
                 hatInfo.setHatPresent(true);
 
                 // Read HAT vendor
-                Path vendorPath = Path.of("/proc/device-tree/hat/vendor");
+                Path vendorPath = hatEepromPath.resolve("vendor");
                 if (Files.exists(vendorPath)) {
                     String vendor = readFileSafe(vendorPath);
                     hatInfo.setHatVendor(vendor.trim());
                 }
 
                 // Read HAT product
-                Path productPath = Path.of("/proc/device-tree/hat/product");
+                Path productPath = hatEepromPath.resolve("product");
                 if (Files.exists(productPath)) {
                     String product = readFileSafe(productPath);
                     hatInfo.setHatProduct(product.trim());
                 }
 
                 // Read HAT version
-                Path versionPath = Path.of("/proc/device-tree/hat/version");
+                Path versionPath = hatEepromPath.resolve("version");
                 if (Files.exists(versionPath)) {
                     String version = readFileSafe(versionPath);
                     hatInfo.setHatVersion(version.trim());
                 }
 
                 // Read HAT UUID
-                Path uuidPath = Path.of("/proc/device-tree/hat/uuid");
+                Path uuidPath = hatEepromPath.resolve("uuid");
                 if (Files.exists(uuidPath)) {
                     String uuid = readFileSafe(uuidPath);
                     hatInfo.setHatUuid(uuid.trim());
@@ -488,8 +511,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check config.txt for overclock settings
-            if (Files.exists(CONFIG_TXT_PATH)) {
-                String config = readFileSafe(CONFIG_TXT_PATH);
+            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
+                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
 
                 // Parse over_voltage setting
                 if (config.contains("over_voltage=")) {
@@ -556,7 +579,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
             // Get current clock speeds using vcgencmd
             try {
-                String armClock = exec(VC_GENCMD_PATH.toString(), "measure_clock", "arm");
+                String armClock = exec(VC_GENCMD, "measure_clock", "arm");
                 if (armClock.contains("=")) {
                     String freq = armClock.split("=")[1].trim();
                     try {
@@ -597,13 +620,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Get current display mode
-            String hdmiMode = exec(VC_GENCMD_PATH.toString(), "get_config", "hdmi_mode");
+            String hdmiMode = exec(VC_GENCMD, "get_config", "hdmi_mode");
             if (hdmiMode.contains("=")) {
                 displayInfo.setDisplayHdmiMode(hdmiMode.split("=")[1].trim());
             }
 
             // Check for composite video
-            String compositeEnabled = exec(VC_GENCMD_PATH.toString(), "get_config", "enable_tvout");
+            String compositeEnabled = exec(VC_GENCMD, "get_config", "enable_tvout");
             if (!compositeEnabled.isEmpty()) {
                 displayInfo.setDisplayCompositeEnabled(compositeEnabled.contains("=1"));
             }
@@ -628,13 +651,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Get overscan settings
-            String overscan = exec(VC_GENCMD_PATH.toString(), "get_config", "overscan");
+            String overscan = exec(VC_GENCMD, "get_config", "overscan");
             if (!overscan.isEmpty()) {
                 displayInfo.setDisplayOverscan(overscan);
             }
 
             // Check for hdmi_safe mode
-            String hdmiSafe = exec(VC_GENCMD_PATH.toString(), "get_config", "hdmi_safe");
+            String hdmiSafe = exec(VC_GENCMD, "get_config", "hdmi_safe");
             if (!hdmiSafe.isEmpty()) {
                 displayInfo.setDisplayHdmiSafe(hdmiSafe.contains("=1"));
             }
@@ -643,7 +666,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             displayInfo.setDisplayType("HDMI"); // Default assumption
 
             // Check for DSI display (Raspberry Pi official display)
-            if (Files.exists(Path.of("/proc/device-tree/display"))) {
+            if (Files.exists(sysPath(DEVICE_TREE_DISPLAY_PATH))) {
                 displayInfo.setDisplayType("DSI");
             }
 
@@ -674,7 +697,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             // from the device-tree model when that happens; never invent a value
             // when the model itself is unknown.
             if (isUnknownOrBlank(cpuInfo.getName()) || isUnknownOrBlank(cpuInfo.getVendor())) {
-                String model = readFileSafe(DEVICE_TREE_MODEL_PATH);
+                String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
                 String processor = derivePiProcessorName(model);
                 String soc = derivePiSoc(model);
 
@@ -705,8 +728,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                 } catch (NumberFormatException e) {
                     log.debug("Error parsing frequency from vcgencmd", e);
                 }
-            } else if (Files.exists(CONFIG_TXT_PATH)) {
-                String config = readFileSafe(CONFIG_TXT_PATH);
+            } else if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
+                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
                 if (config.contains("arm_freq=")) {
                     try {
                         int armFreqMhz = Integer.parseInt(config.split("arm_freq=")[1].split("\n")[0].trim());
@@ -769,7 +792,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             List<TemperatureSensor> sensors = new ArrayList<>();
 
             // Get CPU temperature
-            String cpuTempStr = readFileSafe(CPU_TEMP_PATH);
+            String cpuTempStr = readFileSafe(sysPath(CPU_TEMP_PATH));
             if (!cpuTempStr.isEmpty()) {
                 try {
                     double cpuTempC = Double.parseDouble(cpuTempStr.trim()) / 1000.0;
@@ -797,8 +820,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Get GPU temperature if available
-            if (Files.exists(GPU_TEMP_PATH)) {
-                String gpuTempStr = readFileSafe(GPU_TEMP_PATH);
+            if (Files.exists(sysPath(GPU_TEMP_PATH))) {
+                String gpuTempStr = readFileSafe(sysPath(GPU_TEMP_PATH));
                 if (!gpuTempStr.isEmpty()) {
                     try {
                         double gpuTempC = Double.parseDouble(gpuTempStr.trim()) / 1000.0;
@@ -926,7 +949,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Get OS information from /etc/os-release
-            Path osReleasePath = Path.of("/etc/os-release");
+            Path osReleasePath = sysPath(OS_RELEASE_PATH);
             if (Files.exists(osReleasePath)) {
                 String osRelease = readFileSafe(osReleasePath);
                 Map<String, String> osInfo = parseKeyValueOutput(osRelease, "=");
@@ -941,7 +964,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Get kernel version
-            String kernelVersion = readFileSafe(VERSION_PATH);
+            String kernelVersion = readFileSafe(sysPath(VERSION_PATH));
             if (!kernelVersion.isEmpty()) {
                 serverInfo.setKernelVersion(kernelVersion.split("\\s+")[2]); // Extract version number
             }
@@ -953,13 +976,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             serverInfo.setHostname(exec("hostname").trim());
 
             // Get model from device tree
-            String model = readFileSafe(DEVICE_TREE_MODEL_PATH);
+            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
             if (!model.isEmpty()) {
                 serverInfo.setModel(model.trim());
             }
 
             // Get serial number
-            String serial = readFileSafe(DEVICE_TREE_SERIAL_PATH);
+            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
             if (!serial.isEmpty()) {
                 serverInfo.setSerialNumber(serial.trim());
             }
@@ -968,7 +991,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             serverInfo.setManufacturer("Raspberry Pi Foundation");
 
             // Get uptime
-            String uptimeStr = readFileSafe(Path.of("/proc/uptime"));
+            String uptimeStr = readFileSafe(sysPath(UPTIME_PATH));
             if (!uptimeStr.isEmpty()) {
                 String uptimeSeconds = uptimeStr.split("\\s+")[0];
                 try {
@@ -1028,7 +1051,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         try {
             // Raspberry Pi doesn't have a traditional BIOS, but has firmware
             // Get firmware version using vcgencmd
-            String firmwareVersion = exec(VC_GENCMD_PATH.toString(), "version");
+            String firmwareVersion = exec(VC_GENCMD, "version");
             if (!firmwareVersion.isEmpty()) {
                 biosInfo.setVersion(firmwareVersion.trim());
             }
@@ -1038,7 +1061,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
             // Get firmware date/release if possible
             try {
-                String vcgencmdDate = exec(VC_GENCMD_PATH.toString(), "version");
+                String vcgencmdDate = exec(VC_GENCMD, "version");
                 if (vcgencmdDate.contains("version")) {
                     // Try to extract date from version string
                     biosInfo.setReleaseDate(Instant.now().toString()); // Default to current time
@@ -1048,7 +1071,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Firmware revision
-            biosInfo.setFirmwareRevision(getStringValue(exec(VC_GENCMD_PATH.toString(), "get_config", "int"), "Unknown"));
+            biosInfo.setFirmwareRevision(getStringValue(exec(VC_GENCMD, "get_config", "int"), "Unknown"));
 
             log.debug("BIOS information collected successfully");
 
@@ -1094,57 +1117,89 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
        HELPER METHODS FOR RASPBERRY PI
        ============================================ */
 
-    private String extractFromCpuInfo(String cpuInfo, String key) {
-        if (cpuInfo == null || key == null) return null;
+    /**
+     * Value of a {@code key : value} line from a /proc pseudo-file, or null when absent.
+     *
+     * <p>The key is matched against everything before the first colon, trimmed. /proc/cpuinfo
+     * pads keys out with tabs ({@code "Revision\t: c03111"}), so a match that required the
+     * colon to sit flush against the key never fired on real hardware — which is what left
+     * revision, hardware and boardVersion permanently null on a Pi. /proc/meminfo has no
+     * padding, so it was unaffected; both files share this parser now.
+     */
+    private String extractKeyedValue(String content, String key) {
+        if (content == null || key == null) return null;
 
-        String[] lines = cpuInfo.split("\n");
-        for (String line : lines) {
-            if (line.trim().startsWith(key + ":")) {
-                return line.split(":")[1].trim();
+        for (String line : content.split("\n")) {
+            int colon = line.indexOf(':');
+            if (colon >= 0 && line.substring(0, colon).trim().equals(key)) {
+                return line.substring(colon + 1).trim();
             }
         }
         return null;
     }
 
-    private String extractFromMemInfo(String memInfo, String key) {
-        if (memInfo == null || key == null) return null;
+    /**
+     * A {@code raspi-gpio get} pin line, e.g. {@code "GPIO 2: level=1 fsel=4 alt=0 func=SDA1 pull=UP"}.
+     * Bank headers ({@code "BANK0 (GPIO 0 to 27):"}) deliberately don't match.
+     */
+    private static final Pattern RASPI_GPIO_PIN_LINE = Pattern.compile("^GPIO\\s*(\\d+)\\s*:\\s*(.*)$");
 
-        String[] lines = memInfo.split("\n");
-        for (String line : lines) {
-            if (line.trim().startsWith(key + ":")) {
-                return line.split(":")[1].trim();
-            }
-        }
-        return null;
-    }
-
+    /**
+     * Parse {@code raspi-gpio get} output into pins.
+     *
+     * <p>The pin number carries a trailing colon in the real output ({@code "GPIO 2:"}), and the
+     * remaining columns are {@code key=value} tokens whose set varies per pin — {@code alt} and
+     * {@code pull} only appear sometimes. So the tail is parsed by key rather than by position,
+     * and each line is guarded on its own: a single odd line must not discard the pins already
+     * collected or the ones after it.
+     */
     private List<GpioPin> parseGpioOutput(String output) {
         List<GpioPin> pins = new ArrayList<>();
+        if (output == null) return pins;
 
-        try {
-            String[] lines = output.split("\n");
-            for (String line : lines) {
-                if (line.contains("GPIO")) {
-                    String[] parts = line.split("\\s+");
-                    if (parts.length >= 4) {
-                        GpioPin pin = GpioPin.builder()
-                                .pin(Integer.parseInt(parts[1].replace("GPIO", "").trim()))
-                                .name(parts[1])
-                                .mode(parts[2])
-                                .value(parts[3])
-                                .function(parts.length > 4 ? parts[4] : "")
-                                .physicalPin("") // Would need mapping
-                                .bcmPin(parts[1].replace("GPIO", "").trim())
-                                .build();
-                        pins.add(pin);
-                    }
-                }
+        for (String line : output.split("\n")) {
+            try {
+                java.util.regex.Matcher matcher = RASPI_GPIO_PIN_LINE.matcher(line.trim());
+                if (!matcher.matches()) continue;
+
+                int pin = Integer.parseInt(matcher.group(1));
+                Map<String, String> fields = parseGpioFields(matcher.group(2));
+
+                String func = fields.getOrDefault("func", "");
+                String alt  = fields.get("alt");
+                String pull = fields.get("pull");
+
+                pins.add(GpioPin.builder()
+                        .pin(pin)
+                        .name("GPIO" + pin)
+                        // func is the decoded peripheral function; alt is the mux index that
+                        // selected it, and is absent on plain INPUT/OUTPUT pins.
+                        .mode(alt != null ? "ALT" + alt : func)
+                        .value(fields.getOrDefault("level", ""))
+                        .function(func)
+                        .physicalPin("") // header position is board-specific; not modelled
+                        .bcmPin(String.valueOf(pin))
+                        // Left null rather than false when raspi-gpio doesn't report a pull,
+                        // so "no pull configured" stays distinguishable from "not reported".
+                        .pullUp(pull == null ? null : pull.equalsIgnoreCase("UP"))
+                        .pullDown(pull == null ? null : pull.equalsIgnoreCase("DOWN"))
+                        .build());
+            } catch (Exception e) {
+                log.debug("Skipping unparseable raspi-gpio line: {}", line, e);
             }
-        } catch (Exception e) {
-            log.debug("Error parsing GPIO output", e);
         }
 
         return pins;
+    }
+
+    /** Splits the {@code key=value} tail of a raspi-gpio line; order-independent, unknown keys kept. */
+    private static Map<String, String> parseGpioFields(String tail) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (String token : tail.trim().split("\\s+")) {
+            int equals = token.indexOf('=');
+            if (equals > 0) fields.put(token.substring(0, equals), token.substring(equals + 1));
+        }
+        return fields;
     }
 
     private List<Map<String, Object>> getAudioDevices() {
@@ -1219,26 +1274,26 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             motherboard.put("manufacturer", "Raspberry Pi Foundation");
 
             // Get model from device tree
-            String model = readFileSafe(DEVICE_TREE_MODEL_PATH);
+            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
             if (!model.isEmpty()) {
                 motherboard.put("product", model.trim());
             }
 
             // Get serial number
-            String serial = readFileSafe(DEVICE_TREE_SERIAL_PATH);
+            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
             if (!serial.isEmpty()) {
                 motherboard.put("serial", serial.trim());
             }
 
             // Get revision
-            String cpuInfo = readFileSafe(CPU_INFO_PATH);
-            String revision = extractFromCpuInfo(cpuInfo, "Revision");
+            String cpuInfo = readFileSafe(sysPath(CPU_INFO_PATH));
+            String revision = extractKeyedValue(cpuInfo, "Revision");
             if (revision != null) {
                 motherboard.put("version", revision);
             }
 
             // BIOS version (firmware)
-            String firmwareVersion = exec(VC_GENCMD_PATH.toString(), "version");
+            String firmwareVersion = exec(VC_GENCMD, "version");
             if (!firmwareVersion.isEmpty()) {
                 motherboard.put("biosVersion", firmwareVersion.trim());
             }
@@ -1254,8 +1309,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         Map<String, Object> overclock = new HashMap<>();
 
         try {
-            if (Files.exists(CONFIG_TXT_PATH)) {
-                String config = readFileSafe(CONFIG_TXT_PATH);
+            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
+                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
 
                 // Parse common overclock settings
                 String[] settings = {
@@ -1311,7 +1366,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             features.put("hasHDMI", true);
             features.put("hasGPIO", true);
             features.put("hasCSI", cameraDetected);
-            features.put("hasDSI", Files.exists(Path.of("/proc/device-tree/display")));
+            features.put("hasDSI", Files.exists(sysPath(DEVICE_TREE_DISPLAY_PATH)));
 
             // Check for PoE HAT
             features.put("hasPoEHat", checkHasPoEHat());
@@ -1330,27 +1385,29 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         Map<String, Object> tuning = new HashMap<>();
 
         try {
+            Path cpufreq = sysPath(CPUFREQ_PATH);
+
             // Get current CPU governor
-            String governor = readFileSafe(Path.of("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"));
+            String governor = readFileSafe(cpufreq.resolve("scaling_governor"));
             tuning.put("cpuGovernor", governor.trim());
 
             // Get CPU frequency scaling info
-            String minFreq = readFileSafe(Path.of("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"));
-            String maxFreq = readFileSafe(Path.of("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"));
-            String curFreq = readFileSafe(Path.of("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"));
+            String minFreq = readFileSafe(cpufreq.resolve("scaling_min_freq"));
+            String maxFreq = readFileSafe(cpufreq.resolve("scaling_max_freq"));
+            String curFreq = readFileSafe(cpufreq.resolve("scaling_cur_freq"));
 
             tuning.put("minFrequency", minFreq.trim());
             tuning.put("maxFrequency", maxFreq.trim());
             tuning.put("currentFrequency", curFreq.trim());
 
             // Get memory split
-            String memorySplit = exec(VC_GENCMD_PATH.toString(), "get_mem", "arm");
+            String memorySplit = exec(VC_GENCMD, "get_mem", "arm");
             if (!memorySplit.isEmpty()) {
                 tuning.put("memorySplit", memorySplit.trim());
             }
 
             // Get GPU memory
-            String gpuMemory = exec(VC_GENCMD_PATH.toString(), "get_mem", "gpu");
+            String gpuMemory = exec(VC_GENCMD, "get_mem", "gpu");
             if (!gpuMemory.isEmpty()) {
                 tuning.put("gpuMemory", gpuMemory.trim());
             }
@@ -1441,7 +1498,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
             // Check SD card health (wear level)
             try {
-                String mmcLife = readFileSafe(Path.of("/sys/block/mmcblk0/device/life_time"));
+                String mmcLife = readFileSafe(sysPath(MMC_LIFETIME_PATH));
                 if (!mmcLife.isEmpty()) {
                     try {
                         int lifeTime = Integer.parseInt(mmcLife.trim(), 16);

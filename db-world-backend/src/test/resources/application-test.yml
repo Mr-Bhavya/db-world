@@ -1,0 +1,64 @@
+# =====================================================================
+# Test-only profile. Activated with @ActiveProfiles("test").
+#
+# Exists purely so @DataJpaTest can boot the real JPA context against an
+# in-memory H2 database. It never touches src/main/resources/application.yml
+# (whose MySQL datasource is overridden wholesale here, so its unresolved
+# ${DB_HOST}/${DB_USER} placeholders are never evaluated).
+# =====================================================================
+spring:
+
+  datasource:
+    # Every clause here earns its place:
+    #
+    #   MODE=MySQL          H2 accepts the MySQL column types the entities pin
+    #                       via columnDefinition (TEXT / LONGTEXT / JSON).
+    #   DATABASE_TO_LOWER   Hibernate emits lower_snake_case names (see the
+    #                       CamelCaseToUnderscoresNamingStrategy in the main
+    #                       application.yml); H2 upper-cases unquoted names by
+    #                       default, which would not match.
+    #   NON_KEYWORDS        H2 reserves words MySQL happily allows as column
+    #                       names. Without VALUE the app_config table cannot be
+    #                       created; USER and KEY are used by the auth,
+    #                       password-manager and TMDB video entities. The rest
+    #                       are pre-emptive — all are legal MySQL identifiers,
+    #                       so allowing them here does not weaken the check.
+    #   INIT=CREATE SCHEMA  The entities declare @Table(schema = "db_world").
+    #                       H2 must own that schema before Hibernate emits its
+    #                       CREATE TABLE statements, and INIT (which runs on
+    #                       every connection open) is the only hook early enough.
+    #   DB_CLOSE_DELAY=-1   Keeps the in-memory DB alive between connections so
+    #                       a pooled connection cycling can't drop the schema
+    #                       out from under a running test.
+    url: jdbc:h2:mem:dbworld_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=KEY,USER,VALUE,YEAR,MONTH,DAY,HOUR,MINUTE,SECOND,ROW,TOP;INIT=CREATE SCHEMA IF NOT EXISTS db_world
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      # Schema is generated from the mappings on every run — that generation
+      # step is exactly what catches a broken @Column/@JoinColumn.
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    properties:
+      # Fail loudly on a mapping that can't produce DDL rather than logging and
+      # limping on with a half-built schema.
+      hibernate.hbm2ddl.halt_on_error: true
+
+  # Nothing in a JPA slice test should reach Redis.
+  cache:
+    type: none
+
+  data:
+    redis:
+      repositories:
+        enabled: false
+
+# app.* values the main application.yml sources from the environment. Only the
+# handful that JPA-adjacent beans might touch need placeholders here.
+app:
+  paths:
+    temp: ${java.io.tmpdir}

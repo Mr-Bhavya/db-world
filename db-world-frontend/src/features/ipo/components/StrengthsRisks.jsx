@@ -48,7 +48,7 @@ function StrengthsRisksColumn({ kind, title, items }) {
         {title}
       </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-        {items.map((text, i) => <BulletRow key={i} text={text} kind={kind} />)}
+        {items.map((text) => <BulletRow key={text} text={text} kind={kind} />)}
       </Box>
     </Box>
   );

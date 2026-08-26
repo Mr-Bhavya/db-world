@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.mediarequest.service;
 
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestDto;
+import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestScopeSummary;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestVoteResponse;
 import com.db.dbworld.app.cinema.mediarequest.dto.MyMediaRequestEntry;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
@@ -10,11 +11,21 @@ import java.util.List;
 
 public interface MediaRequestService {
 
-    /** Toggle the caller's vote on a request of the given kind for this record. */
-    MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kind);
+    /**
+     * Toggle the caller's vote on a request for this record, kind and scope.
+     *
+     * @param season  season the request is about, or {@code null} for the whole title
+     * @param episode episode within {@code season}, or {@code null} for the whole season.
+     *                Only meaningful for a TV series; an episode without a season is rejected.
+     */
+    MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kind,
+                                        Integer season, Integer episode);
 
-    /** Pending {recordId, kind} pairs the caller has voted for. */
+    /** Pending requests the caller has voted for, across the catalogue. */
     List<MyMediaRequestEntry> getMyPendingRequests(Long userId);
+
+    /** Every pending request on one record, with vote counts — what the detail page renders from. */
+    List<MediaRequestScopeSummary> listPendingForRecord(Long recordId, Long callerUserId);
 
     /** Admin: list requests filtered by status (or all if null). */
     List<MediaRequestDto> listAll(MediaRequestStatus status, Long callerUserId);

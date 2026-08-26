@@ -43,6 +43,15 @@ public class WatchProgressController {
                 service.getRecentProgress(userContext.userId(), days));
     }
 
+    /**
+     * Every saved position for one record. The player's episode list draws a watched bar
+     * per episode, and asking file-by-file would be one request per episode.
+     */
+    @GetMapping("/record/{recordId}")
+    public ApiResponse<List<WatchProgressService.ProgressDto>> getForRecord(@PathVariable Long recordId) {
+        return ApiResponse.success(service.getRecordProgress(userContext.userId(), recordId));
+    }
+
     /** Continue Watching tiles: resume target + progress, completed items already filtered out. */
     @GetMapping("/continue")
     public ApiResponse<List<ContinueWatchingDto>> continueWatching() {

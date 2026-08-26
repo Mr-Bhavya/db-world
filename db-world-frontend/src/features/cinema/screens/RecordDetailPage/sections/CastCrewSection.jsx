@@ -5,8 +5,17 @@ import { motion } from 'framer-motion';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
+import SectionCard from '../shared/SectionCard';
 
 const CREW_VISIBLE_DEFAULT = 8;
+
+/* A blockbuster credits 15+ departments and several hundred people. Showing
+   every department card at once buries the ones anyone actually looks for
+   (Directing, Writing, Production), so the tail collapses behind a toggle. */
+const DEPTS_VISIBLE_DEFAULT = 6;
+
+/* Cast rails run long too — a Marvel film lists 100+ speaking parts. */
+const CAST_VISIBLE_DEFAULT = 20;
 
 // ─── Per-department card (with show more / show less) ────────────────────────
 function CrewDept({ dept, members, onPersonClick }) {
@@ -16,22 +25,19 @@ function CrewDept({ dept, members, onPersonClick }) {
   const overflow = members.length - CREW_VISIBLE_DEFAULT;
 
   return (
-    <Box
-      sx={{
-        alignSelf: 'start',
-        bgcolor: T.glass,
-        border: `1px solid ${alpha(T.text, 0.06)}`,
-        borderRadius: 1.5,
-        p: { xs: 1.5, sm: 2 },
-        display: 'flex', flexDirection: 'column',
-      }}
-    >
+    <SectionCard sx={{ alignSelf: 'start', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-        <Typography variant="caption" sx={{ color: T.teal, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+        <Typography sx={{
+          color: T.teal, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 800,
+          fontSize: { xs: '0.68rem', xl: '0.76rem' },
+        }}>
           {dept}
         </Typography>
         <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ color: T.textFaint, fontVariantNumeric: 'tabular-nums' }}>
+        <Typography sx={{
+          color: T.textFaint, fontVariantNumeric: 'tabular-nums',
+          fontSize: { xs: '0.68rem', xl: '0.76rem' },
+        }}>
           {members.length}
         </Typography>
       </Box>
@@ -55,12 +61,15 @@ function CrewDept({ dept, members, onPersonClick }) {
               '&:hover': clickable ? { bgcolor: alpha(T.teal, 0.08) } : undefined,
             }}
           >
-            <Typography variant="body2" sx={{ color: T.textMuted, fontSize: '0.85rem' }}>
+            <Typography sx={{
+              color: T.text, fontWeight: 600,
+              fontSize: { xs: '0.82rem', xl: '0.9rem' },
+            }}>
               {m.person?.name}
             </Typography>
-            <Typography variant="body2" sx={{
-              color: T.textFaint, fontSize: '0.78rem', textAlign: 'right',
-              flexShrink: 0, maxWidth: '55%',
+            <Typography sx={{
+              color: T.textFaint, textAlign: 'right', flexShrink: 0, maxWidth: '55%',
+              fontSize: { xs: '0.75rem', xl: '0.82rem' },
             }}>
               {m.job}
             </Typography>
@@ -72,18 +81,24 @@ function CrewDept({ dept, members, onPersonClick }) {
         <Button
           size="small"
           onClick={() => setExpanded((v) => !v)}
-          sx={{ mt: 1, alignSelf: 'flex-start', color: T.teal, textTransform: 'none', fontSize: '0.78rem', p: 0, minWidth: 0 }}
+          sx={{ mt: 1, alignSelf: 'flex-start', color: T.teal, textTransform: 'none', fontWeight: 700, fontSize: '0.78rem', p: 0, minWidth: 0 }}
         >
           {expanded ? 'Show less' : `Show ${overflow} more`}
         </Button>
       )}
-    </Box>
+    </SectionCard>
   );
 }
 
 // ─── CastCrewSection ─────────────────────────────────────────────────────────
+/* Departments people look for first, regardless of how many names each holds.
+   Sorting purely by size buries Directing (2 people) under Art (60). */
+const DEPT_PRIORITY = ['Directing', 'Writing', 'Production', 'Camera', 'Editing', 'Sound', 'Art'];
+
 export default function CastCrewSection({ record, onPersonClick }) {
   const T = useT();
+  const [allCast, setAllCast] = useState(false);
+  const [allDepts, setAllDepts] = useState(false);
   const tmdb = record?.tmdb ?? {};
   const credits = tmdb.credits ?? [];
 
@@ -98,8 +113,16 @@ export default function CastCrewSection({ record, onPersonClick }) {
     return acc;
   }, {});
 
-  const sortedDepts = Object.entries(crewByDept)
-    .sort((a, b) => b[1].length - a[1].length);
+  const sortedDepts = Object.entries(crewByDept).sort((a, b) => {
+    const ai = DEPT_PRIORITY.indexOf(a[0]);
+    const bi = DEPT_PRIORITY.indexOf(b[0]);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    return b[1].length - a[1].length;
+  });
+
+  const visibleCast  = allCast ? cast : cast.slice(0, CAST_VISIBLE_DEFAULT);
+  const visibleDepts = allDepts ? sortedDepts : sortedDepts.slice(0, DEPTS_VISIBLE_DEFAULT);
+  const hiddenDepts  = sortedDepts.length - visibleDepts.length;
 
   return (
     <Box
@@ -112,14 +135,16 @@ export default function CastCrewSection({ record, onPersonClick }) {
     >
       {cast.length > 0 && (
         <>
-          <SectionHeading>Cast</SectionHeading>
+          <SectionHeading action={cast.length > CAST_VISIBLE_DEFAULT ? `${visibleCast.length} of ${cast.length}` : null}>
+            Cast
+          </SectionHeading>
           <Box sx={{
             display: 'flex', gap: 2, overflowX: 'auto', pb: 1.5, mb: 4,
             scrollbarWidth: 'thin', scrollbarColor: `${alpha(T.text, 0.2)} transparent`,
             '&::-webkit-scrollbar': { height: 5 },
             '&::-webkit-scrollbar-thumb': { background: alpha(T.text, 0.2), borderRadius: 3 },
           }}>
-            {cast.map((c, i) => {
+            {visibleCast.map((c, i) => {
               const imgUrl = tmdbImg(c.person?.profilePath, 'w185');
               const initials = (c.person?.name ?? '?').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
               const personId = c.person?.id;
@@ -133,7 +158,9 @@ export default function CastCrewSection({ record, onPersonClick }) {
                   onClick={clickable ? () => onPersonClick?.(personId) : undefined}
                   sx={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    flexShrink: 0, width: 92, gap: 0.75,
+                    flexShrink: 0, gap: 0.75,
+                    width: { xs: 92, xl: 112 },
+                    '@media (min-width:1920px)': { width: 136 },
                     cursor: clickable ? 'pointer' : 'default',
                   }}
                 >
@@ -142,7 +169,8 @@ export default function CastCrewSection({ record, onPersonClick }) {
                       src={imgUrl ?? undefined}
                       alt={c.person?.name}
                       sx={{
-                        width: 76, height: 76,
+                        width: { xs: 76, xl: 96 }, height: { xs: 76, xl: 96 },
+                        '@media (min-width:1920px)': { width: 120, height: 120 },
                         bgcolor: alpha(T.teal, 0.3), fontSize: '1rem', fontWeight: 700,
                         border: `2px solid ${alpha(T.text, 0.1)}`,
                         transition: 'border-color .15s, box-shadow .15s',
@@ -152,32 +180,68 @@ export default function CastCrewSection({ record, onPersonClick }) {
                       {!imgUrl && initials}
                     </Avatar>
                   </Box>
-                  <Typography variant="caption" sx={{ color: T.text, fontWeight: 600, textAlign: 'center', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <Typography sx={{
+                    color: T.text, fontWeight: 700, textAlign: 'center', lineHeight: 1.3,
+                    fontSize: { xs: '0.75rem', xl: '0.85rem' },
+                    '@media (min-width:1920px)': { fontSize: '1rem' },
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>
                     {c.person?.name}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: T.textFaint, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.68rem' }}>
+                  <Typography sx={{
+                    color: T.textFaint, textAlign: 'center', lineHeight: 1.25,
+                    fontSize: { xs: '0.68rem', xl: '0.76rem' },
+                    '@media (min-width:1920px)': { fontSize: '0.9rem' },
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>
                     {c.character}
                   </Typography>
                 </Box>
               );
             })}
           </Box>
+
+          {cast.length > CAST_VISIBLE_DEFAULT && (
+            <Button
+              size="small"
+              onClick={() => setAllCast((v) => !v)}
+              sx={{ mb: 3, mt: -1.5, color: T.teal, textTransform: 'none', fontWeight: 700, fontSize: '0.82rem', p: 0, minWidth: 0 }}
+            >
+              {allCast ? 'Show fewer' : `Show all ${cast.length} cast`}
+            </Button>
+          )}
         </>
       )}
 
       {sortedDepts.length > 0 && (
         <>
-          <SectionHeading>Crew</SectionHeading>
+          <SectionHeading action={hiddenDepts > 0 ? `${visibleDepts.length} of ${sortedDepts.length} depts` : null}>
+            Crew
+          </SectionHeading>
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(280px, 1fr))' },
-            gap: { xs: 1.5, sm: 2 },
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(auto-fill, minmax(280px, 1fr))',
+              xl: 'repeat(auto-fill, minmax(330px, 1fr))',
+            },
+            gap: { xs: 1.5, sm: 2, xl: 2.5 },
             alignItems: 'start',
           }}>
-            {sortedDepts.map(([dept, members]) => (
+            {visibleDepts.map(([dept, members]) => (
               <CrewDept key={dept} dept={dept} members={members} onPersonClick={onPersonClick} />
             ))}
           </Box>
+
+          {(hiddenDepts > 0 || allDepts) && (
+            <Button
+              size="small"
+              onClick={() => setAllDepts((v) => !v)}
+              sx={{ mt: 2, color: T.teal, textTransform: 'none', fontWeight: 700, fontSize: '0.82rem', p: 0, minWidth: 0 }}
+            >
+              {allDepts ? 'Show fewer departments' : `Show ${hiddenDepts} more department${hiddenDepts === 1 ? '' : 's'}`}
+            </Button>
+          )}
         </>
       )}
 

@@ -52,6 +52,30 @@ function KindChip({ kind }) {
   );
 }
 
+/**
+ * WHICH PART of the title was asked for. A series request is scoped: the whole show, one
+ * season, or a single episode -- and "needs files for Breaking Bad" is unactionable when
+ * seasons 1-3 are already in the library. Movies only ever have one shape, so they show
+ * nothing here rather than a chip that always reads the same.
+ */
+function ScopeChip({ scopeLabel, isMovie, T, S }) {
+  if (isMovie) return null;
+  const wholeShow = !scopeLabel || scopeLabel === 'All';
+  return (
+    <Chip
+      size="small"
+      label={wholeShow ? 'Whole show' : scopeLabel}
+      sx={{
+        height: 22, fontWeight: 800, fontSize: 10,
+        fontVariantNumeric: 'tabular-nums',
+        bgcolor: wholeShow ? 'transparent' : 'rgba(45,212,191,0.14)',
+        color: wholeShow ? T.textMuted : '#2dd4bf',
+        border: `1px solid ${wholeShow ? S.border : 'rgba(45,212,191,0.4)'}`,
+      }}
+    />
+  );
+}
+
 function TypeChip({ isMovie, T, S }) {
   return (
     <Chip
@@ -229,6 +253,7 @@ export default function MediaRequestsAdminPage() {
             {/* Meta row: type · kind · voters */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 1, pl: 4.5 }}>
               <TypeChip isMovie={isMovie} T={T} S={S} />
+              <ScopeChip scopeLabel={r.scopeLabel} isMovie={isMovie} T={T} S={S} />
               <KindChip kind={r.kind} />
               <Box component="span" sx={{ display: 'inline-flex' }}>
                 <VotersPopover voters={r.voters} voteCount={r.voteCount} />
@@ -255,7 +280,7 @@ export default function MediaRequestsAdminPage() {
   return (
     <Box>
       <Typography variant="body2" sx={{ color: T.textMuted, mb: 2 }}>
-        Users vote on titles they want added. Mark as fulfilled once media files are uploaded — voters get notified automatically.
+        Users vote on what they want added — a whole title, a season, or a single episode. A request closes itself once matching files land (shown as fulfilled by <em>auto (file match)</em>); tick one off by hand if you answered it some other way. Voters are notified either way.
       </Typography>
 
       <ToggleButtonGroup
@@ -332,7 +357,10 @@ export default function MediaRequestsAdminPage() {
                       <TypeChip isMovie={isMovie} T={T} S={S} />
                     </TableCell>
                     <TableCell>
-                      <KindChip kind={r.kind} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                        <KindChip kind={r.kind} />
+                        <ScopeChip scopeLabel={r.scopeLabel} isMovie={isMovie} T={T} S={S} />
+                      </Box>
                     </TableCell>
                     <TableCell align="center">
                       <VotersPopover voters={r.voters} voteCount={r.voteCount} />
@@ -369,6 +397,11 @@ export default function MediaRequestsAdminPage() {
             <>
               <Typography variant="body2" sx={{ mb: 0.5 }}>
                 <strong>{dismissTarget.recordTitle}</strong>
+                {dismissTarget.scopeLabel && dismissTarget.scopeLabel !== 'All' && (
+                  <Box component="span" sx={{ color: 'text.secondary' }}>
+                    {' · '}{dismissTarget.scopeLabel}
+                  </Box>
+                )}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 2 }}>
                 {dismissTarget.voteCount} voter{dismissTarget.voteCount === 1 ? '' : 's'} will be notified.

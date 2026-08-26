@@ -102,6 +102,12 @@ public class WatchProgressService {
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
+    /** All saved positions for one record, keyed by file — drives the episode-list bars. */
+    public List<ProgressDto> getRecordProgress(Long userId, Long recordId) {
+        return repository.findByUserIdAndRecordId(userId, recordId)
+                .stream().map(this::toDto).toList();
+    }
+
     // ── Continue Watching ─────────────────────────────────────────────────────
 
     /**

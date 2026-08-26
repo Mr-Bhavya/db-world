@@ -51,6 +51,12 @@ public class TmdbDto {
 
     private int voteCount;
 
+    /** Age rating, e.g. "UA" or "TV-14". Null when no country on TMDB has rated the title. */
+    private String certification;
+
+    /** ISO-3166-1 country whose board issued {@link #certification}; see TmdbEntity. */
+    private String certificationCountry;
+
     private List<GenreDto> genres;
 
     private List<ProductionCompanyDto> productionCompanies;

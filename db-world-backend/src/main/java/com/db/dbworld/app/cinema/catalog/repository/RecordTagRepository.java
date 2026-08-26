@@ -1,14 +1,13 @@
 package com.db.dbworld.app.cinema.catalog.repository;
 
 import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecordTagRepository
         extends JpaRepository<RecordTagEntity, Long> {
 
-    void deleteByTagType(RecordTagType recordTagType);
+    void deleteByTagType(String tagType);
 
     /** Dashboard: count how many records carry a given tag. */
-    long countByTagType(RecordTagType tagType);
+    long countByTagType(String tagType);
 }

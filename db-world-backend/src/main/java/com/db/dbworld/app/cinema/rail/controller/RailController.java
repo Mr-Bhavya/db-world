@@ -10,7 +10,10 @@ import com.db.dbworld.app.cinema.tmdb.genre.dto.GenreDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/cinema")
@@ -114,6 +117,26 @@ public class RailController {
                 railService.createRail(request)
         );
     }
+
+    /**
+     * Applies a new rail display order in one request.
+     *
+     * <p>Body is a list of {@code {id, priority}} pairs. The admin UI used to send one full PUT per
+     * rail after a drag, which rewrote every rail's entire JSON rule and could leave priorities
+     * half-applied if one call failed. This touches nothing but {@code priority}, transactionally.
+     */
+    @PatchMapping("/rails/reorder")
+    public ApiResponse<Map<String, Integer>> reorderRails(@RequestBody List<RailOrderEntry> order) {
+        Map<Long, Integer> byId = order.stream()
+                .filter(e -> e.id() != null && e.priority() != null)
+                .collect(Collectors.toMap(RailOrderEntry::id, RailOrderEntry::priority,
+                        (a, b) -> b, LinkedHashMap::new));
+        int changed = railService.reorderRails(byId);
+        return ApiResponse.success("Rail order saved", Map.of("changed", changed));
+    }
+
+    /** One entry of a reorder request. */
+    public record RailOrderEntry(Long id, Integer priority) {}
 
     @PutMapping("/rails/{railId}")
     public ApiResponse<RailDto> updateRail(

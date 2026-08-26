@@ -208,6 +208,10 @@ public class WalletDocumentService {
     // ---- helpers ----
     private Set<String> allowedTypes() {
         String csv = settings.getString(ConfigKeys.WALLET_ALLOWED_CONTENT_TYPES);
+        // getString returns null for an unknown key or a null catalog default, which used
+        // to NPE on split(). Empty set = nothing passes the contains() check at the upload
+        // gate, so a missing setting fails CLOSED rather than waving every type through.
+        if (csv == null || csv.isBlank()) return Set.of();
         return Arrays.stream(csv.split(","))
                 .map(s -> s.trim().toLowerCase())
                 .filter(s -> !s.isEmpty())

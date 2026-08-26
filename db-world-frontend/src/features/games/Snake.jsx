@@ -249,9 +249,11 @@ const Snake = () => {
                   {phase === 'paused' && (
                     <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: T.textMuted }}>Paused</Typography>
                   )}
+                  {/* This overlay only renders for idle/dead/paused, so the button's action
+                      is always "play" — Start Game / Play Again / Resume. */}
                   <Button
                     variant="contained"
-                    startIcon={phase === 'paused' ? <PlayArrow /> : <PlayArrow />}
+                    startIcon={<PlayArrow />}
                     onClick={phase === 'paused' ? pause : start}
                     sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 700, '&:hover': { bgcolor: '#0f766e' } }}
                   >

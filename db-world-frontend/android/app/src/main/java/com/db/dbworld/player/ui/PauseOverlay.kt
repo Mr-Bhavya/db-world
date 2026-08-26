@@ -5,15 +5,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -23,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.db.dbworld.player.PlayerBadge
 
 /**
  * Netflix-style pause card: once the controls idle-hide while paused, reveal the show/episode
@@ -72,7 +79,44 @@ fun PauseOverlay(state: PlayerUiState) {
                         maxLines = 4, overflow = TextOverflow.Ellipsis, style = shadow,
                         modifier = Modifier.padding(top = 12.dp))
                 }
+                TechBadges(state.badges)
             }
         }
     }
+}
+
+/**
+ * The record page's tech badges (4K / HDR10 / ATMOS / H.265) — the resolution chip solid,
+ * the rest tinted outlines. Colours arrive as "#rrggbb" from JS so both players agree.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TechBadges(badges: List<PlayerBadge>) {
+    if (badges.isEmpty()) return
+    FlowRow(
+        Modifier.padding(top = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        badges.forEach { b ->
+            val tint = parseHex(b.color) ?: PlayerTheme.Teal
+            Box(
+                Modifier.clip(RoundedCornerShape(4.dp))
+                    .background(if (b.filled) tint else tint.copy(alpha = 0.18f))
+                    .border(1.dp, if (b.filled) tint else tint.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    b.label, color = if (b.filled) Color.White else tint,
+                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
+    }
+}
+
+private fun parseHex(hex: String): Color? = try {
+    Color(android.graphics.Color.parseColor(hex))
+} catch (_: IllegalArgumentException) {
+    null
 }

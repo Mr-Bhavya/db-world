@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.info.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.events.MediaFilesChangedEvent;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
 import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
@@ -19,6 +20,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -43,6 +45,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final ProcessExecutor processExecutor;
     private final MediaFileRepository mediaFileRepository;
     private final RecordRepository recordRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final AppProperties properties;
     private final StoryboardService storyboardService;
@@ -125,6 +128,12 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
         log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
                 saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
+
+        // What is playable for this record just changed. Consumed by the media-request
+        // auto-fulfiller, which listens AFTER_COMMIT so a rolled-back ingest announces nothing.
+        if (recordId != null) {
+            eventPublisher.publishEvent(new MediaFilesChangedEvent(recordId));
+        }
 
         return toDto(saved);
     }
@@ -384,7 +393,13 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + id));
         entity.setTmdbSeasonNumber(season);
         entity.setTmdbEpisodeNumber(episode);
-        return toDto(mediaFileRepository.save(entity));
+        MediaFileDto dto = toDto(mediaFileRepository.save(entity));
+        // A file that was already here can start answering an episode request the moment its
+        // numbering is corrected, so this counts as a change to what the record holds.
+        if (entity.getRecord() != null) {
+            eventPublisher.publishEvent(new MediaFilesChangedEvent(entity.getRecord().getId()));
+        }
+        return dto;
     }
 
     @Override
@@ -437,21 +452,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         String json = getRawJson(filePath);
 
         try {
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode tracks = root.path("media").path("track");
-
-            List<TrackDto> trackDtos = new ArrayList<>();
-
-            if (tracks.isArray()) {
-                int order = 0;
-
-                for (JsonNode node : tracks) {
-                    String type = node.path("@type").asText("");
-
-                    TrackDto dto = mapTrackToDto(type, node, order++);
-                    if (dto != null) trackDtos.add(dto);
-                }
-            }
+            List<TrackDto> trackDtos = parseTracks(json);
 
             return MediaFileDto.builder()
                     .fileName(filePath.getFileName().toString())
@@ -463,6 +464,32 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse MediaInfo JSON", e);
         }
+    }
+
+    /**
+     * MediaInfo JSON → track DTOs. Split out of {@link #collectMediaInfo(Path)} so the
+     * mapping can be exercised from fixtures: that method reads the file first, which made
+     * every branch of {@code mapTrackToDto} unreachable in tests without a real media file.
+     * Pure apart from the injected ObjectMapper — no filesystem access.
+     * Package-private for unit testing.
+     */
+    List<TrackDto> parseTracks(String json) {
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode tracks = root.path("media").path("track");
+
+        List<TrackDto> trackDtos = new ArrayList<>();
+
+        if (tracks.isArray()) {
+            int order = 0;
+
+            for (JsonNode node : tracks) {
+                String type = node.path("@type").asText("");
+
+                TrackDto dto = mapTrackToDto(type, node, order++);
+                if (dto != null) trackDtos.add(dto);
+            }
+        }
+        return trackDtos;
     }
 
     private String toRelativePath(Path filePath) {
@@ -498,7 +525,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
         try {
             entity.setFileSize(Files.size(filePath));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* File size is best-effort metadata; the probe result is usable without it. */ }
 
         if (recordId != null) {
             recordRepository.findById(recordId).ifPresent(entity::setRecord);
@@ -717,7 +744,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             if (track.getExtraJson() != null) {
                 extra = objectMapper.readValue(track.getExtraJson(), Map.class);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* Malformed extraJson leaves the extra map empty rather than failing the track. */ }
 
         b.rawMediaInfo(extra);
 

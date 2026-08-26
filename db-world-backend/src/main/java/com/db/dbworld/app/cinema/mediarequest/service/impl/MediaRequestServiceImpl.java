@@ -5,20 +5,25 @@ import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.dto.VoterSummary;
 import com.db.dbworld.app.cinema.common.support.RequestPushLinks;
 import com.db.dbworld.app.cinema.common.support.VoterListSupport;
+import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestDto;
+import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestScopeSummary;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestVoteResponse;
 import com.db.dbworld.app.cinema.mediarequest.dto.MyMediaRequestEntry;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestScope;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestStatus;
 import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.mediarequest.service.MediaRequestService;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.core.push.PushService;
 import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,14 +48,26 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     @Override
     @Transactional
-    public MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kindIn) {
+    public MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kindIn,
+                                               Integer season, Integer episode) {
         MediaRequestKind kind = kindIn == null ? MediaRequestKind.NEW_FILES : kindIn;
-        log.debug("toggleVote: recordId={}, userId={}, kind={}", recordId, userId, kind);
-        MediaRequestEntity request = requestRepo.findByRecordIdAndKind(recordId, kind).orElse(null);
+        MediaRequestScope scope = MediaRequestScope.of(season, episode);
+        log.debug("toggleVote: recordId={}, userId={}, kind={}, scope={}", recordId, userId, kind, scope.label());
+
+        MediaRequestEntity request = requestRepo
+                .findByRecordIdAndKindAndSeasonNumberAndEpisodeNumber(recordId, kind, scope.season(), scope.episode())
+                .orElse(null);
 
         if (request == null) {
             RecordEntity record = recordRepo.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException("Record", "id", recordId));
+
+            // A season/episode ask only means something for a series. Checked on creation only:
+            // an existing row was already validated when it was created.
+            if (!scope.isWholeTitle() && record.getType() != RecordType.TV_SERIES) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                        "Season and episode requests apply to series only");
+            }
 
             Set<Long> voters = new HashSet<>();
             voters.add(userId);
@@ -60,35 +77,32 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                     .recordTitle(record.getName())
                     .recordType(record.getType().name())
                     .kind(kind)
+                    .seasonNumber(scope.season())
+                    .episodeNumber(scope.episode())
                     .status(MediaRequestStatus.PENDING)
                     .voterUserIds(voters)
                     .build();
             request = requestRepo.save(request);
-            log.info("Media request created: id={}, recordId={}, kind={}, firstVoter={}",
-                    request.getId(), recordId, kind, userId);
+            log.info("Media request created: id={}, recordId={}, kind={}, scope={}, firstVoter={}",
+                    request.getId(), recordId, kind, scope.label(), userId);
 
-            // A brand-new request row → alert admins only. Best-effort; never break the vote.
+            // A brand-new request row -> alert admins only. Best-effort; never break the vote.
             try {
                 pushService.broadcastToAdmins("New request",
-                        record.getName() + " — " + kindLabel(kind),
+                        scope.qualify(record.getName()) + " - " + kindLabel(kind),
                         Map.of("route", "admin/requests"), "admin");
             } catch (Exception e) {
                 log.debug("New media-request admin push failed for recordId={}: {}", recordId, e.toString());
             }
 
-            return MediaRequestVoteResponse.builder()
-                    .recordId(recordId)
-                    .kind(kind)
-                    .voteCount(1)
-                    .hasMyVote(true)
-                    .build();
+            return MediaRequestVoteResponse.of(recordId, kind, scope, 1, true);
         }
 
-        // Fulfilled/dismissed → a fresh vote re-opens it. Old voters are reset so the
+        // Fulfilled/dismissed -> a fresh vote re-opens it. Old voters are reset so the
         // new PENDING run starts clean; admins get a new aggregated count.
         if (request.getStatus() != MediaRequestStatus.PENDING) {
-            log.info("Media request reopened by fresh vote: id={}, recordId={}, kind={}, prevStatus={}, userId={}",
-                    request.getId(), recordId, kind, request.getStatus(), userId);
+            log.info("Media request reopened by fresh vote: id={}, recordId={}, kind={}, scope={}, prevStatus={}, userId={}",
+                    request.getId(), recordId, kind, scope.label(), request.getStatus(), userId);
             request.setStatus(MediaRequestStatus.PENDING);
             request.setFulfilledAt(null);
             request.setFulfilledByUserId(null);
@@ -107,25 +121,30 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         // If everyone unvoted, prune the empty request to keep the queue clean.
         if (voteCount == 0) {
             requestRepo.delete(request);
-            log.info("Media request pruned (no voters): id={}, recordId={}, kind={}",
-                    request.getId(), recordId, kind);
+            log.info("Media request pruned (no voters): id={}, recordId={}, kind={}, scope={}",
+                    request.getId(), recordId, kind, scope.label());
         } else {
-            log.info("Media request vote {}: requestId={}, recordId={}, kind={}, userId={}, voteCount={}",
-                    removed ? "removed" : "cast", request.getId(), recordId, kind, userId, voteCount);
+            log.info("Media request vote {}: requestId={}, recordId={}, kind={}, scope={}, userId={}, voteCount={}",
+                    removed ? "removed" : "cast", request.getId(), recordId, kind, scope.label(), userId, voteCount);
         }
 
-        return MediaRequestVoteResponse.builder()
-                .recordId(recordId)
-                .kind(kind)
-                .voteCount(voteCount)
-                .hasMyVote(hasMyVote)
-                .build();
+        return MediaRequestVoteResponse.of(recordId, kind, scope, voteCount, hasMyVote);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MyMediaRequestEntry> getMyPendingRequests(Long userId) {
-        return requestRepo.findPendingRequestsVotedBy(userId);
+        return requestRepo.findPendingVotedBy(userId).stream()
+                .map(MyMediaRequestEntry::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaRequestScopeSummary> listPendingForRecord(Long recordId, Long callerUserId) {
+        return requestRepo.findPendingForRecordWithVoters(recordId).stream()
+                .map(r -> MediaRequestScopeSummary.from(r, callerUserId))
+                .toList();
     }
 
     @Override
@@ -168,23 +187,26 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setFulfilledByUserId(adminUserId);
         request.setFulfilledByUsername(adminUsername);
         requestRepo.save(request);
-        log.info("Media request fulfilled: id={}, recordId={}, voters={}, adminUserId={}",
-                requestId, request.getRecordId(),
+        log.info("Media request fulfilled: id={}, recordId={}, scope={}, voters={}, adminUserId={}",
+                requestId, request.getRecordId(), request.scope().label(),
                 request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
                 adminUserId);
+
+        // Voters are told WHAT landed, not just which show: "Breaking Bad - S02E05".
+        String scopedTitle = request.scope().qualify(request.getRecordTitle());
 
         notifService.createRequestFulfilledNotifications(
                 adminUserId,
                 adminUsername,
                 request.getRecordId(),
-                request.getRecordTitle(),
+                scopedTitle,
                 request.getRecordType(),
                 request.getVoterUserIds()
         );
 
         // Targeted "request fulfilled" push to the voters (same recipients as the in-app notification).
-        pushRequestUpdate("Request fulfilled", request.getRecordId(), request.getRecordTitle(),
-                request.getRecordType(), request.getVoterUserIds());
+        pushRequestUpdate("Request fulfilled", request.getRecordId(), scopedTitle,
+                request.getRecordTitle(), request.getRecordType(), request.getVoterUserIds());
 
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
@@ -205,24 +227,26 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setStatus(MediaRequestStatus.DISMISSED);
         request.setDismissReason(trimmed);
         requestRepo.save(request);
-        log.info("Media request dismissed: id={}, recordId={}, voters={}, hasReason={}, adminUserId={}",
-                requestId, request.getRecordId(),
+        log.info("Media request dismissed: id={}, recordId={}, scope={}, voters={}, hasReason={}, adminUserId={}",
+                requestId, request.getRecordId(), request.scope().label(),
                 request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
                 trimmed != null, adminUserId);
+
+        String scopedTitle = request.scope().qualify(request.getRecordTitle());
 
         notifService.createRequestDismissedNotifications(
                 adminUserId,
                 adminUsername,
                 request.getRecordId(),
-                request.getRecordTitle(),
+                scopedTitle,
                 request.getRecordType(),
                 trimmed,
                 request.getVoterUserIds()
         );
 
         // Targeted "request dismissed" push to the voters (same recipients as the in-app notification).
-        pushRequestUpdate("Request dismissed", request.getRecordId(), request.getRecordTitle(),
-                request.getRecordType(), request.getVoterUserIds());
+        pushRequestUpdate("Request dismissed", request.getRecordId(), scopedTitle,
+                request.getRecordTitle(), request.getRecordType(), request.getVoterUserIds());
 
         return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
@@ -246,12 +270,16 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     private MediaRequestDto toDto(MediaRequestEntity e, Long callerUserId, Map<Long, VoterSummary> voterCache) {
         Set<Long> voters = e.getVoterUserIds();
+        MediaRequestScope scope = e.scope();
         return MediaRequestDto.builder()
                 .id(e.getId())
                 .recordId(e.getRecordId())
                 .recordTitle(e.getRecordTitle())
                 .recordType(e.getRecordType())
                 .kind(e.getKind())
+                .season(scope.seasonOrNull())
+                .episode(scope.episodeOrNull())
+                .scopeLabel(scope.label())
                 .status(e.getStatus())
                 .voteCount(voters == null ? 0 : voters.size())
                 .hasMyVote(callerUserId != null && voters != null && voters.contains(callerUserId))
@@ -279,15 +307,19 @@ public class MediaRequestServiceImpl implements MediaRequestService {
      * Best-effort targeted push to a request's voters on the {@code request-updates} channel. Fully
      * defensive: an empty voter set is a no-op and any failure is swallowed so the underlying
      * fulfil/dismiss operation can never break on a push hiccup.
+     *
+     * @param bodyTitle   scope-qualified title for the notification body
+     * @param recordTitle the bare record title. The deep-link slug is built from this, so the
+     *                    scope label must not leak into the URL.
      */
-    private void pushRequestUpdate(String title, Long recordId, String recordTitle,
-                                   String recordType, Collection<Long> voterIds) {
+    private void pushRequestUpdate(String title, Long recordId, String bodyTitle,
+                                   String recordTitle, String recordType, Collection<Long> voterIds) {
         if (voterIds == null || voterIds.isEmpty()) {
             return;
         }
         try {
             pushService.sendToUsers(voterIds, title,
-                    recordTitle == null || recordTitle.isBlank() ? title : recordTitle,
+                    bodyTitle == null || bodyTitle.isBlank() ? title : bodyTitle,
                     RequestPushLinks.recordDeepLink(recordId, recordTitle, recordType),
                     "request-updates");
         } catch (Exception e) {

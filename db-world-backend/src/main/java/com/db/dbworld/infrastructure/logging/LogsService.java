@@ -156,7 +156,7 @@ public class LogsService {
                             String datePart = name.substring(prefix.length(), prefix.length() + 10);
                             LocalDate d = LocalDate.parse(datePart);
                             if (!d.isBefore(cutoff)) dates.add(d);
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) { /* A filename whose date part doesn't parse isn't a dated log file. */ }
                     });
         }
 
@@ -363,7 +363,7 @@ public class LogsService {
             } catch (IOException e) {
                 log.error("Fatal IO in follow thread sessionId={}", sessionId, e);
             } finally {
-                if (raf != null) try { raf.close(); } catch (IOException ignored) {}
+                if (raf != null) try { raf.close(); } catch (IOException ignored) { /* Best-effort close in finally; the read failure above is already logged. */ }
                 followSessions.remove(sessionId);
             }
         });

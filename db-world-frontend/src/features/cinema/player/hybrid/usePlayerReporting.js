@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { postStreamTrackEvents } from '@shared/services/ApiServices';
+import { postStreamTrackEvents, postStreamTrackEventsOnExit } from '@shared/services/ApiServices';
 
 const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
   ? crypto.randomUUID()
@@ -19,7 +19,8 @@ const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
  * @returns {{ progressRef, report, emitStreamEvent, streamStartedRef, streamStoppedRef }}
  *   progressRef       — { positionMs, durationMs }; caller updates it from 'time' events
  *   report(ended)     — persist watch progress (calls onProgress)
- *   emitStreamEvent   — (type, overrides?) → post one STREAM_* event
+ *   emitStreamEvent   — (type, overrides?) → queue one STREAM_* event
+ *   flushEvents       — ({onExit}?) → send the queue now
  *   streamStartedRef  — guards STREAM_START firing once per session
  *   streamStoppedRef  — guards STREAM_STOP firing once per session
  */
@@ -28,8 +29,8 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
 
   const onProgressRef = useRef(onProgress);
   onProgressRef.current = onProgress;
-  const report = useCallback((ended = false) => {
-    onProgressRef.current?.({ ...progressRef.current, ended });
+  const report = useCallback((ended = false, opts = {}) => {
+    onProgressRef.current?.({ ...progressRef.current, ended, ...opts });
   }, []);
 
   const streamStartedRef = useRef(false); // guards STREAM_START firing once per session
@@ -40,6 +41,21 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
   mediaFileIdRef.current = mediaFileId;
   const recordIdRef = useRef(recordId);
   recordIdRef.current = recordId;
+
+  // Outbound event queue. /api/track/events accepts up to 100 events per call, so a
+  // tick, a pause and three seeks are one request rather than five. START and STOP are
+  // flushed on the spot: they open and close the session the backend accounts against,
+  // and a queued STOP is a STOP that may never be sent.
+  const queueRef = useRef([]);
+  const flushEvents = useCallback(({ onExit = false } = {}) => {
+    const batch = queueRef.current;
+    if (!batch.length) return;
+    queueRef.current = [];
+    try {
+      if (onExit) postStreamTrackEventsOnExit(batch, { app: isNative });
+      else        postStreamTrackEvents(batch, { app: isNative });
+    } catch { /* telemetry must never affect playback */ }
+  }, [isNative]);
 
   const emitStreamEvent = useCallback((type, overrides = {}) => {
     try {
@@ -58,11 +74,23 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
         durationMs: Math.round(progressRef.current.durationMs) || null,
         ...overrides,
       };
-      postStreamTrackEvents([event], { app: isNative });
+      queueRef.current.push(event);
+      // Cap the queue at the endpoint's own limit; the oldest ticks are the least
+      // interesting thing to lose if a device somehow stays offline this long.
+      if (queueRef.current.length > 100) queueRef.current = queueRef.current.slice(-100);
+      // STOP often coincides with the page going away, so it gets the unload-safe send.
+      if (type === 'STREAM_START') flushEvents();
+      if (type === 'STREAM_STOP')  flushEvents({ onExit: true });
     } catch {
       // telemetry must never affect playback
     }
-  }, [isNative]);
+  }, [isNative, flushEvents]);
+
+  // Periodic flush so a long, uneventful watch still reports in.
+  useEffect(() => {
+    const t = setInterval(() => flushEvents(), 60000);
+    return () => { clearInterval(t); flushEvents({ onExit: true }); };
+  }, [flushEvents]);
 
   // Re-arm the start/stop guards whenever the session (requestId) changes —
   // covers episode switches so the new session reports its own START/STOP.
@@ -71,5 +99,5 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
     streamStoppedRef.current = false;
   }, [requestId]);
 
-  return { progressRef, report, emitStreamEvent, streamStartedRef, streamStoppedRef };
+  return { progressRef, report, emitStreamEvent, flushEvents, streamStartedRef, streamStoppedRef };
 }

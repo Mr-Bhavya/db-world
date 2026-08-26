@@ -80,6 +80,22 @@ public class TmdbEntity {
 
     private int voteCount;
 
+    /* ── Age rating ────────────────────────────────────────────────────────────────────
+       Resolved by TmdbCertificationResolver from a per-type append: release_dates for
+       movies, content_ratings for series. On the base entity because both types have one,
+       even though TMDB sources them differently.
+
+       certificationCountry is stored alongside the value because the two are meaningless
+       apart: "UA" is a CBFC rating and "TV-14" a US one, and without the country there is
+       no way to tell an Indian rating from a fallback picked up elsewhere. The UI shows
+       only the value; the country is for admin and for judging coverage. */
+
+    @Column(name = "certification", length = 16)
+    private String certification;
+
+    @Column(name = "certification_country", length = 2)
+    private String certificationCountry;
+
     /* ── Derived sort fields (kept in sync by lifecycle hooks; used by rail sorting) ──
        These exist so rails can sort uniformly across movies AND series:
        - primaryDate: release date for movies / first-air date for series (set by the

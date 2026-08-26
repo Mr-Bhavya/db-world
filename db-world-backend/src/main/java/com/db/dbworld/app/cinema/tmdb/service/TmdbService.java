@@ -19,6 +19,13 @@ public interface TmdbService {
 
     Mono<ProvidersTmdbResponse> fetchProviders(Long tmdbId, RecordType type);
 
+    /**
+     * Videos for one language. Separate from the detail call because TMDB filters the
+     * {@code videos} append by request language and offers no way to ask for several at once on
+     * these endpoints — so extra languages cost one request each.
+     */
+    Mono<VideosTmdbResponse> fetchVideos(Long tmdbId, RecordType type, String language);
+
     Mono<PersonTmdbResponse> fetchPerson(Long personId);
 
     Flux<Long> fetchAllMovieChanges(String startDate, String endDate);

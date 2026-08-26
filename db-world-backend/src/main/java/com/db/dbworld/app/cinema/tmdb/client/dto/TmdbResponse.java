@@ -51,4 +51,10 @@ public class TmdbResponse {
 
     private List<ReviewTmdbResponse> reviews;
 
+    /**
+     * Only populated when the request asks for the translations append. Used to decide which
+     * extra per-language video requests are worth making; the text itself isn't stored yet.
+     */
+    private TranslationsTmdbResponse translations;
+
 }

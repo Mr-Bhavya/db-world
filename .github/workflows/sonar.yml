@@ -34,14 +34,22 @@ jobs:
         working-directory: db-world-backend
         run: mvn -B -ntp test
 
+      # Populates target/dependency for sonar.java.libraries. Without the dependency
+      # classpath the Java analyser can't resolve types from Spring, Lombok and friends, and
+      # degrades quietly — "Missing 'sonar.java.libraries'" followed by "Unresolved
+      # imports/types have been detected".
+      - name: Backend dependency classpath for Sonar
+        working-directory: db-world-backend
+        run: mvn -B -ntp dependency:copy-dependencies
+
       # --- Frontend: run the suite → coverage/lcov.info ---
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      # package-lock.json is gitignored (see ci.yml), so resolve fresh with npm install.
+      # `npm ci` — reproducible install from the tracked lockfile (see ci.yml).
       - name: Frontend deps
         working-directory: db-world-frontend
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Frontend tests + coverage
         working-directory: db-world-frontend
         run: npm run test:coverage
@@ -52,3 +60,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          # Name the analysed branch explicitly on push/workflow_dispatch. Without this a
+          # manual dispatch on a feature branch was published as `main`, overwriting main's
+          # analysis with unmerged code (and flipping its quality gate red). This can't live
+          # in sonar-project.properties: a fixed value there would pin every analysis to one
+          # branch name. On pull_request it must stay unset — the action injects the
+          # sonar.pullrequest.* parameters itself, and adding sonar.branch.name alongside
+          # them breaks PR decoration.
+          args: "${{ github.event_name != 'pull_request' && format('-Dsonar.branch.name={0}', github.ref_name) || '' }}"

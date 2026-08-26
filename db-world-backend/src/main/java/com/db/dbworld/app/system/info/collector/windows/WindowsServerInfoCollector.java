@@ -32,6 +32,13 @@ import java.util.stream.Collectors;
 @Service("windowsServerInfoCollector")
 public class WindowsServerInfoCollector extends ServerInfoCollector {
 
+    /** Busiest-N process cap, matching the Linux collector's limit. */
+    private static final int MAX_PROCESSES = 50;
+
+    /** Win32_LogicalDisk DriveType values that shouldn't count as storage: Compact Disc, RAM Disk. */
+    private static final int DRIVE_TYPE_CDROM = 5;
+    private static final int DRIVE_TYPE_RAMDISK = 6;
+
     public WindowsServerInfoCollector(ProcessExecutor processExecutor) {
         super(processExecutor);
         log.info("WindowsServerInfoCollector initialized");
@@ -287,6 +294,17 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
             long usedSpace = 0;
 
             for (Map<String, Object> diskData : diskDataList) {
+                // Determine drive type
+                Integer driveType = getIntegerValue(diskData.get("DriveType"));
+                String type = getDriveType(driveType);
+
+                // Skip CD-ROM and RAM disks. This has to happen before the running totals are
+                // updated, or a mounted disc inflates totalSpace/freeSpace while being absent
+                // from the drive list, leaving the summary inconsistent with its own rows.
+                if (isNonStorageDriveType(driveType)) {
+                    continue;
+                }
+
                 long diskSize = getLongValue(diskData.get("Size"));
                 long diskFree = getLongValue(diskData.get("FreeSpace"));
                 long diskUsed = diskSize - diskFree;
@@ -296,15 +314,6 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                 usedSpace += diskUsed;
 
                 double usedPercent = calculatePercentage(diskUsed, diskSize);
-
-                // Determine drive type
-                Integer driveType = getIntegerValue(diskData.get("DriveType"));
-                String type = getDriveType(driveType);
-
-                // Skip CD-ROM (5) and RAM disks (6) if you want
-                if (driveType != null && (driveType == 5 || driveType == 6)) {
-                    continue;
-                }
 
                 DriveInfo drive = DriveInfo.builder()
                         .device(getStringValue(diskData.get("DeviceID"), "Unknown"))
@@ -349,6 +358,10 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
         }
     }
 
+    private static boolean isNonStorageDriveType(Integer driveType) {
+        return driveType != null && (driveType == DRIVE_TYPE_CDROM || driveType == DRIVE_TYPE_RAMDISK);
+    }
+
     private String getDriveType(Integer driveType) {
         if (driveType == null) return "Unknown";
 
@@ -370,50 +383,46 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
         long freeSpace = 0;
         long usedSpace = 0;
 
-        String[] lines = output.split("\n");
-        for (int i = 1; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (!line.isEmpty()) {
-                String[] parts = line.split(",");
-                if (parts.length >= 7) {
-                    try {
-                        long diskSize = Long.parseLong(parts[3].trim());
-                        long diskFree = Long.parseLong(parts[4].trim());
-                        long diskUsed = diskSize - diskFree;
+        for (Map<String, String> row : parseWmicCsv(output)) {
+            try {
+                String deviceId = row.getOrDefault("DeviceID", "");
+                if (deviceId.isEmpty()) continue;
 
-                        totalSpace += diskSize;
-                        freeSpace += diskFree;
-                        usedSpace += diskUsed;
+                Integer driveType = getIntegerValue(row.get("DriveType"));
+                String type = getDriveType(driveType);
 
-                        double usedPercent = calculatePercentage(diskUsed, diskSize);
-
-                        Integer driveType = Integer.parseInt(parts[6].trim());
-                        String type = getDriveType(driveType);
-
-                        // Skip CD-ROM and RAM disks
-                        if (driveType == 5 || driveType == 6) {
-                            continue;
-                        }
-
-                        DriveInfo drive = DriveInfo.builder()
-                                .device(parts[1].trim())
-                                .volumeName(parts[2].trim())
-                                .mountPoint(parts[1].trim())
-                                .fileSystem(parts[5].trim())
-                                .totalBytes(diskSize)
-                                .freeBytes(diskFree)
-                                .usedBytes(diskUsed)
-                                .totalFormatted(formatBytes(diskSize))
-                                .freeFormatted(formatBytes(diskFree))
-                                .usedFormatted(formatBytes(diskUsed))
-                                .usedPercent(String.format("%.1f", usedPercent))
-                                .type(type)
-                                .build();
-                        drives.add(drive);
-                    } catch (NumberFormatException e) {
-                        log.debug("Error parsing disk size", e);
-                    }
+                // Skip before accumulating, for the same reason as the CIM path above.
+                if (isNonStorageDriveType(driveType)) {
+                    continue;
                 }
+
+                long diskSize = getLongValue(row.get("Size"));
+                long diskFree = getLongValue(row.get("FreeSpace"));
+                long diskUsed = diskSize - diskFree;
+
+                totalSpace += diskSize;
+                freeSpace += diskFree;
+                usedSpace += diskUsed;
+
+                double usedPercent = calculatePercentage(diskUsed, diskSize);
+
+                DriveInfo drive = DriveInfo.builder()
+                        .device(deviceId)
+                        .volumeName(row.getOrDefault("VolumeName", ""))
+                        .mountPoint(deviceId)
+                        .fileSystem(row.getOrDefault("FileSystem", "Unknown"))
+                        .totalBytes(diskSize)
+                        .freeBytes(diskFree)
+                        .usedBytes(diskUsed)
+                        .totalFormatted(formatBytes(diskSize))
+                        .freeFormatted(formatBytes(diskFree))
+                        .usedFormatted(formatBytes(diskUsed))
+                        .usedPercent(String.format("%.1f", usedPercent))
+                        .type(type)
+                        .build();
+                drives.add(drive);
+            } catch (NumberFormatException e) {
+                log.debug("Error parsing disk size", e);
             }
         }
 
@@ -589,7 +598,7 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
             // Get CPU usage for each process
             Map<Integer, Double> cpuUsageMap = getProcessCpuUsage();
 
-            for (Map<String, Object> processData : processDataList.subList(0,4)) {
+            for (Map<String, Object> processData : processDataList) {
                 Integer pid = getIntegerValue(processData.get("ProcessId"));
                 if (pid == null || pid <= 0) continue;
 
@@ -606,12 +615,6 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                         .priority(getIntegerValue(processData.get("Priority")))
                         .build();
 
-                // Get user information
-                String user = getProcessUser(pid);
-                if (!user.isEmpty()) {
-                    process.setUser(user);
-                }
-
                 // Parse creation date
                 Date creationDate = (Date) processData.get("CreationDate");
                 if (creationDate != null) {
@@ -626,8 +629,22 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                 processes.add(process);
             }
 
-            // Sort by CPU usage descending
+            // Sort by CPU usage descending, then keep the busiest MAX_PROCESSES — the same cap
+            // the Linux collector applies. This replaces a hardcoded subList(0, 4), which both
+            // truncated the list to four processes and threw IndexOutOfBoundsException whenever
+            // the query returned fewer than four rows (an empty result included).
             processes.sort((p1, p2) -> Double.compare(p2.getCpuUsage(), p1.getCpuUsage()));
+            if (processes.size() > MAX_PROCESSES) {
+                processes = new ArrayList<>(processes.subList(0, MAX_PROCESSES));
+            }
+
+            // Owner lookup costs one command per process, so only resolve it for the ones kept.
+            for (ProcessInfo process : processes) {
+                String user = getProcessUser(process.getPid());
+                if (!user.isEmpty()) {
+                    process.setUser(user);
+                }
+            }
 
         } catch (Exception e) {
             log.error("Error collecting process info {}", e.getMessage());
@@ -707,7 +724,12 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
             String output = exec(command);
             List<Map<String, Object>> serviceDataList = parsePowerShellJson(output);
 
-            for (Map<String, Object> serviceData : serviceDataList.subList(0,5)) {
+            // One bulk pid -> working-set lookup instead of a command per service. Without it,
+            // dropping the old hardcoded subList(0, 5) would mean one PowerShell invocation per
+            // service on a box with a couple of hundred of them.
+            Map<Integer, Long> memoryByPid = getProcessMemoryUsageByPid();
+
+            for (Map<String, Object> serviceData : serviceDataList) {
                 ServiceInfo service = ServiceInfo.builder()
                         .name(getStringValue(serviceData.get("Name"), "Unknown"))
                         .displayName(getStringValue(serviceData.get("DisplayName"), ""))
@@ -724,7 +746,7 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                 if (!pidStr.isEmpty() && !pidStr.equals("0")) {
                     try {
                         int pid = Integer.parseInt(pidStr);
-                        service.setMemoryUsage(getProcessMemoryUsage(pid));
+                        service.setMemoryUsage(memoryByPid.getOrDefault(pid, 0L));
                     } catch (NumberFormatException e) {
                         // Ignore invalid PID
                     }
@@ -742,15 +764,22 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
         return services;
     }
 
-    private Long getProcessMemoryUsage(int pid) {
+    /** pid -&gt; working-set bytes for every running process, in one call. */
+    private Map<Integer, Long> getProcessMemoryUsageByPid() {
+        Map<Integer, Long> memoryByPid = new HashMap<>();
         try {
             String command = "powershell.exe -Command " +
-                    "\"(Get-Process -Id " + pid + ").WorkingSet64\"";
-            String output = exec(command).trim();
-            return Long.parseLong(output);
+                    "\"Get-Process | Select-Object Id, WorkingSet64 | ConvertTo-Json\"";
+            for (Map<String, Object> row : parsePowerShellJson(exec(command))) {
+                Integer pid = getIntegerValue(row.get("Id"));
+                if (pid != null) {
+                    memoryByPid.put(pid, getLongValue(row.get("WorkingSet64")));
+                }
+            }
         } catch (Exception e) {
-            return 0L;
+            log.debug("Error getting per-process memory usage", e);
         }
+        return memoryByPid;
     }
 
     @Override
@@ -776,18 +805,21 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
             long diskWrites = 0;
 
             for (Map<String, Object> perfData : perfDataList) {
-                String path = getStringValue(perfData.get("Path"), "");
+                // Get-Counter reports the resolved counter path lowercased
+                // ("\\host\memory\available mbytes"), so this has to match case-insensitively
+                // or none of these branches is ever taken and every metric stays 0.
+                String path = getStringValue(perfData.get("Path"), "").toLowerCase(Locale.ROOT);
                 Double cookedValue = getDoubleValue(perfData.get("CookedValue"));
 
-                if (path.contains("Available MBytes")) {
+                if (path.contains("available mbytes")) {
                     availableMB = cookedValue;
-                } else if (path.contains("Bytes Received/sec")) {
+                } else if (path.contains("bytes received/sec")) {
                     bytesIn += cookedValue.longValue();
-                } else if (path.contains("Bytes Sent/sec")) {
+                } else if (path.contains("bytes sent/sec")) {
                     bytesOut += cookedValue.longValue();
-                } else if (path.contains("Disk Reads/sec")) {
+                } else if (path.contains("disk reads/sec")) {
                     diskReads += cookedValue.longValue();
-                } else if (path.contains("Disk Writes/sec")) {
+                } else if (path.contains("disk writes/sec")) {
                     diskWrites += cookedValue.longValue();
                 }
             }
@@ -844,7 +876,7 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
 
     private double calculateDiskIOLoad(long reads, long writes) {
         // Simple heuristic: sum of reads and writes per second
-        return reads + writes;
+        return (double) reads + writes;
     }
 
     private long getUptime() {
@@ -1583,25 +1615,57 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
     }
 
     // Helper methods for fallback parsing
+    /**
+     * Parse {@code wmic ... /format:csv} output into one map per data row, keyed by header name.
+     *
+     * <p>wmic emits its columns in its own order — {@code Node} first, then the rest
+     * alphabetically — regardless of the order the query listed them in. Reading these rows by
+     * position therefore mismaps every field: on a {@code wmic cpu get} the second column is
+     * CurrentClockSpeed, not Name. Keys are matched case-insensitively because wmic also
+     * capitalises headers differently from the query.
+     */
+    private List<Map<String, String>> parseWmicCsv(String output) {
+        List<Map<String, String>> rows = new ArrayList<>();
+        if (output == null || output.isBlank()) return rows;
+
+        String[] headers = null;
+        for (String rawLine : output.split("\n")) {
+            String line = rawLine.trim();
+            if (line.isEmpty()) continue;
+
+            String[] cells = line.split(",", -1);
+            if (headers == null) {
+                headers = cells;
+                continue;
+            }
+
+            Map<String, String> row = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            for (int i = 0; i < headers.length && i < cells.length; i++) {
+                row.put(headers[i].trim(), cells[i].trim());
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
     private CpuInfo parseWmicCpuInfo(String output) {
         try {
-            String[] lines = output.split("\n");
-            if (lines.length > 1) {
-                String[] parts = lines[1].split(",");
-                if (parts.length >= 9) {
-                    return CpuInfo.builder()
-                            .name(parts[1].trim())
-                            .vendor(parts[2].trim())
-                            .cores(Integer.parseInt(parts[3].trim()))
-                            .threads(Integer.parseInt(parts[4].trim()))
-                            .maxFrequency(Long.parseLong(parts[5].trim()) * 1000000L)
-                            .currentFrequency(Long.parseLong(parts[6].trim()) * 1000000L)
-                            .l2Cache(Long.parseLong(parts[7].trim()))
-                            .l3Cache(Long.parseLong(parts[8].trim()))
-                            .availableProcessors(Runtime.getRuntime().availableProcessors())
-                            .architecture(System.getProperty("os.arch"))
-                            .build();
-                }
+            for (Map<String, String> row : parseWmicCsv(output)) {
+                String name = row.getOrDefault("Name", "");
+                if (name.isEmpty()) continue;
+
+                return CpuInfo.builder()
+                        .name(name)
+                        .vendor(row.getOrDefault("Manufacturer", "Unknown"))
+                        .cores(getIntegerValue(row.get("NumberOfCores")))
+                        .threads(getIntegerValue(row.get("NumberOfLogicalProcessors")))
+                        .maxFrequency(getLongValue(row.get("MaxClockSpeed")) * 1000000L)
+                        .currentFrequency(getLongValue(row.get("CurrentClockSpeed")) * 1000000L)
+                        .l2Cache(getLongValue(row.get("L2CacheSize")))
+                        .l3Cache(getLongValue(row.get("L3CacheSize")))
+                        .availableProcessors(Runtime.getRuntime().availableProcessors())
+                        .architecture(System.getProperty("os.arch"))
+                        .build();
             }
         } catch (Exception e) {
             log.debug("Error parsing WMIC CPU info", e);
@@ -1614,12 +1678,11 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
 
     private MemoryInfo parseWmicMemoryInfo(String output) {
         try {
-            String[] lines = output.split("\n");
-            if (lines.length > 1) {
-                String[] parts = lines[1].split(",");
-                if (parts.length >= 5) {
-                    long totalBytes = Long.parseLong(parts[1].trim()) * 1024;
-                    long freeBytes = Long.parseLong(parts[2].trim()) * 1024;
+            for (Map<String, String> row : parseWmicCsv(output)) {
+                long totalKb = getLongValue(row.get("TotalVisibleMemorySize"));
+                if (totalKb > 0) {
+                    long totalBytes = totalKb * 1024;
+                    long freeBytes = getLongValue(row.get("FreePhysicalMemory")) * 1024;
                     long usedBytes = totalBytes - freeBytes;
                     double usedPercent = calculatePercentage(usedBytes, totalBytes);
 

@@ -154,7 +154,8 @@ public class AppUpdateService {
                 n.path("mandatory").asBoolean(false),
                 n.path("minSupportedCode").asLong(0L),
                 n.path("changelog").asText(""),
-                apkSize
+                apkSize,
+                n.path("releaseAudience").asText("all")  // "all" | "admin"; missing field → "all" (safe default)
         );
         return new Snapshot(info, githubApkUrl);
     }

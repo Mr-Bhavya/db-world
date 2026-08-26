@@ -4,15 +4,20 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
+import { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
 
-// Expand transition: when opened from a hover popup (originRect supplied by
-// HoverPopup.goDetail), the modal starts at the popup's exact position and
-// scale, then springs to fill the screen — one continuous motion, no open/close gap.
-// For every other entry point (card click, hero) it falls back to a simple scale-in.
+// Expand transition: when opened from a card or hover popup (originRect supplied by
+// HoverPopup.goDetail / openRecord), the modal starts at that element's exact position
+// and scale, springs out to fill the screen, and on close RETURNS to it — one object
+// moving, rather than a panel that grows from somewhere and then dies in the middle.
+//
+// The return leg is what was missing: opening morphed out of the card and closing faded
+// in place, so the two halves of the same gesture didn't match. For entry points with no
+// origin (deep link, keyboard) it falls back to a symmetric scale in/out.
 const NFXExpand = React.forwardRef(function NFXExpand(
-  { in: inProp, children, onExited, originRect },
+  { in: inProp, children, onExited, originRect, reducedMotion },
   ref
 ) {
   const vw = typeof window !== 'undefined' ? window.innerWidth  : 1440;
@@ -21,25 +26,37 @@ const NFXExpand = React.forwardRef(function NFXExpand(
   // stays accurate on very large screens.
   const modalW = Math.min(vw * 0.92, vw >= 1920 ? 1360 : 1150);
 
-  // Start the modal shell at the popup's footprint so it appears to grow out of it.
-  const initial = originRect
+  // The modal shell at the origin element's footprint, used for BOTH ends of the
+  // journey so the morph is reversible.
+  const atOrigin = originRect
     ? {
-        opacity: 1,
+        opacity: originRect.width < 120 ? 0 : 1,
         scale: Math.min(originRect.width / modalW, 0.92),
         x: Math.round((originRect.left + originRect.width  / 2) - vw / 2),
         y: Math.round((originRect.top  + originRect.height / 2) - vh / 2),
       }
-    : { opacity: 0, scale: 0.88 };
+    : { opacity: 0, scale: 0.9, x: 0, y: 0 };
+
+  const spring = reducedMotion
+    ? { duration: 0.16 }
+    // Slightly softer and better damped than before: at 290/26 the shell overshot
+    // enough to show a sliver of backdrop past its own edge on a wide screen.
+    : { type: 'spring', stiffness: 260, damping: 30, mass: 0.9 };
 
   return (
     <AnimatePresence onExitComplete={onExited}>
       {inProp && (
         <motion.div
           ref={ref}
-          initial={initial}
+          initial={atOrigin}
           animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96 }}
-          transition={{ type: 'spring', stiffness: 290, damping: 26 }}
+          exit={{
+            ...atOrigin,
+            // Leaving is quicker than arriving. A close that takes as long as an open
+            // feels like the app is arguing with you.
+            transition: reducedMotion ? { duration: 0.12 } : { duration: 0.26, ease: [0.4, 0, 0.2, 1] },
+          }}
+          transition={spring}
           style={{ transformOrigin: 'center center' }}
         >
           {children}
@@ -54,6 +71,7 @@ export default function RecordDetailModal() {
   const location = useLocation();
   const T = useT();
   const isTV = useMediaQuery('(min-width:1920px)');
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const maxW = isTV ? 1360 : 1150;
   const [open, setOpen] = useState(true);
   const [scrollEl, setScrollEl] = useState(null);
@@ -87,7 +105,7 @@ export default function RecordDetailModal() {
       maxWidth={false}
       scroll="paper"
       TransitionComponent={NFXExpand}
-      TransitionProps={{ onExited: handleExited, originRect }}
+      TransitionProps={{ onExited: handleExited, originRect, reducedMotion }}
       PaperProps={{
         ref: setScrollerRef,
         sx: {
@@ -119,27 +137,41 @@ export default function RecordDetailModal() {
       }}
       slotProps={{
         backdrop: {
-          sx: { bgcolor: alpha('#000', 0.82) },
+          sx: {
+            // Blurred rather than merely dark. A flat 82% black reads as a lid dropped
+            // over the page; blurring what is behind puts the modal in front of it
+            // instead, and lets the dim come down to 68% so the page is still legibly
+            // THERE — which is the point of a modal over a browse page.
+            bgcolor: alpha('#000', 0.68),
+            backdropFilter: 'blur(10px) saturate(120%)',
+            WebkitBackdropFilter: 'blur(10px) saturate(120%)',
+          },
         },
       }}
     >
       <Box sx={{ position: 'relative' }}>
+        {/* Scrolls away with the hero rather than staying pinned: a pinned
+            button collided with the sticky pill nav, which occupies the same
+            corner the moment the bar sticks. PillNav grows its own back control
+            when that happens, so there is always one way out and never two
+            stacked on each other. */}
         <IconButton
           onClick={handleClose}
           size="small"
           aria-label="Close detail"
           sx={{
-            position: 'fixed',
-            top: { xs: 12, md: 18 },
-            right: { xs: 12, md: 18 },
+            position: 'absolute',
+            top: HERO_CONTROL_TOP,
+            left: { xs: 12, md: 18 },
             zIndex: 20,
             bgcolor: alpha('#000', 0.6), color: '#fff',
             border: `1px solid ${alpha('#fff', 0.18)}`,
-            width: 38, height: 38,
+            backdropFilter: 'blur(8px)',
+            width: HERO_CONTROL_SIZE, height: HERO_CONTROL_SIZE,
             '&:hover': { bgcolor: alpha('#000', 0.82) },
           }}
         >
-          <CloseIcon sx={{ fontSize: 20 }} />
+          <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
 
         <RecordDetailContent

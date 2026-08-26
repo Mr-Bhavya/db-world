@@ -9,18 +9,16 @@
 import { resolveMediaBatch, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import { buildStoryboard } from '../utils/storyboard';
-import { parseEpisode, buildHybridEpisodes } from '../utils/episodeUtils';
+import { episodeRefOf, buildHybridEpisodes } from '../utils/episodeUtils';
 import { fetchRecord } from '../api/cinemaApi';
-import { getQuality, getCodec, getHdrTags } from './helpers';
-
-const heightOf = (f) => Number(f?.video?.resolution?.split('x')?.[1]) || 0;
+import { variantOf } from './helpers';
+import { mediaInfoOf } from '../player/hybrid/mediaSpecs';
+import { pickAutoQuality } from './pickAutoQuality';
 
 /** Stable season-episode key: prefer TMDB season/episode fields, else parse the filename. */
 export function episodeKey(f) {
-  const ep = parseEpisode(f?.general?.fileName);
-  const s = f?.tmdbSeasonNumber != null ? f.tmdbSeasonNumber : ep?.season;
-  const e = f?.tmdbEpisodeNumber != null ? f.tmdbEpisodeNumber : ep?.episode;
-  return `${s}-${e}`;
+  const ref = episodeRefOf(f);
+  return ref ? `${ref.season}-${ref.episode}` : 'none';
 }
 
 /**
@@ -45,50 +43,71 @@ export function variantFilesFor(allFiles, current, isSeries) {
  * @param {object}   [args.record]      record for recordId/title fallbacks
  * @param {string}   [args.title]       display title
  * @param {string}   [args.fileId]      watch-progress key (defaults to current id/mediaFileId)
+ * @param {boolean}  [args.autoPick]    choose the starting file from variantFiles by device
+ *                                      capability and connection instead of taking `current`
+ *                                      as given. Used by every "just press play" entry point.
  * @returns {Promise<object>} the media payload
  * @throws if no stream URL could be resolved
  */
-export async function resolveAndBuildMedia({ current, variantFiles, episodes = [], record = null, title = '', fileId }) {
+export async function resolveAndBuildMedia({ current, variantFiles, episodes = [], record = null, title = '', fileId, autoPick = false }) {
   const files = (variantFiles?.length ? variantFiles : [current]).filter(Boolean);
+
+  // Pick the file to OPEN with. Playback is discrete-file (no manifest, no
+  // mid-stream adaptation), so this one decision is the whole of "adaptive"
+  // quality — the player's quality button remains the manual override.
+  let autoReason = null;
+  let start = current;
+  if (autoPick && files.length > 1) {
+    const picked = pickAutoQuality(files);
+    if (picked.file) { start = picked.file; autoReason = picked.reason; }
+  }
+
   const ids = [...new Set(files.map((f) => f?.mediaFileId).filter(Boolean))];
 
   const resolved = ids.length ? await resolveMediaBatch(ids, 'ONLINE') : [];
   const byId = new Map((resolved || []).map((r) => [r.mediaFileId, r]));
 
+  // Each variant carries its OWN MediaInfo. Switching quality doesn't reload the route,
+  // so anything reading a single `mediaInfo` kept describing the file the player opened
+  // with — the pause card's badges and the Info panel both went stale the moment you
+  // picked a different quality. The resolve already returned all of it.
   const variants = files
     .map((f) => {
       const r = byId.get(f?.mediaFileId);
-      if (!r?.cdnUrl) return null;
-      return {
-        url: r.cdnUrl,
-        label: getQuality(f.video, f.general?.fileName),
-        height: heightOf(f),
-        mediaFileId: f.mediaFileId,
-        codec: getCodec(f.video?.format),                                          // H.265 / H.264 / AV1…
-        hdr: getHdrTags(f.video?.hdrFormat || f.video?.hdrFormatCompatibility, f.general?.fileName), // ['DV','HDR10']
-      };
+      return r?.cdnUrl
+        ? { ...variantOf(f), url: r.cdnUrl, info: mediaInfoOf(r.mediaFile) ?? (f?.video ? f : null) }
+        : null;
     })
     .filter(Boolean);
 
-  const currentResolved = byId.get(current?.mediaFileId);
+  const currentResolved = byId.get(start?.mediaFileId);
   const url = currentResolved?.cdnUrl || variants[0]?.url;
   if (!url) throw new Error('No stream URL');
 
-  const storyboard = buildStoryboard(url, current?.mediaFileId, currentResolved?.mediaFile) || null;
+  const storyboard = buildStoryboard(url, start?.mediaFileId, currentResolved?.mediaFile) || null;
+
+  // Full MediaInfo of the file being opened, for the player's Info panel and tech
+  // badges. The resolve carries it; `start` is the same file already converted, so
+  // it stands in when the resolve came back without track data.
+  const mediaInfo = mediaInfoOf(currentResolved?.mediaFile) ?? (start?.video ? start : null);
 
   return {
     url,
+    // fileId keys watch progress, so it stays tied to the file the caller
+    // identified — swapping quality must not fork someone's resume position.
     fileId:      String(fileId ?? current?.id ?? current?.mediaFileId ?? ''),
-    mediaFileId: current?.mediaFileId || null,
-    title:       title || current?.general?.fileName || '',
-    fileName:    current?.general?.fileName || '',
+    mediaFileId: start?.mediaFileId || null,
+    title:       title || start?.general?.fileName || '',
+    fileName:    start?.general?.fileName || '',
     overview:    record?.tmdb?.overview ?? '',   // shown on the pause info card (movies)
     recordId:    record?.id ?? record?.recordId ?? currentResolved?.recordId ?? null,
-    audio:       currentResolved?.mediaFile?.audio || current?.audio || [],
+    audio:       mediaInfo?.audio || start?.audio || [],
+    mediaInfo,
     variants,
     episodes,
     storyboard,
     requestId:   currentResolved?.requestId ?? null,
+    autoReason,
   };
 }
 

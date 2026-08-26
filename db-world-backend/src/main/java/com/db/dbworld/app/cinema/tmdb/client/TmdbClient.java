@@ -22,6 +22,18 @@ public class TmdbClient {
 
     private static final String APPEND_FULL_DETAILS = "images,videos,credits";
 
+    /**
+     * Age ratings live behind a per-type append, not on the flat detail payload, and the two
+     * types use different names: movies expose per-country release entries under
+     * {@code release_dates}, series a flat rating per country under {@code content_ratings}.
+     */
+    /**
+     * {@code translations} rides along free (the append limit is 20) and is what tells us which
+     * languages are worth an extra videos request — see TmdbVideoLanguageResolver.
+     */
+    private static final String APPEND_MOVIE_FULL = APPEND_FULL_DETAILS + ",release_dates,translations";
+    private static final String APPEND_TV_FULL = APPEND_FULL_DETAILS + ",content_ratings,translations";
+
     private final WebClient webClient;
 
     public TmdbClient(@Qualifier("tmdbWebClient") WebClient webClient) {
@@ -94,7 +106,7 @@ public class TmdbClient {
 
     public Mono<MovieTmdbResponse> getMovieFull(Long id) {
         return get("/movie/" + id, MovieTmdbResponse.class,
-                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
+                builder -> builder.queryParam("append_to_response", APPEND_MOVIE_FULL));
     }
 
     public Mono<ImagesTmdbResponse> getMovieImages(Long id) {
@@ -103,6 +115,16 @@ public class TmdbClient {
 
     public Mono<VideosTmdbResponse> getMovieVideos(Long id) {
         return get("/movie/" + id + "/videos", VideosTmdbResponse.class);
+    }
+
+    /**
+     * Videos in one specific language. TMDB has no way to ask for several at once on the movie
+     * endpoints — no {@code include_video_language} there, and the {@code videos} append is
+     * filtered by the request language — so multi-language trailers mean one call per language.
+     */
+    public Mono<VideosTmdbResponse> getMovieVideos(Long id, String language) {
+        return get("/movie/" + id + "/videos", VideosTmdbResponse.class,
+                builder -> builder.queryParam("language", language));
     }
 
     public Mono<CreditsTmdbResponse> getMovieCredits(Long id) {
@@ -136,7 +158,7 @@ public class TmdbClient {
 
     public Mono<TvSeriesTmdbResponse> getTvSeriesFull(Long id) {
         return get("/tv/" + id, TvSeriesTmdbResponse.class,
-                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
+                builder -> builder.queryParam("append_to_response", APPEND_TV_FULL));
     }
 
     public Mono<ImagesTmdbResponse> getTvImages(Long id) {
@@ -145,6 +167,12 @@ public class TmdbClient {
 
     public Mono<VideosTmdbResponse> getTvVideos(Long id) {
         return get("/tv/" + id + "/videos", VideosTmdbResponse.class);
+    }
+
+    /** Series videos in one language; same one-call-per-language constraint as movies. */
+    public Mono<VideosTmdbResponse> getTvVideos(Long id, String language) {
+        return get("/tv/" + id + "/videos", VideosTmdbResponse.class,
+                builder -> builder.queryParam("language", language));
     }
 
     public Mono<CreditsTmdbResponse> getTvCredits(Long id) {
@@ -189,6 +217,14 @@ public class TmdbClient {
 
     public Mono<PersonTmdbResponse> getPerson(Long personId) {
         return get("/person/" + personId, PersonTmdbResponse.class);
+    }
+
+    /* =====================================
+       COLLECTION
+     ===================================== */
+
+    public Mono<CollectionDetailTmdbResponse> getCollection(Long collectionId) {
+        return get("/collection/" + collectionId, CollectionDetailTmdbResponse.class);
     }
 
     /* =====================================

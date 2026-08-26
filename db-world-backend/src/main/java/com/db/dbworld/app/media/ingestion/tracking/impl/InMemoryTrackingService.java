@@ -74,7 +74,9 @@ public class InMemoryTrackingService implements TrackingService {
         if (step != null && step != PipelineStepType.DOWNLOAD) {
             state.progress.set(ProgressSnapshot.processing());
         }
-        state.logCollector.info(step.name(), "Step → " + step);
+        // step is nullable — the guard above tests for it — but this line dereferenced it
+        // unconditionally, so a null step NPE'd here after the state had already been set.
+        state.logCollector.info(step != null ? step.name() : "UNKNOWN", "Step → " + step);
         log.info("[{}] Step transition {} → {}", jobId, previous, step);
     }
 

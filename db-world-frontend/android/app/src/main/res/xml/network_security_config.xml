@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Replaces the blanket android:usesCleartextTraffic="true" on <application>, which
+  allowed plaintext HTTP to ANY host. Everything real (api/cdn/app.db-world.in) is
+  HTTPS already; the single genuine cleartext need is the embedded aria2c daemon,
+  whose JSON-RPC listens on http://127.0.0.1:<port>/jsonrpc (see Aria2Rpc.java) and
+  never leaves the device.
+
+  So: deny cleartext globally, permit it only for loopback. debug-overrides keeps
+  Capacitor live-reload against a LAN dev server working in debuggable builds only —
+  it has no effect on release APKs.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Embedded aria2c JSON-RPC — loopback only, never off-device. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+
+    <!-- Debuggable builds only: allows `npx cap run android` live-reload over LAN http. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

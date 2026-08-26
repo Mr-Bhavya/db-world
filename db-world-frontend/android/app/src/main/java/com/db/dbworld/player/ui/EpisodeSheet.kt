@@ -122,6 +122,18 @@ private fun EpisodeRow(ep: PlayerEpisode, selected: Boolean, onClick: () -> Unit
                         modifier = Modifier.size(22.dp))
                 }
             }
+            // Watched bar across the foot of the still, like the web list.
+            if (ep.progress > 0f) {
+                Box(
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp)
+                        .background(Color(0x47FFFFFF)),
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth(ep.progress.coerceIn(0f, 1f)).height(3.dp)
+                            .background(PlayerTheme.Teal),
+                    )
+                }
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

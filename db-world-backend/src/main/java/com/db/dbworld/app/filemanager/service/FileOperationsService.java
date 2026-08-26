@@ -44,7 +44,7 @@ public class FileOperationsService {
         List<FileItemDto> items = new ArrayList<>();
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
             for (Path entry : ds) {
-                try { items.add(FileMetadataMapper.toDto(locationId, base, entry, false)); } catch (IOException ignored) {}
+                try { items.add(FileMetadataMapper.toDto(locationId, base, entry, false)); } catch (IOException ignored) { /* Skip an entry that vanished or is unreadable; the rest of the listing stands. */ }
             }
         }
 
@@ -96,7 +96,7 @@ public class FileOperationsService {
                     })
                     .limit(MAX_SEARCH_RESULTS)
                     .forEach(p -> {
-                        try { results.add(FileMetadataMapper.toDto(locationId, base, p, false)); } catch (IOException ignored) {}
+                        try { results.add(FileMetadataMapper.toDto(locationId, base, p, false)); } catch (IOException ignored) { /* Skip an entry that vanished or is unreadable; the rest of the results stand. */ }
                     });
             }
         } else {
@@ -104,7 +104,7 @@ public class FileOperationsService {
                 for (Path entry : ds) {
                     String fname = entry.getFileName() != null ? entry.getFileName().toString() : "";
                     if (fname.toLowerCase().contains(lowerQ)) {
-                        try { results.add(FileMetadataMapper.toDto(locationId, base, entry, false)); } catch (IOException ignored) {}
+                        try { results.add(FileMetadataMapper.toDto(locationId, base, entry, false)); } catch (IOException ignored) { /* Skip an entry that vanished or is unreadable; the rest of the results stand. */ }
                     }
                     if (results.size() >= MAX_SEARCH_RESULTS) break;
                 }

@@ -10,16 +10,18 @@ package com.db.dbworld.app.appupdate.model;
  * @param versionName      human-readable version (e.g. "1.4.0")
  * @param apkUrl           relative download path; the app resolves it against its API base
  * @param mandatory        when true the app blocks usage until the user updates
- * @param minSupportedCode any installed versionCode below this is force-updated
+ * @param minSupportedCode any installed versionCode below this is force-updated regardless of audience
  * @param changelog        short release notes shown in the update dialog
  * @param sizeBytes        APK size (for the download progress UI)
+ * @param releaseAudience  who should be prompted: "all" (everyone) or "admin" (ADMIN/OWNER only)
  */
 public record AppVersionInfo(
-        long   versionCode,
-        String versionName,
-        String apkUrl,
+        long    versionCode,
+        String  versionName,
+        String  apkUrl,
         boolean mandatory,
-        long   minSupportedCode,
-        String changelog,
-        long   sizeBytes
+        long    minSupportedCode,
+        String  changelog,
+        long    sizeBytes,
+        String  releaseAudience
 ) {}

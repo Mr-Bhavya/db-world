@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.catalog.tags.scheduler;
 
-import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
+import com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategyExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
@@ -18,7 +18,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TagScheduler {
 
-    private final RecordTaggingService recordTaggingService;
+    private final TagStrategyExecutor tagStrategyExecutor;
 
     public void updateTags() {
 
@@ -27,7 +27,7 @@ public class TagScheduler {
         log.info("Starting catalog tag recalculation");
 
         try {
-            recordTaggingService.recalculateAllTags();
+            tagStrategyExecutor.executeAll();
             long elapsed = Instant.now().toEpochMilli() - start.toEpochMilli();
             log.info("Finished catalog tag recalculation in {}ms", elapsed);
         } catch (Exception ex) {

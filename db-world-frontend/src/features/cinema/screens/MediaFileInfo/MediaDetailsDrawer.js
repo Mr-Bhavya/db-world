@@ -28,7 +28,9 @@ import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { tmdbImg } from '../../api/cinemaApi';
-import { resolveAndBuildMedia } from '../../media/playerLaunch';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
+import { mediaInfoOf } from '../../player/hybrid/mediaSpecs';
+import { episodeRefOf } from '../../utils/episodeUtils';
 import { buildStoryboard } from '../../utils/storyboard';
 
 
@@ -106,7 +108,9 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
         // Record-linked file: shared batch resolve + uniform payload (storyboard, requestId, ids).
         media = await resolveAndBuildMedia({
           current,
-          variantFiles: files,
+          // Only this episode's files are quality alternatives of it — passing the
+          // record's whole file list offered every other episode as a "quality".
+          variantFiles: variantFilesFor(files, current, files.some((f) => episodeRefOf(f))),
           record,
           title,
           fileId: mediaInfo.id || mediaInfo.mediaFileId,
@@ -116,6 +120,9 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
         const res = await resolveOne(current, 'ONLINE');
         const url = res?.data?.cdnUrl;
         if (!url) throw new Error('No stream URL');
+        // `mediaFile.audio` does not exist on the resolve DTO (it carries a flat `tracks`
+        // array), so the player used to open these files with no track metadata at all.
+        const info = mediaInfoOf(res?.data?.mediaFile) ?? (current?.video ? current : null);
         media = {
           url,
           fileId:      String(mediaInfo.id || mediaInfo.mediaFileId || ''),
@@ -123,7 +130,8 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           title,
           fileName:    general?.fileName || '',
           recordId:    record?.id || record?.recordId || res?.data?.recordId || null,
-          audio:       res?.data?.mediaFile?.audio || [],
+          audio:       info?.audio || current?.audio || [],
+          mediaInfo:   info,
           variants:    [{ url, label: getQuality(current.video, current.general?.fileName), mediaFileId: current.mediaFileId }],
           episodes:    [],
           storyboard:  buildStoryboard(url, res?.data?.mediaFileId, res?.data?.mediaFile) || null,

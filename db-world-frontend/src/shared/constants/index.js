@@ -49,8 +49,15 @@ export const DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE =
   `${DB_CINEMA_ROUTE}/download-progress`;
 export const DB_CINEMA_MOVIES_ROUTE = `${DB_CINEMA_ROUTE}/movie`;
 export const DB_CINEMA_SERIES_ROUTE = `${DB_CINEMA_ROUTE}/tv-shows`;
+// Genre landing pages: the section page filtered to one genre, e.g.
+// /db-cinema/movie/genre/28-action. Two path segments after the section, so
+// they can never collide with the one-segment detail route below.
+export const DB_CINEMA_BROWSE_GENRE_ROUTE = `${DB_CINEMA_BROWSE_ROUTE}/genre/:genreSlug`;
+export const DB_CINEMA_MOVIES_GENRE_ROUTE = `${DB_CINEMA_MOVIES_ROUTE}/genre/:genreSlug`;
+export const DB_CINEMA_SERIES_GENRE_ROUTE = `${DB_CINEMA_SERIES_ROUTE}/genre/:genreSlug`;
 export const DB_MOVIE_DETIALS_ROUTE = `${DB_CINEMA_ROUTE}/movie/:title`;
 export const DB_SERIES_DETIALS_ROUTE = `${DB_CINEMA_ROUTE}/series/:title`;
+export const DB_CINEMA_COLLECTION_ROUTE = `${DB_CINEMA_ROUTE}/collection/:collectionId`;
 export const DB_RECORD_MEDIA_FILES_ROUTE =
   `${DB_CINEMA_ROUTE}/record/:recordId/media-files`;
 export const DB_DOWNLOAD_QUEUE_ROUTE = `${DB_CINEMA_ROUTE}/downloads`;
@@ -206,8 +213,12 @@ export default {
   DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE,
   DB_CINEMA_MOVIES_ROUTE,
   DB_CINEMA_SERIES_ROUTE,
+  DB_CINEMA_BROWSE_GENRE_ROUTE,
+  DB_CINEMA_MOVIES_GENRE_ROUTE,
+  DB_CINEMA_SERIES_GENRE_ROUTE,
   DB_MOVIE_DETIALS_ROUTE,
   DB_SERIES_DETIALS_ROUTE,
+  DB_CINEMA_COLLECTION_ROUTE,
   DB_RECORD_MEDIA_FILES_ROUTE,
   DB_DOWNLOAD_QUEUE_ROUTE,
   DB_PLAYER_ROUTE,

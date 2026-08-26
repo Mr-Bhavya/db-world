@@ -450,7 +450,7 @@ const FilterChip = ({ label, count, active, tone, onClick, T }) => (
       appearance: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 0.75,
       minHeight: 40, px: 1.5, borderRadius: 999, fontSize: '0.8rem', fontWeight: 800, whiteSpace: 'nowrap',
       transition: 'all .2s ease',
-      color: active ? (tone === 'teal' ? '#fff' : '#fff') : T.textMuted,
+      color: active ? '#fff' : T.textMuted, // active is always white; tone only drives bgcolor
       bgcolor: active ? (tone === 'weak' ? '#f59e0b' : tone === 'reused' ? '#ef4444' : T.teal) : 'transparent',
       border: `1px solid ${active ? 'transparent' : T.glassBorder}`,
       '&:hover': { borderColor: T.teal, color: active ? '#fff' : T.textPrimary },
