@@ -97,6 +97,8 @@ public final class AppConstants {
             "/api/wallet/shared/**",
             // Server-rendered OG cards for shared links — nginx proxies social crawlers here.
             "/api/social/**",
+            // Crawler-facing, proxied onto this host by nginx from db-world.in.
+            "/sitemap.xml",
             "/storyboard/**"
     };
 
