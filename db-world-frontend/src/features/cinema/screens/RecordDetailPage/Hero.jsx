@@ -1040,54 +1040,18 @@ export default function Hero({
               alignItems: 'center',
             }}>
               {onWatchClick && (
-                <Box sx={{
-                  display: 'flex', flexDirection: 'column', minWidth: 0,
-                  width: { xs: '100%', sm: 'auto' },
-                  alignItems: { xs: 'stretch', sm: 'flex-start' },
-                }}>
-                  <Button
-                    component={motion.button}
-                    whileTap={{ scale: 0.97 }}
-                    variant="contained"
-                    startIcon={resumable
-                      ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
-                      : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
-                    onClick={onWatchClick}
-                    sx={{
-                      ...CTA_SHAPE,
-                      ...ctaPrimary(accentColor),
-                      width: { xs: '100%', sm: 'auto' },
-                      ...(resumable && {
-                        position: 'relative', overflow: 'hidden',
-                        pb: { xs: 1.45, xl: 1.6 },
-                      }),
-                    }}
-                  >
-                    {resumable ? 'Resume' : 'Watch Now'}
-                    {resumable && (
-                      <Box aria-hidden sx={{
-                        position: 'absolute', left: { xs: 14, sm: 18, xl: 24 }, right: { xs: 14, sm: 18, xl: 24 },
-                        bottom: { xs: 7, xl: 8 }, height: 3,
-                        borderRadius: 999, overflow: 'hidden',
-                        bgcolor: alpha('#fff', 0.26), pointerEvents: 'none',
-                      }}>
-                        <Box sx={{
-                          height: '100%', width: `${resumePercent}%`,
-                          bgcolor: '#fff', borderRadius: 999,
-                        }} />
-                      </Box>
-                    )}
-                  </Button>
-                  {resumable && progress.remainingLabel && (
-                    <Typography sx={{
-                      mt: 0.55, pl: { xs: 0.25, sm: 1.25 },
-                      fontSize: { xs: '0.68rem', xl: '0.78rem' },
-                      fontWeight: 700, color: alpha('#fff', 0.62),
-                    }}>
-                      {progress.remainingLabel} left
-                    </Typography>
-                  )}
-                </Box>
+                <Button
+                  component={motion.button}
+                  whileTap={{ scale: 0.97 }}
+                  variant="contained"
+                  startIcon={resumable
+                    ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
+                    : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
+                  onClick={onWatchClick}
+                  sx={{ ...CTA_SHAPE, ...ctaPrimary(accentColor) }}
+                >
+                  {resumable ? 'Resume' : 'Watch Now'}
+                </Button>
               )}
 
               {/* Request takes the primary slot when there's nothing to play —
@@ -1189,6 +1153,64 @@ export default function Hero({
                 </Box>
               </Box>
             </Box>
+
+            {/* Continue-watching progress.
+
+                Sits BELOW the action row rather than inside the Resume button. A bar
+                drawn inside a button reads as a loading state ("working..."), and it
+                forced extra bottom padding that made Resume taller than the CTAs beside
+                it. Netflix, Prime and Hotstar all place it the same way: a thin bar
+                adjacent to the primary action, with the time remaining next to it.
+
+                Only rendered mid-title, so a finished or never-started record keeps the
+                plain Watch Now affordance with nothing extra under it. */}
+            {resumable && (
+              <Box
+                component={motion.div}
+                variants={RISE}
+                sx={{
+                  mt: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.25,
+                  // Capped so it tracks the CTA row instead of stretching the full
+                  // width of a wide hero, where it would read as a page-level loader.
+                  width: '100%',
+                  maxWidth: { xs: '100%', sm: 360, xl: 420 },
+                }}
+              >
+                <Box
+                  role="progressbar"
+                  aria-label="Watch progress"
+                  aria-valuenow={Math.round(resumePercent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  sx={{
+                    flex: 1, minWidth: 0,
+                    height: 4, borderRadius: 999, overflow: 'hidden',
+                    bgcolor: alpha('#fff', 0.24),
+                  }}
+                >
+                  <Box sx={{
+                    height: '100%', width: `${resumePercent}%`,
+                    bgcolor: accentColor, borderRadius: 999,
+                    transition: 'width 0.3s ease',
+                  }} />
+                </Box>
+
+                {progress.remainingLabel && (
+                  <Typography sx={{
+                    flexShrink: 0,
+                    fontSize: { xs: '0.72rem', xl: '0.82rem' },
+                    fontWeight: 700,
+                    color: alpha('#fff', 0.72),
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {progress.remainingLabel} left
+                  </Typography>
+                )}
+              </Box>
+            )}
 
             {/* Phones: a labelled rail below the CTAs.
 

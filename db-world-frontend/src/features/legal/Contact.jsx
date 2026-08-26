@@ -24,20 +24,56 @@ export default function Contact() {
         everything, though replies may take a few days.
       </p>
 
-      <Box sx={{ my: 3 }}>
+      {/* Short label on the button, address as selectable text beside it.
+          Three reasons this is not one button reading "support@db-world.in":
+          the address is too long to fit a narrow phone without wrapping or
+          clipping; you cannot select text inside a button, and copying the
+          address is the second thing people want after clicking it; and the
+          label stays legible whatever the address is changed to. */}
+      <Box sx={{
+        my: 3,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 2,
+      }}>
         <Button
           component="a"
           href={`mailto:${CONTACT_EMAIL}`}
           variant="contained"
           startIcon={<MailOutlineIcon />}
           sx={{
+            flexShrink: 0,
             fontWeight: 800, borderRadius: 2, px: 3, py: 1.25,
             textTransform: 'none', fontSize: '1rem',
-            bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover },
+            // NOT T.teal. White on #0d9488 measures 3.74:1, under the 4.5:1
+            // WCAG AA floor for body text; #0f766e gets it to 5.47:1 and the
+            // darker hover to 7.58:1. Set explicitly because overriding bgcolor
+            // on a contained Button leaves the label colour behind.
+            color: '#ffffff',
+            bgcolor: T.tealHover,
+            '&:hover': { bgcolor: '#115e59' },
+          }}
+        >
+          Email us
+        </Button>
+
+        <Box
+          component="a"
+          href={`mailto:${CONTACT_EMAIL}`}
+          sx={{
+            userSelect: 'text',
+            fontSize: { xs: '0.9rem', sm: '0.95rem' },
+            fontWeight: 600,
+            color: T.text,
+            textDecoration: 'none',
+            wordBreak: 'break-all',
+            borderBottom: `1px dashed ${T.border}`,
+            '&:hover': { borderBottomColor: T.teal },
           }}
         >
           {CONTACT_EMAIL}
-        </Button>
+        </Box>
       </Box>
 
       <h2>What to include</h2>
