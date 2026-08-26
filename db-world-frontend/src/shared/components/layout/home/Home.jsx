@@ -16,7 +16,6 @@ import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
-import Footer from '@shared/components/layout/Footer';
 import SectionHeading from '@shared/components/ui/SectionHeading';
 import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
@@ -417,7 +416,6 @@ const Home = () => {
         </Container>
       </Box>
 
-      <Footer />
     </Box>
   );
 };

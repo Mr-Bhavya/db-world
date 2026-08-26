@@ -338,6 +338,14 @@ export default function Footer() {
           bgcolor: T.bg,
           color: T.textFaint,
           minWidth: 0,
+          // The cinema pages float a fixed pill nav at bottom:16, 60px tall, on mobile
+          // only. Without this the footer scrolls underneath it and the legal links end
+          // up permanently covered — which also means a reviewer tapping through on a
+          // phone cannot reach them. Harmless extra space on pages without the pill.
+          pb: {
+            xs: 'calc(76px + env(safe-area-inset-bottom, 0px))',
+            md: 0,
+          },
         }}
       >
         {/* Gradient line */}

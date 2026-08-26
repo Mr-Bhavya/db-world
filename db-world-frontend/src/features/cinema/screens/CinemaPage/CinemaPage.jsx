@@ -10,7 +10,6 @@ import RailRow from '../../components/RailRow/RailRow';
 import RailSkeleton from '../../components/RailRow/RailSkeleton';
 import ContinueRailRow from '../../components/ContinueRailRow/ContinueRailRow';
 import AdSlot from '@shared/ads/AdSlot';
-import LegalLinks from '@shared/components/layout/LegalLinks';
 import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords from '../../hooks/useRailRecords';
@@ -466,10 +465,6 @@ const CinemaPage = ({ pageType = 'home' }) => {
                   hover actions and a unit in that flow invites mis-clicks, which is
                   exactly the invalid-traffic pattern AdSense penalises. */}
               <AdSlot slot="cinemaBrowseTop" minHeight={120} sx={{ px: { xs: 2, md: 4 } }} />
-
-              {/* The cinema pages have no footer of their own, and AdSense needs the
-                  legal pages reachable from normal navigation, not just by URL. */}
-              <LegalLinks sx={{ px: { xs: 2, md: 4 }, pb: 4, pt: 1, justifyContent: 'center' }} />
             </>
           )}
         </Box>

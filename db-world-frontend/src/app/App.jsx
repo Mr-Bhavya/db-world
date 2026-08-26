@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
+import Footer from '@shared/components/layout/Footer';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Login from '@features/auth/Login';
@@ -297,6 +298,14 @@ const ThemedApp = () => {
   // "card stack" depth cue. The mobile sheet covers most of the screen so the page
   // can recede a long way; the desktop modal leaves a visible frame of page around
   // itself, where the same cue only works if it is slight.
+  // Site chrome rules. The player is full-screen by design, and the admin console
+  // brings its own layout — a public-site footer in either would be wrong. Everywhere
+  // else gets it, which is also what keeps the legal links reachable from every page
+  // AdSense might land on.
+  const isPlayerRoute = location.pathname.includes('/player');
+  const isAdminRoute  = location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE);
+  const showFooter    = !isPlayerRoute && !isAdminRoute;
+
   const overlayOpen = !!background;
   const pageScaled = overlayOpen;
   const pageScale = isSheetViewport ? 0.94 : 0.985;
@@ -415,7 +424,7 @@ const ThemedApp = () => {
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
-            {!location.pathname.includes('/player') && <Header />}
+            {!isPlayerRoute && <Header />}
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -444,8 +453,11 @@ const ThemedApp = () => {
                 </Route>
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
-
             </Suspense>
+            {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
+                fallback replaces its children, and a footer that vanishes and reappears
+                on every first navigation to a page reads as a layout glitch. */}
+            {showFooter && <Footer />}
             </Box>
 
             {/* Detail overlay — only mounted when a record was opened IN-APP

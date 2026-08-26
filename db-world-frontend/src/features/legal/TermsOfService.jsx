@@ -8,8 +8,14 @@ export default function TermsOfService() {
     <LegalPage title="Terms of Service" updated="26 August 2026">
       <p>
         These terms govern your use of DB World (<strong>db-world.in</strong>) and the DB
-        World Android app. By using the service you accept them. If you do not, please do
-        not use it.
+        World Android app.
+      </p>
+      <p>
+        Browsing DB World signifies acceptance of these terms. Creating an account
+        requires it explicitly: the registration form will not submit until you tick the
+        box confirming you have read and accepted this page and the{' '}
+        <a href={Constants.DB_PRIVACY_ROUTE}>Privacy Policy</a>. If you do not accept
+        them, please do not use the service.
       </p>
 
       <h2>The service</h2>
@@ -19,6 +25,8 @@ export default function TermsOfService() {
         and the document wallet, require an account.</p>
 
       <h2>Your account</h2>
+      <p>Accounts are free. You must be old enough to form a binding contract where you
+        live, and at least 13 in any case.</p>
       <ul>
         <li>You are responsible for keeping your password secure and for everything done
           under your account.</li>

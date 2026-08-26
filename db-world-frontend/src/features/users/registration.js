@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Button, Checkbox, CircularProgress, FormControl, FormHelperText,
   Grid, IconButton, InputAdornment, MenuItem,
@@ -333,8 +333,27 @@ const Registration = () => {
                 />
                 <Typography sx={{ fontSize: '0.875rem', color: T.textMuted }}>
                   I agree to the{' '}
-                  <Box component="span" sx={{ color: T.teal, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
-                    terms and conditions
+                  {/* Real links, opened in a new tab so a half-filled form is not lost
+                      on the way to reading them. Both are public routes, so a visitor
+                      can read them BEFORE starting to sign up too. */}
+                  <Box
+                    component={RouterLink}
+                    to={Constants.DB_TERMS_ROUTE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                  >
+                    Terms of Service
+                  </Box>
+                  {' '}and{' '}
+                  <Box
+                    component={RouterLink}
+                    to={Constants.DB_PRIVACY_ROUTE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                  >
+                    Privacy Policy
                   </Box>
                   <Box component="span" sx={{ color: T.error }}> *</Box>
                 </Typography>
