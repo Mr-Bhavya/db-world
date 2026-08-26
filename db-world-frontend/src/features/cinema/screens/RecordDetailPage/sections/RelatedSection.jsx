@@ -177,7 +177,9 @@ export default function RelatedSection({ recordId, isMobile }) {
                 width: { xs: 130, sm: 150, md: 170, xl: 200 },
                 '@media (min-width:1920px)': { width: 240 },
               }}>
-                <Skeleton variant="rounded" sx={{ width: '100%', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06), borderRadius: 2 }} />
+                {/* height:auto, or MUI's height:1.2em root style defeats aspect-ratio — see
+                    CollectionSection for the same trap. */}
+                <Skeleton variant="rounded" sx={{ width: '100%', height: 'auto', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06), borderRadius: 2 }} />
                 <Skeleton variant="text" width="80%" sx={{ mt: 0.75, bgcolor: alpha(T.text, 0.06) }} />
                 <Skeleton variant="text" width="40%" sx={{ bgcolor: alpha(T.text, 0.06) }} />
               </Box>

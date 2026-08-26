@@ -51,24 +51,24 @@ import { buildMobileMeta, heroArtCandidates, heroBadge } from './heroUtils';
 import CertBadge from '../CertBadge';
 
 /** Cards mounted at once: the one you're looking at, plus the two behind it. */
-const LAYERS = 3;
+export const LAYERS = 3;
 
 /** How far each card behind the top one is offset to the right, in px. */
-const OFFSET_XS = 22;
-const OFFSET_SM = 26;
+export const OFFSET_XS = 22;
+export const OFFSET_SM = 26;
 
 /** Room kept to the right of the top card for the deck to peek into. */
-const PEEK_ROOM = 38;
+export const PEEK_ROOM = 38;
 
 /** Posters are 2:3. A number, because the card's height is computed rather than declared. */
-const POSTER_RATIO = 3 / 2;
+export const POSTER_RATIO = 3 / 2;
 
 /** Widest the card gets before the deck simply centres itself on a big tablet. */
-const MAX_CARD_W = 420;
+export const MAX_CARD_W = 420;
 
 /** Each step back in the deck shrinks and dims the card by this much. */
-const SCALE_STEP = 0.055;
-const DIM_STEP = 0.22;
+export const SCALE_STEP = 0.055;
+export const DIM_STEP = 0.22;
 
 /* ── the badge chip ─────────────────────────────────────────────────────────
    Self-contained: its own blurred plate, because there is no scrim on the card

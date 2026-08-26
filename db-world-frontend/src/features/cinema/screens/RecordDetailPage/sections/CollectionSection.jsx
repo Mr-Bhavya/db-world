@@ -253,7 +253,10 @@ export default function CollectionSection({ collectionId, currentTmdbId, isMobil
         <Box sx={{ display: 'flex', gap: 1.25 }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <Box key={i} sx={{ flexShrink: 0, width: CARD_W, ...CARD_W_TV }}>
-              <Skeleton variant="rounded" sx={{ width: '100%', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06) }} />
+              {/* height:auto is load-bearing — MUI's Skeleton root sets height:1.2em, and a
+                  definite height makes the browser ignore aspect-ratio entirely, collapsing
+                  this poster placeholder to a thin bar. */}
+              <Skeleton variant="rounded" sx={{ width: '100%', height: 'auto', aspectRatio: '2/3', bgcolor: alpha(T.text, 0.06) }} />
               <Skeleton variant="text" width="80%" sx={{ mt: 0.75, bgcolor: alpha(T.text, 0.06) }} />
             </Box>
           ))}

@@ -10,7 +10,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
-import HeroCardStack from './HeroCardStack';
+import HeroCardStack, {
+  LAYERS, OFFSET_XS, OFFSET_SM, PEEK_ROOM, MAX_CARD_W, SCALE_STEP, DIM_STEP,
+} from './HeroCardStack';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
@@ -30,37 +32,79 @@ const SkeletonBlock = (props) => (
     sx={{
       bgcolor: shimmerBg,
       borderRadius: 1.2,
+      // MUI's Skeleton root carries `height: 1.2em`, overridden to `auto` only for the
+      // text variant. A definite height defeats `aspect-ratio` outright, so a
+      // rectangular block sized by ratio collapsed to a ~19px bar — which is why the
+      // mobile hero showed stripes where its poster card should have been. The `height`
+      // PROP still wins over this, because MUI applies it as an inline style.
+      height: 'auto',
       ...(props.sx || {}),
     }}
   />
 );
 
-const HeroSkeletonMobile = ({ isXs }) => (
-  // Mirrors HeroCardStack: the same inset card at the same 2:3 ratio and the same
-  // title/meta block underneath, so the page doesn't jump when the real hero lands.
-  // The card's height comes from its aspect ratio, exactly as it does there.
-  <Box sx={{
-    position: 'relative',
-    overflow: 'hidden',
-    pt: 'calc(56px + env(safe-area-inset-top, 0px))',
-    pb: 3,
-  }}>
-    <Box sx={{ pl: { xs: 2.5, sm: 3 }, display: 'flex' }}>
-      {[0, 1].map((i) => (
-        <Box key={i} sx={{ flex: `0 0 ${isXs ? 86 : 46}%`, pr: { xs: 1.5, sm: 2 } }}>
+/**
+ * Mirrors HeroCardStack — a DECK, not a rail.
+ *
+ * It used to draw two cards side by side with a title and meta block underneath, which
+ * was the horizontal track the deck replaced: the wrong silhouette, ~19px too tall
+ * (the caption reserves space the deck doesn't use, since its meta sits ON the artwork),
+ * and left-aligned where the deck centres itself. Every number below is imported from
+ * HeroCardStack rather than copied, so this cannot drift out of step again.
+ */
+const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
+  const gutter = isXs ? 14 : 20;          // HeroCardStack's own gutter
+  const offset = isXs ? OFFSET_XS : OFFSET_SM;
+  // The frame is the card plus the room the deck peeks into, centred and capped exactly
+  // as `cardW = min(frameW - PEEK_ROOM, MAX_CARD_W)` works out to.
+  const frameW = `min(100%, ${MAX_CARD_W + PEEK_ROOM}px)`;
+  const cardW = `calc(100% - ${PEEK_ROOM}px)`;
+
+  return (
+    <Box sx={{
+      position: 'relative',
+      overflowX: 'clip',
+      pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+      pb: 3,
+      px: `${gutter}px`,
+    }}>
+      {/* Movies / TV draw a breadcrumb-and-heading line above the deck; Home does not. */}
+      {variant !== 'spotlight' && (
+        <SkeletonBlock width={150} height={20} sx={{ borderRadius: 0.8, mb: 1.5 }} />
+      )}
+
+      <Box sx={{ position: 'relative', width: frameW, maxWidth: '100%', mx: 'auto' }}>
+        {/* The cards behind, furthest back first, stepped and dimmed by the deck's own
+            constants. Absolute, so only the front card contributes height. */}
+        {Array.from({ length: LAYERS - 1 }, (_, i) => LAYERS - 1 - i).map((k) => (
           <SkeletonBlock
-            width="100%"
-            sx={{ aspectRatio: '2 / 3', borderRadius: 4, bgcolor: shimmerStrong }}
+            key={k}
+            sx={{
+              position: 'absolute', top: 0, left: 0,
+              width: cardW, height: '100%',
+              borderRadius: 4,
+              transform: `translateX(${k * offset}px) scale(${1 - k * SCALE_STEP})`,
+              transformOrigin: 'center top',
+              opacity: Math.max(0, 1 - k * DIM_STEP),
+            }}
           />
-          <Box sx={{ pt: 1.25 }}>
-            <SkeletonBlock width="72%" height={18} sx={{ borderRadius: 0.8 }} />
-            <SkeletonBlock width="54%" height={12} sx={{ borderRadius: 0.8, mt: 0.75 }} />
-          </Box>
-        </Box>
-      ))}
+        ))}
+
+        {/* The front card is the one in flow — its 2:3 ratio is what gives the deck its
+            height, exactly as the measured cardH does in the real thing. */}
+        <SkeletonBlock
+          sx={{
+            position: 'relative',
+            width: cardW,
+            aspectRatio: '2 / 3',
+            borderRadius: 4,
+            bgcolor: shimmerStrong,
+          }}
+        />
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 const HeroSkeletonDesktop = ({ isMonitor, isTv, variant = 'spotlight' }) => {
   // Mirror the live billboard footprint so nothing jumps when the real hero loads.
@@ -354,7 +398,7 @@ const HeroBanner = ({
 
   if (loading && !record) {
     return isMobileLike ? (
-      <HeroSkeletonMobile isXs={isXs} isTablet={isTablet} />
+      <HeroSkeletonMobile isXs={isXs} variant={variant} />
     ) : (
       <HeroSkeletonDesktop isMonitor={isMonitor} isTv={isTv} variant={variant} />
     );
