@@ -249,7 +249,7 @@ public class ServerInfoService {
                 return info.contains("raspberry") || info.contains("bcm2835") ||
                        info.contains("bcm2711") || info.contains("bcm2712");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { /* No readable /proc, so treat the host as not a Raspberry Pi. */ }
         return false;
     }
 

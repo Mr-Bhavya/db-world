@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.info.controller;
 
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.events.MediaFilesChangedEvent;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.AudioTrackEntity;
@@ -13,6 +14,7 @@ import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,7 @@ public class MediaInfoController {
     private final MediaInfoService mediaInfoService;
     private final MediaFileRepository mediaFileRepository;
     private final RecordRepository recordRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @GetMapping("/record/{recordId}")
     public ApiResponse<List<MediaFileDto>> getByRecord(@PathVariable Long recordId) {
@@ -122,6 +125,9 @@ public class MediaInfoController {
         entity.setRecord(record);
         mediaFileRepository.save(entity);
         log.info("MediaFile {} linked to record {}", id, recordId);
+        // Linking is the other way a file joins a record (the first being an ingest), so it can
+        // answer a pending request just the same. Consumed AFTER_COMMIT by the auto-fulfiller.
+        eventPublisher.publishEvent(new MediaFilesChangedEvent(recordId));
         return ApiResponse.success("Linked successfully", mediaInfoService.toDto(entity));
     }
 

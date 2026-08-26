@@ -18,6 +18,7 @@ import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestScope;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestStatus;
 import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
@@ -296,8 +297,11 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 .orElseThrow(() -> new IllegalStateException(
                         "Record vanished mid-carryover for id=" + recordId));
 
+        // Whole-title scope (ALL/ALL): a title that has just been ingested has no files at
+        // all, so there is nothing narrower to ask for yet.
         MediaRequestEntity mr = mediaRequestRepo
-                .findByRecordIdAndKind(recordId, MediaRequestKind.NEW_FILES)
+                .findByRecordIdAndKindAndSeasonNumberAndEpisodeNumber(
+                        recordId, MediaRequestKind.NEW_FILES, MediaRequestScope.ALL, MediaRequestScope.ALL)
                 .orElse(null);
 
         if (mr == null) {

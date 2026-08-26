@@ -9,9 +9,12 @@ import { notify } from '@shared/notify';
 
 import {
   addLike, addLove, addWatched, addWatchlist,
-  fetchInteraction, fetchRecord,
+  fetchInteraction, fetchRecord, fetchSimilarRecords, getContinueWatching,
   removeLike, removeLove, removeWatched, removeWatchlist,
+  fetchRecordMediaRequests, toggleMediaRequestVote,
 } from '../../api/cinemaApi';
+import { loadStreamFileInfoByRecordId, getRecordProgress } from '@shared/services/ApiServices';
+import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
 
@@ -20,22 +23,39 @@ import PillNav from './PillNav';
 import VideoDialog from './shared/VideoDialog';
 import OverviewSection from './sections/OverviewSection';
 import CastCrewSection from './sections/CastCrewSection';
+import CollectionSection from './sections/CollectionSection';
 import GallerySection from './sections/GallerySection';
 import SeasonsSection from './sections/SeasonsSection';
+import { progressByFile } from '../../utils/watchProgress';
 import ReviewsSection from './sections/ReviewsSection';
-import WatchSection from './sections/WatchSection';
 import RelatedSection from './sections/RelatedSection';
 import PersonDetailView from './PersonDetailView';
+import StickyWatchBar from './StickyWatchBar';
+import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
+import { buildHybridEpisodes, episodeRefOf } from '../../utils/episodeUtils';
+import {
+  DEFAULT_KIND, applyVote, indexRequests, requestScopeKey, scopeSuffix,
+} from '../../utils/requestScope';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
-  watch: 'rd-watch',
   seasons: 'rd-seasons',
+  collection: 'rd-collection',
   cast: 'rd-cast',
   gallery: 'rd-gallery',
   reviews: 'rd-reviews',
   related: 'rd-related',
+};
+
+/** "1h 45m" / "12m" — the hero's time-remaining subline. */
+const formatRemaining = (ms) => {
+  if (!ms || ms <= 0) return null;
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
 const actionMap = {
@@ -140,6 +160,70 @@ export default function RecordDetailContent({
   const displayRecord = record ?? previewRecord;
   const fullLoaded = !!record;
 
+  // ── Media files ────────────────────────────────────────────────────────
+  // Owned here rather than inside the Watch section so the hero can advertise
+  // the best available quality/HDR/audio, and so both consumers share one fetch.
+  const { data: mediaFiles = [] } = useQuery({
+    queryKey: ['record-media-files', id],
+    queryFn: async () => {
+      const res = await loadStreamFileInfoByRecordId(id);
+      return res?.httpStatusCode === 200
+        ? CommonServices.convertMediaInfoToCustomFormat(null, res.data)
+        : [];
+    },
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── Watch progress ─────────────────────────────────────────────────────
+  // Same query key as the Continue Watching rail, so arriving from the cinema
+  // page costs nothing.
+  const { data: continueItems = [] } = useQuery({
+    queryKey: ['continue-watching'],
+    queryFn: getContinueWatching,
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  });
+
+  // This record's Continue Watching entry: how far along the hero bar draws, and which
+  // file the Watch button should open. Completed titles are filtered out server-side,
+  // so a finished series simply has no entry and starts over.
+  const continueItem = useMemo(
+    () => continueItems.find((c) => String(c?.recordId) === String(id)) ?? null,
+    [continueItems, id],
+  );
+
+  const progress = useMemo(() => {
+    const dur = continueItem?.durationMs ?? 0;
+    const pos = continueItem?.positionMs ?? 0;
+    if (!continueItem || dur <= 0 || pos <= 0) return null;
+    return {
+      percent: Math.min(100, Math.max(2, (pos / dur) * 100)),
+      remainingLabel: formatRemaining(dur - pos),
+    };
+  }, [continueItem]);
+
+  // ── Similar titles ─────────────────────────────────────────────────────
+  // Same key and params as RelatedSection's own query, so TanStack dedupes it
+  // to a single request. Read here only to decide whether the section (and its
+  // nav pill) should exist at all.
+  // Per-episode watched bars. Same one-request-per-record call the player uses, so the
+  // bar on an episode row here and in the player's episode list agree.
+  const { data: watchProgress = {} } = useQuery({
+    queryKey: ['record-progress', id, userId],
+    queryFn: () => getRecordProgress(id).then(progressByFile),
+    enabled: !!id && !!userId,
+    staleTime: 30_000,
+  });
+
+  const { data: similarRecords = [] } = useQuery({
+    queryKey: ['cinema-similar', id],
+    queryFn: () => fetchSimilarRecords(id, 12),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const hasRelated = similarRecords.length > 0;
+
   // ── Interaction ────────────────────────────────────────────────────────
   const { data: interaction } = useQuery({
     queryKey: ['cinema-interaction', userId, id],
@@ -189,6 +273,128 @@ export default function RecordDetailContent({
   }, [record])
 
 
+  // ── Playback & downloads ───────────────────────────────────────────────
+  // The old Watch section made everyone choose a file before they could press
+  // play. Play now resolves the best file for this device and connection and
+  // goes straight to the player; the file list survives as an on-demand sheet.
+
+  const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
+  const [downloadLabel, setDownloadLabel] = useState(null);
+
+  const hasFiles = mediaFiles.length > 0;
+
+  // ── Requests ───────────────────────────────────────────────────────────
+  // Every PENDING request on this record, at whatever scope: the whole title, a
+  // season, a single episode. One call feeds the hero button AND every episode row,
+  // and it carries the vote counts, so "3 waiting" is the server's number and not
+  // an optimistic guess.
+  //
+  // It also replaces a local boolean that started false on every mount, so a
+  // returning voter was shown "Request this" and their click silently WITHDREW
+  // the request they had already made.
+  const { data: pendingRequests = [] } = useQuery({
+    queryKey: ['cinema-media-requests', id],
+    queryFn: () => fetchRecordMediaRequests(id),
+    enabled: !!userId && !!id,
+    staleTime: 60 * 1000,
+  });
+  const requestIndex = useMemo(() => indexRequests(pendingRequests), [pendingRequests]);
+  const recordRequest = requestIndex.get(requestScopeKey({ kind: DEFAULT_KIND }));
+
+  const requestMutation = useMutation({
+    mutationFn: ({ season, episode }) => toggleMediaRequestVote(id, DEFAULT_KIND, { season, episode }),
+    onSuccess: (res) => {
+      // Fold the authoritative row back in rather than refetching: the response
+      // already carries the new count for exactly the scope that was pressed.
+      qc.setQueryData(['cinema-media-requests', id], (prev) => applyVote(prev, res));
+      const what = scopeSuffix(res?.scopeLabel);
+      notify[res?.hasMyVote ? 'success' : 'info'](res?.hasMyVote
+        ? `Requested${what} — you'll be notified when it lands.`
+        : `Request${what} withdrawn.`);
+    },
+    onError: (err) => {
+      if (err?.response?.status === 401) navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+      else notify.error('Could not send the request.');
+    },
+  });
+
+  /**
+   * Toggle a request. No argument asks for the whole title (a movie, or a series with
+   * nothing in the library at all); `{ season }` asks for one season and
+   * `{ season, episode }` for one episode.
+   */
+  const handleRequest = useCallback((scope = {}) => {
+    if (!userId) { navigate(Constants.LOGIN_ROUTE, { state: { from: location } }); return; }
+    requestMutation.mutate({ season: scope.season ?? null, episode: scope.episode ?? null });
+  }, [userId, navigate, location, requestMutation]);
+
+  /** Launch the player on `files`, letting resolveAndBuildMedia auto-pick. */
+  const launch = useCallback(async (candidateFiles, epRef = null) => {
+    const pool = (candidateFiles ?? []).filter(Boolean);
+    if (!pool.length) { notify.warning('No playable file for this title yet.'); return; }
+
+    try {
+      const seed = pool[0];
+      const episodes = buildHybridEpisodes(mediaFiles, seed, record?.tmdb?.seasons);
+      const media = await resolveAndBuildMedia({
+        current: seed,
+        // For an episode the pool IS the variant set; for a movie every file of the
+        // record is a variant of the same picture. Hard-coding that second case as
+        // "not a series" put EVERY episode of a show in the player's quality menu
+        // whenever playback started from the hero button rather than an episode row.
+        variantFiles: epRef ? pool : variantFilesFor(mediaFiles, seed, episodes.length > 0),
+        episodes,
+        record,
+        title: record?.tmdb?.title ?? record?.name ?? '',
+        autoPick: true,
+      });
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
+    } catch {
+      notify.error('Failed to prepare the stream.');
+    }
+  }, [mediaFiles, record, navigate]);
+
+  /**
+   * The hero's Watch/Resume button.
+   *
+   * Continue Watching already resolves where to pick up — a part-watched episode, or
+   * the next one after a finished episode — so the button reads `resumeFileId` instead
+   * of re-deriving it, and therefore can't disagree with the Home rail. Without this it
+   * always opened mediaFiles[0]: episode 1 of a show you were ten episodes into, and
+   * for a movie the wrong master, which lost the saved position too.
+   */
+  const handlePlay = useCallback(() => {
+    const resumeFile = continueItem?.resumeFileId
+      ? mediaFiles.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
+      : null;
+    if (!resumeFile) { launch(mediaFiles); return; }
+
+    const ref = episodeRefOf(resumeFile);
+    // Seed the pool with the file being resumed: `launch` takes pool[0] as the file
+    // whose saved position and progress key are used.
+    const siblings = variantFilesFor(mediaFiles, resumeFile, !!ref);
+    const pool = [resumeFile, ...siblings.filter((f) => f !== resumeFile)];
+    launch(pool, ref ? { season: ref.season, episode: ref.episode } : null);
+  }, [launch, mediaFiles, continueItem]);
+
+  const handleOpenDownloads = useCallback(() => {
+    setDownloadFiles(mediaFiles);
+    setDownloadLabel(null);
+  }, [mediaFiles]);
+
+  const handlePlayEpisode = useCallback((ep) => {
+    launch(ep?.files, { season: ep?.seasonNumber, episode: ep?.episodeNumber });
+  }, [launch]);
+
+  const handleDownloadEpisode = useCallback((ep) => {
+    setDownloadFiles(ep?.files ?? []);
+    setDownloadLabel(
+      ep?.seasonNumber != null && ep?.episodeNumber != null
+        ? `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
+        : null,
+    );
+  }, []);
+
   // ── Page meta ──
   useEffect(() => {
     if (!record) return;
@@ -231,15 +437,29 @@ export default function RecordDetailContent({
   // Watch sits right after Overview — users come here primarily to watch, so
   // surface the files near the top instead of burying them at the bottom.
   const isTv = displayRecord?.type === 'TV_SERIES';
+  // Movies only — TMDB models collections as a movie-side relation.
+  const collectionId = record?.tmdb?.belongsToCollection?.id ?? null;
+
+  // Obscure titles arrive with no credits, no artwork and no videos. Listing
+  // those sections anyway gives the user a pill that scrolls to a blank strip,
+  // so the nav is built from what this record actually has.
+  const hasCast    = (record?.tmdb?.credits?.length ?? 0) > 0;
+  const hasGallery = (record?.tmdb?.videos?.length ?? 0) > 0
+                  || (record?.tmdb?.images?.length ?? 0) > 0;
+  const hasSeasons = isTv && (record?.tmdb?.seasons?.length ?? 0) > 0;
+
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
-    { id: SECTION_IDS.watch, label: 'Watch' },
-    ...(isTv ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
-    { id: SECTION_IDS.cast, label: 'Cast & Crew' },
-    { id: SECTION_IDS.gallery, label: 'Gallery' },
+    ...(hasSeasons ? [{ id: SECTION_IDS.seasons, label: 'Episodes' }] : []),
+    ...(collectionId ? [{ id: SECTION_IDS.collection, label: 'Collection' }] : []),
+    ...(hasCast ? [{ id: SECTION_IDS.cast, label: 'Cast & Crew' }] : []),
+    ...(hasGallery ? [{ id: SECTION_IDS.gallery, label: 'Gallery' }] : []),
+    // Reviews always shows: even with nothing to read, the user can write one.
     { id: SECTION_IDS.reviews, label: 'Reviews' },
-    { id: SECTION_IDS.related, label: 'More Like This' },
-  ], [isTv]);
+    // Related is fetched by its own section and hides itself when empty, so the
+    // pill is only meaningful once we know there's something behind it.
+    ...(hasRelated ? [{ id: SECTION_IDS.related, label: 'More Like This' }] : []),
+  ], [hasSeasons, collectionId, hasCast, hasGallery, hasRelated]);
 
   // Use native scrollIntoView so the browser picks the nearest scrolling
   // ancestor automatically — works for both modal and page modes without
@@ -251,15 +471,20 @@ export default function RecordDetailContent({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // ── Deep-link to Watch when navigated via Play button ──────────────────
+  // ── Arrived via a Play affordance elsewhere (recordNav's `play` flag) ────
+  // There's no Watch section to jump to any more. A series still needs the
+  // episode picker — you can't play "a series" — but a movie can just go, which
+  // is what the caller was asking for in the first place.
   const didAutoJump = useRef(false);
   useEffect(() => {
-    if (location.state?.defaultTab === 'Watch' && record && !didAutoJump.current) {
-      didAutoJump.current = true;
-      // Wait one tick so the section is mounted.
-      setTimeout(() => scrollToSection(SECTION_IDS.watch), 80);
+    if (location.state?.defaultTab !== 'Watch' || !record || didAutoJump.current) return;
+    didAutoJump.current = true;
+    if (hasSeasons) {
+      setTimeout(() => scrollToSection(SECTION_IDS.seasons), 80);
+    } else if (mediaFiles.length) {
+      handlePlay();
     }
-  }, [record, location.state, scrollToSection]);
+  }, [record, location.state, scrollToSection, hasSeasons, mediaFiles, handlePlay]);
 
   // ── Error / empty states ───────────────────────────────────────────────
   // Only fall back to a bare skeleton when there's NO preview to render from
@@ -271,7 +496,12 @@ export default function RecordDetailContent({
         <Box sx={{ position: 'relative', width: '100%', height: { xs: 360, sm: 440, md: 500 }, bgcolor: '#050505', overflow: 'hidden' }}>
           <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
         </Box>
-        <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Container maxWidth={false} sx={{
+          py: 4, px: { xs: 2, md: 3, xl: 5 },
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+        }}>
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} variant="rounded" width={90} height={32} sx={{ bgcolor: alpha(T.text, 0.07) }} />
@@ -308,8 +538,6 @@ export default function RecordDetailContent({
 
   const currentInteraction = interactionState ?? interaction;
 
-  const scrollToWatch = () => scrollToSection(SECTION_IDS.watch);
-
   if (personId) {
     return (
       // Fill the surface (100% of the sheet/modal scroller, 100vh on the full
@@ -328,44 +556,103 @@ export default function RecordDetailContent({
         interaction={currentInteraction}
         onToggle={handleToggle}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
-        onWatchClick={scrollToWatch}
+        onWatchClick={hasFiles ? handlePlay : null}
+        onDownloadClick={hasFiles ? handleOpenDownloads : null}
+        onRequestClick={fullLoaded && !hasFiles ? () => handleRequest() : null}
+        requested={!!recordRequest?.hasMyVote}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
         preview={preview}
+        files={mediaFiles}
+        progress={progress}
+        trailerKey={firstTrailer?.site === 'YOUTUBE' ? firstTrailer.key : null}
       />
 
-      <PillNav sections={sectionList} scrollRoot={scrollRoot} stickyOffset={stickyOffset} />
+      {/* onDismiss surfaces a back control inside the bar once it sticks, so the
+          hero's own close can scroll away instead of sitting on top of the tabs. */}
+      <PillNav
+        sections={sectionList}
+        scrollRoot={scrollRoot}
+        stickyOffset={stickyOffset}
+        onDismiss={inModal ? onClose : () => window.history.back()}
+        title={displayRecord?.tmdb?.title ?? displayRecord?.name ?? null}
+      />
 
       {fullLoaded ? (
-        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 } }}>
+        <Container maxWidth={false} sx={{
+          px: { xs: 2, md: 3, xl: 5 },
+          // A fixed lg cap wasted half a 27" monitor and most of a TV, but an
+          // uncapped column runs unreadably long lines — so the ceiling rises
+          // with the viewport instead of being fixed or absent.
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+          // StickyWatchBar is position:fixed and mobile-only, so it sits OVER
+          // the last section unless the page reserves its height (bar + the
+          // iOS home indicator it clears).
+          pb: { xs: 'calc(84px + env(safe-area-inset-bottom))', md: 4 },
+          // Several sections are horizontal rails. Any one of them that fails to
+          // shrink hands the whole PAGE a horizontal scrollbar, which is a
+          // miserable thing to hit on a phone.
+          //
+          // `clip`, deliberately not `hidden`: an ancestor with overflow:hidden
+          // silently kills position:sticky for everything inside it, and the
+          // pill nav depends on that.
+          overflowX: 'clip',
+        }}>
           <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <OverviewSection record={record} />
           </Box>
-          <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <WatchSection recordId={id} record={record} />
-          </Box>
-          {isTv && (
+          {hasSeasons && (
             <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-              <SeasonsSection record={record} />
+              <SeasonsSection
+                record={record}
+                files={mediaFiles}
+                onPlayEpisode={handlePlayEpisode}
+                onDownloadEpisode={handleDownloadEpisode}
+                onRequest={handleRequest}
+                requests={requestIndex}
+                progress={watchProgress}
+              />
             </Box>
           )}
-          <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <CastCrewSection record={record} onPersonClick={openPerson} />
-          </Box>
-          <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <GallerySection record={record} />
-          </Box>
+          {collectionId && (
+            <Box id={SECTION_IDS.collection} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <CollectionSection
+                collectionId={collectionId}
+                currentTmdbId={record?.tmdbId ?? record?.tmdb?.id}
+                isMobile={isMobile}
+              />
+            </Box>
+          )}
+          {hasCast && (
+            <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <CastCrewSection record={record} onPersonClick={openPerson} />
+            </Box>
+          )}
+          {hasGallery && (
+            <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <GallerySection record={record} />
+            </Box>
+          )}
           <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <ReviewsSection record={record} recordId={id} />
           </Box>
-          <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-            <RelatedSection recordId={id} isMobile={isMobile} />
-          </Box>
+          {hasRelated && (
+            <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+              <RelatedSection recordId={id} isMobile={isMobile} />
+            </Box>
+          )}
         </Container>
       ) : (
         // Same-layout skeletons for the below-the-fold sections; they fill in when
         // the full record arrives (no subtree swap → no flash).
-        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+        <Container maxWidth={false} sx={{
+          px: { xs: 2, md: 3, xl: 5 }, py: 3,
+          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
+          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
+          mx: 'auto',
+        }}>
           <Skeleton variant="text" width={160} height={32} sx={{ bgcolor: alpha(T.text, 0.08), mb: 1.5 }} />
           <Skeleton variant="text" width="94%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
           <Skeleton variant="text" width="88%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />
@@ -381,6 +668,23 @@ export default function RecordDetailContent({
           </Box>
         </Container>
       )}
+
+      {fullLoaded && hasFiles && (
+        <StickyWatchBar
+          record={record}
+          progress={progress}
+          onWatchClick={handlePlay}
+          scrollRoot={scrollRoot}
+        />
+      )}
+
+      <DownloadSheet
+        open={downloadFiles !== null}
+        onClose={() => setDownloadFiles(null)}
+        files={downloadFiles ?? []}
+        record={record}
+        subheading={downloadLabel}
+      />
 
       {trailerVideo && <VideoDialog video={trailerVideo} onClose={() => setTrailerVideo(null)} />}
     </Box>

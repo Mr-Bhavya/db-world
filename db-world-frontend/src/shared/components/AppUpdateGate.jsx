@@ -5,6 +5,7 @@ import SystemUpdateAltRoundedIcon from '@mui/icons-material/SystemUpdateAltRound
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 import AppPromoDialog from '@shared/components/AppPromoDialog';
+import { useAuth } from '@features/auth/context/Authentication';
 
 const AppUpdate = registerPlugin('AppUpdate');
 
@@ -22,14 +23,24 @@ function formatSize(bytes) {
  * Update downloads the APK and hands off to the system installer (native
  * AppUpdate plugin). A `mandatory` release (or installed build below
  * minSupportedCode) renders the dialog non-dismissable. No-op on web.
+ *
+ * releaseAudience logic:
+ *   "all"   → prompt shown immediately to every user (default, same as before)
+ *   "admin" → prompt deferred until auth resolves; only ADMIN / OWNER see it
+ * minSupportedCode floor always overrides the audience filter — if the installed
+ * build is dangerously old, every user is force-prompted regardless.
  */
 export default function AppUpdateGate() {
-  const [info, setInfo] = useState(null);     // latest build + computed `mandatory`
+  const { auth } = useAuth();
+
+  const [info, setInfo] = useState(null);           // latest build + computed `mandatory`
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
   const [needsPerm, setNeedsPerm] = useState(false);
   const [error, setError] = useState(null);
+  // Holds a fetched update that targets "admin" audience until auth is ready.
+  const [pendingAdminUpdate, setPendingAdminUpdate] = useState(null);
 
   // Check for a newer build once on mount (Android only).
   useEffect(() => {
@@ -42,15 +53,35 @@ export default function AppUpdateGate() {
         const res = await axiosInstance.get('/api/app/version');
         const latest = res?.data?.data ?? res?.data;
         if (cancelled || !latest || typeof latest.versionCode !== 'number') return;
-        if (latest.versionCode > curCode) {
-          const mandatory = Boolean(latest.mandatory) || curCode < (latest.minSupportedCode ?? 0);
+        if (latest.versionCode <= curCode) return;
+
+        const isBelowFloor = curCode < (latest.minSupportedCode ?? 0);
+        const audience = latest.releaseAudience ?? 'all';
+
+        // Floor override: everyone must update regardless of audience.
+        if (audience === 'all' || isBelowFloor) {
+          const mandatory = Boolean(latest.mandatory) || isBelowFloor;
           setInfo({ ...latest, mandatory });
           setOpen(true);
+        } else {
+          // "admin" audience — wait for auth to resolve before deciding.
+          setPendingAdminUpdate({ ...latest, _curCode: curCode });
         }
       } catch { /* offline / no release / endpoint absent — silently skip */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Once auth is ready, evaluate any deferred admin-audience update.
+  useEffect(() => {
+    if (!pendingAdminUpdate || auth.loading) return;
+    const role = String(auth.role ?? '').replace(/^ROLE_/i, '').trim().toUpperCase();
+    if (role === 'ADMIN' || role === 'OWNER') {
+      setInfo({ ...pendingAdminUpdate, mandatory: Boolean(pendingAdminUpdate.mandatory) });
+      setOpen(true);
+    }
+    setPendingAdminUpdate(null); // consumed — don't re-evaluate on later role changes
+  }, [pendingAdminUpdate, auth.loading, auth.role]);
 
   // Download progress from the native plugin.
   useEffect(() => {

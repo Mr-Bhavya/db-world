@@ -261,6 +261,9 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                     ...sx
                 }}
             >
+                {/* Index is the right key here: `children` is written literally in JSX at each
+                    call site, so the list is positional by construction and never reorders.
+                    Arbitrary children carry no identity of their own to key on. */}
                 {React.Children.map(children, (child, index) => (
                     <Grid
                         item
@@ -370,6 +373,12 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                     overflowY: 'auto',
                     pr: 1
                 }}>
+                    {/* Index stays deliberately. These tracks carry no unique field in this
+                        payload, and a media file can genuinely hold duplicates — two English
+                        AAC 5.1 audio tracks is ordinary — so a composite key built from
+                        language/format/channels could collide, and duplicate keys are worse
+                        than positional ones. The list is sliced from a fixed track order,
+                        never filtered or reordered. */}
                     {mediaInfo.audio?.slice(0, isMobile ? 8 : 6).map((a, i) => (
                         <Box
                             key={i}
@@ -431,6 +440,8 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                         overflowY: 'auto'
                     }}>
                         <Grid container spacing={1}>
+                            {/* Same as the audio list above: duplicate subtitle tracks are
+                                normal, so index beats a colliding composite key. */}
                             {mediaInfo.subtitle.slice(0, isMobile ? 6 : 4).map((sub, i) => (
                                 <Grid item xs={12} sm={6} key={i}>
                                     <Box

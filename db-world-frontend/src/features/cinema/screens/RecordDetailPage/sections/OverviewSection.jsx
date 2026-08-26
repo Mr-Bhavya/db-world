@@ -1,58 +1,33 @@
-import React, { useMemo } from 'react';
-import { Box, Chip, Paper, Typography, useMediaQuery } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import React, { useMemo, useState } from 'react';
+import { Box, Button, Chip, Paper, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme/ThemeContext';
+import Constants from '@shared/constants';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
+import SectionCard from '../shared/SectionCard';
 import StatRow from '../shared/StatRow';
+import RatingRing from '../shared/RatingRing';
+import { detectUserRegion, pickProviderRegion, providersForRegion } from '../../../utils/providers';
 import { formatCurrency, formatDate, formatRuntime } from '../helpers';
-
-// Best-effort region detection. navigator.language returns "en-IN" / "en-US"
-// etc.; pull the country half. Falls back to IN.
-function detectUserRegion() {
-  try {
-    const lang = navigator.language || (navigator.languages && navigator.languages[0]) || '';
-    const region = lang.split('-')[1]?.toUpperCase();
-    if (region && region.length === 2) return region;
-  } catch { /* ignore */ }
-  return 'IN';
-}
 
 export default function OverviewSection({ record }) {
   const T = useT();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
   const providers = tmdb.providers ?? [];
 
-  // Available regions from the record's provider list.
-  const availableRegions = useMemo(() => {
-    const set = new Set(providers.map((p) => p.regionCode).filter(Boolean));
-    return Array.from(set);
-  }, [providers]);
-
+  // Region choice lives in utils/providers so the hero's "Streaming on" strip and this
+  // panel can never disagree about which country the viewer is being shown. Locked to
+  // that one region — there is no all-country selector.
   const userRegion = useMemo(detectUserRegion, []);
-
-  // Pick the region we actually want to show. Preference order:
-  //   1. user's detected region (if the title has providers there)
-  //   2. India (if available)
-  //   3. US (common fallback)
-  //   4. first region in the list
-  const defaultRegion = useMemo(() => {
-    if (availableRegions.includes(userRegion)) return userRegion;
-    if (availableRegions.includes('IN')) return 'IN';
-    if (availableRegions.includes('US')) return 'US';
-    return availableRegions[0] ?? null;
-  }, [availableRegions, userRegion]);
-
-  // Lock to the user's region (India default) — no all-country selector.
-  const selectedRegion = defaultRegion;
-
-  // Only show providers for the chosen region.
+  const selectedRegion = useMemo(() => pickProviderRegion(providers, userRegion), [providers, userRegion]);
   const regionalProviders = useMemo(
-    () => (selectedRegion ? providers.filter((p) => p.regionCode === selectedRegion) : []),
+    () => providersForRegion(providers, selectedRegion),
     [providers, selectedRegion],
   );
 
@@ -72,8 +47,34 @@ export default function OverviewSection({ record }) {
     ...Object.keys(grouped).filter((k) => !providerOrder.includes(k)),
   ];
 
-  const chipSx = { bgcolor: alpha(T.teal, 0.12), color: T.teal, fontSize: '0.72rem', border: `1px solid ${alpha(T.teal, 0.2)}` };
-  const subChipSx = { bgcolor: T.glass, color: T.textMuted, fontSize: '0.72rem' };
+  // Matches the surface RecordDetailContent paints behind this section, so the
+  // collapse gradient fades into the page rather than a visible band.
+  const surface = T.bg === '#000000' ? '#141414' : T.bg;
+  const canCollapse = (tmdb.overview?.length ?? 0) > 320;
+
+  const chipSx = {
+    bgcolor: alpha(T.teal, 0.12), color: T.teal,
+    fontSize: { xs: '0.7rem', xl: '0.78rem' },
+    height: { xs: 24, xl: 28 },
+    border: `1px solid ${alpha(T.teal, 0.2)}`,
+  };
+  const subChipSx = {
+    bgcolor: alpha(T.text, 0.06), color: T.textMuted,
+    fontSize: { xs: '0.7rem', xl: '0.78rem' },
+    height: { xs: 24, xl: 28 },
+    border: `1px solid ${alpha(T.text, 0.08)}`,
+  };
+
+  /** Small uppercase rubric above a chip group. */
+  const groupLabel = (text) => (
+    <Typography sx={{
+      color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1,
+      fontWeight: 700, fontSize: { xs: '0.62rem', xl: '0.7rem' },
+      display: 'block', mb: 1,
+    }}>
+      {text}
+    </Typography>
+  );
 
   return (
     <Box
@@ -85,41 +86,84 @@ export default function OverviewSection({ record }) {
       sx={{ py: 3 }}
     >
 
-      {/* ── Mobile poster (floated, magazine-style text wrap) ── */}
-      {isMobile && tmdb.posterPath && (
-        <Box sx={{
-          float: 'left',
-          width: 100,
-          mr: 2, mb: 1.5,
-          borderRadius: 2,
-          overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        }}>
-          <Box
-            component="img"
-            src={tmdbImg(tmdb.posterPath, 'w185')}
-            alt={tmdb.title}
-            draggable={false}
-            sx={{ width: '100%', display: 'block' }}
-          />
+      {tmdb.overview && (
+        <Box sx={{ mb: 4, maxWidth: { xs: '100%', md: 760, xl: 900 } }}>
+          {/* Collapsed with a fade rather than an ellipsis, so the cut lands on a
+              soft edge instead of a hard truncation mid-word. */}
+          <Box sx={{
+            position: 'relative',
+            maxHeight: canCollapse && !overviewOpen ? 138 : 1600,
+            overflow: 'hidden',
+            transition: 'max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1)',
+          }}>
+            <Typography variant="body1" sx={{
+              color: T.textMuted, lineHeight: 1.85,
+              fontSize: { xs: '0.95rem', md: '1rem' },
+            }}>
+              {tmdb.overview}
+            </Typography>
+
+            {canCollapse && !overviewOpen && (
+              <Box sx={{
+                position: 'absolute', left: 0, right: 0, bottom: 0, height: 56,
+                pointerEvents: 'none',
+                background: `linear-gradient(to top, ${surface} 0%, ${alpha(surface, 0)} 100%)`,
+              }} />
+            )}
+          </Box>
+
+          {canCollapse && (
+            <Button
+              size="small"
+              onClick={() => setOverviewOpen((v) => !v)}
+              sx={{
+                mt: 0.75, p: 0, minWidth: 0, color: T.teal,
+                textTransform: 'none', fontWeight: 700, fontSize: '0.82rem',
+              }}
+            >
+              {overviewOpen ? 'Show less' : 'Show more'}
+            </Button>
+          )}
         </Box>
       )}
 
-      {tmdb.overview && (
-        <Typography variant="body1" sx={{
-          color: T.textMuted, lineHeight: 1.85, mb: 4, maxWidth: 760,
-          fontSize: { xs: '0.95rem', md: '1rem' },
-        }}>
-          {tmdb.overview}
-        </Typography>
-      )}
-
-      {/* Clear float so the grid below doesn't overlap the poster */}
-      {isMobile && tmdb.posterPath && <Box sx={{ clear: 'both' }} />}
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 3, md: 5 } }}>
-        <Box>
+      <Box sx={{
+        display: 'grid',
+        // Three columns from large up so a 27" monitor or a TV doesn't run
+        // 130-character lines of metadata across the whole panel.
+        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr', lg: '1fr 1fr', xl: '1fr 1fr 1fr' },
+        gap: { xs: 2, md: 2.5, xl: 3 },
+        alignItems: 'start',
+      }}>
+        <SectionCard>
           <SectionHeading>Details</SectionHeading>
+          {/* The audience score, which the panel never actually showed — the hero's star
+              pill is a glance, this is the number with its sample size. Theme colours are
+              passed in: the ring's defaults are white-on-black and would vanish here in
+              the light theme. */}
+          {tmdb.voteAverage > 0 && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1.75,
+              pb: 1.5, mb: 1, borderBottom: `1px solid ${alpha(T.text, 0.07)}`,
+            }}>
+              <RatingRing
+                value={tmdb.voteAverage}
+                size={58}
+                trackColor={alpha(T.text, 0.12)}
+                labelColor={T.textFaint}
+              />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.86rem' }}>
+                  TMDB score
+                </Typography>
+                <Typography sx={{ color: T.textFaint, fontSize: '0.76rem', fontWeight: 600 }}>
+                  {tmdb.voteCount > 0
+                    ? `${tmdb.voteCount.toLocaleString()} vote${tmdb.voteCount === 1 ? '' : 's'}`
+                    : 'No votes yet'}
+                </Typography>
+              </Box>
+            </Box>
+          )}
           {isMovie ? (
             <>
               <StatRow label="Release Date" value={formatDate(tmdb.releaseDate)} />
@@ -130,7 +174,15 @@ export default function OverviewSection({ record }) {
               <StatRow label="Revenue" value={formatCurrency(tmdb.revenue)} />
               {tmdb.imdbId && <StatRow label="IMDb" value={tmdb.imdbId} link={`https://www.imdb.com/title/${tmdb.imdbId}`} />}
               {tmdb.homepage && <StatRow label="Homepage" value="Visit website" link={tmdb.homepage} />}
-              {tmdb.belongsToCollection && <StatRow label="Collection" value={tmdb.belongsToCollection.name} />}
+              {tmdb.belongsToCollection && (
+                <StatRow
+                  label="Collection"
+                  value={tmdb.belongsToCollection.name}
+                  onClick={() => navigate(
+                    Constants.DB_CINEMA_COLLECTION_ROUTE.replace(':collectionId', tmdb.belongsToCollection.id),
+                  )}
+                />
+              )}
             </>
           ) : (
             <>
@@ -147,32 +199,35 @@ export default function OverviewSection({ record }) {
             </>
           )}
 
+        </SectionCard>
+
+        <SectionCard>
+          <SectionHeading>Production</SectionHeading>
+
           {(() => {
             const companies = (tmdb.productionCompanies ?? []).filter((c) => c?.name);
             if (!companies.length) return null;
             return (
-              <Box sx={{ mt: 3 }}>
-                <SectionHeading sx={{ fontSize: '0.9rem' }}>Companies</SectionHeading>
+              <Box sx={{ mb: 2.5 }}>
+                {groupLabel('Companies')}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {companies.map((c, i) => (
-                    <Chip key={i} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
+                  {companies.map((c) => (
+                    <Chip key={c.name} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
             );
           })()}
-        </Box>
 
-        <Box>
           {(() => {
             const countries = (tmdb.productionCountries ?? []).filter((c) => c?.name);
             if (!countries.length) return null;
             return (
-              <Box sx={{ mb: 3 }}>
-                <SectionHeading sx={{ fontSize: '0.9rem' }}>Countries</SectionHeading>
+              <Box sx={{ mb: 2.5 }}>
+                {groupLabel('Countries')}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {countries.map((c, i) => (
-                    <Chip key={i} label={c.name} size="small" sx={subChipSx} />
+                  {countries.map((c) => (
+                    <Chip key={c.name} label={c.name} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
@@ -185,11 +240,11 @@ export default function OverviewSection({ record }) {
               .filter((l) => l._label);
             if (!langs.length) return null;
             return (
-              <Box sx={{ mb: 3 }}>
-                <SectionHeading sx={{ fontSize: '0.9rem' }}>Languages</SectionHeading>
+              <Box sx={{ mb: 2.5 }}>
+                {groupLabel('Languages')}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {langs.map((l, i) => (
-                    <Chip key={i} label={l._label} size="small" sx={subChipSx} />
+                  {langs.map((l) => (
+                    <Chip key={l._label} label={l._label} size="small" sx={subChipSx} />
                   ))}
                 </Box>
               </Box>
@@ -200,11 +255,11 @@ export default function OverviewSection({ record }) {
             const creators = (tmdb.createdBy ?? []).filter((c) => c?.name);
             if (!creators.length) return null;
             return (
-              <Box sx={{ mb: 3 }}>
-                <SectionHeading sx={{ fontSize: '0.9rem' }}>Created By</SectionHeading>
+              <Box sx={{ mb: 2.5 }}>
+                {groupLabel('Created By')}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                  {creators.map((c, i) => (
-                    <Chip key={i} label={c.name} size="small" sx={chipSx} />
+                  {creators.map((c) => (
+                    <Chip key={c.name} label={c.name} size="small" sx={chipSx} />
                   ))}
                 </Box>
               </Box>
@@ -212,7 +267,7 @@ export default function OverviewSection({ record }) {
           })()}
 
           {!isMovie && (tmdb.lastEpisodeToAir || tmdb.nextEpisodeToAir) && (
-            <Box sx={{ mb: 3 }}>
+            <Box>
               {tmdb.lastEpisodeToAir && (() => {
                 const ep = tmdb.lastEpisodeToAir;
                 const sn = ep.seasonNumber ?? tmdb.seasons?.find(s => s.episodes?.some(e => e.id === ep.id))?.seasonNumber;
@@ -246,45 +301,58 @@ export default function OverviewSection({ record }) {
             </Box>
           )}
 
-          {availableRegions.length > 0 && (
-            <Box>
-              <SectionHeading>
-                Where to Watch{selectedRegion ? ` · ${selectedRegion}` : ''}
-              </SectionHeading>
+        </SectionCard>
 
-              {sortedProviderKeys.length > 0 ? (
-                sortedProviderKeys.map((type) => (
-                  <Box key={type} sx={{ mb: 2 }}>
-                    <Typography variant="caption" sx={{ color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, display: 'block', mb: 0.75 }}>
-                      {typeLabel[type] ?? type}
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {grouped[type].map((p, i) => {
-                        const logoUrl = tmdbImg(p.provider?.logoPath, 'w92');
-                        return (
-                          <Box key={i} sx={{
-                            display: 'flex', alignItems: 'center', gap: 1,
-                            bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.08)}`,
-                            borderRadius: 1.5, px: 1.25, py: 0.75,
-                            transition: 'border-color .15s, transform .15s',
-                            '&:hover': { borderColor: alpha(T.teal, 0.4), transform: 'translateY(-1px)' },
+        {selectedRegion && (
+          <SectionCard>
+            <SectionHeading action={selectedRegion || null}>
+              Where to Watch
+            </SectionHeading>
+
+            {sortedProviderKeys.length > 0 ? (
+              sortedProviderKeys.map((type) => (
+                <Box key={type} sx={{ mb: 2, '&:last-of-type': { mb: 0 } }}>
+                  {groupLabel(typeLabel[type] ?? type)}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {grouped[type].map((p) => {
+                      const logoUrl = tmdbImg(p.provider?.logoPath, 'w92');
+                      return (
+                        <Box key={`${p.regionCode ?? ''}:${p.provider?.name ?? ''}`} sx={{
+                          display: 'flex', alignItems: 'center', gap: 1,
+                          bgcolor: alpha(T.text, 0.05),
+                          border: `1px solid ${alpha(T.text, 0.09)}`,
+                          borderRadius: 2, px: 1.25, py: 0.85,
+                          transition: 'border-color .18s, transform .18s',
+                          '&:hover': { borderColor: alpha(T.teal, 0.55), transform: 'translateY(-2px)' },
+                        }}>
+                          {logoUrl && (
+                            <Box
+                              component="img" src={logoUrl} alt={p.provider?.name}
+                              sx={{
+                                width: { xs: 26, xl: 30 }, height: { xs: 26, xl: 30 },
+                                borderRadius: 1, objectFit: 'cover', flexShrink: 0,
+                              }}
+                            />
+                          )}
+                          <Typography sx={{
+                            color: T.textMuted, fontWeight: 600,
+                            fontSize: { xs: '0.78rem', xl: '0.88rem' },
                           }}>
-                            {logoUrl && <Box component="img" src={logoUrl} alt={p.provider?.name} sx={{ width: 26, height: 26, borderRadius: 0.75, objectFit: 'cover' }} />}
-                            <Typography variant="body2" sx={{ color: T.textMuted, fontWeight: 500, fontSize: '0.82rem' }}>{p.provider?.name}</Typography>
-                          </Box>
-                        );
-                      })}
-                    </Box>
+                            {p.provider?.name}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
                   </Box>
-                ))
-              ) : (
-                <Typography variant="body2" sx={{ color: T.textFaint }}>
-                  Not available in {selectedRegion}.
-                </Typography>
-              )}
-            </Box>
-          )}
-        </Box>
+                </Box>
+              ))
+            ) : (
+              <Typography variant="body2" sx={{ color: T.textFaint }}>
+                Not available in {selectedRegion}.
+              </Typography>
+            )}
+          </SectionCard>
+        )}
       </Box>
     </Box>
   );

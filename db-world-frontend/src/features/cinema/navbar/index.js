@@ -29,11 +29,13 @@ import {
   NotificationsOutlined as BellIcon,
   ArrowBack as BackIcon,
   FileDownload as DownloadIcon,
-  Tune as TuneIcon,
+  GridViewRounded as GenreIcon,
 } from '@mui/icons-material';
 import { AnimatePresence } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
-import CategoryModal from './CategoryModal';
+import { useQuery } from '@tanstack/react-query';
+import GenreMenu from './GenreMenu';
+import { genrePath, pagePath } from '../utils/genreNav';
 import { useCategory } from './CategoryContext';
 import NotificationPanel from '../components/notifications/NotificationPanel';
 import { useActiveDownloadCount } from '../download-queue/useActiveDownloadCount';
@@ -178,7 +180,7 @@ const FloatingNavItem = styled(ButtonBase, {
 
 // ─── TV Drawer (≥ 1920px + coarse pointer) ───────────────────────────────────
 
-function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigate, isAndroid }) {
+function TvDrawer({ activeId, unreadCount, onSearch, onGenres, onBell, onNavigate, isAndroid }) {
   const [expanded, setExpanded] = React.useState(false);
   const theme = useTheme();
 
@@ -187,7 +189,7 @@ function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigat
     { id: 1, title: 'Movies',        route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows',      route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
     { id: 3, title: 'Search',        route: null,                               icon: <SearchIcon /> },
-    { id: 4, title: 'Filter',        route: null,                               icon: <TuneIcon /> },
+    { id: 4, title: 'Genres',        route: null,                               icon: <GenreIcon /> },
     { id: 5, title: 'Notifications', route: null,                               icon: (
         <Badge badgeContent={unreadCount > 0 ? unreadCount : null} color="error" max={99}
           sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16, p: '0 4px' } }}>
@@ -198,10 +200,10 @@ function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigat
     ...(isAndroid ? [{ id: 6, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ];
 
-  const handleItemClick = (item) => {
+  const handleItemClick = (item, e) => {
     if (item.id === 3) { onSearch?.(); }
-    else if (item.id === 4) { onFilter?.(); }
-    else if (item.id === 5) { onBell?.(); }
+    else if (item.id === 4) { onGenres?.(e); }
+    else if (item.id === 5) { onBell?.(e); }
     else if (item.route) { onNavigate?.(item.route); }
   };
 
@@ -238,7 +240,7 @@ function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigat
             key={item.id}
             tabIndex={0}
             focusRipple
-            onClick={() => handleItemClick(item)}
+            onClick={(e) => handleItemClick(item, e)}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -298,7 +300,7 @@ function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigat
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function Navbar({ coverColor, onGenreSelect }) {
+function Navbar({ coverColor, bleedUnderTop = false }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // < 600px only
   const tier     = useDeviceTier();
@@ -318,10 +320,9 @@ function Navbar({ coverColor, onGenreSelect }) {
 
   const scrollTimerRef = useRef(null);
 
-  const [categoryList,      setCategoryList]      = useState([]);
   const [isScrolled,        setIsScrolled]        = useState(false);
   const [searchActive,      setSearchActive]      = useState(false);
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [genreAnchorEl,     setGenreAnchorEl]     = useState(null);
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [bellAnchorEl,      setBellAnchorEl]      = useState(null);
 
@@ -343,14 +344,22 @@ function Navbar({ coverColor, onGenreSelect }) {
     ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ], [isAndroid]);
 
+  // Which cinema section the URL is on. Also decides which genre list the menu
+  // shows and which section its links point at, so the menu and the page can
+  // never disagree. Read straight off the path (not off selectedNav) so it is
+  // already correct on the very first render.
+  const pageKey = useMemo(() => {
+    const path = location.pathname;
+    if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE)) return 'movies';
+    if (path.includes(Constants.DB_CINEMA_SERIES_ROUTE)) return 'series';
+    return 'home';
+  }, [location.pathname]);
+
   // Sync selectedNav with current URL
   useEffect(() => {
-    const path = location.pathname;
-    let match = navItems[0];
-    if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE))  match = navItems[1];
-    else if (path.includes(Constants.DB_CINEMA_SERIES_ROUTE)) match = navItems[2];
-    selectNav(match);
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+    const idx = pageKey === 'movies' ? 1 : pageKey === 'series' ? 2 : 0;
+    selectNav(navItems[idx]);
+  }, [pageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll detection
   useEffect(() => {
@@ -365,12 +374,18 @@ function Navbar({ coverColor, onGenreSelect }) {
     };
   }, []);
 
-  // Load category list for the modal
-  useEffect(() => {
-    fetchPageCategories('home')
-      .then(data => setCategoryList(Array.isArray(data) ? data : []))
-      .catch(() => setCategoryList([]));
-  }, []);
+  // Genre list for THIS section (Movies and TV Shows expose different genres).
+  // Same query key CinemaPage uses, so the two share one cached fetch.
+  const { data: categoryData } = useQuery({
+    queryKey: ['cinema-categories', pageKey],
+    queryFn: () => fetchPageCategories(pageKey),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const categoryList = useMemo(
+    () => (Array.isArray(categoryData) ? categoryData : []),
+    [categoryData]
+  );
 
   // Load unread notification count once on mount.
   // Also surface a one-shot snackbar for REQUEST_FULFILLED notifications — admins
@@ -456,38 +471,35 @@ function Navbar({ coverColor, onGenreSelect }) {
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
-  const handleNavSelect = useCallback((item) => {
+  const handleNavSelect = useCallback((item, e) => {
     if (item.id === 3) {
-      setCategoryModalOpen(true);
+      setGenreAnchorEl(e?.currentTarget ?? null);
     } else if (item.id === 99) {
       setSearchActive(true);
     } else {
       selectNav(item);
-      setCategoryModalOpen(false);
+      setGenreAnchorEl(null);
       if (item.route) navigate(item.route);
-      onGenreSelect?.(null);
-      selectCategory(null);
+      clearCategory();
     }
-  }, [selectNav, navigate, onGenreSelect, selectCategory]);
+  }, [selectNav, navigate, clearCategory]);
 
-  const handleBackToHome = useCallback(() => {
-    handleNavSelect(navItems[0]);
+  const handleBackToHome = useCallback((e) => {
+    handleNavSelect(navItems[0], e);
   }, [handleNavSelect, navItems]);
 
-  const handleCategorySelect = useCallback((category) => {
-    selectCategory(category);
-    setCategoryModalOpen(false);
-    onGenreSelect?.(category);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [selectCategory, onGenreSelect]);
+  // The menu entries are real links, so the route change is already under way by
+  // the time this runs — CinemaPage re-derives the genre from the URL, and puts
+  // the new page at the top. Setting the context here only keeps the nav label
+  // from flickering for one frame.
+  const handleGenrePick = useCallback((genre) => {
+    if (genre) selectCategory(genre); else clearCategory();
+  }, [selectCategory, clearCategory]);
 
-  const handleClearCategory = useCallback(() => {
-    clearCategory();
-    selectCategory(null);
-    onGenreSelect?.(null);
-    setCategoryModalOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [clearCategory, onGenreSelect, selectCategory]);
+  const genreHref = useCallback((genre) => genrePath(pageKey, genre), [pageKey]);
+  const allGenresLabel = pageKey === 'movies' ? 'All Movies'
+    : pageKey === 'series' ? 'All TV Shows'
+      : 'All Genres';
 
   const handleBellClick = (e) => setBellAnchorEl(e.currentTarget);
   const handleBellClose = () => setBellAnchorEl(null);
@@ -520,7 +532,7 @@ function Navbar({ coverColor, onGenreSelect }) {
           activeId={selectedNav?.id ?? 0}
           unreadCount={unreadCount}
           onSearch={() => setSearchActive(true)}
-          onFilter={() => setCategoryModalOpen(true)}
+          onGenres={(e) => setGenreAnchorEl(e?.currentTarget ?? document.body)}
           onBell={(e) => setBellAnchorEl(e?.currentTarget ?? document.body)}
           onNavigate={(route) => { navigate(route); }}
           isAndroid={isAndroid}
@@ -528,19 +540,21 @@ function Navbar({ coverColor, onGenreSelect }) {
         {/* Spacer so page content isn't hidden under the 72px drawer */}
         <Box sx={{ ml: '72px' }} />
 
-        <CategoryModal
-          open={categoryModalOpen}
+        <GenreMenu
+          anchorEl={genreAnchorEl}
           categories={categoryList}
-          selectedCategory={selectedCategory}
-          onSelect={handleCategorySelect}
-          onClear={handleClearCategory}
-          onClose={() => setCategoryModalOpen(false)}
-          appBarHeight={0}
+          selectedId={selectedCategory?.id ?? null}
+          allLabel={allGenresLabel}
+          allHref={pagePath(pageKey)}
+          hrefFor={genreHref}
+          onPick={handleGenrePick}
+          onClose={() => setGenreAnchorEl(null)}
         />
         <NotificationPanel
           anchorEl={bellAnchorEl}
           onClose={handleBellClose}
           onUnreadClear={handleUnreadClear}
+          hasUnread={unreadCount > 0}
         />
         <AnimatePresence>
           {searchActive && <SearchOverlay onClose={() => setSearchActive(false)} />}
@@ -595,8 +609,8 @@ function Navbar({ coverColor, onGenreSelect }) {
                   {navItems.map(item => (
                     <NavLink
                       key={item.id}
-                      active={selectedNav?.id === item.id}
-                      onClick={() => handleNavSelect(item)}
+                      active={item.id === 3 ? Boolean(selectedCategory) : selectedNav?.id === item.id}
+                      onClick={(e) => handleNavSelect(item, e)}
                       endIcon={item.id === 3
                         ? <ExpandMoreIcon sx={{ fontSize: '1rem !important', ml: -0.5 }} />
                         : undefined}
@@ -623,10 +637,21 @@ function Navbar({ coverColor, onGenreSelect }) {
               </Badge>
             ))}
 
-            {/* Filter — mobile top bar AND desktop */}
-            {iconBtn(
-              () => setCategoryModalOpen(true),
-              <TuneIcon sx={{ fontSize: '1.3rem' }} />,
+            {/* Genres — mobile only; on desktop the "Categories" nav link opens the
+                same menu, and two triggers for one panel just read as a duplicate.
+                A grid glyph, not sliders: this browses categories, it doesn't
+                open filter controls. The dot marks an active genre, since the
+                colour change alone is easy to miss over bright hero art. */}
+            {isMobile && iconBtn(
+              (e) => setGenreAnchorEl(e.currentTarget),
+              <Badge
+                variant="dot"
+                color="primary"
+                invisible={!selectedCategory}
+                sx={{ '& .MuiBadge-badge': { right: 1, top: 2, boxShadow: '0 0 0 2px rgba(0,0,0,0.5)' } }}
+              >
+                <GenreIcon sx={{ fontSize: '1.25rem' }} />
+              </Badge>,
               selectedCategory ? { color: theme.palette.primary.main } : {},
             )}
 
@@ -638,15 +663,16 @@ function Navbar({ coverColor, onGenreSelect }) {
         </Toolbar>
       </StyledAppBar>
 
-      {/* ── Category modal ── */}
-      <CategoryModal
-        open={categoryModalOpen}
+      {/* ── Genre menu ── */}
+      <GenreMenu
+        anchorEl={genreAnchorEl}
         categories={categoryList}
-        selectedCategory={selectedCategory}
-        onSelect={handleCategorySelect}
-        onClear={handleClearCategory}
-        onClose={() => setCategoryModalOpen(false)}
-        appBarHeight={isMobile ? 52 : 68}
+        selectedId={selectedCategory?.id ?? null}
+        allLabel={allGenresLabel}
+        allHref={pagePath(pageKey)}
+        hrefFor={genreHref}
+        onPick={handleGenrePick}
+        onClose={() => setGenreAnchorEl(null)}
       />
 
       {/* ── Notification panel ── */}
@@ -654,6 +680,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         anchorEl={bellAnchorEl}
         onClose={handleBellClose}
         onUnreadClear={handleUnreadClear}
+        hasUnread={unreadCount > 0}
       />
 
       {/* ── Search Overlay ── */}
@@ -661,11 +688,13 @@ function Navbar({ coverColor, onGenreSelect }) {
         {searchActive && <SearchOverlay onClose={() => setSearchActive(false)} />}
       </AnimatePresence>
 
-      {/* ── Spacer:
-            mobile → just toolbar height (52px); no filter row anymore
-            desktop → 0 so hero image bleeds under the transparent AppBar
+      {/* ── Spacer ──
+            desktop → always 0; the hero bleeds under the transparent AppBar.
+            mobile  → 0 when a hero is on the page (it reserves the toolbar band
+                      itself and runs its artwork underneath, Hotstar-style),
+                      otherwise the toolbar height so content clears the bar.
       ── */}
-      <Box sx={{ height: { xs: '52px', md: '0px' } }} />
+      <Box sx={{ height: { xs: bleedUnderTop ? '0px' : '52px', md: '0px' } }} />
 
       {/* ── Floating pill bottom navigation (mobile only) ── */}
       {isMobile && (
@@ -679,7 +708,7 @@ function Navbar({ coverColor, onGenreSelect }) {
                 <FloatingNavItem
                   key={item.id}
                   active={isActive}
-                  onClick={() => handleNavSelect(item)}
+                  onClick={(e) => handleNavSelect(item, e)}
                 >
                   <Box sx={{ display: 'flex', fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>
                     {item.icon}

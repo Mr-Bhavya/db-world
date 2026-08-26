@@ -147,9 +147,13 @@ public class RailAggregationServiceImpl implements RailAggregationService {
                 videoRepository.findVideos(ids, VideoSite.YOUTUBE),
                 VideoProjection::getTmdbId,
                 v -> v.getTmdbId() != null && v.getKey() != null,
+                // Type first, locale second: a Hindi featurette shouldn't outrank an English
+                // trailer, but between two trailers the local-language one wins. Ingestion now
+                // collects trailers in several languages, so this row can genuinely differ.
                 Comparator.<VideoProjection, Integer>comparing(
-                        v -> VIDEO_PRIORITY.getOrDefault(v.getType(), 0),
-                        Comparator.reverseOrder()));
+                                v -> VIDEO_PRIORITY.getOrDefault(v.getType(), 0),
+                                Comparator.reverseOrder())
+                        .thenComparing(localeOrder(VideoProjection::getIso6391)));
     }
 
     private Map<Long, List<TmdbProviderDto>> fetchProviders(List<Long> ids) {

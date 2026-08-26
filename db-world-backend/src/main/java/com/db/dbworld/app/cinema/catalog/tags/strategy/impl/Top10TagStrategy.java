@@ -37,33 +37,10 @@ public class Top10TagStrategy implements TagStrategy {
         return RecordTagType.TOP_10;
     }
 
-    @Override
-    public int priority() {
-        return 100;
-    }
+
 
     @Override
     public String selectSql() {
-        return """
-                SELECT scored.id
-                FROM (
-                    SELECT r.id,
-                        COALESCE(t.popularity, 0)
-                        * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 60.0
-                        ) AS score
-                    FROM records r
-                    JOIN tmdb_data t ON r.tmdb_id = t.id
-                    WHERE t.popularity IS NOT NULL
-                      AND t.popularity > 0
-                ) scored
-                ORDER BY scored.score DESC
-                LIMIT %d
-                """.formatted(POOL_SIZE);
-    }
-
-    @Override
-    public String selectSqlWithScore() {
         return """
                 SELECT scored.id, CAST(scored.score AS UNSIGNED) AS score
                 FROM (

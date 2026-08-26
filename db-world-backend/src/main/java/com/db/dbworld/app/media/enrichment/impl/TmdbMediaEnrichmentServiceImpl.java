@@ -498,6 +498,8 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             Files.deleteIfExists(tmp);
             return null;
         } catch (Exception e) {
+            // HttpClient.send throws InterruptedException — keep the flag set.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("[{}] Poster download failed: {}", jobId, e.getMessage());
             return null;
         }

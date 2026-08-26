@@ -24,9 +24,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      # package-lock.json is gitignored, so `npm install` resolves fresh (no `npm ci`).
+      # `npm ci` installs exactly what package-lock.json pins (tracked since 2026-08-16),
+      # so a build can't silently pick up a new transitive release. Fails loudly if the
+      # lockfile and package.json ever drift apart, which is the point.
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Lint
         run: npm run lint
 

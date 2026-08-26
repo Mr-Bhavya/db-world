@@ -16,9 +16,12 @@ import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { buildMediaFromFileId } from '../../media/playerLaunch';
 import { addWatched, tmdbImg } from '../../api/cinemaApi';
-import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
+import { getWatchProgress, saveWatchProgress, saveWatchProgressOnExit, resolveMediaBatch, getRecordProgress } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
+import { watchedFraction, progressByFile } from '../../utils/watchProgress';
+import { readCachedProgress, writeCachedProgress, clearCachedProgress, mergeProgress } from '../../utils/progressCache';
+import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, toBridgeRows, qualityLabel, variantDetail } from './mediaSpecs';
 
 const NativePlayer = registerPlugin('NativePlayer');
 
@@ -61,15 +64,22 @@ const buildAudioInfo = (audio) => (audio || []).map((a, i) => ({
   detail: [_audCodec(a), _audCh(a), _audBr(a), _audSr(a)].filter(Boolean).join(' · '),
 }));
 
-// Resume only if meaningfully into the file and not within 30s of the end.
+/**
+ * Resume only if meaningfully into the file and not within 30s of the end.
+ *
+ * The local cache is consulted alongside the server because it is written far more often
+ * — a crash, or a save the network never carried, leaves the server behind by up to a
+ * heartbeat. Newest of the two wins, so watching on another device still takes priority.
+ */
 async function resumePointFor(fileId) {
   if (!fileId) return 0;
-  try {
-    const p   = await getWatchProgress(fileId);
-    const pos = p?.positionMs || 0;
-    const dur = p?.durationMs || 0;
-    if (pos > 5000 && (dur === 0 || pos < dur - 30000)) return pos;
-  } catch { /* none */ }
+  let server = null;
+  try { server = await getWatchProgress(fileId); } catch { /* offline or none */ }
+
+  const best = mergeProgress(readCachedProgress(fileId), server);
+  const pos = best?.positionMs || 0;
+  const dur = best?.durationMs || 0;
+  if (pos > 5000 && (dur === 0 || pos < dur - 30000)) return pos;
   return 0;
 }
 
@@ -105,7 +115,7 @@ export default function HybridPlayerPage() {
   // inside the player from `episodes` + `currentEpisodeId`.
   const showTitle = media?.title || media?.fileName || '';
   usePageMeta(showTitle ? `${showTitle} — DB Cinema` : 'Now Playing — DB Cinema', { exact: true });
-  const [cur, setCur] = useState(null); // { url, fileId, startMs, audio, requestId, mediaFileId, recordId }
+  const [cur, setCur] = useState(null); // { url, fileId, startMs, audio, requestId, mediaFileId, recordId, variants }
 
   useEffect(() => {
     if (!media?.url) return undefined;
@@ -115,6 +125,10 @@ export default function HybridPlayerPage() {
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
         storyboard: media.storyboard || null,
+        info: media.mediaInfo || null,   // full MediaInfo → Info panel + tech badges
+        // Quality alternatives of the file PLAYING NOW. They belong to `cur`, not
+        // to `media`: an episode switch replaces them (see selectEpisode).
+        variants: media.variants || [],
         // requestId comes from the ONLINE resolve (movie or first episode). Null-safe:
         // if the media was built without a resolve, telemetry is simply skipped.
         requestId: media.requestId || null,
@@ -125,32 +139,78 @@ export default function HybridPlayerPage() {
     return () => { cancelled = true; };
   }, [media]);
 
+  // Per-episode watched bars. One request per record (not per episode); the entry for
+  // the file playing is kept live from the progress ticks below, so the bar grows as
+  // you watch instead of only after a reopen.
+  const [watched, setWatched] = useState({});   // fileId -> 0..1
+  const recordId = media?.recordId ?? null;
+  useEffect(() => {
+    if (!recordId || !episodes.length) return undefined;
+    let cancelled = false;
+    getRecordProgress(recordId)
+      .then((rows) => {
+        if (cancelled) return;
+        setWatched(progressByFile(rows));
+      })
+      .catch(() => { /* bars are decoration — a failure just means none */ });
+    return () => { cancelled = true; };
+  }, [recordId, episodes.length]);
+
+  // Leaving the player refreshes what was fetched before this session's watching: the
+  // record page's per-episode bars, and Continue Watching — which is also what the hero
+  // Resume button reads, so a stale entry would send it back to the previous episode.
+  useEffect(() => () => {
+    qc.invalidateQueries({ queryKey: ['record-progress'] });
+    qc.invalidateQueries({ queryKey: ['continue-watching'] });
+  }, [qc]);
+
+  const episodesWithProgress = useMemo(
+    () => episodes.map((e) => ({ ...e, progress: watched[String(e.fileId)] ?? 0 })),
+    [episodes, watched],
+  );
+
   const selectEpisode = useCallback(async (ep) => {
-    // Resolve the stream URL and the resume point concurrently — they don't depend
-    // on each other, so running them in parallel halves the wait before playback.
+    // One batch resolve covers the file to play AND its quality alternatives, so
+    // the Quality menu switches to the new episode's files instead of staying
+    // pinned to the episode the player was launched on (where picking a quality
+    // would have jumped back to that episode, and nothing matched the file
+    // playing so no quality showed as selected).
+    const playId  = ep.mediaFileId || ep.fileId;
+    const descrs  = ep.variants?.length ? ep.variants : [{ mediaFileId: playId, label: '', height: 0 }];
+    const ids     = [...new Set(descrs.map((v) => v.mediaFileId).filter(Boolean))];
+
+    // The resolve and the resume point don't depend on each other, so running
+    // them in parallel halves the wait before playback.
     const [resolved, startMs] = await Promise.all([
-      (!ep.url && ep.mediaFileId)
-        ? resolveMediaUrl(ep.mediaFileId, 'ONLINE').catch(() => null)
-        : Promise.resolve(null),
+      ids.length ? resolveMediaBatch(ids, 'ONLINE').catch(() => []) : Promise.resolve([]),
       resumePointFor(ep.fileId),
     ]);
+    const byId = new Map((resolved || []).map((r) => [r.mediaFileId, r]));
 
-    let url = ep.url;
-    let mf = null;
-    let storyboard = ep.storyboard || null;
-    let requestId = null;
-    let recordId = media?.recordId ?? null;
-    if (resolved?.data?.cdnUrl) {
-      url = resolved.data.cdnUrl;
-      mf = resolved.data.mediaFile;
-      storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
-      requestId = resolved.data.requestId || null;
-      recordId = resolved.data.recordId ?? recordId;
-    }
+    const variants = descrs
+      .map((v) => {
+        const r = byId.get(v.mediaFileId);
+        // Its own MediaInfo travels with it — see playerLaunch. Only this episode's
+        // variants carry it; the episode LIST keeps light descriptors.
+        return r?.cdnUrl ? { ...v, url: r.cdnUrl, info: mediaInfoOf(r.mediaFile) } : null;
+      })
+      .filter(Boolean);
+
+    const r   = byId.get(playId);
+    const url = r?.cdnUrl || ep.url || variants[0]?.url;
     if (!url) return;
+    const info = mediaInfoOf(r?.mediaFile);
     setCur({
-      url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard,
-      requestId, mediaFileId: ep.mediaFileId || ep.fileId || null, recordId,
+      url,
+      fileId:      ep.fileId,
+      startMs,
+      audio:       info?.audio || [],
+      info,
+      storyboard:  buildStoryboard(url, playId, r?.mediaFile) || ep.storyboard || null,
+      requestId:   r?.requestId || null,
+      mediaFileId: playId || null,
+      recordId:    r?.recordId ?? media?.recordId ?? null,
+      variants,
     });
   }, [media]);
 
@@ -158,25 +218,48 @@ export default function HybridPlayerPage() {
   // episode-tap events back into the existing selectEpisode() (which resolves + reloads).
   useEffect(() => {
     if (!isNativePlayerEnabled() || !cur) return;
-    const eps = (episodes || []).map((e) => ({
+    const eps = (episodesWithProgress || []).map((e) => ({
       fileId: String(e.fileId),
       label: e.label || '',
       name: e.name || '',
       overview: e.overview || '',
       still: tmdbImg(e.stillPath, 'w300') || '',
       runtime: e.runtime ? `${e.runtime}m` : '',
+      progress: e.progress,     // 0..1 watched bar on the native episode row
     }));
-    const variants = (media?.variants || []).map((v) => ({ url: v.url, label: v.label }));
+    const variants = (cur.variants || []).map((v) => ({
+      url: v.url, label: qualityLabel(v), detail: variantDetail(v),
+      mediaFileId: String(v.mediaFileId ?? ''),
+      // Each variant's own rows and badges. A native quality switch never round-trips
+      // through JS, so it can only keep the Info sheet and pause card honest if it
+      // already holds what every variant would say.
+      videoSpecs: toBridgeRows(videoSpecs(v.info)),
+      fileSpecs: toBridgeRows(fileSpecs(v.info)),
+      badges: techBadges(v.info),
+      // Audio detail too: ExoPlayer names the tracks, but their codec, channels,
+      // bitrate and sample rate come from MediaInfo, and those belong to the master.
+      audioInfo: buildAudioInfo(v.info?.audio),
+    }));
     NativePlayer.setPlaylist({
       episodes: eps,
       variants,
       currentFileId: String(cur.fileId),
+      // Which variant is on screen — the native Quality sheet has no other way to
+      // mark the running quality, and it isn't always `currentFileId` (auto-pick
+      // may open a different file than the one keying watch progress).
+      currentVariantId: String(cur.mediaFileId ?? ''),
       title: showTitle,
       overview: media?.overview || '',
       storyboard: cur.storyboard || null,
       audioInfo: buildAudioInfo(cur.audio),
+      // MediaInfo the native sheet can't read off ExoPlayer (container, bitrates,
+      // colour, HDR format…) plus the record page's tech badges, formatted here so
+      // both players show exactly the same strings.
+      videoSpecs: toBridgeRows(videoSpecs(cur.info)),
+      fileSpecs:  toBridgeRows(fileSpecs(cur.info)),
+      badges:     techBadges(cur.info),
     }).catch(() => {});
-  }, [episodes, cur, media, showTitle]);
+  }, [episodesWithProgress, cur, media, showTitle]);
 
   // Native player: when the user closes it from the native X (which fires playerClosed),
   // pop this route so the WebView doesn't linger on the hidden headless player (white screen).
@@ -201,13 +284,25 @@ export default function HybridPlayerPage() {
     return () => handle?.remove?.();
   }, [episodes, selectEpisode]);
 
-  const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
+  const handleProgress = useCallback(({ positionMs, durationMs, ended, network, onExit }) => {
     if (!cur?.fileId) return;
-    saveWatchProgress(cur.fileId, {
+    const fraction = ended ? 1 : watchedFraction({ positionMs, durationMs });
+    setWatched((prev) => (prev[cur.fileId] === fraction ? prev : { ...prev, [cur.fileId]: fraction }));
+
+    // Local first, always: free, synchronous, and the thing that actually survives a
+    // crash. Finishing clears the entry so a stale position can't resurrect a done file.
+    if (ended) clearCachedProgress(cur.fileId);
+    else writeCachedProgress(cur.fileId, { positionMs, durationMs });
+
+    // The network save is the cross-device copy, and runs on the player's slower cadence.
+    if (!network && !ended) return;
+    const payload = {
       positionMs: ended ? 0 : positionMs,
       durationMs,
       recordId: media?.recordId ?? undefined,
-    }).catch(() => {});
+    };
+    if (onExit) saveWatchProgressOnExit(cur.fileId, payload);
+    else saveWatchProgress(cur.fileId, payload).catch(() => {});
 
     // Auto-mark the record Watched once the title truly finishes: a movie (no episodes)
     // or the LAST episode of a series. Fire once per record, then refresh Continue
@@ -260,13 +355,14 @@ export default function HybridPlayerPage() {
       title={showTitle}
       overview={media?.overview || ''}
       fileId={cur.fileId}
-      variants={media.variants || []}
-      episodes={episodes}
+      variants={cur.variants || []}
+      episodes={episodesWithProgress}
       currentEpisodeId={cur.fileId}
       onSelectEpisode={selectEpisode}
       onProgress={handleProgress}
       onClose={() => navigate(-1)}
       audio={cur.audio || []}
+      info={cur.info || null}
       storyboard={cur.storyboard || null}
       requestId={cur.requestId || null}
       mediaFileId={cur.mediaFileId || null}

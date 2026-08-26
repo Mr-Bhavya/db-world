@@ -215,7 +215,7 @@ public class Aria2WebSocketClientService {
     private void disconnect() {
         WebSocketSession session = connectionState.getSession();
         if (session != null && session.isOpen()) {
-            try { session.close(); } catch (IOException ignored) {}
+            try { session.close(); } catch (IOException ignored) { /* Already disconnecting; a failed close changes nothing. */ }
         }
         connectionState.getIsConnected().set(false);
         log.info("{} Disconnected", TAG);
@@ -265,7 +265,8 @@ public class Aria2WebSocketClientService {
 
     // ── Torrent metadata GID remap ────────────────────────────────────────────
 
-    private void handleTorrentMetadata(String metadataGid, Aria2StatusParam status) {
+    /** Package-private for unit testing the remap guards. */
+    void handleTorrentMetadata(String metadataGid, Aria2StatusParam status) {
         List<String> followedBy = status.getFollowedBy();
         if (followedBy == null || followedBy.isEmpty()) return;
 
@@ -276,20 +277,28 @@ public class Aria2WebSocketClientService {
             return;
         }
 
-        if (actualGid.equals(jobStore.getGid(jobId))) {
+        // Must precede getGid(): the store is a ConcurrentHashMap, whose get() throws
+        // NPE on a null key, and resolveJobId can return null. With no jobId there is
+        // nothing to remap anyway.
+        if (jobId == null) {
+            return;
+        }
+
+        // getGid returns Optional<String>, so the previous actualGid.equals(...) compared
+        // a String to an Optional and was ALWAYS false — this already-remapped guard never
+        // fired, so every metadata event re-set the GID and logged a spurious remap.
+        if (jobStore.getGid(jobId).filter(actualGid::equals).isPresent()) {
             return;
         }
 
         log.info("{} Torrent metadata complete for GID {} → actual GID {}", TAG, metadataGid, actualGid);
 
-        if (jobId != null) {
-            // Update job store so the polling loop follows the new GID
-            jobStore.setGid(jobId, actualGid);
-            // Update the WS mapping service
-            mappingService.removeByGid(metadataGid);
-            mappingService.addMapping(jobId, actualGid);
-            log.info("{} Remapped jobId={} to actualGid={}", TAG, jobId, actualGid);
-        }
+        // Update job store so the polling loop follows the new GID
+        jobStore.setGid(jobId, actualGid);
+        // Update the WS mapping service
+        mappingService.removeByGid(metadataGid);
+        mappingService.addMapping(jobId, actualGid);
+        log.info("{} Remapped jobId={} to actualGid={}", TAG, jobId, actualGid);
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────

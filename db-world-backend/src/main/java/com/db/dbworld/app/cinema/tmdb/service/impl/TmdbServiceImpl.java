@@ -157,6 +157,16 @@ public class TmdbServiceImpl implements TmdbService {
         return tmdbClient.getTvProviders(tmdbId);
     }
 
+    @Override
+    public Mono<VideosTmdbResponse> fetchVideos(Long tmdbId, RecordType type, String language) {
+
+        if (type == RecordType.MOVIE) {
+            return tmdbClient.getMovieVideos(tmdbId, language);
+        }
+
+        return tmdbClient.getTvVideos(tmdbId, language);
+    }
+
     /* =====================================
        PERSON
      ===================================== */

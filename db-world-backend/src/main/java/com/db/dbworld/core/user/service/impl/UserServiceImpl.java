@@ -158,7 +158,7 @@ public class UserServiceImpl implements UserService {
                 try {
                     Role r = Role.valueOf(role.toUpperCase());
                     preds.add(cb.equal(root.get("role").get("name"), r));
-                } catch (IllegalArgumentException ignored) {}
+                } catch (IllegalArgumentException ignored) { /* An unknown role name simply contributes no predicate. */ }
             }
             return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
         }, pageable);

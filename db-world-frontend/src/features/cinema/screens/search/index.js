@@ -291,11 +291,13 @@ function PosterCardItem({ record, showAvailable, fileCount, onClick }) {
         <Typography sx={{ color: '#fff', fontSize: '0.75rem', fontWeight: 600, lineHeight: 1.3 }}>
           {displayTitle}
         </Typography>
-        {year && (
+        {/* Ternary, not `&&`: getFullYear() on an unparseable releaseDate yields NaN,
+            which React renders as the literal text "NaN" on the poster. */}
+        {year ? (
           <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.65rem' }}>
             {year}
           </Typography>
-        )}
+        ) : null}
       </PosterOverlay>
     </PosterCard>
   );

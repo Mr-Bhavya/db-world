@@ -69,7 +69,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production
@@ -103,7 +103,7 @@ jobs:
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
             npm run build:production

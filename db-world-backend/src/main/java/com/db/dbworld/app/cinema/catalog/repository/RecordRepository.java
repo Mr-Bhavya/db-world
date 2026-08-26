@@ -3,7 +3,6 @@ package com.db.dbworld.app.cinema.catalog.repository;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import org.springframework.data.domain.Page;
@@ -51,7 +50,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             WHERE tag.tagType = :tag
             """)
     Slice<RecordEntity> findByTag(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             Pageable pageable
     );
 
@@ -66,7 +65,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             WHERE tag.tagType IN :tags
             """)
     Slice<RecordEntity> findByTags(
-            @Param("tags") java.util.Collection<RecordTagType> tags,
+            @Param("tags") java.util.Collection<String> tags,
             Pageable pageable
     );
 
@@ -77,7 +76,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             WHERE tag.tagType IN :tags
             """)
     Slice<Long> findIdsByTags(
-            @Param("tags") java.util.Collection<RecordTagType> tags,
+            @Param("tags") java.util.Collection<String> tags,
             Pageable pageable
     );
 
@@ -89,7 +88,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority DESC
             """)
     Slice<Long> findIdsByTagsOrderByPriorityDesc(
-            @Param("tags") java.util.Collection<RecordTagType> tags,
+            @Param("tags") java.util.Collection<String> tags,
             Pageable pageable
     );
 
@@ -101,7 +100,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             WHERE tag.tagType = :tag
             """)
     Slice<Long> findIdsByTag(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             Pageable pageable
     );
 
@@ -114,7 +113,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
               AND r.type = :recordType
             """)
     Slice<Long> findIdsByTagAndType(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             Pageable pageable
     );
@@ -133,7 +132,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority DESC
             """)
     Slice<Long> findIdsByTagOrderByPriorityDesc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             Pageable pageable
     );
 
@@ -146,7 +145,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority DESC
             """)
     Slice<Long> findIdsByTagAndTypeOrderByPriorityDesc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             Pageable pageable
     );
@@ -162,7 +161,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority DESC
             """)
     Slice<Long> findIdsByTagAndCategoryOrderByPriorityDesc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("category") Long category,
             Pageable pageable
     );
@@ -179,7 +178,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority DESC
             """)
     Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityDesc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             @Param("category") Long category,
             Pageable pageable
@@ -193,7 +192,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority ASC
             """)
     Slice<Long> findIdsByTagOrderByPriorityAsc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             Pageable pageable
     );
 
@@ -206,7 +205,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority ASC
             """)
     Slice<Long> findIdsByTagAndTypeOrderByPriorityAsc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             Pageable pageable
     );
@@ -222,7 +221,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority ASC
             """)
     Slice<Long> findIdsByTagAndCategoryOrderByPriorityAsc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("category") Long category,
             Pageable pageable
     );
@@ -239,7 +238,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             ORDER BY tag.priority ASC
             """)
     Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityAsc(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             @Param("category") Long category,
             Pageable pageable
@@ -342,7 +341,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
               AND genre.id = :category
             """)
     Slice<Long> findIdsByTagAndCategory(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("category") Long category,
             Pageable pageable
     );
@@ -358,7 +357,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
               AND genre.id = :category
             """)
     Slice<Long> findIdsByTagAndTypeAndCategory(
-            @Param("tag") RecordTagType tag,
+            @Param("tag") String tag,
             @Param("recordType") RecordType recordType,
             @Param("category") Long category,
             Pageable pageable
@@ -431,7 +430,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 tmdb.overview as overview,
                 tmdb.id as tmdbId,
                 TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
-                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons,
+                tmdb.certification as certification
             FROM RecordEntity r
             JOIN r.tmdb tmdb
             WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
@@ -583,7 +583,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 tmdb.overview as overview,
                 tmdb.id as tmdbId,
                 TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
-                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons,
+                tmdb.certification as certification
             FROM RecordEntity r
             JOIN r.tmdb tmdb
             WHERE r.id IN :ids

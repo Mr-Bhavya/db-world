@@ -198,9 +198,10 @@ function ObjectsList({ objects }) {
   const T = useT();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      {/* The index stays: it drives the "1." numbering and the last-row border. */}
       {objects.map((obj, i) => (
         <Box
-          key={i}
+          key={obj.purpose}
           sx={{
             display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5,
             py: 1, borderBottom: i < objects.length - 1 ? `1px solid ${T.border}` : 'none',
@@ -318,8 +319,8 @@ function LeadManagers({ managers }) {
   const T = useT();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {managers.map((manager, i) => (
-        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+      {managers.map((manager) => (
+        <Box key={manager} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
           <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: T.teal, flexShrink: 0 }} />
           <Typography sx={{ fontSize: 13, color: T.textPrimary }}>{manager}</Typography>
         </Box>

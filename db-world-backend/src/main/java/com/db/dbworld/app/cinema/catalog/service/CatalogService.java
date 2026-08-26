@@ -3,11 +3,9 @@ package com.db.dbworld.app.cinema.catalog.service;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
-import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
@@ -69,10 +67,6 @@ public interface CatalogService {
     void deleteRecord(Long recordId);
 
     RecordDto refreshRecord(Long tmdbId);
-
-    void addTag(Long recordId, AddTagRequest request);
-
-    void removeTag(Long recordId, RecordTagType tagType);
 
     Optional<RecordEntity> getRecordEntityOptById(Long recordId);
 }

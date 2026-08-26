@@ -100,7 +100,7 @@ public class FileBrowserService {
         try {
             if (!isDir) size = Files.size(p);
             modified = Files.getLastModifiedTime(p).toMillis();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) { /* Unreadable entry; size and modified stay at their defaults. */ }
 
         String ext = null;
         if (!isDir) {

@@ -315,7 +315,7 @@ function ShareContent({ record, shareUrl, shareTitle, shareText, onClose, showQr
    - data-noexpand on the trigger button (already in Hero)
 ═══════════════════════════════════════════════════════════ */
 
-export default function ShareButton({ record, size }) {
+export default function ShareButton({ record, size, flat = false }) {
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
   const theme = useTheme();
@@ -383,7 +383,13 @@ export default function ShareButton({ record, size }) {
           size="small"
           onClick={handleShare}
           aria-label="Share"
-          sx={{
+          sx={flat ? {
+            // Flat variant for the phone action rail, where the label carries
+            // the affordance and a circle would fight the neighbouring icons.
+            p: 0, color: 'inherit',
+            width: btnSize, height: btnSize,
+            '&:hover': { bgcolor: 'transparent', color: '#fff' },
+          } : {
             bgcolor: alpha('#fff', 0.1),
             border: `1.5px solid ${alpha('#fff', 0.2)}`,
             color: '#b3b3b3',
@@ -396,7 +402,7 @@ export default function ShareButton({ record, size }) {
             },
           }}
         >
-          <ShareIcon sx={{ fontSize: iconSz }} />
+          <ShareIcon sx={{ fontSize: flat ? 22 : iconSz }} />
         </IconButton>
       </Tooltip>
 

@@ -27,6 +27,7 @@ import {
   EmptyState, ErrorState, TableSkeleton, adminSurface, useSwipeNav,
 } from '@features/admin/adminUi';
 import RecordSearch from '../ingestion/form/RecordSearch';
+import { EpisodePicker, SeasonPicker, useTmdbSeasons } from '../ingestion/form/EpisodePickers';
 import {
   getMediaFilesPaged, getMediaFilesStats, getMediaFileDetail,
   deleteMediaFileById, bulkDeleteMediaFiles,
@@ -593,6 +594,12 @@ function EpisodeSection({ file }) {
 
   const current = file?.tmdbSeasonNumber != null || file?.tmdbEpisodeNumber != null;
 
+  // The file already knows its record, so the pickers can offer that show's
+  // real seasons and episodes rather than asking the admin to remember numbers.
+  const tmdbSeasons = useTmdbSeasons(
+    file?.recordId ? { id: file.recordId, type: file.recordType ?? 'TV_SERIES' } : null,
+  );
+
   return (
     <Box sx={{ px: { xs: 2, sm: 3 }, py: 1.5, borderTop: `1px solid ${S.divider}` }}>
       <Stack direction="row" spacing={1} alignItems="center" mb={1}>
@@ -603,11 +610,24 @@ function EpisodeSection({ file }) {
               label={`S${String(file.tmdbSeasonNumber ?? '?').padStart(2, '0')}E${String(file.tmdbEpisodeNumber ?? '?').padStart(2, '0')}`} />
           : <Chip size="small" label="Not set" sx={{ ...neutralChipSx(T, S), height: 20, fontSize: '0.65rem' }} />}
       </Stack>
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-        <TextField size="small" label="Season" type="number" value={season}
-          onChange={e => setSeason(e.target.value)} inputProps={{ min: 0 }} sx={{ ...fieldSx(T), width: 100 }} />
-        <TextField size="small" label="Episode" type="number" value={ep}
-          onChange={e => setEp(e.target.value)} inputProps={{ min: 0 }} sx={{ ...fieldSx(T), width: 100 }} />
+      <Stack direction="row" spacing={1} alignItems="flex-start" flexWrap="wrap" useFlexGap>
+        {/* Same pickers as the ingestion form: TMDB's real seasons/episodes as a
+            dropdown, but freeSolo so an unlisted episode is still typeable. */}
+        <SeasonPicker
+          seasons={tmdbSeasons}
+          value={season === '' ? null : Number(season)}
+          onChange={(v) => setSeason(v == null ? '' : String(v))}
+          helperText={tmdbSeasons.length ? ' ' : 'TMDB has no seasons listed'}
+          sx={{ ...fieldSx(T), width: 190 }}
+        />
+        <EpisodePicker
+          seasons={tmdbSeasons}
+          seasonNumber={season === '' ? null : Number(season)}
+          value={ep === '' ? null : Number(ep)}
+          onChange={(v) => setEp(v == null ? '' : String(v))}
+          helperText=" "
+          sx={{ ...fieldSx(T), width: 230 }}
+        />
         <Button size="small" variant="contained" disabled={busy}
           startIcon={busy ? <CircularProgress size={13} color="inherit" /> : <SaveRounded sx={{ fontSize: 15 }} />}
           onClick={() => persist(false)}

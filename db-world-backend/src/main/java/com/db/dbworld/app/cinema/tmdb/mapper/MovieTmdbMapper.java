@@ -14,6 +14,7 @@ import com.db.dbworld.app.cinema.tmdb.media.mapper.ImageMapper;
 import com.db.dbworld.app.cinema.tmdb.media.mapper.VideoMapper;
 import com.db.dbworld.app.cinema.tmdb.providers.mapper.ProviderMapper;
 import com.db.dbworld.app.cinema.tmdb.review.mapper.ReviewMapper;
+import com.db.dbworld.app.cinema.tmdb.service.TmdbCertificationResolver;
 import org.mapstruct.*;
 
 @Mapper(config = BaseMapperConfig.class,
@@ -58,6 +59,24 @@ public interface MovieTmdbMapper extends BaseMapper<MovieTmdbDto, MovieTmdbEntit
     @Mapping(source = "imdb_id", target = "imdbId")
     @Mapping(source = "belongs_to_collection", target = "belongsToCollection")
     MovieTmdbEntity fromTmdb(MovieTmdbResponse response);
+
+    /**
+     * Certification can't be a plain {@code @Mapping}: it isn't a field on the payload but a
+     * pick from per-country release entries. Resolved once here so the value and its country
+     * are always set together — resolving them as two independent mappings could pair a
+     * rating with the wrong country.
+     */
+    @AfterMapping
+    default void applyCertification(
+            MovieTmdbResponse response,
+            @MappingTarget MovieTmdbEntity entity
+    ) {
+        TmdbCertificationResolver.fromMovie(response.getRelease_dates())
+                .ifPresent(c -> {
+                    entity.setCertification(c.value());
+                    entity.setCertificationCountry(c.country());
+                });
+    }
 
     @AfterMapping
     default void attachChildren(

@@ -1,7 +1,7 @@
 spring:
-  config:
-    activate:
-      on-profile: local
+  # No `config.activate.on-profile` here — the filename already scopes this file
+  # to the `local` profile, and Spring Boot 4 lists that key among the ones that
+  # are invalid inside a profile-specific resource.
 
   # Lazy-init every bean — they're created on first use rather than at boot.
   # @Scheduled / @EventListener processors still register eagerly via bean
@@ -21,7 +21,12 @@ spring:
 # ===========================
 app:
   name: db-world
-  version: @project.version@
+  # MUST stay quoted. Maven filters this to the pom version, but any build that
+  # copies resources without Maven's filtering (VS Code's Java language server
+  # does exactly that, into this same target/classes) leaves the literal text —
+  # and `@` cannot start a plain YAML scalar, so the whole file fails to parse
+  # and every app.* property silently binds as null.
+  version: "@project.version@"
   base-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp
   data-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp
   stream-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\Videos

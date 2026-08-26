@@ -53,10 +53,15 @@ db-world/
 ├── db-world-frontend/   # React 18 SPA + Capacitor Android app
 ├── docs/                # Architecture, planning, and RELEASING.md (release runbook)
 ├── postman/             # Postman collections
-├── scripts/             # Developer utilities (e.g. publish-android.ps1)
-├── runtime/             # Runtime env files (gitignored)
-└── switch-env.ps1       # Switch local env profiles
+├── scripts/             # Developer utilities — .bat launchers at the top level,
+│                        #   PowerShell under build/ run/ release/ env/ lib/
+└── runtime/             # Runtime env files (gitignored)
 ```
+
+Switch between local and production configuration with `scripts\switch-env.bat`
+(or `scripts\env\switch-env.ps1 LOCAL|PROD`). It copies the backend profile, the
+frontend env files, and the environment variables out of the `db-world-config`
+repo checked out alongside this one.
 
 Server infrastructure — Nginx, systemd units, `dbworldctl`, and the legacy Jenkins
 pipeline — lives in the separate **`db-world-config`** repo.

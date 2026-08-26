@@ -39,25 +39,27 @@ import java.util.stream.Stream;
 @Service("linuxServerInfoCollector")
 public class LinuxServerInfoCollector extends ServerInfoCollector {
 
+    // Pseudo-filesystem locations. Held as literals rather than Path constants so every read
+    // goes through sysPath(...) and can be rerooted at a fixture tree in tests.
     // /proc paths
-    protected static final Path PROC_MEMINFO   = Path.of("/proc/meminfo");
-    protected static final Path PROC_STAT      = Path.of("/proc/stat");
-    protected static final Path PROC_CPUINFO   = Path.of("/proc/cpuinfo");
-    protected static final Path PROC_VERSION   = Path.of("/proc/version");
-    protected static final Path PROC_NET_DEV   = Path.of("/proc/net/dev");
-    protected static final Path PROC_UPTIME    = Path.of("/proc/uptime");
-    protected static final Path PROC_LOADAVG   = Path.of("/proc/loadavg");
-    protected static final Path PROC_NET_TCP   = Path.of("/proc/net/tcp");
+    protected static final String PROC_MEMINFO   = "/proc/meminfo";
+    protected static final String PROC_STAT      = "/proc/stat";
+    protected static final String PROC_CPUINFO   = "/proc/cpuinfo";
+    protected static final String PROC_VERSION   = "/proc/version";
+    protected static final String PROC_NET_DEV   = "/proc/net/dev";
+    protected static final String PROC_UPTIME    = "/proc/uptime";
+    protected static final String PROC_LOADAVG   = "/proc/loadavg";
+    protected static final String PROC_NET_TCP   = "/proc/net/tcp";
 
     // /sys paths
-    protected static final Path SYS_THERMAL    = Path.of("/sys/class/thermal");
-    protected static final Path SYS_HWMON      = Path.of("/sys/class/hwmon");
-    protected static final Path SYS_DMI        = Path.of("/sys/class/dmi/id");
-    protected static final Path SYS_BLOCK       = Path.of("/sys/class/block");
-    protected static final Path SYS_NET         = Path.of("/sys/class/net");
+    protected static final String SYS_THERMAL    = "/sys/class/thermal";
+    protected static final String SYS_HWMON      = "/sys/class/hwmon";
+    protected static final String SYS_DMI        = "/sys/class/dmi/id";
+    protected static final String SYS_BLOCK      = "/sys/class/block";
+    protected static final String SYS_NET        = "/sys/class/net";
 
     // /etc paths
-    protected static final Path ETC_RESOLV_CONF = Path.of("/etc/resolv.conf");
+    protected static final String ETC_RESOLV_CONF = "/etc/resolv.conf";
 
     // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
     private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
@@ -120,7 +122,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         String osRelease = exec("cat", "/etc/os-release");
         Map<String, String> osMap = parseKeyValueOutput(osRelease, "=");
         String prettyName = osMap.getOrDefault("PRETTY_NAME", "").replace("\"", "");
-        String version    = readFileSafe(PROC_VERSION);
+        String version    = readFileSafe(sysPath(PROC_VERSION));
 
         return ServerInfo.builder()
                 .hostname(getHostname())
@@ -168,7 +170,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     @Override
     public CpuInfo getCpuInfo() {
-        Map<String, String> cpuMap = parseKeyValueOutput(readFileSafe(PROC_CPUINFO), ":");
+        Map<String, String> cpuMap = parseKeyValueOutput(readFileSafe(sysPath(PROC_CPUINFO)), ":");
         String model   = cpuMap.getOrDefault("model name", cpuMap.getOrDefault("Model name", "Unknown"));
         String vendor  = cpuMap.getOrDefault("vendor_id", "Unknown");
         int cores      = runtime.availableProcessors();
@@ -222,6 +224,8 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
             return loads;
         } catch (Exception e) {
+            // The delta measurement sleeps between /proc samples.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.debug("CPU delta measurement failed: {}", e.getMessage());
             return List.of();
         }
@@ -233,7 +237,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private long[][] readCpuStats() throws IOException {
         List<long[]> stats = new ArrayList<>();
-        for (String line : Files.readAllLines(PROC_STAT)) {
+        for (String line : Files.readAllLines(sysPath(PROC_STAT))) {
             if (!line.startsWith("cpu")) continue;
             String[] parts = line.trim().split("\\s+");
             if (parts[0].equals("cpu")) continue; // skip aggregate
@@ -320,12 +324,12 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private Map<String, Long> parseMeminfo() {
         Map<String, Long> result = new HashMap<>();
-        for (String line : readFileSafe(PROC_MEMINFO).split("\n")) {
+        for (String line : readFileSafe(sysPath(PROC_MEMINFO)).split("\n")) {
             String[] parts = line.split(":\\s+");
             if (parts.length == 2) {
                 try {
                     result.put(parts[0].trim(), Long.parseLong(parts[1].replace(" kB", "").trim()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) { /* One unusable /proc/meminfo key; the remaining keys still parse. */ }
             }
         }
         return result;
@@ -443,7 +447,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .totalFormatted(formatBytes(total)).usedFormatted(formatBytes(used)).freeFormatted(formatBytes(free))
                         .usedPercent(p[4].replace("%", ""))
                         .build());
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) { /* A df row with non-numeric size columns; that mount is skipped. */ }
         }
         return result;
     }
@@ -456,7 +460,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     public NetworkInfo getNetworkInfo() {
         // Sample /proc/net/dev twice for live speed
         Map<String, long[]> before = readNetDevStats();
-        try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+        try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Map<String, long[]> after  = readNetDevStats();
 
         List<NetworkAdapter> adapters = new ArrayList<>();
@@ -522,7 +526,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private String deriveAdapterStatus(String iface) {
         try {
-            String operstate = readFileSafe(SYS_NET.resolve(iface).resolve("operstate"));
+            String operstate = readFileSafe(sysPath(SYS_NET).resolve(iface).resolve("operstate"));
             if (operstate.isEmpty()) return null;
             return operstate.equalsIgnoreCase("up") ? "Up" : capitalize(operstate);
         } catch (Exception e) {
@@ -577,7 +581,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         }
         if (dns.isEmpty()) {
             try {
-                for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
                     line = line.trim();
                     if (line.startsWith("nameserver")) {
                         String[] parts = line.split("\\s+");
@@ -597,7 +601,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private String getNetworkDomain() {
         try {
-            for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+            for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
                 line = line.trim();
                 if (line.startsWith("search ") || line.startsWith("domain ")) {
                     String[] parts = line.split("\\s+");
@@ -622,7 +626,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected Map<String, long[]> readNetDevStats() {
         Map<String, long[]> result = new LinkedHashMap<>();
         try {
-            for (String line : Files.readAllLines(PROC_NET_DEV)) {
+            for (String line : Files.readAllLines(sysPath(PROC_NET_DEV))) {
                 if (!line.contains(":")) continue;
                 String[] parts = line.split(":");
                 String iface   = parts[0].trim();
@@ -630,7 +634,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 String[] vals  = parts[1].trim().split("\\s+");
                 long[] stats   = new long[vals.length];
                 for (int i = 0; i < vals.length; i++) {
-                    try { stats[i] = Long.parseLong(vals[i]); } catch (NumberFormatException ignored) {}
+                    try { stats[i] = Long.parseLong(vals[i]); } catch (NumberFormatException ignored) { /* Leave the slot at 0. Runs per field per interface, so logging would flood. */ }
                 }
                 result.put(iface, stats);
             }
@@ -684,13 +688,26 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .state(p[7])
                         .startTimeFormatted(p[8])
                         .commandLine(p[10])
-                        .name(p[10].contains("/") ? p[10].substring(p[10].lastIndexOf('/') + 1) : p[10].split("\\s")[0])
+                        .name(processName(p[10]))
                         .build());
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed ps row rather than lose the whole listing. */ }
         }
         // Sort by CPU desc, limit to top 50
         processes.sort(Comparator.comparingDouble(ProcessInfo::getCpuUsage).reversed());
         return processes.stream().limit(50).collect(Collectors.toList());
+    }
+
+    /**
+     * Short process name from a {@code ps aux} COMMAND column.
+     * Arguments are dropped before the directory prefix, because doing it the other way
+     * round leaves them attached ("python3 /opt/app/main.py" → "main.py", and
+     * "/usr/bin/proc --flag" → "proc --flag").
+     */
+    private static String processName(String commandLine) {
+        String executable = commandLine.split("\\s")[0];
+        return executable.contains("/")
+                ? executable.substring(executable.lastIndexOf('/') + 1)
+                : executable;
     }
 
     /** Returns per-user CPU/memory aggregation. */
@@ -741,7 +758,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                         .description(p.length > 4 ? p[4] : "")
                         .running("active".equals(p[2]))
                         .build());
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed systemctl row rather than lose the whole listing. */ }
         }
         return services;
     }
@@ -752,8 +769,8 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     @Override
     public PerformanceMetrics getPerformanceMetrics() {
-        String uptime  = readFileSafe(PROC_UPTIME);
-        String loadavg = readFileSafe(PROC_LOADAVG);
+        String uptime  = readFileSafe(sysPath(PROC_UPTIME));
+        String loadavg = readFileSafe(sysPath(PROC_LOADAVG));
 
         long uptimeSeconds = 0;
         String uptimeStr   = "";
@@ -792,7 +809,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         long prevTime = prevNetTimestamp;
         prevNetTimestamp = nowMs;
         if (prevTime > 0 && nowMs - prevTime < 60_000L && !prevNet.isEmpty()) {
-            double deltaMs = nowMs - prevTime;
+            double deltaMs = (double) nowMs - prevTime;
             for (Map.Entry<String, long[]> e : currentNet.entrySet()) {
                 long[] curr = e.getValue();
                 long[] prev = prevNet.getOrDefault(e.getKey(), new long[16]);
@@ -835,12 +852,14 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             long idleDelta  = (after[3] - before[3]) + (after[4] - before[4]); // idle + iowait
             return totalDelta > 0 ? (totalDelta - idleDelta) * 100.0 / totalDelta : 0.0;
         } catch (Exception e) {
+            // Samples /proc twice with a sleep in between.
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return 0.0;
         }
     }
 
     private long[] readAggregateCpuStat() throws IOException {
-        for (String line : Files.readAllLines(PROC_STAT)) {
+        for (String line : Files.readAllLines(sysPath(PROC_STAT))) {
             if (line.startsWith("cpu ")) {
                 String[] parts = line.trim().split("\\s+");
                 long[] vals = new long[8];
@@ -892,8 +911,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private void collectThermalZones(List<TemperatureSensor> sensors) {
         try {
-            if (!Files.exists(SYS_THERMAL)) return;
-            try (Stream<Path> zones = Files.list(SYS_THERMAL)) {
+            Path thermalRoot = sysPath(SYS_THERMAL);
+            if (!Files.exists(thermalRoot)) return;
+            try (Stream<Path> zones = Files.list(thermalRoot)) {
                 zones.filter(p -> p.getFileName().toString().startsWith("thermal_zone"))
                      .sorted()
                      .forEach(zone -> {
@@ -909,7 +929,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                      .temperatureFahrenheit(tempC * 9.0 / 5.0 + 32)
                                      .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                      .build());
-                         } catch (NumberFormatException ignored) {}
+                         } catch (NumberFormatException ignored) { /* A thermal zone whose temp isn't an integer; the other zones still report. */ }
                      });
             }
         } catch (Exception e) {
@@ -919,8 +939,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
     private void collectHwmonSensors(List<TemperatureSensor> sensors, List<Map<String, Object>> fanSensors) {
         try {
-            if (!Files.exists(SYS_HWMON)) return;
-            try (Stream<Path> hwmons = Files.list(SYS_HWMON)) {
+            Path hwmonRoot = sysPath(SYS_HWMON);
+            if (!Files.exists(hwmonRoot)) return;
+            try (Stream<Path> hwmons = Files.list(hwmonRoot)) {
                 hwmons.sorted().forEach(hwmon -> {
                     String name = readFileSafe(hwmon.resolve("name"));
 
@@ -940,7 +961,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                     .temperatureFahrenheit(tempC * 9.0 / 5.0 + 32)
                                     .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                     .build());
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) { /* A hwmon input whose temp isn't an integer; the other inputs still report. */ }
                     }
 
                     // Fan inputs: fan1_input, fan2_input...
@@ -956,7 +977,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                             fan.put("rpm",      Long.parseLong(rpm));
                             fan.put("status",   Long.parseLong(rpm) == 0 ? "STOPPED" : "RUNNING");
                             fanSensors.add(fan);
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) { /* A hwmon fan whose rpm isn't an integer; the other fans still report. */ }
                     }
                 });
             }
@@ -984,7 +1005,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                                 .status(tempC > 80 ? "HIGH" : tempC > 60 ? "WARM" : "OK")
                                 .build());
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) { /* lm-sensors output varies by chip; an unparseable line is skipped. */ }
             }
         }
     }
@@ -1017,7 +1038,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 dev.put("device",     line.replaceAll(".*Device (\\d+).*", "$1"));
                 dev.put("id",         line.replaceAll(".*ID ([\\da-f:]+).*", "$1"));
                 dev.put("description", parts.length >= 3 ? parts[2].trim() : "");
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* The raw lsusb line is already stored, so a failed field extraction still leaves a usable entry. */ }
             devices.add(dev);
         }
         return devices;
@@ -1053,7 +1074,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     }
 
     public List<String> getCpuFlags() {
-        for (String line : readFileSafe(PROC_CPUINFO).split("\n")) {
+        for (String line : readFileSafe(sysPath(PROC_CPUINFO)).split("\n")) {
             if (line.startsWith("flags") || line.startsWith("Features")) {
                 String[] parts = line.split(":\\s+", 2);
                 if (parts.length == 2) return Arrays.asList(parts[1].split("\\s+"));
@@ -1134,7 +1155,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 port.put("localAddr", p[4]);
                 if (p.length > 6) port.put("process", p[p.length - 1]);
                 ports.add(port);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { /* Drop one malformed ss row rather than lose the whole listing. */ }
         }
         return ports;
     }
@@ -1144,7 +1165,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     // ──────────────────────────────────────────────────────────────────────────
 
     protected String readDmiSafe(String field) {
-        return readFileSafe(SYS_DMI.resolve(field));
+        return readFileSafe(sysPath(SYS_DMI).resolve(field));
     }
 
     private double parseMhz(String mhzStr) {

@@ -3,7 +3,6 @@ package com.db.dbworld.app.cinema.catalog.service.impl;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
-import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
@@ -11,9 +10,8 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
-import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
+import com.db.dbworld.app.cinema.catalog.tags.services.TagNames;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
@@ -65,7 +63,6 @@ public class CatalogServiceImpl implements CatalogService {
     private final RecordRepository recordRepository;
     private final TmdbRepository tmdbRepository;
     private final SeasonRepository seasonRepository;
-    private final RecordTaggingService recordTaggingService;
     private final TmdbIngestionService tmdbIngestionService;
     private final TmdbRecordSyncService tmdbRecordSyncService;
     private final ApplicationEventPublisher publisher;
@@ -105,7 +102,9 @@ public class CatalogServiceImpl implements CatalogService {
         // one-time "New on DB World" push now fires (see announceIfReady). This is the fix for
         // pushing before a title is actually playable.
 
-        recordTaggingService.assignTags(record);
+        // No tagging at creation. Tags are owned entirely by TagStrategyExecutor, which recomputes
+        // every automatic tag from scratch on its scheduler run — a brand-new DRAFT would have been
+        // tagged here by a second, subtly different formula and then immediately overwritten.
 
         RecordDto dto = saveAndMap(record);
 
@@ -120,10 +119,24 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     public RecordDto setVisibility(Long recordId, RecordVisibility visibility) {
         RecordEntity record = getRecordOrThrow(recordId);
-        record.setVisibility(visibility);
+        applyVisibility(record, visibility);
         RecordDto dto = saveAndMap(record);
         announceIfReady(record);
         return dto;
+    }
+
+    /**
+     * The single place a record's visibility changes. Sets it, and stamps {@code publishedAt} on the
+     * first transition to PUBLISHED so the "Recently published" rail sort has a real date to order by.
+     *
+     * <p>The stamp is write-once: un-publishing to DRAFT and re-publishing keeps the original date, so
+     * fixing a typo on a live record doesn't shove it back to the top of the rail.
+     */
+    private void applyVisibility(RecordEntity record, RecordVisibility visibility) {
+        record.setVisibility(visibility);
+        if (visibility == RecordVisibility.PUBLISHED && record.getPublishedAt() == null) {
+            record.setPublishedAt(Instant.now());
+        }
     }
 
     @Override
@@ -150,7 +163,7 @@ public class CatalogServiceImpl implements CatalogService {
             // Auto-publish a draft once its media lands, if the admin has opted in.
             if (record.getVisibility() == RecordVisibility.DRAFT
                     && settingsService.getBoolean(ConfigKeys.CINEMA_RECORD_AUTO_PUBLISH)) {
-                record.setVisibility(RecordVisibility.PUBLISHED);
+                applyVisibility(record, RecordVisibility.PUBLISHED);
                 recordRepository.save(record);
                 log.info("Auto-published record {} on media ingest", recordId);
             }
@@ -466,39 +479,10 @@ public class CatalogServiceImpl implements CatalogService {
 
     /* ===============================
        TAG MANAGEMENT
+       Owned entirely by TagAdminService now. The addTag/removeTag pair that lived here duplicated
+       it without the automatic-tag guard, so the records-table chips could write to a tag the
+       scheduler would wipe.
        =============================== */
-
-    @Override
-    public void addTag(Long recordId, AddTagRequest request) {
-
-        RecordEntity record = getRecordOrThrow(recordId);
-
-        RecordTagEntity tag = RecordTagEntity.builder()
-                .record(record)
-                .tagType(request.getTagType())
-                .priority(request.getPriority())
-                .build();
-
-        record.getTags().add(tag);
-
-        recordRepository.save(record);
-
-        publishEvent(recordId);
-    }
-
-    @Override
-    public void removeTag(Long recordId, RecordTagType tagType) {
-
-        RecordEntity record = getRecordOrThrow(recordId);
-
-        record.getTags().removeIf(tag ->
-                tag.getTagType().equals(tagType)
-        );
-
-        recordRepository.save(record);
-
-        publishEvent(recordId);
-    }
 
     /* ===============================
        HELPERS
@@ -548,7 +532,7 @@ public class CatalogServiceImpl implements CatalogService {
         record.setType(request.getType());
         record.setName(extractTitle(tmdb));
         if (request.getVisibility() != null) {
-            record.setVisibility(request.getVisibility());
+            applyVisibility(record, request.getVisibility());
         }
     }
 

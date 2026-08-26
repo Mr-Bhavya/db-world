@@ -19,7 +19,7 @@ import { formatDate } from '../helpers';
 function UserReviewCard({ review, T }) {
   const initials = (review.username ?? '?').slice(0, 2).toUpperCase();
   return (
-    <Paper sx={{ bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.07)}`, borderRadius: 2, p: 2, mb: 1.5 }}>
+    <Paper sx={{ bgcolor: alpha(T.text, 0.035), border: `1px solid ${alpha(T.text, 0.075)}`, borderRadius: { xs: 2, md: 2.5 }, p: { xs: 1.75, md: 2.25 }, mb: 1.5, backgroundImage: "none" }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.25 }}>
         <Avatar sx={{ width: 36, height: 36, bgcolor: alpha(T.teal, 0.3), fontSize: '0.8rem', fontWeight: 700, color: T.teal }}>
           {initials}
@@ -36,7 +36,12 @@ function UserReviewCard({ review, T }) {
         )}
       </Box>
       {review.content && (
-        <Typography variant="body2" sx={{ color: T.textMuted, lineHeight: 1.7 }}>{review.content}</Typography>
+        <Typography variant="body2" sx={{
+          color: T.textMuted, lineHeight: 1.72, fontStyle: 'italic',
+          borderLeft: `2px solid ${alpha(T.teal, 0.5)}`, pl: 1.5,
+        }}>
+          {review.content}
+        </Typography>
       )}
     </Paper>
   );
@@ -48,7 +53,7 @@ function TmdbReviewCard({ review, T }) {
   const isLong = content.length > 400;
 
   return (
-    <Paper sx={{ bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.07)}`, borderRadius: 2, p: 2, mb: 1.5 }}>
+    <Paper sx={{ bgcolor: alpha(T.text, 0.035), border: `1px solid ${alpha(T.text, 0.075)}`, borderRadius: { xs: 2, md: 2.5 }, p: { xs: 1.75, md: 2.25 }, mb: 1.5, backgroundImage: "none" }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.25 }}>
         <Avatar sx={{ width: 36, height: 36, bgcolor: alpha(T.text, 0.08), fontSize: '0.8rem', color: T.textMuted }}>
           {(review.author ?? '?').slice(0, 2).toUpperCase()}
@@ -68,7 +73,11 @@ function TmdbReviewCard({ review, T }) {
       </Box>
       <Typography
         variant="body2"
-        sx={{ color: T.textMuted, lineHeight: 1.7, ...(!expanded && isLong ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}) }}
+        sx={{
+          color: T.textMuted, lineHeight: 1.72, fontStyle: 'italic',
+          borderLeft: `2px solid ${alpha(T.teal, 0.5)}`, pl: 1.5,
+          ...(!expanded && isLong ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
+        }}
       >
         {content}
       </Typography>
@@ -225,7 +234,7 @@ export default function ReviewsSection({ record, recordId }) {
         <>
           <Divider sx={{ borderColor: alpha(T.text, 0.08), my: 3 }} />
           <SectionHeading>TMDB Reviews ({tmdbReviews.length})</SectionHeading>
-          {tmdbReviews.map((r, i) => <TmdbReviewCard key={i} review={r} T={T} />)}
+          {tmdbReviews.map((r) => <TmdbReviewCard key={r.id} review={r} T={T} />)}
         </>
       )}
     </Box>

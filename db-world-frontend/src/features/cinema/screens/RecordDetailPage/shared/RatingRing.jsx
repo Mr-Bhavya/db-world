@@ -5,8 +5,15 @@ import { motion } from 'framer-motion';
 /**
  * Animated circular rating gauge (0-10).
  * Stroke fills proportional to rating, color shifts green > orange > red.
+ *
+ * `trackColor` and `labelColor` are overridable because the light theme exists: the
+ * white-on-black defaults are right over artwork and invisible on a white panel.
  */
-export default function RatingRing({ value, size = 56, stroke = 5, label }) {
+export default function RatingRing({
+  value, size = 56, stroke = 5, label,
+  trackColor = 'rgba(255,255,255,0.12)',
+  labelColor = 'rgba(255,255,255,0.55)',
+}) {
   if (value == null) return null;
   const v = Math.max(0, Math.min(10, Number(value)));
   const pct = v / 10;
@@ -19,7 +26,7 @@ export default function RatingRing({ value, size = 56, stroke = 5, label }) {
       <Box component="svg" sx={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }} width={size} height={size}>
         <circle
           cx={size / 2} cy={size / 2} r={r}
-          stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="transparent"
+          stroke={trackColor} strokeWidth={stroke} fill="transparent"
         />
         <motion.circle
           cx={size / 2} cy={size / 2} r={r}
@@ -36,7 +43,7 @@ export default function RatingRing({ value, size = 56, stroke = 5, label }) {
           {v.toFixed(1)}
         </Typography>
         {label && (
-          <Typography sx={{ color: 'rgba(255,255,255,0.55)', fontSize: size * 0.13, fontWeight: 600, mt: 0.2, letterSpacing: 0.5 }}>
+          <Typography sx={{ color: labelColor, fontSize: size * 0.13, fontWeight: 600, mt: 0.2, letterSpacing: 0.5 }}>
             {label}
           </Typography>
         )}

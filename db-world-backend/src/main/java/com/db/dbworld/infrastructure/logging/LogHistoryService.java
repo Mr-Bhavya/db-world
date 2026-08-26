@@ -268,7 +268,7 @@ public class LogHistoryService {
     }
 
     private void safeClose(WebSocketSession s) {
-        try { if (s.isOpen()) s.close(); } catch (Exception ignore) {}
+        try { if (s.isOpen()) s.close(); } catch (Exception ignore) { /* Best-effort close of a session that is being discarded anyway. */ }
     }
 
     private void sendComplete(WebSocketSession s, long n) {

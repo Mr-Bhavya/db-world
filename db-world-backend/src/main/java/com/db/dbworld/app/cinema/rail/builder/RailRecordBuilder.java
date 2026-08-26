@@ -113,6 +113,7 @@ public class RailRecordBuilder {
                 .overview(r.getOverview())
                 .runtime(r.getRuntime())
                 .numberOfSeasons(r.getNumberOfSeasons())
+                .certification(r.getCertification())
                 .previewVideoUrl(selectVideo(videoList))
                 .providers(providerList != null ? providerList : EMPTY_PROVIDERS)
                 .build();
@@ -138,6 +139,7 @@ public class RailRecordBuilder {
                 .overview(r.getOverview())
                 .runtime(r.getRuntime())
                 .numberOfSeasons(r.getNumberOfSeasons())
+                .certification(r.getCertification())
                 .genres(EMPTY_GENRES)
                 .providers(EMPTY_PROVIDERS)
                 .build();

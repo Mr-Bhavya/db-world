@@ -1,5 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.tags.entity;
 
+import com.db.dbworld.app.cinema.catalog.tags.rule.TagRule;
+import com.db.dbworld.app.cinema.catalog.tags.rule.TagRuleJsonConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -11,11 +13,15 @@ import java.time.LocalDateTime;
  * <p>This is the single source of truth for:
  * <ul>
  *   <li>Default sort field and direction for rails that reference this tag</li>
- *   <li>Pool size (max records tagged per refresh cycle)</li>
  *   <li>Whether the tag is active (inactive tags are skipped by the scheduler)</li>
- *   <li>The refresh cron expression</li>
  *   <li>The timestamp of the last scheduler run</li>
  * </ul>
+ *
+ * <p>How many records a tag holds is NOT configurable here — each
+ * {@link com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategy} owns its own pool size,
+ * because the limit is tied to that strategy's scoring formula (TOP_10 keeps 20 so a
+ * limitSize=10 rail always fills). The refresh cadence lives in the Scheduler admin page,
+ * which drives {@code TagScheduler} for every tag at once.
  *
  * <p>Rails with rule.type="tag" inherit their default sort from this entity,
  * unless the rail provides an explicit sort override.
@@ -52,8 +58,14 @@ public class TagDefinitionEntity {
     private boolean automatic;
 
     /**
-     * When false, the scheduler skips this tag and no rail can serve it.
-     * Allows an admin to disable a tag without deleting rails that reference it.
+     * When false, {@code TagStrategyExecutor.executeAll()} skips this tag's strategy.
+     *
+     * <p>Records already carrying the tag KEEP it, so a rail pointing at a deactivated tag freezes
+     * at its last-computed contents instead of going empty — deactivating is a safe "stop churning
+     * this" switch, not a delete. Rails are deliberately NOT filtered on this flag; to empty a tag,
+     * deactivate it and then clear its records from the admin UI.
+     *
+     * <p>An explicit "Recalculate" from the admin UI still runs, regardless of this flag.
      */
     @Column(nullable = false)
     @Builder.Default
@@ -76,19 +88,18 @@ public class TagDefinitionEntity {
     private String defaultDirection = "DESC";
 
     /**
-     * Maximum number of records the strategy will tag per refresh cycle.
-     * Mapped to the SQL LIMIT in the strategy's select query.
+     * Optional admin-authored rule deciding which records this tag holds, as JSON.
+     *
+     * <p>Null for the eight built-in tags (a {@code TagStrategy} bean computes those) and for purely
+     * manual tags. When set, {@code RuleTagRefresher} recomputes membership on every scheduler run,
+     * which makes the tag automatic without any code — the point of the feature.
+     *
+     * <p>A tag can't be both: the presence of a strategy wins, since built-in strategies encode
+     * time-decay maths a structured rule can't express.
      */
-    @Column(name = "pool_size", nullable = false)
-    @Builder.Default
-    private int poolSize = 30;
-
-    /**
-     * Spring cron expression for how often the scheduler should refresh this tag.
-     * Null or blank means the tag uses the global default scheduler cadence.
-     */
-    @Column(name = "refresh_cron", length = 100)
-    private String refreshCron;
+    @Convert(converter = TagRuleJsonConverter.class)
+    @Column(name = "rule", columnDefinition = "TEXT")
+    private TagRule rule;
 
     /** Timestamp of the last successful scheduler execution for this tag. */
     @Column(name = "last_refreshed_at")

@@ -112,7 +112,7 @@ fun PlayerControls(
     onSelectSubtitle: (Int) -> Unit,
     onSetSpeed: (Float) -> Unit,
     onSelectEpisode: (String) -> Unit,
-    onSelectQuality: (String) -> Unit,
+    onSelectQuality: (com.db.dbworld.player.PlayerVariant) -> Unit,
 ) {
     // Locked: a tap reveals only an unlock button; all other controls stay hidden.
     if (state.locked) {
@@ -295,7 +295,13 @@ fun PlayerControls(
                 onDismiss = { sheet = null },
             )
             "quality" -> PlayerSheet("Quality", { sheet = null }) {
-                state.variants.forEach { v -> SheetRow(v.label, false) { onSelectQuality(v.url); sheet = null } }
+                state.variants.forEach { v ->
+                    // The label is a tier ("1080p"); the subtitle carries the geometry and
+                    // bitrate that actually separate two masters of the same episode.
+                    SheetRow(v.label, v.mediaFileId == state.currentVariantId, v.detail.ifEmpty { null }) {
+                        onSelectQuality(v); sheet = null
+                    }
+                }
             }
             "info" -> InfoSheet(state = state, onDismiss = { sheet = null })
         }

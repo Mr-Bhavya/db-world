@@ -778,9 +778,13 @@ function useMediaRequestVote(recordId) {
     fetchMyMediaRequests()
       .then(entries => {
         if (!alive || !Array.isArray(entries)) return;
+        // Whole-title entries only: /mine now also returns season and episode scoped
+        // requests, and this screen has no scope of its own to compare them against —
+        // without the null check one requested episode would light up "Requested"
+        // for the entire record.
         const next = new Set(
           entries
-            .filter(e => Number(e?.recordId) === rid)
+            .filter(e => Number(e?.recordId) === rid && e?.season == null && e?.episode == null)
             .map(e => e.kind)
         );
         setRequestedKinds(next);
@@ -975,11 +979,16 @@ const MediaFilesPage = (props) => {
   const record = props.record || location.state?.record;
   const resolvedRecordId = urlRecordId ?? record?.id ?? record?.recordId;
 
-  const [mediaFileList, setMediaFileList] = useState([]);
+  // The record detail page already fetches these to drive the hero's quality
+  // badges, so it hands them down rather than making every open cost two calls.
+  const providedFiles = props.files;
+
+  const [mediaFileList, setMediaFileList] = useState(providedFiles ?? []);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!resolvedRecordId) { navigate(Constants.DB_CINEMA_BROWSE_ROUTE); return; }
+    if (providedFiles) { setMediaFileList(providedFiles); return; }
     setLoading(true);
     loadStreamFileInfoByRecordId(resolvedRecordId)
       .then(res => {
@@ -989,7 +998,7 @@ const MediaFilesPage = (props) => {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [resolvedRecordId, navigate]);
+  }, [resolvedRecordId, navigate, providedFiles]);
 
   const recType = record?.type?.toUpperCase() ?? '';
   const isSeries = recType === 'TV_SERIES' || recType === 'SERIES' || recType === 'TV';

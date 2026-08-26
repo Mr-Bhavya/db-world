@@ -25,26 +25,14 @@ public class RecentlyAddedTagStrategy implements TagStrategy {
         return RecordTagType.RECENTLY_ADDED;
     }
 
-    @Override
-    public int priority() {
-        return 40;
-    }
 
-    @Override
-    public String selectSql() {
-        return """
-                SELECT r.id
-                FROM records r
-                WHERE r.created_at >= NOW() - INTERVAL %d DAY
-                """.formatted(WINDOW_DAYS);
-    }
 
     /**
      * Assigns a score so newer records sort higher.
      * Records added today → 30; records added 30 days ago → 0.
      */
     @Override
-    public String selectSqlWithScore() {
+    public String selectSql() {
         return """
                 SELECT r.id,
                     GREATEST(0, %d - DATEDIFF(CURDATE(), DATE(r.created_at))) AS score

@@ -46,6 +46,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import RecordSearch from '../form/RecordSearch';
+import { EpisodePicker, SeasonPicker, useTmdbSeasons } from '../form/EpisodePickers';
 import FileBrowserDialog from './FileBrowserDialog';
 import { linkExistingFile } from '../services/ingestionApi';
 import { useFileBrowser } from '../hooks/useFileBrowser';
@@ -58,8 +59,10 @@ import useIngestionStore from '../store/ingestionStore';
 const fileSchema = z.object({
   localFilePath: z.string().min(1, 'Select a file first'),
   record: z.any().optional().nullable(),
-  season: z.coerce.number().int().positive().optional().nullable(),
-  episode: z.coerce.number().int().positive().optional().nullable(),
+  // nonnegative, not positive: season 0 is TMDB's Specials season, and a
+  // bonus episode is exactly the kind of file someone links by hand here.
+  season: z.coerce.number().int().nonnegative().optional().nullable(),
+  episode: z.coerce.number().int().nonnegative().optional().nullable(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,6 +261,7 @@ function FileModeForm() {
   const season = watch('season');
   const episode = watch('episode');
   const isTvRecord = record?.type === 'TV_SERIES';
+  const tmdbSeasons = useTmdbSeasons(isTvRecord ? record : null);
   const fileName = getFileName(localFilePath);
   const extension = getExtension(fileName);
 
@@ -266,8 +270,8 @@ function FileModeForm() {
       const res = await linkExistingFile({
         localFilePath: data.localFilePath,
         recordId: data.record?.id ?? null,
-        season: data.season ? Number(data.season) : null,
-        episode: data.episode ? Number(data.episode) : null,
+        season: data.season != null ? Number(data.season) : null,
+        episode: data.episode != null ? Number(data.episode) : null,
       });
 
       if (res.httpStatusCode === 200 || res.httpStatusCode === 201) {
@@ -394,7 +398,7 @@ function FileModeForm() {
                 <Box
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: { xs: '1fr 1fr', sm: '140px 140px' },
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
                     gap: 1,
                     alignItems: 'start',
                   }}
@@ -403,15 +407,13 @@ function FileModeForm() {
                     name="season"
                     control={control}
                     render={({ field, fieldState }) => (
-                      <TextField
-                        {...field}
-                        value={field.value ?? ''}
-                        label="Season"
-                        size="small"
-                        type="number"
-                        inputProps={{ min: 1 }}
+                      <SeasonPicker
+                        seasons={tmdbSeasons}
+                        value={field.value ?? null}
+                        onChange={field.onChange}
                         error={!!fieldState.error}
-                        helperText={fieldState.error?.message || ' '}
+                        helperText={fieldState.error?.message
+                          || (tmdbSeasons.length ? ' ' : 'Type a number — TMDB has no seasons listed')}
                       />
                     )}
                   />
@@ -419,13 +421,11 @@ function FileModeForm() {
                     name="episode"
                     control={control}
                     render={({ field, fieldState }) => (
-                      <TextField
-                        {...field}
-                        value={field.value ?? ''}
-                        label="Episode"
-                        size="small"
-                        type="number"
-                        inputProps={{ min: 1 }}
+                      <EpisodePicker
+                        seasons={tmdbSeasons}
+                        seasonNumber={season}
+                        value={field.value ?? null}
+                        onChange={field.onChange}
                         error={!!fieldState.error}
                         helperText={fieldState.error?.message || ' '}
                       />
@@ -596,6 +596,7 @@ function FolderModeForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const isTvRecord = record?.type === 'TV_SERIES';
+  const tmdbSeasons = useTmdbSeasons(isTvRecord ? record : null);
 
   const { data: rawItems = [], isLoading: filesLoading } = useFileBrowser(folder?.root ?? null, folder?.subPath ?? '');
 
@@ -747,22 +748,18 @@ function FolderModeForm() {
                   alignItems: 'start',
                 }}
               >
-                <TextField
-                  label="Season"
-                  size="small"
-                  type="number"
-                  value={season}
-                  onChange={(e) => setSeason(e.target.value)}
-                  inputProps={{ min: 1 }}
-                  helperText=" "
+                <SeasonPicker
+                  seasons={tmdbSeasons}
+                  value={season === '' || season == null ? null : Number(season)}
+                  onChange={(v) => setSeason(v == null ? '' : String(v))}
+                  helperText={tmdbSeasons.length ? ' ' : 'Type a number — TMDB has no seasons listed'}
                 />
-                <TextField
+                <EpisodePicker
+                  seasons={tmdbSeasons}
+                  seasonNumber={season === '' || season == null ? null : Number(season)}
+                  value={startEp === '' || startEp == null ? null : Number(startEp)}
+                  onChange={(v) => setStartEp(v == null ? '' : String(v))}
                   label="Start at episode"
-                  size="small"
-                  type="number"
-                  value={startEp}
-                  onChange={(e) => setStartEp(e.target.value)}
-                  inputProps={{ min: 1 }}
                   helperText="Selected files get Ep.N, N+1…"
                 />
               </Box>

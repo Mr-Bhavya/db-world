@@ -43,4 +43,7 @@ public class TvSeriesTmdbResponse extends TmdbResponse {
 
     private List<PersonTmdbResponse> created_by;
 
+    /** Only populated when the request asks for the content_ratings append. */
+    private ContentRatingsTmdbResponse content_ratings;
+
 }

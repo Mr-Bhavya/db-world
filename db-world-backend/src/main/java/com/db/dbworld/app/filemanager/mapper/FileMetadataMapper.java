@@ -25,7 +25,7 @@ public final class FileMetadataMapper {
         if (dir && withChildCount) {
             try (Stream<Path> s = Files.list(p)) {
                 children = (int) s.count();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) { /* Unreadable directory (permissions); childCount stays unset. */ }
         }
         String name = p.getFileName() != null ? p.getFileName().toString() : p.toString();
         String ext  = dir ? "" : (name.contains(".") ? name.substring(name.lastIndexOf('.') + 1).toLowerCase() : "");

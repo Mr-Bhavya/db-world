@@ -301,6 +301,29 @@ public abstract class ServerInfoCollector {
     // File helpers
     // ──────────────────────────────────────────────────────────────────────────
 
+    /** Real filesystem root — the production value of {@link #fsRoot()}. */
+    private static final Path REAL_FS_ROOT = Path.of("/");
+
+    /**
+     * Root of the pseudo-filesystem tree (/proc, /sys, /etc, /boot) this collector reads.
+     * Production is the real filesystem root; tests override it to point at a fixture
+     * directory so the /proc and /sys parsers can be exercised off a real Linux host.
+     * Companion to the overridable {@link #exec(int, String...)} seam.
+     */
+    protected Path fsRoot() {
+        return REAL_FS_ROOT;
+    }
+
+    /**
+     * Resolve an absolute pseudo-filesystem path (e.g. {@code "/proc/meminfo"}) against
+     * {@link #fsRoot()}. Paths naming a real executable to run belong in {@code exec(...)}
+     * and must not go through here — they are not part of the rerooted tree.
+     */
+    protected Path sysPath(String absolutePath) {
+        String relative = absolutePath.startsWith("/") ? absolutePath.substring(1) : absolutePath;
+        return fsRoot().resolve(relative);
+    }
+
     protected String readFileSafe(Path path) {
         try {
             if (Files.exists(path) && Files.isReadable(path)) return Files.readString(path).trim();
@@ -422,9 +445,9 @@ public abstract class ServerInfoCollector {
 
     protected boolean isRaspberryPi() {
         try {
-            Path model = Path.of("/proc/device-tree/model");
+            Path model = sysPath("/proc/device-tree/model");
             if (Files.exists(model) && readFileSafe(model).toLowerCase().contains("raspberry pi")) return true;
-            Path cpuinfo = Path.of("/proc/cpuinfo");
+            Path cpuinfo = sysPath("/proc/cpuinfo");
             if (Files.exists(cpuinfo)) {
                 String info = readFileSafe(cpuinfo);
                 return info.contains("Raspberry Pi") || info.contains("BCM2835") ||

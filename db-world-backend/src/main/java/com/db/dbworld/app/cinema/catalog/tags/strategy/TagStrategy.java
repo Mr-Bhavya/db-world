@@ -23,40 +23,24 @@ public interface TagStrategy {
     RecordTagType tagType();
 
     /**
-     * Priority value assigned to records tagged by this strategy.
-     * Lower = higher priority.
-     */
-    int priority();
-
-    /**
-     * Native SQL that returns a single {@code id} column
-     * for all records that should receive this tag.
+     * Native SQL returning exactly two columns — {@code id} and {@code score} — for every record
+     * that should receive this tag. {@link TagStrategyExecutor} wraps it in an
+     * {@code INSERT ... SELECT} and stores {@code score} as {@code record_tags.priority}, which is
+     * what a rail sorted by {@code tagPriority} orders on.
      *
-     * <p>Example:
+     * <p>A higher score sorts first. Use a computed expression for relevance ranking, or a literal
+     * when every record should rank equally:
      * <pre>
-     * SELECT r.id FROM records r
+     * SELECT r.id, CAST(t.popularity AS UNSIGNED) AS score
+     * FROM records r
      * JOIN tmdb_data t ON r.tmdb_id = t.id
-     * WHERE t.popularity >= 80
+     * WHERE t.popularity &gt;= 80
+     * ORDER BY score DESC
+     * LIMIT 50
      * </pre>
      *
-     * <p>The framework wraps this into an INSERT ... SELECT statement.
+     * <p>Cap the row count with {@code LIMIT} — the pool size belongs here, next to the formula it
+     * depends on, not in configuration.
      */
     String selectSql();
-
-    /**
-     * Native SQL that returns {@code (id, score)} columns for bulk INSERT.
-     *
-     * <p>The {@code score} column is stored as {@code record_tags.priority},
-     * which allows tag-sorted rails to order by computed relevance rather
-     * than a flat constant.
-     *
-     * <p>The default implementation wraps {@link #selectSql()} and attaches
-     * the static {@link #priority()} value as the score — meaning all records
-     * for this tag get the same priority. Override this method in strategies
-     * that compute per-record scores (e.g. {@code TrendingTagStrategy}).
-     */
-    default String selectSqlWithScore() {
-        return "SELECT scored.id, " + priority() + " AS score "
-                + "FROM (" + selectSql() + ") scored";
-    }
 }
