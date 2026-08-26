@@ -193,7 +193,7 @@ class SeoRenderControllerTest {
         assertThat(html)
                 .contains("<h1>Acme Industries IPO</h1>")
                 .contains("Lot size: 75")
-                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-world/ipo/acme-industries\">");
+                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-world/db-ipo/acme-industries\">");
     }
 
     @Test
@@ -210,7 +210,7 @@ class SeoRenderControllerTest {
         when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
 
         assertThat(controller.ipoIndex().getBody())
-                .contains("href=\"https://db-world.in/db-world/ipo/acme-industries\"")
+                .contains("href=\"https://db-world.in/db-world/db-ipo/acme-industries\"")
                 .contains("Acme Industries IPO");
     }
 }

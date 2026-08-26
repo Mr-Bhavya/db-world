@@ -71,7 +71,7 @@ class SitemapControllerTest {
         assertThat(xml)
                 .startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
                 .contains("<loc>https://db-world.in/db-world/db-cinema/browse</loc>")
-                .contains("<loc>https://db-world.in/db-world/ipo</loc>")
+                .contains("<loc>https://db-world.in/db-world/db-ipo</loc>")
                 // Legal pages — AdSense needs these discoverable, not just footer-linked.
                 .contains("<loc>https://db-world.in/db-world/privacy</loc>")
                 .contains("<loc>https://db-world.in/db-world/terms</loc>")
@@ -98,7 +98,7 @@ class SitemapControllerTest {
         ipo.setId("acme-industries");
         when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
 
-        assertThat(xml()).contains("<loc>https://db-world.in/db-world/ipo/acme-industries</loc>");
+        assertThat(xml()).contains("<loc>https://db-world.in/db-world/db-ipo/acme-industries</loc>");
     }
 
     /* ===============================
@@ -148,6 +148,6 @@ class SitemapControllerTest {
         blank.setId("  ");
         when(ipoListingRepository.findAll()).thenReturn(List.of(blank));
 
-        assertThat(xml()).doesNotContain("/db-world/ipo/  ");
+        assertThat(xml()).doesNotContain("/db-world/db-ipo/  ");
     }
 }

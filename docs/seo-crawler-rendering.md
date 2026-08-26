@@ -72,72 +72,60 @@ unpublished id is a real URL gets it indexed as soft-404 filler.
 
 ## What to deploy
 
-### 1. nginx (db-world-config repo, `10-app.conf`)
+### 1. nginx — already written into the db-world-config repo
 
-Add a search-bot map next to the existing social-crawler map, and route matching
-requests to the backend.
+Three files changed there; copy them to the Pi and reload.
 
-```nginx
-map $http_user_agent $is_search_bot {
-    default 0;
-    "~*googlebot|bingbot|duckduckbot|yandexbot|baiduspider|applebot|slurp" 1;
-}
+| File | Change |
+|---|---|
+| `server_config/conf.d/00-shared.conf` | Search engines split out of `$is_social_crawler` into a new `$is_search_bot` map |
+| `server_config/conf.d/10-app.conf` | Routing blocks + `@seo_*` named locations + `/sitemap.xml` |
+| `server_config/snippets/seo-proxy.conf` | **NEW FILE** — shared proxy settings for the six `@seo_*` locations |
+
+Copy to:
+
+```bash
+sudo cp server_config/conf.d/00-shared.conf /etc/nginx/conf.d/
+sudo cp server_config/conf.d/10-app.conf    /etc/nginx/conf.d/
+sudo cp server_config/snippets/seo-proxy.conf /etc/nginx/snippets/
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Inside the `db-world.in` server block:
+**Do not miss the snippet.** `10-app.conf` includes it six times, so if it is absent
+`nginx -t` fails and the reload is refused.
 
-```nginx
-# Record detail
-location ~ ^/db-world/db-cinema/(movie|series)/([0-9]+) {
-    if ($is_search_bot) {
-        proxy_pass https://api.db-world.in/api/seo/record/$1/$2;
-    }
-    try_files $uri /index.html;
-}
+#### The important change to `$is_social_crawler`
 
-# IPO detail
-location ~ ^/db-world/ipo/(.+)$ {
-    if ($is_search_bot) {
-        proxy_pass https://api.db-world.in/api/seo/ipo/$1;
-    }
-    try_files $uri /index.html;
-}
+It previously matched `googlebot|bingbot|yandexbot|duckduckbot|ia_archiver`, which sent
+search engines to `SocialPreviewController` — the `<head>`-only card with a meta
+refresh. A crawler follows that refresh and reads the page as a thin redirect, so
+**nothing could ever have indexed**, even once the pages became public. Those UAs now
+live in `$is_search_bot` and reach the full renderer instead.
 
-# Landing pages
-location = /db-world/db-cinema/browse {
-    if ($is_search_bot) { proxy_pass https://api.db-world.in/api/seo/browse; }
-    try_files $uri /index.html;
-}
-location = /db-world/db-cinema/movie {
-    if ($is_search_bot) { proxy_pass https://api.db-world.in/api/seo/movies; }
-    try_files $uri /index.html;
-}
-location = /db-world/db-cinema/tv-shows {
-    if ($is_search_bot) { proxy_pass https://api.db-world.in/api/seo/series; }
-    try_files $uri /index.html;
-}
-location = /db-world/ipo {
-    if ($is_search_bot) { proxy_pass https://api.db-world.in/api/seo/ipo; }
-    try_files $uri /index.html;
-}
+`applebot` also moved across: it feeds Siri and Spotlight search, so it wants the
+indexable document rather than a preview card.
 
-# Sitemap
-location = /sitemap.xml {
-    proxy_pass https://api.db-world.in/sitemap.xml;
-    proxy_set_header Host api.db-world.in;
-}
-```
+#### Two nginx traps the config works around
 
-Note the record-detail regex requires a numeric id before the slug, which matches how
-`recordNav.js` builds the URL (`123-inception`) and keeps the map from swallowing other
-paths.
+Both are load-bearing — if either is "simplified" later, the config stops loading or
+starts misbehaving:
+
+1. **`if` is only ever used with `return`.** `if` + `proxy_pass` in the same block is
+   the classic nginx footgun. The config uses `error_page 419 = @named_location;` plus
+   `if ($is_search_bot) { return 419; }`, which is the safe form the existing social
+   card already used.
+2. **A named location cannot `proxy_pass` to a static URI.** nginx rejects it outright
+   ("proxy_pass cannot have URI part in ... named location"); it is allowed only when
+   the URI contains a variable. `@seo_record` and `@seo_ipo` satisfy this naturally via
+   their regex captures. The four landing-page locations have no captures, so the path
+   goes through `set $seo_path ...` purely to satisfy the rule.
 
 ### 2. Verify after deploying
 
 Fetch as a bot and confirm you get real HTML rather than the SPA shell:
 
 ```bash
-curl -s -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" https://db-world.in/db-world/ipo | head -40
+curl -s -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" https://db-world.in/db-world/db-ipo | head -40
 ```
 
 You should see `<h1>IPO Radar</h1>` and a list of `<a>` links. A normal `curl` with no

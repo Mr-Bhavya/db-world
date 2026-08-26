@@ -10,7 +10,7 @@ Allow: /db-world/db-cinema/browse
 Allow: /db-world/db-cinema/movie
 Allow: /db-world/db-cinema/tv-shows
 Allow: /db-world/db-cinema/collection
-Allow: /db-world/ipo
+Allow: /db-world/db-ipo
 Allow: /db-world/db-games
 Allow: /db-world/db-weather
 Allow: /db-world/privacy
@@ -25,7 +25,7 @@ Disallow: /db-world/db-cinema/record/
 Disallow: /db-world/db-cinema/downloads
 Disallow: /db-world/db-cinema/download-progress
 Disallow: /db-world/player
-Disallow: /db-world/ipo/my
+Disallow: /db-world/db-ipo/my
 Disallow: /db-world/my-activity
 Disallow: /db-world/wallet
 Disallow: /db-world/db-password-manager

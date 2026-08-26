@@ -72,7 +72,7 @@ public class SitemapController {
         url(xml, publicBaseUrl + "/db-world/db-cinema/browse",    null, "daily",  "1.0");
         url(xml, publicBaseUrl + "/db-world/db-cinema/movie",     null, "daily",  "0.9");
         url(xml, publicBaseUrl + "/db-world/db-cinema/tv-shows",  null, "daily",  "0.9");
-        url(xml, publicBaseUrl + "/db-world/ipo",                 null, "hourly", "1.0");
+        url(xml, publicBaseUrl + "/db-world/db-ipo",                 null, "hourly", "1.0");
 
         // Legal pages. Low priority, but AdSense and Search Console both expect them
         // to be discoverable rather than orphaned behind a footer link alone.
@@ -91,7 +91,7 @@ public class SitemapController {
         for (var ipo : ipoListingRepository.findAll()) {
             if (ipo.getId() == null || ipo.getId().isBlank()) continue;
             url(xml,
-                publicBaseUrl + "/db-world/ipo/" + ipo.getId(),
+                publicBaseUrl + "/db-world/db-ipo/" + ipo.getId(),
                 ipo.getUpdatedAt(),
                 // An open IPO's GMP and subscription numbers move through the day; a
                 // closed one is effectively frozen.

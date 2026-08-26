@@ -188,7 +188,7 @@ public class SeoRenderController {
 
         String name = firstNonBlank(ipo.getCompanyName(), id);
         String heading = name + " IPO";
-        String canonical = publicBaseUrl + "/db-world/ipo/" + urlSafe(id);
+        String canonical = publicBaseUrl + "/db-world/db-ipo/" + urlSafe(id);
 
         StringBuilder body = new StringBuilder();
         body.append("<h1>").append(esc(heading)).append("</h1>\n");
@@ -285,7 +285,7 @@ public class SeoRenderController {
                 .filter(i -> i.getId() != null && !i.getId().isBlank())
                 .limit(INDEX_LIMIT)
                 .forEach(i -> body.append("  <li><a href=\"")
-                        .append(esc(publicBaseUrl + "/db-world/ipo/" + urlSafe(i.getId())))
+                        .append(esc(publicBaseUrl + "/db-world/db-ipo/" + urlSafe(i.getId())))
                         .append("\">").append(esc(firstNonBlank(i.getCompanyName(), i.getId())))
                         .append(" IPO</a></li>\n"));
 
@@ -293,7 +293,7 @@ public class SeoRenderController {
 
         return html(page("IPO Radar — live IPO dates, price band and GMP",
                 "Track live mainboard and SME IPOs: open and close dates, price band, lot size, GMP and subscription status.",
-                publicBaseUrl + "/db-world/ipo", body.toString(), null));
+                publicBaseUrl + "/db-world/db-ipo", body.toString(), null));
     }
 
     /* ===============================
