@@ -60,14 +60,18 @@ const OFFSET_SM = 26;
 /** Room kept to the right of the top card for the deck to peek into. */
 export const PEEK_ROOM = 38;
 
-/**
- * And room on the LEFT for the card already turned past.
- *
- * Without it the top card sat flush against the frame's left edge, so the card behind
- * it had only the screen's own margin to show in — a sliver squeezed against the bezel
- * and clipped by the page. This gives it somewhere to actually be.
- */
-export const LEFT_ROOM = 26;
+/* ── room on the LEFT for the card already turned past ─────────────────────────
+   Split in two, because the two numbers do different jobs: the cards must not touch,
+   and the one behind must show enough to read as a card. Overlapping them made the
+   turn ambiguous — you could not tell whether the edge belonged to the card arriving
+   or to the one already there. */
+
+/** Clear air between the turned-past card and the top card. */
+export const LEFT_GAP = 8;
+/** How much of the turned-past card shows past that gap. */
+export const LEFT_PEEK = 14;
+/** Total reserved on the left. The top card is inset by this much. */
+export const LEFT_ROOM = LEFT_GAP + LEFT_PEEK;
 
 /** Posters are 2:3. A number, because the card's height is computed rather than declared. */
 const POSTER_RATIO = 3 / 2;
@@ -411,6 +415,21 @@ const HeroCardStack = ({
   // and this sits on it. Two layers of tint is what made the hero's frame read as a
   // different shade from the rails in an earlier round.
 
+  /**
+   * Has the deck been turned at all yet?
+   *
+   * Nothing sits to the left on a freshly loaded hero: no card has been turned past, and
+   * an edge showing there would claim otherwise. But this is a LOOP — come back round to
+   * the first card and there genuinely is one behind you, so the answer cannot be "are we
+   * at index 0". It is "has anything moved", which stays true once it is, and covers the
+   * auto-advance as well as a swipe.
+   */
+  const [hasTurned, setHasTurned] = useState(false);
+  const openedAt = useRef(safeIdx);
+  useEffect(() => {
+    if (!hasTurned && safeIdx !== openedAt.current) setHasTurned(true);
+  }, [safeIdx, hasTurned]);
+
   // Raises the left card above the deck while it is being pulled in. Declared here
   // rather than with the rest of the lift state below because slot() names it in its
   // dependency array, and a dep array is evaluated the moment useCallback is called.
@@ -434,7 +453,7 @@ const HeroCardStack = ({
     // otherwise its edge would paint over the front card's corner.
     if (k === -1) {
       return {
-        x: -(cardW - offset),
+        x: -(cardW + LEFT_GAP),
         rotate: 0,
         scale: 1,
         opacity: 1,
@@ -494,18 +513,31 @@ const HeroCardStack = ({
    * nothing that can paint out of step.
    */
   const liftX = useMotionValue(0);
-  // Which card the finger is carrying. Held by id, not by slot: a card that commits a
-  // backward turn becomes slot 0 mid-animation and must keep its offset until it lands.
+  // The top card's own give. Same idea as the lift: an offset on a wrapper, never on the
+  // element the deck animates.
+  const dragX = useMotionValue(0);
+  // Which cards the finger is carrying. Held by id, not by slot: a card that commits a
+  // turn changes slot mid-animation and must keep its offset until it lands.
   const [liftFor, setLiftFor] = useState(null);
+  const [dragFor, setDragFor] = useState(null);
   const peekTravel = Math.max(threshold, cardW * 0.5);
 
-  const settleLift = useCallback((done) => {
+  /**
+   * Hand the finger's offsets back on the SAME curve the slots animate on.
+   *
+   * That shared curve is the whole trick. Each card's position is its slot plus its
+   * offset; both run from their current value to their target along one easing, so the
+   * sum travels monotonically from wherever the finger left the card to where it
+   * belongs. Nothing doubles back, so nothing reads as a bounce.
+   */
+  const settleFinger = useCallback(() => {
+    animate(dragX, 0, springTo);
     animate(liftX, 0, springTo).then(() => {
       setLiftFor(null);
+      setDragFor(null);
       setPullingBack(false);
-      done?.();
     });
-  }, [liftX, springTo]);
+  }, [liftX, dragX, springTo]);
 
   /**
    * Warm the posters about to enter the deck, from either end.
@@ -529,51 +561,52 @@ const HeroCardStack = ({
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;
     const dx = info.offset.x;
+    // Forward, the top card IS what leaves, so it follows the finger. Backward it is
+    // not — the card arriving does — so it barely gives.
+    dragX.set(dx < 0 ? dx : dx * 0.07);
     if (dx >= 0) {
       // Coming in: mapped over half a card width, so it stays roughly with the finger
       // instead of racing ahead of it.
       const p = Math.min(1, dx / peekTravel);
-      liftX.set((cardW - offset) * p);
+      liftX.set((cardW + LEFT_GAP) * p);
     } else {
       // Going forward: drift it further out at a fraction of the finger, so the deck
       // reads as continuous that way too rather than the top card leaving over nothing.
       liftX.set(dx * 0.25);
     }
-  }, [count, peekTravel, cardW, offset, liftX]);
+  }, [count, peekTravel, cardW, liftX, dragX]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
     onInteractEnd?.();
-    if (count < 2) { settleLift(); return; }
+    if (count < 2) { settleFinger(); return; }
     const { offset: o, velocity: v } = info;
 
     // Both directions wrap, because the index is taken modulo the list.
-    if (o.x < -threshold || v.x < -450) { go?.(1); settleLift(); return; }
+    if (o.x < -threshold || v.x < -450) { go?.(1); settleFinger(); return; }
 
     if (o.x > threshold || v.x > 450) {
       // Turn NOW and let the lift settle alongside it. The card is one element moving
       // from slot -1 to slot 0 while its lift returns to zero on the same curve; the
       // two compose into a single unbroken travel from under the finger into place.
       go?.(-1);
-      settleLift();
+      settleFinger();
       return;
     }
 
     // Not decisive — let it fall back to its edge.
-    settleLift();
-  }, [count, go, onInteractEnd, settleLift, threshold]);
+    settleFinger();
+  }, [count, go, onInteractEnd, settleFinger, threshold]);
 
   if (!count) return null;
 
   // The top card plus the two behind it, wrapped — which is what makes the deck endless
   // in both directions without a long slide from the last card back to the first.
   //
-  // Plus, once you have turned at least one card, the one you turned PAST, parked at
-  // slot -1. Nothing sits there on the first card: there is no card behind you yet, and
-  // an edge showing there would claim otherwise. It needs more cards than the deck
-  // mounts, or slot -1 and the last slot would resolve to the same record and collide
-  // on key.
-  const showLeft = count > LAYERS && safeIdx > 0;
+  // Plus, once the deck has been turned at all, the card turned PAST, parked at slot -1.
+  // It needs more cards than the deck mounts, or slot -1 and the last slot resolve to
+  // the same record and collide on key.
+  const showLeft = count > LAYERS && hasTurned;
   const deck = Array.from({ length: Math.min(LAYERS, count) }, (_, k) => ({
     k,
     item: items[(safeIdx + k) % count],
@@ -676,26 +709,22 @@ const HeroCardStack = ({
                   // The left card is scenery: a tap on it turns back rather than opening it.
                   aria-hidden={isLeft || undefined}
                   dragDirectionLock
-                  // Anchored: the card rubber-bands off its resting position and springs
-                  // back on its own when the swipe wasn't decisive enough to turn it.
-                  dragConstraints={{ left: 0, right: 0 }}
-                  // Asymmetric ON PURPOSE.
+                  // Pinned, with NO elasticity: framer reports the gesture but never moves
+                  // this element and never animates it back afterwards.
                   //
-                  // Forward, the top card IS what leaves, so it follows the finger. Backward
-                  // it is not: the card that should come up is the PREVIOUS one, entering from
-                  // the left. Letting the top card swing right meant the thing tracking your
-                  // finger was the card that then had to snap back and sit down again, while a
-                  // different card flew in from the opposite side — two contradictory motions
-                  // for one gesture. It now barely gives, so the gesture still feels alive but
-                  // the turn belongs to the card actually arriving.
-                  dragElastic={{ left: 0.42, right: 0.07, top: 0, bottom: 0 }}
+                  // It used to rubber-band here, which meant `drag` and `animate` both
+                  // owned x. On release framer sprang the card toward its constraint while
+                  // the deck retargeted it to a different slot — two animations on one
+                  // property, so the card doubled back and swept out again. That was the
+                  // "same animation, faster" bounce, in both directions. The give now
+                  // lives on the wrapper below, where its return is on the deck's curve.
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0}
                   dragMomentum={false}
-                  // Critically damped, so a swipe that doesn't commit settles back
-                  // instead of wobbling there.
-                  dragTransition={{ bounceStiffness: 500, bounceDamping: 45 }}
                   onDragStart={() => {
                     onInteract?.();
                     setLiftFor(deck[0]?.k === -1 ? deck[0].item?.id : null);
+                    setDragFor(item.id);
                     setPullingBack(true);
                   }}
                   onDrag={handleDrag}
@@ -716,7 +745,9 @@ const HeroCardStack = ({
                       card except the one being carried. */}
                   <Box
                     component={motion.div}
-                    style={{ x: item.id === liftFor ? liftX : 0 }}
+                    style={{
+                      x: item.id === liftFor ? liftX : item.id === dragFor ? dragX : 0,
+                    }}
                   >
                   <DeckCard
                     record={item}
