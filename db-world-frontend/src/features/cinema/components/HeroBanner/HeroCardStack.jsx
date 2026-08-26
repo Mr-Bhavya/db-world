@@ -34,6 +34,7 @@
 //   • Every control is >=44px with >=8px between neighbours.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Link as RouterLink } from 'react-router-dom';
 import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion';
 import { Box, Typography } from '@mui/material';
@@ -384,9 +385,34 @@ const HeroCardStack = ({
     if (Array.isArray(featured) && featured.length > 0) return featured;
     return record ? [record] : [];
   }, [featured, record]);
+  const itemKey = useMemo(() => (
+    items.map((item, index) => String(item?.id ?? `${index}:${item?.title ?? ''}`)).join('|')
+  ), [items]);
 
   const count = items.length;
   const safeIdx = count ? ((idx % count) + count) % count : 0;
+
+  const positionRef = useRef({ itemKey, count, safeIdx, virtualBase: safeIdx });
+  if (positionRef.current.itemKey !== itemKey || positionRef.current.count !== count) {
+    positionRef.current = { itemKey, count, safeIdx, virtualBase: safeIdx };
+  } else if (positionRef.current.safeIdx !== safeIdx) {
+    const previousSafeIdx = positionRef.current.safeIdx;
+    let delta = safeIdx - previousSafeIdx;
+
+    if (count > 1 && Math.abs(delta) >= count / 2) {
+      if (dir > 0 && delta < 0) delta += count;
+      else if (dir < 0 && delta > 0) delta -= count;
+      else if (Math.abs(delta) > count / 2) delta += delta > 0 ? -count : count;
+    }
+
+    positionRef.current = {
+      itemKey,
+      count,
+      safeIdx,
+      virtualBase: positionRef.current.virtualBase + delta,
+    };
+  }
+  const virtualBase = positionRef.current.virtualBase;
 
   // Trimmed from 20: every px here is a px the poster and its meta line don't get.
   const gutter = isXs ? 14 : 20;
@@ -424,16 +450,33 @@ const HeroCardStack = ({
    * at index 0". It is "has anything moved", which stays true once it is, and covers the
    * auto-advance as well as a swipe.
    */
-  const [hasTurned, setHasTurned] = useState(false);
-  const openedAt = useRef(safeIdx);
+  const openingRef = useRef({ itemKey, safeIdx });
+  if (openingRef.current.itemKey !== itemKey) {
+    openingRef.current = { itemKey, safeIdx };
+  }
+  const isPastOpeningCard = safeIdx !== openingRef.current.safeIdx;
+  const [turnState, setTurnState] = useState(() => ({ itemKey, hasTurned: false }));
+  const hasTurnedForItems = turnState.itemKey === itemKey && turnState.hasTurned;
   useEffect(() => {
-    if (!hasTurned && safeIdx !== openedAt.current) setHasTurned(true);
-  }, [safeIdx, hasTurned]);
+    if (turnState.itemKey !== itemKey) {
+      setTurnState({ itemKey, hasTurned: false });
+      return;
+    }
+    if (!turnState.hasTurned && isPastOpeningCard) {
+      setTurnState({ itemKey, hasTurned: true });
+    }
+  }, [itemKey, isPastOpeningCard, turnState.itemKey, turnState.hasTurned]);
 
   // Raises the left card above the deck while it is being pulled in. Declared here
   // rather than with the rest of the lift state below because slot() names it in its
   // dependency array, and a dep array is evaluated the moment useCallback is called.
   const [pullingBack, setPullingBack] = useState(false);
+  const pullingBackRef = useRef(false);
+  const setPullingBackActive = useCallback((active) => {
+    if (pullingBackRef.current === active) return;
+    pullingBackRef.current = active;
+    setPullingBack(active);
+  }, []);
 
   /**
    * Resting transform for the card k steps back in the deck.
@@ -516,11 +559,22 @@ const HeroCardStack = ({
   // The top card's own give. Same idea as the lift: an offset on a wrapper, never on the
   // element the deck animates.
   const dragX = useMotionValue(0);
+  const settleSeq = useRef(0);
+  const dragReturn = useRef(null);
+  const liftReturn = useRef(null);
+  const stopFingerAnimations = useCallback(() => {
+    dragReturn.current?.stop?.();
+    liftReturn.current?.stop?.();
+    dragReturn.current = null;
+    liftReturn.current = null;
+  }, []);
   // Which cards the finger is carrying. Held by id, not by slot: a card that commits a
   // turn changes slot mid-animation and must keep its offset until it lands.
   const [liftFor, setLiftFor] = useState(null);
   const [dragFor, setDragFor] = useState(null);
   const peekTravel = Math.max(threshold, cardW * 0.5);
+
+  useEffect(() => () => stopFingerAnimations(), [stopFingerAnimations]);
 
   /**
    * Hand the finger's offsets back on the SAME curve the slots animate on.
@@ -531,13 +585,24 @@ const HeroCardStack = ({
    * belongs. Nothing doubles back, so nothing reads as a bounce.
    */
   const settleFinger = useCallback(() => {
-    animate(dragX, 0, springTo);
-    animate(liftX, 0, springTo).then(() => {
+    const sequence = settleSeq.current + 1;
+    settleSeq.current = sequence;
+    stopFingerAnimations();
+
+    const dragAnimation = animate(dragX, 0, springTo);
+    const liftAnimation = animate(liftX, 0, springTo);
+    dragReturn.current = dragAnimation;
+    liftReturn.current = liftAnimation;
+
+    Promise.all([dragAnimation, liftAnimation]).then(() => {
+      if (sequence !== settleSeq.current) return;
+      dragReturn.current = null;
+      liftReturn.current = null;
       setLiftFor(null);
       setDragFor(null);
-      setPullingBack(false);
+      setPullingBackActive(false);
     });
-  }, [liftX, dragX, springTo]);
+  }, [liftX, dragX, springTo, stopFingerAnimations, setPullingBackActive]);
 
   /**
    * Warm the posters about to enter the deck, from either end.
@@ -561,6 +626,7 @@ const HeroCardStack = ({
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;
     const dx = info.offset.x;
+    setPullingBackActive(dx > 0);
     // Forward, the top card IS what leaves, so it follows the finger. Backward it is
     // not — the card arriving does — so it barely gives.
     dragX.set(dx < 0 ? dx : dx * 0.07);
@@ -574,7 +640,7 @@ const HeroCardStack = ({
       // reads as continuous that way too rather than the top card leaving over nothing.
       liftX.set(dx * 0.25);
     }
-  }, [count, peekTravel, cardW, liftX, dragX]);
+  }, [count, peekTravel, cardW, liftX, dragX, setPullingBackActive]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
@@ -582,15 +648,19 @@ const HeroCardStack = ({
     if (count < 2) { settleFinger(); return; }
     const { offset: o, velocity: v } = info;
 
+    const commitTurn = (direction) => {
+      flushSync(() => go?.(direction));
+      settleFinger();
+    };
+
     // Both directions wrap, because the index is taken modulo the list.
-    if (o.x < -threshold || v.x < -450) { go?.(1); settleFinger(); return; }
+    if (o.x < -threshold || v.x < -450) { commitTurn(1); return; }
 
     if (o.x > threshold || v.x > 450) {
       // Turn NOW and let the lift settle alongside it. The card is one element moving
       // from slot -1 to slot 0 while its lift returns to zero on the same curve; the
       // two compose into a single unbroken travel from under the finger into place.
-      go?.(-1);
-      settleFinger();
+      commitTurn(-1);
       return;
     }
 
@@ -600,18 +670,23 @@ const HeroCardStack = ({
 
   if (!count) return null;
 
-  // The top card plus the two behind it, wrapped — which is what makes the deck endless
-  // in both directions without a long slide from the last card back to the first.
-  //
-  // Plus, once the deck has been turned at all, the card turned PAST, parked at slot -1.
-  // It needs more cards than the deck mounts, or slot -1 and the last slot resolve to
-  // the same record and collide on key.
-  const showLeft = count > LAYERS && hasTurned;
-  const deck = Array.from({ length: Math.min(LAYERS, count) }, (_, k) => ({
+  // The top card plus the cards behind it, wrapped — which is what makes the deck
+  // endless in both directions without a long slide from the last card back to the first.
+  // Once the deck is turning, a virtual position joins the record id in the key so a
+  // title can leave on the left and later re-enter from the back instead of teleporting
+  // across the deck when the modulo loop catches up with it.
+  const showLeft = count > 1 && (hasTurnedForItems || isPastOpeningCard || dragFor !== null);
+  const visibleLayers = showLeft ? Math.min(LAYERS, count - 1) : Math.min(LAYERS, count);
+  const deck = Array.from({ length: visibleLayers }, (_, k) => ({
     k,
+    virtualKey: virtualBase + k,
     item: items[(safeIdx + k) % count],
   }));
-  if (showLeft) deck.unshift({ k: -1, item: items[(safeIdx - 1 + count) % count] });
+  if (showLeft) deck.unshift({
+    k: -1,
+    virtualKey: virtualBase - 1,
+    item: items[(safeIdx - 1 + count) % count],
+  });
 
   return (
     <Box
@@ -684,16 +759,17 @@ const HeroCardStack = ({
           minHeight: measured ? undefined : 320,
         }}>
           <AnimatePresence initial={false} custom={dir}>
-            {deck.map(({ k, item }) => {
+            {deck.map(({ k, item, virtualKey }) => {
               const isFront = k === 0;
               const isLeft = k === -1;
+              const leftMountedForDrag = isLeft && dragFor !== null && !hasTurnedForItems && !isPastOpeningCard;
               return (
                 <Box
-                  key={item.id ?? `slot-${k}`}
+                  key={`${item.id ?? 'item'}-${virtualKey}`}
                   component={motion.div}
                   custom={dir}
                   variants={variants}
-                  initial="enter"
+                  initial={leftMountedForDrag ? false : 'enter'}
                   animate={slot(k)}
                   exit="exit"
                   // z-index snaps; everything else eases.
@@ -723,9 +799,11 @@ const HeroCardStack = ({
                   dragMomentum={false}
                   onDragStart={() => {
                     onInteract?.();
-                    setLiftFor(deck[0]?.k === -1 ? deck[0].item?.id : null);
+                    settleSeq.current += 1;
+                    stopFingerAnimations();
+                    setPullingBackActive(false);
+                    setLiftFor(items[(safeIdx - 1 + count) % count]?.id ?? null);
                     setDragFor(item.id);
-                    setPullingBack(true);
                   }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
@@ -757,7 +835,7 @@ const HeroCardStack = ({
                     cardH={cardH}
                     badge={heroBadge(item, {
                       ranked, top10, rankLabel,
-                      idx: (safeIdx + k) % count,
+                      idx: (safeIdx + k + count) % count,
                     })}
                     inList={Boolean((interactions[item.id] ?? (isFront ? ix : null))?.watchlisted)}
                     // A tap on a card behind brings it forward instead of navigating;
