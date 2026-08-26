@@ -13,6 +13,9 @@ Allow: /db-world/db-cinema/collection
 Allow: /db-world/ipo
 Allow: /db-world/db-games
 Allow: /db-world/db-weather
+Allow: /db-world/privacy
+Allow: /db-world/terms
+Allow: /db-world/contact
 
 # ─────────────────────────────────────────────────────────────
 # PRIVATE — acting on a record. All of these redirect to login,

@@ -21,6 +21,7 @@ import {
 
 import { useT } from '@shared/theme';
 import DbWorldLogo from '@assets/images/db-circle-icon.webp';
+import LegalLinks from './LegalLinks';
 
 const APP_VERSION = '3.0.0';
 
@@ -457,6 +458,8 @@ export default function Footer() {
                   v{APP_VERSION}
                 </Typography>
               </Box>
+
+              <LegalLinks />
             </Box>
 
             {/* Right action */}

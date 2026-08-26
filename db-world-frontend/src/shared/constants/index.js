@@ -67,6 +67,12 @@ export const DB_PLAYER_ROUTE_PATTERN = `${DB_PLAYER_ROUTE}/:mediaFileId`;
 export const playerPath = (mediaFileId) => `${DB_PLAYER_ROUTE}/${encodeURIComponent(mediaFileId ?? '')}`;
 export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 
+// Legal / informational pages. Public, and required by AdSense before a site can
+// be approved — see docs/adsense-setup.md.
+export const DB_PRIVACY_ROUTE = `${DB_WORLD_HOME_ROUTE}/privacy`;
+export const DB_TERMS_ROUTE   = `${DB_WORLD_HOME_ROUTE}/terms`;
+export const DB_CONTACT_ROUTE = `${DB_WORLD_HOME_ROUTE}/contact`;
+
 export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
 export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
 export const DB_GAMES_TIC_TAC_TOE_ROUTE = `${DB_GAMES_ROUTE}/tic-tac-toe`;
@@ -226,6 +232,9 @@ export default {
   playerPath,
   DB_PLAYER_DEMO_ROUTE,
 
+  DB_PRIVACY_ROUTE,
+  DB_TERMS_ROUTE,
+  DB_CONTACT_ROUTE,
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,
   DB_GAMES_TIC_TAC_TOE_ROUTE,

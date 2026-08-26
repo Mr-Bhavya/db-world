@@ -72,6 +72,10 @@ class SitemapControllerTest {
                 .startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
                 .contains("<loc>https://db-world.in/db-world/db-cinema/browse</loc>")
                 .contains("<loc>https://db-world.in/db-world/ipo</loc>")
+                // Legal pages — AdSense needs these discoverable, not just footer-linked.
+                .contains("<loc>https://db-world.in/db-world/privacy</loc>")
+                .contains("<loc>https://db-world.in/db-world/terms</loc>")
+                .contains("<loc>https://db-world.in/db-world/contact</loc>")
                 // Slug mirrors recordNav.js: leading id, cosmetic title.
                 .contains("<loc>https://db-world.in/db-world/db-cinema/movie/123-inception</loc>")
                 .contains("<loc>https://db-world.in/db-world/db-cinema/series/456-breaking-bad</loc>")

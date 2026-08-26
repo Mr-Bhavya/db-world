@@ -13,6 +13,7 @@ import IpoCardSkeleton from '../components/IpoCardSkeleton';
 import WhyUseThis from '../components/WhyUseThis';
 import IpoLearn from '../components/IpoLearn';
 import AdSlot from '@shared/ads/AdSlot';
+import LegalLinks from '@shared/components/layout/LegalLinks';
 import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
@@ -123,6 +124,8 @@ export default function IpoListPage() {
 
       <WhyUseThis />
       <IpoLearn />
+
+      <LegalLinks sx={{ pt: 3, justifyContent: 'center' }} />
     </Box>
   );
 }

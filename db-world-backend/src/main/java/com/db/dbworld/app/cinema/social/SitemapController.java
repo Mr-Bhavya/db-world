@@ -74,6 +74,12 @@ public class SitemapController {
         url(xml, publicBaseUrl + "/db-world/db-cinema/tv-shows",  null, "daily",  "0.9");
         url(xml, publicBaseUrl + "/db-world/ipo",                 null, "hourly", "1.0");
 
+        // Legal pages. Low priority, but AdSense and Search Console both expect them
+        // to be discoverable rather than orphaned behind a footer link alone.
+        url(xml, publicBaseUrl + "/db-world/privacy", null, "yearly", "0.3");
+        url(xml, publicBaseUrl + "/db-world/terms",   null, "yearly", "0.3");
+        url(xml, publicBaseUrl + "/db-world/contact", null, "yearly", "0.3");
+
         int records = 0;
         for (RecordEntity record : recordRepository.findAllWithTmdbAndTags()) {
             if (record.getVisibility() == null || !record.getVisibility().isPublic()) continue;

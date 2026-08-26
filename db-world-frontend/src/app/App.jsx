@@ -78,6 +78,11 @@ import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
+// Legal pages — tiny, but split out so they never sit in the initial bundle.
+const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
+const ContactPage    = lazy(() => import('@features/legal/Contact'));
+
 const Weather     = lazy(() => import('@features/weather/weather'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
@@ -190,6 +195,12 @@ const routeConfig = {
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
+
+    // Legal pages. Public and linked from the footer — AdSense will not approve a
+    // site without them, and a reviewer must be able to reach them signed out.
+    { path: Constants.DB_PRIVACY_ROUTE, element: <PrivacyPolicy /> },
+    { path: Constants.DB_TERMS_ROUTE,   element: <TermsOfService /> },
+    { path: Constants.DB_CONTACT_ROUTE, element: <ContactPage /> },
 
     // ── Open browse surface ───────────────────────────────────────────────────
     // Reading the catalog and the IPO tracker needs no account, so links are
