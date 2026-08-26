@@ -35,7 +35,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion';
+import { AnimatePresence, animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { Box, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -457,25 +457,52 @@ const HeroCardStack = ({
    */
   const peekX = useMotionValue(0);
   const peekOpacity = useMotionValue(0);
-  const [peeking, setPeeking] = useState(false);
   const peekRest = -(cardW * 1.1);
+  // `hidden` costs nothing to composite; opacity 0 still paints. Driven off the same
+  // motion value, so it flips without a React render.
+  const peekVisibility = useTransform(peekOpacity, (o) => (o > 0.001 ? 'visible' : 'hidden'));
+
+  /**
+   * How far the finger travels to bring the card all the way in.
+   *
+   * NOT the commit threshold. Mapping the card's ~356px of travel onto the ~71px that
+   * commits a turn amplified every finger movement five times over, which is why it
+   * shot in. Half a card width is near enough 1:1 to feel attached to the finger, and
+   * the spring covers whatever is left on release.
+   */
+  const peekTravel = Math.max(threshold, cardW * 0.5);
+
+  // Softer than the deck's own spring, which is tuned to snap. This one is finishing a
+  // movement the finger started, so it should read as a continuation of it.
+  const peekSpring = useMemo(() => (reducedMotion
+    ? { duration: 0.18 }
+    : { type: 'spring', stiffness: 210, damping: 30, mass: 1 }), [reducedMotion]);
 
   useEffect(() => { peekX.set(peekRest); peekOpacity.set(0); }, [peekRest, peekX, peekOpacity]);
 
   const resetPeek = useCallback(() => {
     peekX.set(peekRest);
     peekOpacity.set(0);
-    setPeeking(false);
   }, [peekRest, peekX, peekOpacity]);
+
+  // A turn already decided but still sliding home. Held so a second swipe landing
+  // mid-flight completes it instead of cancelling the animation and losing the turn.
+  const pendingBack = useRef(null);
+  const flushPendingBack = useCallback(() => {
+    if (!pendingBack.current) return;
+    pendingBack.current = null;
+    go?.(-1);
+    resetPeek();
+  }, [go, resetPeek]);
 
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;
-    // Mapped so the card is fully home at exactly the distance that commits the turn:
-    // let go past the threshold and it is already where it belongs.
-    const p = Math.max(0, Math.min(1, info.offset.x / threshold));
+    const p = Math.max(0, Math.min(1, info.offset.x / peekTravel));
     peekX.set(peekRest * (1 - p));
-    peekOpacity.set(p);
-  }, [count, threshold, peekRest, peekX, peekOpacity]);
+    // Solid early: this is a card sliding in, not something fading up. Tied to travel it
+    // spent most of the gesture translucent, which read as a ghost rather than a card.
+    peekOpacity.set(Math.min(1, p * 4));
+  }, [count, peekTravel, peekRest, peekX, peekOpacity]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
@@ -488,20 +515,26 @@ const HeroCardStack = ({
     if (o.x < -threshold || v.x < -450) { resetPeek(); go?.(1); return; }
 
     if (o.x > threshold || v.x > 450) {
-      // Carry the incoming card the rest of the way (a flick can commit from half a
-      // threshold), and only THEN advance the index. By that point the peek is sitting
-      // on slot 0 with the same artwork the real card mounts with, so unmounting one
-      // and mounting the other in the same commit is invisible — no crossfade, no
-      // second card sliding in behind the one already there.
-      animate(peekX, 0, springTo);
-      animate(peekOpacity, 1, springTo).then(() => { go?.(-1); resetPeek(); });
+      // Carry the card the rest of the way, and only THEN advance the index: by that
+      // point the peek is on slot 0 showing the same artwork the real card mounts with,
+      // so swapping one for the other in a single commit is invisible.
+      //
+      // Gated on the POSITION settling, not the opacity. Opacity is normally already at
+      // its target by now, so waiting on it resolved immediately and fired the swap
+      // while the card was still travelling — then reset it mid-flight. That was the
+      // flicker.
+      peekOpacity.set(1);
+      const run = animate(peekX, 0, peekSpring);
+      pendingBack.current = run;
+      run.then(() => { if (pendingBack.current === run) flushPendingBack(); });
       return;
     }
 
     // Not decisive — send it back where it came from.
-    animate(peekX, peekRest, springTo);
-    animate(peekOpacity, 0, { duration: 0.18 }).then(() => setPeeking(false));
-  }, [count, go, onInteractEnd, peekOpacity, peekRest, peekX, resetPeek, springTo, threshold]);
+    animate(peekX, peekRest, peekSpring);
+    animate(peekOpacity, 0, { duration: 0.18 });
+  }, [count, flushPendingBack, go, onInteractEnd, peekOpacity, peekRest, peekSpring, peekX,
+    resetPeek, threshold]);
 
   if (!count) return null;
 
@@ -611,7 +644,7 @@ const HeroCardStack = ({
                   // the turn belongs to the card actually arriving.
                   dragElastic={{ left: 0.42, right: 0.07, top: 0, bottom: 0 }}
                   dragMomentum={false}
-                  onDragStart={() => { onInteract?.(); setPeeking(true); }}
+                  onDragStart={() => { flushPendingBack(); onInteract?.(); }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
                   style={{
@@ -650,10 +683,12 @@ const HeroCardStack = ({
             })}
           </AnimatePresence>
 
-          {/* The card a backward swipe is pulling in. Mounted only for the length of the
-              gesture, driven entirely by motion values so following the finger costs no
-              renders, and inert — the drag it belongs to lives on the card underneath. */}
-          {peeking && count > 1 && measured && (
+          {/* The card a backward swipe pulls in. Always mounted — so its poster is in
+              cache before the gesture wants it, and so no state changes mid-drag (that
+              re-render restarted every card's animation on the first frame of every
+              swipe) — and hidden by a motion value until the finger moves right. Inert:
+              the drag it belongs to lives on the card underneath. */}
+          {count > 1 && measured && (
             <Box
               component={motion.div}
               aria-hidden
@@ -663,6 +698,7 @@ const HeroCardStack = ({
                 left: 0,
                 x: peekX,
                 opacity: peekOpacity,
+                visibility: peekVisibility,
                 zIndex: LAYERS + 1,
                 transformOrigin: 'center top',
                 pointerEvents: 'none',
@@ -670,7 +706,10 @@ const HeroCardStack = ({
             >
               <DeckCard
                 record={items[(safeIdx - 1 + count) % count]}
-                front={false}
+                // Drawn as the front card: it becomes one. Mounted as a back card it
+                // carried the smaller shadow and no action buttons, so both changed at
+                // the swap — which is what the eye caught as a flicker.
+                front
                 isXs={isXs}
                 cardW={cardW}
                 cardH={cardH}
