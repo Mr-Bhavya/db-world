@@ -33,9 +33,9 @@
 //     downloads nobody can see.
 //   • Every control is >=44px with >=8px between neighbours.
 
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion';
 import { Box, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -425,29 +425,83 @@ const HeroCardStack = ({
    * already unmounting — its own props are a render behind by then.
    */
   const variants = useMemo(() => ({
+    // Backward, the card appears already at rest. The peek card above carried it in
+    // under the finger, so replaying that slide here would show the journey twice.
+    // Nothing else turns the deck backward — go(-1) is reached only from a drag.
     enter: (d) => (d < 0
-      ? { x: -cardW * 1.1, rotate: -4, opacity: 0, scale: 1, zIndex: LAYERS + 1 }
+      ? slot(0)
       : { ...slot(LAYERS), opacity: 0 }),
     exit: (d) => (d < 0
       ? { ...slot(LAYERS), opacity: 0 }
       : { x: -cardW * 1.15, rotate: -5, opacity: 0, zIndex: LAYERS + 1 }),
   }), [cardW, slot]);
 
-  const springTo = reducedMotion
+  // Memoised: a fresh object per render would rebuild every callback that depends on it.
+  const springTo = useMemo(() => (reducedMotion
     ? { duration: 0.16 }
-    : { type: 'spring', stiffness: 340, damping: 34, mass: 0.6 };
+    : { type: 'spring', stiffness: 340, damping: 34, mass: 0.6 }), [reducedMotion]);
+
+  // A decisive flick or a fifth of a card of travel turns the page.
+  const threshold = Math.min(96, Math.max(48, cardW * 0.22));
+
+  /* ── the card arriving from the left ──────────────────────────────────────
+   *
+   * Going forward, the top card IS what leaves, so the drag can just move it. Going
+   * back it is not: the card that should arrive was never mounted, so a backward swipe
+   * had nothing to show until the finger lifted and it flew in afterwards.
+   *
+   * This is that card, mounted for the length of the gesture and positioned straight
+   * from the drag — a plain motion value, so tracking the finger costs no React
+   * renders. It sits ABOVE the deck and lands exactly on slot 0, which is why the
+   * handoff below can be a swap rather than a crossfade.
+   */
+  const peekX = useMotionValue(0);
+  const peekOpacity = useMotionValue(0);
+  const [peeking, setPeeking] = useState(false);
+  const peekRest = -(cardW * 1.1);
+
+  useEffect(() => { peekX.set(peekRest); peekOpacity.set(0); }, [peekRest, peekX, peekOpacity]);
+
+  const resetPeek = useCallback(() => {
+    peekX.set(peekRest);
+    peekOpacity.set(0);
+    setPeeking(false);
+  }, [peekRest, peekX, peekOpacity]);
+
+  const handleDrag = useCallback((_e, info) => {
+    if (count < 2) return;
+    // Mapped so the card is fully home at exactly the distance that commits the turn:
+    // let go past the threshold and it is already where it belongs.
+    const p = Math.max(0, Math.min(1, info.offset.x / threshold));
+    peekX.set(peekRest * (1 - p));
+    peekOpacity.set(p);
+  }, [count, threshold, peekRest, peekX, peekOpacity]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
     onInteractEnd?.();
-    if (count < 2) return;
-    const threshold = Math.min(96, Math.max(48, cardW * 0.22));
+    if (count < 2) { resetPeek(); return; }
     const { offset: o, velocity: v } = info;
-    // A decisive flick or a fifth of a card of travel turns the page. Both directions
+
+    // Forward: the top card leaves, and the peek was never on screen. Both directions
     // wrap, because the index is taken modulo the list.
-    if (o.x < -threshold || v.x < -450) go?.(1);
-    else if (o.x > threshold || v.x > 450) go?.(-1);
-  }, [cardW, count, go, onInteractEnd]);
+    if (o.x < -threshold || v.x < -450) { resetPeek(); go?.(1); return; }
+
+    if (o.x > threshold || v.x > 450) {
+      // Carry the incoming card the rest of the way (a flick can commit from half a
+      // threshold), and only THEN advance the index. By that point the peek is sitting
+      // on slot 0 with the same artwork the real card mounts with, so unmounting one
+      // and mounting the other in the same commit is invisible — no crossfade, no
+      // second card sliding in behind the one already there.
+      animate(peekX, 0, springTo);
+      animate(peekOpacity, 1, springTo).then(() => { go?.(-1); resetPeek(); });
+      return;
+    }
+
+    // Not decisive — send it back where it came from.
+    animate(peekX, peekRest, springTo);
+    animate(peekOpacity, 0, { duration: 0.18 }).then(() => setPeeking(false));
+  }, [count, go, onInteractEnd, peekOpacity, peekRest, peekX, resetPeek, springTo, threshold]);
 
   if (!count) return null;
 
@@ -557,7 +611,8 @@ const HeroCardStack = ({
                   // the turn belongs to the card actually arriving.
                   dragElastic={{ left: 0.42, right: 0.07, top: 0, bottom: 0 }}
                   dragMomentum={false}
-                  onDragStart={() => onInteract?.()}
+                  onDragStart={() => { onInteract?.(); setPeeking(true); }}
+                  onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
                   style={{
                     position: 'absolute',
@@ -594,6 +649,39 @@ const HeroCardStack = ({
               );
             })}
           </AnimatePresence>
+
+          {/* The card a backward swipe is pulling in. Mounted only for the length of the
+              gesture, driven entirely by motion values so following the finger costs no
+              renders, and inert — the drag it belongs to lives on the card underneath. */}
+          {peeking && count > 1 && measured && (
+            <Box
+              component={motion.div}
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                x: peekX,
+                opacity: peekOpacity,
+                zIndex: LAYERS + 1,
+                transformOrigin: 'center top',
+                pointerEvents: 'none',
+              }}
+            >
+              <DeckCard
+                record={items[(safeIdx - 1 + count) % count]}
+                front={false}
+                isXs={isXs}
+                cardW={cardW}
+                cardH={cardH}
+                badge={heroBadge(items[(safeIdx - 1 + count) % count], {
+                  ranked, top10, rankLabel,
+                  idx: (safeIdx - 1 + count) % count,
+                })}
+                inList={Boolean(interactions[items[(safeIdx - 1 + count) % count]?.id]?.watchlisted)}
+              />
+            </Box>
+          )}
         </Box>
 
       </Box>
