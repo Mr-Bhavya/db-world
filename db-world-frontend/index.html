@@ -13,8 +13,22 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="manifest" href="/manifest.json" />
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8394425716692410"
-    crossorigin="anonymous"></script>
+  <!-- AdSense loader — WEB ONLY.
+       AdSense covers websites; serving it inside an app WebView is AdMob's job, and
+       doing it anyway risks the publisher account. The Capacitor build runs on the
+       capacitor:// scheme (and file:// on older shells), so the script is injected
+       only when the page is served over real http(s). -->
+  <script>
+    (function () {
+      var p = window.location.protocol;
+      if (p !== 'http:' && p !== 'https:') return;
+      var s = document.createElement('script');
+      s.async = true;
+      s.crossOrigin = 'anonymous';
+      s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8394425716692410';
+      document.head.appendChild(s);
+    })();
+  </script>
 
   <title>DB World :)</title>
   <!-- Boot loader: kept identical (class names + CSS) to AppLoader's "full" variant in

@@ -26,6 +26,7 @@ import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import NotifyProvider from '@shared/notify/NotifyProvider';
+import { RequireAuthProvider } from '@features/auth/useRequireAuth';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
@@ -189,8 +190,13 @@ const routeConfig = {
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
-  ],
-  protected: [
+
+    // ── Open browse surface ───────────────────────────────────────────────────
+    // Reading the catalog and the IPO tracker needs no account, so links are
+    // shareable and search engines can index them. The line is drawn at ACTING on
+    // a record: playback, downloads, requests, votes, watchlist/like and anything
+    // user-scoped stays behind PrivateRoute below, and the in-page controls for
+    // those go through useRequireAuth() to prompt for sign-in.
     { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },
     { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
     { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
@@ -199,22 +205,26 @@ const routeConfig = {
     { path: Constants.DB_CINEMA_BROWSE_GENRE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home-genre"   /> },
     { path: Constants.DB_CINEMA_MOVIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies-genre" /> },
     { path: Constants.DB_CINEMA_SERIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="series" key="series-genre" /> },
+    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
+    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
+    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
+  ],
+  protected: [
+    // Acting on a record — the files list is the download surface, the player is
+    // the stream surface.
     { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
+    { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
+    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
-    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
-    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
-    { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
-    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
-    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []
@@ -355,6 +365,7 @@ const ThemedApp = () => {
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <NotifyProvider>
+        <RequireAuthProvider>
         <CategoryProvider>
           {/* Transparent by default so the hybrid player's native video layer
               (behind the transparent WebView) shows through. Painted dark only while a
@@ -439,15 +450,17 @@ const ThemedApp = () => {
             {background && (
               <Suspense fallback={null}>
                 <Routes>
-                  <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                  </Route>
+                  {/* Public, matching the detail pages they overlay — a signed-out
+                      visitor clicking a card opens the sheet/modal instead of being
+                      bounced to login. The actions inside it still prompt. */}
+                  <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
+                  <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
                 </Routes>
               </Suspense>
             )}
           </div>
         </CategoryProvider>
+        </RequireAuthProvider>
       </NotifyProvider>
     </ThemeProvider>
   );
