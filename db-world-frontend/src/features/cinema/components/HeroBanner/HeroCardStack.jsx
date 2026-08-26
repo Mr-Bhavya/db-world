@@ -35,7 +35,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { AnimatePresence, animate, motion, useMotionValue, useTransform } from 'framer-motion';
+import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion';
 import { Box, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -463,19 +463,23 @@ const HeroCardStack = ({
    */
   const peekX = useMotionValue(0);
   const peekOpacity = useMotionValue(0);
-  const peekRest = -(cardW * 1.1);
-  // `hidden` costs nothing to composite; opacity 0 still paints. Driven off the same
-  // motion value, so it flips without a React render.
-  const peekVisibility = useTransform(peekOpacity, (o) => (o > 0.001 ? 'visible' : 'hidden'));
 
   /**
-   * How far the finger travels to bring the card all the way in.
+   * Mounted only while a drag is in flight — and that is load-bearing, not an
+   * optimisation.
    *
-   * NOT the commit threshold. Mapping the card's ~356px of travel onto the ~71px that
-   * commits a turn amplified every finger movement five times over, which is why it
-   * shot in. Half a card width is near enough 1:1 to feel attached to the finger, and
-   * the spring covers whatever is left on release.
+   * Hiding it through its motion value could not work: framer batches style writes into
+   * its own frame, while go() schedules a React render. Whichever order they were
+   * issued in, the browser painted one frame with the peek still up — and by then its
+   * record had already recomputed one step further back, which is the previous card
+   * that kept flashing over the new one. Mounting is React's to do, so unmounting in
+   * the SAME commit that mounts the replacement is atomic by construction.
    */
+  const [peekShown, setPeekShown] = useState(false);
+
+  // Resting place during a drag: far enough left that only its edge shows, mirroring
+  // the room the deck leaves on the right. A forward swipe drifts it further out.
+  const peekSliver = -(cardW - offset);
   const peekTravel = Math.max(threshold, cardW * 0.5);
 
   // Finishing a movement the finger started, so it wants to read as a continuation of
@@ -484,41 +488,25 @@ const HeroCardStack = ({
     ? { duration: 0.18 }
     : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }), [reducedMotion]);
 
-  useEffect(() => { peekX.set(peekRest); peekOpacity.set(0); }, [peekRest, peekX, peekOpacity]);
+  const startPeek = useCallback(() => {
+    peekX.set(peekSliver);
+    peekOpacity.set(1);
+    setPeekShown(true);
+  }, [peekSliver, peekX, peekOpacity]);
 
-  const resetPeek = useCallback(() => {
-    peekX.set(peekRest);
-    peekOpacity.set(0);
-  }, [peekRest, peekX, peekOpacity]);
+  const endPeek = useCallback(() => setPeekShown(false), []);
 
   // A turn already decided but still sliding home. Held so a second swipe landing
   // mid-flight completes it instead of cancelling the animation and losing the turn.
   const pendingBack = useRef(null);
-  // Hiding the peek is deferred to the commit that replaces it — see below.
-  const hidePeekAfterCommit = useRef(false);
   const flushPendingBack = useCallback(() => {
     if (!pendingBack.current) return;
     pendingBack.current = null;
-    hidePeekAfterCommit.current = true;
+    // Both in one callback: React batches them into a single commit, so the peek comes
+    // down in the very paint that puts its replacement up.
     go?.(-1);
-  }, [go]);
-
-  /**
-   * Hide the peek only once the card replacing it is in the DOM.
-   *
-   * Motion values write to the DOM synchronously; go(-1) only SCHEDULES a React render.
-   * Doing both in one callback therefore hid the peek immediately and mounted its
-   * replacement a frame later, leaving one painted frame with neither — the deck
-   * showing through where the front card should be. That was the flicker on completion.
-   *
-   * useLayoutEffect runs after the new card is committed but before the browser paints,
-   * so the swap never reaches the screen as two separate states.
-   */
-  useLayoutEffect(() => {
-    if (!hidePeekAfterCommit.current) return;
-    hidePeekAfterCommit.current = false;
-    resetPeek();
-  });
+    endPeek();
+  }, [go, endPeek]);
 
   /**
    * Warm the posters that are about to enter the deck, from either end.
@@ -530,7 +518,7 @@ const HeroCardStack = ({
    */
   useEffect(() => {
     if (count < 2 || typeof Image === 'undefined') return;
-    [(safeIdx + LAYERS) % count, (safeIdx - 2 + count * 2) % count].forEach((i) => {
+    [(safeIdx + LAYERS) % count, (safeIdx - 1 + count) % count].forEach((i) => {
       const path = heroArtCandidates(items[i], { portrait: true, hasLogo: false, titled: true })
         .find(Boolean);
       if (!path) return;
@@ -541,44 +529,42 @@ const HeroCardStack = ({
 
   const handleDrag = useCallback((_e, info) => {
     if (count < 2) return;
-    const p = Math.max(0, Math.min(1, info.offset.x / peekTravel));
-    peekX.set(peekRest * (1 - p));
-    // Solid early: this is a card sliding in, not something fading up. Tied to travel it
-    // spent most of the gesture translucent, which read as a ghost rather than a card.
-    peekOpacity.set(Math.min(1, p * 4));
-  }, [count, peekTravel, peekRest, peekX, peekOpacity]);
+    const dx = info.offset.x;
+    if (dx >= 0) {
+      // Coming in: from its sliver to slot 0, mapped over half a card width so it stays
+      // roughly with the finger rather than racing ahead of it.
+      const p = Math.min(1, dx / peekTravel);
+      peekX.set(peekSliver * (1 - p));
+    } else {
+      // Going forward: drift it out at a fraction of the finger, so the deck reads as
+      // continuous in that direction too instead of the top card leaving over nothing.
+      peekX.set(peekSliver + dx * 0.25);
+    }
+  }, [count, peekTravel, peekSliver, peekX]);
 
   const handleDragEnd = useCallback((_e, info) => {
     dragEndedAt.current = Date.now();
     onInteractEnd?.();
-    if (count < 2) { resetPeek(); return; }
+    if (count < 2) { endPeek(); return; }
     const { offset: o, velocity: v } = info;
 
-    // Forward: the top card leaves, and the peek was never on screen. Both directions
-    // wrap, because the index is taken modulo the list.
-    if (o.x < -threshold || v.x < -450) { resetPeek(); go?.(1); return; }
+    // Both directions wrap, because the index is taken modulo the list.
+    if (o.x < -threshold || v.x < -450) { go?.(1); endPeek(); return; }
 
     if (o.x > threshold || v.x > 450) {
       // Carry the card the rest of the way, and only THEN advance the index: by that
-      // point the peek is on slot 0 showing the same artwork the real card mounts with,
-      // so swapping one for the other in a single commit is invisible.
-      //
-      // Gated on the POSITION settling, not the opacity. Opacity is normally already at
-      // its target by now, so waiting on it resolved immediately and fired the swap
-      // while the card was still travelling — then reset it mid-flight. That was the
-      // flicker.
-      peekOpacity.set(1);
+      // point it is sitting on slot 0 showing the artwork its replacement mounts with,
+      // so the swap has nothing to give itself away with.
       const run = animate(peekX, 0, peekSpring);
       pendingBack.current = run;
       run.then(() => { if (pendingBack.current === run) flushPendingBack(); });
       return;
     }
 
-    // Not decisive — send it back where it came from.
-    animate(peekX, peekRest, peekSpring);
-    animate(peekOpacity, 0, { duration: 0.18 });
-  }, [count, flushPendingBack, go, onInteractEnd, peekOpacity, peekRest, peekSpring, peekX,
-    resetPeek, threshold]);
+    // Not decisive — see it back out, then take it down.
+    animate(peekX, peekSliver, peekSpring).then(endPeek);
+  }, [count, endPeek, flushPendingBack, go, onInteractEnd, peekSliver, peekSpring, peekX,
+    threshold]);
 
   if (!count) return null;
 
@@ -703,7 +689,7 @@ const HeroCardStack = ({
                   // Critically damped, so a swipe that doesn't commit settles back
                   // instead of wobbling there.
                   dragTransition={{ bounceStiffness: 500, bounceDamping: 45 }}
-                  onDragStart={() => { flushPendingBack(); onInteract?.(); }}
+                  onDragStart={() => { flushPendingBack(); onInteract?.(); startPeek(); }}
                   onDrag={handleDrag}
                   onDragEnd={handleDragEnd}
                   style={{
@@ -747,7 +733,7 @@ const HeroCardStack = ({
               re-render restarted every card's animation on the first frame of every
               swipe) — and hidden by a motion value until the finger moves right. Inert:
               the drag it belongs to lives on the card underneath. */}
-          {count > 1 && measured && (
+          {peekShown && count > 1 && measured && (
             <Box
               component={motion.div}
               aria-hidden
@@ -757,7 +743,6 @@ const HeroCardStack = ({
                 left: 0,
                 x: peekX,
                 opacity: peekOpacity,
-                visibility: peekVisibility,
                 zIndex: LAYERS + 1,
                 transformOrigin: 'center top',
                 pointerEvents: 'none',
