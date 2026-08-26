@@ -557,6 +557,10 @@ const HeroCardStack = ({
 
   if (!count) return null;
 
+  // The card a backward swipe pulls in — one step behind the front, wrapped.
+  const prevIdx = (safeIdx - 1 + count) % count;
+  const prevItem = items[prevIdx];
+
   // The top card plus the two behind it, wrapped — which is what makes the deck endless
   // in both directions without a long slide from the last card back to the first.
   const deck = Array.from({ length: Math.min(LAYERS, count) }, (_, k) => ({
@@ -724,19 +728,25 @@ const HeroCardStack = ({
               }}
             >
               <DeckCard
-                record={items[(safeIdx - 1 + count) % count]}
-                // Drawn as the front card: it becomes one. Mounted as a back card it
-                // carried the smaller shadow and no action buttons, so both changed at
-                // the swap — which is what the eye caught as a flicker.
+                record={prevItem}
+                // Drawn exactly as the card it becomes, or the difference shows up as a
+                // jump at the swap. `front` was the shadow and, less obviously,
+                // onWatchlist: DeckCard renders My List only when that handler exists,
+                // so without it the peek carried ONE button and its replacement carried
+                // two — the Play disc jumping 60px up the column at the handoff. The
+                // handlers are inert here anyway; the wrapper takes no pointer events.
                 front
                 isXs={isXs}
                 cardW={cardW}
                 cardH={cardH}
-                badge={heroBadge(items[(safeIdx - 1 + count) % count], {
+                badge={heroBadge(prevItem, {
                   ranked, top10, rankLabel,
-                  idx: (safeIdx - 1 + count) % count,
+                  idx: prevIdx,
                 })}
-                inList={Boolean(interactions[items[(safeIdx - 1 + count) % count]?.id]?.watchlisted)}
+                inList={Boolean(interactions[prevItem?.id]?.watchlisted)}
+                onOpen={() => {}}
+                onPlay={() => {}}
+                onWatchlist={onWatchlist ? () => onWatchlist(prevItem) : undefined}
               />
             </Box>
           )}
