@@ -72,6 +72,10 @@ jobs:
           npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            # The secret does not update itself when a VITE_* var is added, and
+            # the resulting gap is invisible: Vite inlines undefined, our `?? ''`
+            # makes it an empty string, and the build succeeds silently.
+            bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
             npm run build:production
           else
             echo "FRONTEND_ENV_PRODUCTION not set — building with default env."
@@ -106,6 +110,10 @@ jobs:
           npm ci --no-audit --no-fund
           if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
             mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+            # The secret does not update itself when a VITE_* var is added, and
+            # the resulting gap is invisible: Vite inlines undefined, our `?? ''`
+            # makes it an empty string, and the build succeeds silently.
+            bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
             npm run build:production
           else
             npm run build

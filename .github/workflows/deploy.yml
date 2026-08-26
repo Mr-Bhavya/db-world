@@ -120,12 +120,21 @@ jobs:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
           npm ci --no-audit --no-fund
-          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
-            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-            npm run build:production
-          else
-            npm run build
+          # No silent fallback to `npm run build`. That path compiles fine with no
+          # env at all, so every VITE_* inlines as undefined and the deploy looks
+          # healthy while features quietly do nothing.
+          if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
+            echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
+            echo "A production bundle built without it has no API URL, no Firebase"
+            echo "config and no ad slots, and fails silently rather than loudly."
+            exit 1
           fi
+          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+          # Catches a secret that has drifted behind the code -- adding a VITE_* var
+          # does not update the secret, and the resulting gap is invisible at build,
+          # deploy and runtime.
+          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
+          npm run build:production
       - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
@@ -205,12 +214,21 @@ jobs:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
           npm ci --no-audit --no-fund
-          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
-            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-            npm run build:production
-          else
-            npm run build
+          # No silent fallback to `npm run build`. That path compiles fine with no
+          # env at all, so every VITE_* inlines as undefined and the deploy looks
+          # healthy while features quietly do nothing.
+          if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
+            echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
+            echo "A production bundle built without it has no API URL, no Firebase"
+            echo "config and no ad slots, and fails silently rather than loudly."
+            exit 1
           fi
+          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+          # Catches a secret that has drifted behind the code -- adding a VITE_* var
+          # does not update the secret, and the resulting gap is invisible at build,
+          # deploy and runtime.
+          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
+          npm run build:production
           npx cap sync android
 
       - name: Inject google-services.json (Firebase / FCM)
