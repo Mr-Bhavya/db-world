@@ -16,10 +16,11 @@ import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { buildMediaFromFileId } from '../../media/playerLaunch';
 import { addWatched, tmdbImg } from '../../api/cinemaApi';
-import { getWatchProgress, saveWatchProgress, resolveMediaBatch, getRecordProgress } from '@shared/services/ApiServices';
+import { getWatchProgress, saveWatchProgress, saveWatchProgressOnExit, resolveMediaBatch, getRecordProgress } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
 import { watchedFraction, progressByFile } from '../../utils/watchProgress';
+import { readCachedProgress, writeCachedProgress, clearCachedProgress, mergeProgress } from '../../utils/progressCache';
 import { mediaInfoOf, videoSpecs, fileSpecs, techBadges, toBridgeRows, qualityLabel, variantDetail } from './mediaSpecs';
 
 const NativePlayer = registerPlugin('NativePlayer');
@@ -63,15 +64,22 @@ const buildAudioInfo = (audio) => (audio || []).map((a, i) => ({
   detail: [_audCodec(a), _audCh(a), _audBr(a), _audSr(a)].filter(Boolean).join(' · '),
 }));
 
-// Resume only if meaningfully into the file and not within 30s of the end.
+/**
+ * Resume only if meaningfully into the file and not within 30s of the end.
+ *
+ * The local cache is consulted alongside the server because it is written far more often
+ * — a crash, or a save the network never carried, leaves the server behind by up to a
+ * heartbeat. Newest of the two wins, so watching on another device still takes priority.
+ */
 async function resumePointFor(fileId) {
   if (!fileId) return 0;
-  try {
-    const p   = await getWatchProgress(fileId);
-    const pos = p?.positionMs || 0;
-    const dur = p?.durationMs || 0;
-    if (pos > 5000 && (dur === 0 || pos < dur - 30000)) return pos;
-  } catch { /* none */ }
+  let server = null;
+  try { server = await getWatchProgress(fileId); } catch { /* offline or none */ }
+
+  const best = mergeProgress(readCachedProgress(fileId), server);
+  const pos = best?.positionMs || 0;
+  const dur = best?.durationMs || 0;
+  if (pos > 5000 && (dur === 0 || pos < dur - 30000)) return pos;
   return 0;
 }
 
@@ -265,15 +273,25 @@ export default function HybridPlayerPage() {
     return () => handle?.remove?.();
   }, [episodes, selectEpisode]);
 
-  const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
+  const handleProgress = useCallback(({ positionMs, durationMs, ended, network, onExit }) => {
     if (!cur?.fileId) return;
     const fraction = ended ? 1 : watchedFraction({ positionMs, durationMs });
     setWatched((prev) => (prev[cur.fileId] === fraction ? prev : { ...prev, [cur.fileId]: fraction }));
-    saveWatchProgress(cur.fileId, {
+
+    // Local first, always: free, synchronous, and the thing that actually survives a
+    // crash. Finishing clears the entry so a stale position can't resurrect a done file.
+    if (ended) clearCachedProgress(cur.fileId);
+    else writeCachedProgress(cur.fileId, { positionMs, durationMs });
+
+    // The network save is the cross-device copy, and runs on the player's slower cadence.
+    if (!network && !ended) return;
+    const payload = {
       positionMs: ended ? 0 : positionMs,
       durationMs,
       recordId: media?.recordId ?? undefined,
-    }).catch(() => {});
+    };
+    if (onExit) saveWatchProgressOnExit(cur.fileId, payload);
+    else saveWatchProgress(cur.fileId, payload).catch(() => {});
 
     // Auto-mark the record Watched once the title truly finishes: a movie (no episodes)
     // or the LAST episode of a series. Fire once per record, then refresh Continue

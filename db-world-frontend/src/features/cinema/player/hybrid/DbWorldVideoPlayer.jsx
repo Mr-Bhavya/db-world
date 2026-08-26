@@ -288,6 +288,9 @@ export default function DbWorldVideoPlayer({
   // to keep this component focused on UI/transport.
   const { progressRef, report, emitStreamEvent, streamStartedRef, streamStoppedRef } =
     usePlayerReporting({ isNative, requestId, mediaFileId, recordId, onProgress });
+  // Heartbeat bookkeeping. `force` is raised by anything that means "the position just
+  // changed for a reason, don't wait for the cadence" — a seek, mainly.
+  const beatRef = useRef({ lastPos: -1, lastNetworkAt: 0, startedAt: 0, force: false });
 
   const [position, setPosition]   = useState(0);
   const [duration, setDuration]   = useState(0);
@@ -529,19 +532,38 @@ export default function DbWorldVideoPlayer({
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
     scheduleHide();
 
-    // Periodic save so progress survives a crash / force-kill. Piggyback the
-    // stream TICK on this same ~20s cadence rather than adding a second timer.
+    // Heartbeat.
+    //
+    // Every beat writes the position to the LOCAL cache, which is free and instant and is
+    // what actually protects a crash. The network save runs on a much slower cadence —
+    // tight for the first two minutes, where most abandonment happens, then relaxed. The
+    // old loop pushed a request every 20s regardless: ~270 per episode, and it kept
+    // rewriting the same row forever if you paused and walked away.
+    beatRef.current = { lastPos: -1, lastNetworkAt: Date.now(), startedAt: Date.now(), force: false };
     const saveTimer = setInterval(() => {
-      if (progressRef.current.positionMs > 0) {
-        report(false);
+      const beat = beatRef.current;
+      const { positionMs } = progressRef.current;
+      if (positionMs <= 0) return;
+      // Position hasn't moved: paused, buffering or ended. Nothing to record — the
+      // transitions into those states save on their own.
+      if (!beat.force && Math.abs(positionMs - beat.lastPos) < 1000) return;
+      beat.lastPos = positionMs;
+
+      const settledIn = Date.now() - beat.startedAt > 120000;
+      const due = Date.now() - beat.lastNetworkAt >= (settledIn ? 90000 : 30000);
+      const network = due || beat.force;
+      beat.force = false;
+      if (network) {
+        beat.lastNetworkAt = Date.now();
         emitStreamEvent('STREAM_TICK');
       }
-    }, 20000);
+      report(false, { network });
+    }, 10000);
 
     return () => {
       offs.forEach(f => f());
       clearInterval(saveTimer);
-      report(false); // save on close/unmount
+      report(false, { network: true, onExit: true }); // save on close/unmount
       if (!streamStoppedRef.current) {
         streamStoppedRef.current = true;
         emitStreamEvent('STREAM_STOP');
@@ -568,7 +590,7 @@ export default function DbWorldVideoPlayer({
       if (!a) return;
       a.pause();
       setPlaying(false);
-      report(false); // persist progress on the way out
+      report(false, { network: true, onExit: true }); // persist progress on the way out
     };
 
     let stateListener;
@@ -602,7 +624,7 @@ export default function DbWorldVideoPlayer({
     if (!a) return;
     const willPlay = !playing;
     if (playing) {
-      a.pause(); setPlaying(false); report(false);
+      a.pause(); setPlaying(false); report(false, { network: true });
       emitStreamEvent('STREAM_PAUSE');
     } else {
       a.play(); setPlaying(true);
@@ -632,6 +654,7 @@ export default function DbWorldVideoPlayer({
     if (showUi) showControls();     // arrow keys pass false → just the ±10s ripple, no control bar
     flashSeek(deltaMs >= 0 ? 'fwd' : 'back');
     emitStreamEvent('SEEK', { positionMs: Math.round(target) || null });
+    beatRef.current.force = true;   // next beat saves; debounces a tap flurry to one
   }, [position, duration, showControls, flashSeek, emitStreamEvent]);
 
   const toggleMute = useCallback(() => {
@@ -988,6 +1011,7 @@ export default function DbWorldVideoPlayer({
     if (scrub != null) {
       adapterRef.current?.seekTo(scrub); setPosition(scrub);
       emitStreamEvent('SEEK', { positionMs: Math.round(scrub) || null });
+      beatRef.current.force = true;
     }
     setScrub(null); setPreview(null);
   };
