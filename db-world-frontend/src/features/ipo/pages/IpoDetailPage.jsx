@@ -18,6 +18,7 @@ import OverviewTab from '../components/OverviewTab';
 import GmpTab from '../components/GmpTab';
 import SubscriptionTab from '../components/SubscriptionTab';
 import AllotmentTab from '../components/AllotmentTab';
+import AdSlot from '@shared/ads/AdSlot';
 
 const PAGE_SX = { pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4 };
 
@@ -270,6 +271,10 @@ export default function IpoDetailPage() {
               {tab === 'allotment' && <AllotmentTab ipo={ipo} />}
             </motion.div>
           </AnimatePresence>
+
+          {/* Below the tab panel — the unit sits under real content on every tab
+              rather than between the header and the data the visitor came for. */}
+          <AdSlot slot="ipoDetail" minHeight={120} />
         </Box>
       </Box>
     </motion.div>

@@ -1,55 +1,55 @@
 User-agent: *
 
-# =========================
-# ✅ ALLOW PUBLIC CONTENT (SEO TARGET)
-# =========================
-Allow: /db-world/db-cinema
+# ─────────────────────────────────────────────────────────────
+# PUBLIC — browsable without an account, so crawlable.
+# These mirror routeConfig.public in src/app/App.jsx. Keep the two
+# in step: a path listed here but gated in the app is a crawl budget
+# spent on a login redirect.
+# ─────────────────────────────────────────────────────────────
 Allow: /db-world/db-cinema/browse
 Allow: /db-world/db-cinema/movie
 Allow: /db-world/db-cinema/tv-shows
-Allow: /db-world/db-cinema/movie/
-Allow: /db-world/db-cinema/series/
+Allow: /db-world/db-cinema/collection
+Allow: /db-world/db-ipo
+Allow: /db-world/db-games
+Allow: /db-world/db-weather
+Allow: /db-world/privacy
+Allow: /db-world/terms
+Allow: /db-world/contact
 
-# =========================
-# ❌ BLOCK DYNAMIC / NON-SEO ROUTES
-# =========================
-
-# Download & tracking (very important)
-Disallow: /db-world/db-cinema/download-progress
-Disallow: /db-world/db-cinema/downloads
+# ─────────────────────────────────────────────────────────────
+# PRIVATE — acting on a record. All of these redirect to login,
+# so crawling them yields nothing.
+# ─────────────────────────────────────────────────────────────
 Disallow: /db-world/db-cinema/record/
+Disallow: /db-world/db-cinema/downloads
+Disallow: /db-world/db-cinema/download-progress
+Disallow: /db-world/player
+Disallow: /db-world/db-ipo/my
+Disallow: /db-world/my-activity
+Disallow: /db-world/wallet
+Disallow: /db-world/db-password-manager
+Disallow: /db-world/db-file-manager
 
-# Prevent indexing dynamic params like :title / :recordId duplicates
-Disallow: /*?*
-
-# =========================
-# ❌ BLOCK AUTH & USER DATA
-# =========================
+# ─────────────────────────────────────────────────────────────
+# AUTH & USER DATA
+# ─────────────────────────────────────────────────────────────
 Disallow: /db-world/login
 Disallow: /db-world/logout
 Disallow: /db-world/registration
 Disallow: /db-world/user-profile
 Disallow: /db-world/user-profile-edit
 
-# =========================
-# ❌ BLOCK ADMIN (CRITICAL)
-# =========================
+# ─────────────────────────────────────────────────────────────
+# ADMIN
+# ─────────────────────────────────────────────────────────────
 Disallow: /db-world/admin
 Disallow: /db-world/admin-tools
-Disallow: /db-world/admin/records
 Disallow: /db-world/db-cinema/edit-record/
 
-# =========================
-# ❌ BLOCK NON-SEO APPS (OPTIONAL BUT RECOMMENDED)
-# =========================
-Disallow: /db-world/db-games
-Disallow: /db-world/db-weather
-Disallow: /db-world/db-password-manager
-Disallow: /db-world/db-file-manager
-
-# =========================
-# ❌ BACKEND / INFRA (from your system)
-# =========================
+# ─────────────────────────────────────────────────────────────
+# BACKEND / INFRA
+# ─────────────────────────────────────────────────────────────
 Disallow: /api/
 Disallow: /ws/
 Disallow: /actuator/
@@ -57,7 +57,9 @@ Disallow: /cdn/
 Disallow: /stream/
 Disallow: /logs/
 
-# =========================
-# ✅ SITEMAP
-# =========================
+# Query strings produce endless duplicates of the same rail page. The
+# canonical, parameterless URL is the one worth indexing. Listed AFTER the
+# Allow rules above so it narrows rather than replaces them.
+Disallow: /*?*
+
 Sitemap: https://db-world.in/sitemap.xml

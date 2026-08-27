@@ -12,6 +12,7 @@ import IpoCard from '../components/IpoCard';
 import IpoCardSkeleton from '../components/IpoCardSkeleton';
 import WhyUseThis from '../components/WhyUseThis';
 import IpoLearn from '../components/IpoLearn';
+import AdSlot from '@shared/ads/AdSlot';
 import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
@@ -115,6 +116,10 @@ export default function IpoListPage() {
           ))}
         </Box>
       )}
+
+      {/* Below the grid, above the explainer blocks — in view only after the visitor
+          has actually read the list, which is where AdSense wants a display unit. */}
+      <AdSlot slot="ipoList" minHeight={120} />
 
       <WhyUseThis />
       <IpoLearn />

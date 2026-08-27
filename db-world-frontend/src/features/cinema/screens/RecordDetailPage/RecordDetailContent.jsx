@@ -17,6 +17,7 @@ import { loadStreamFileInfoByRecordId, getRecordProgress } from '@shared/service
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 
 import Hero from './Hero';
 import PillNav from './PillNav';
@@ -31,6 +32,7 @@ import ReviewsSection from './sections/ReviewsSection';
 import RelatedSection from './sections/RelatedSection';
 import PersonDetailView from './PersonDetailView';
 import StickyWatchBar from './StickyWatchBar';
+import AdSlot from '@shared/ads/AdSlot';
 import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
 import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
@@ -124,6 +126,10 @@ export default function RecordDetailContent({
   const [interactionState, setInteractionState] = useState(null);
   const [trailerVideo, setTrailerVideo] = useState(null);
   const userId = getUserId();
+  // Browsing this page is open to everyone; acting on it is not. Each handler below
+  // is wrapped so a signed-out visitor gets the sign-in prompt instead of a dead
+  // click or a 401 toast.
+  const { requireAuth } = useRequireAuth();
   const contentRef = useRef(null);
 
   // ── Record ─────────────────────────────────────────────────────────────
@@ -323,10 +329,14 @@ export default function RecordDetailContent({
    * nothing in the library at all); `{ season }` asks for one season and
    * `{ season, episode }` for one episode.
    */
-  const handleRequest = useCallback((scope = {}) => {
-    if (!userId) { navigate(Constants.LOGIN_ROUTE, { state: { from: location } }); return; }
+  const requestScoped = useCallback((scope = {}) => {
     requestMutation.mutate({ season: scope.season ?? null, episode: scope.episode ?? null });
-  }, [userId, navigate, location, requestMutation]);
+  }, [requestMutation]);
+
+  const handleRequest = useMemo(
+    () => requireAuth(requestScoped, 'Sign in to request this title'),
+    [requireAuth, requestScoped],
+  );
 
   /** Launch the player on `files`, letting resolveAndBuildMedia auto-pick. */
   const launch = useCallback(async (candidateFiles, epRef = null) => {
@@ -363,7 +373,7 @@ export default function RecordDetailContent({
    * always opened mediaFiles[0]: episode 1 of a show you were ten episodes into, and
    * for a movie the wrong master, which lost the saved position too.
    */
-  const handlePlay = useCallback(() => {
+  const playResume = useCallback(() => {
     const resumeFile = continueItem?.resumeFileId
       ? mediaFiles.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
       : null;
@@ -377,16 +387,16 @@ export default function RecordDetailContent({
     launch(pool, ref ? { season: ref.season, episode: ref.episode } : null);
   }, [launch, mediaFiles, continueItem]);
 
-  const handleOpenDownloads = useCallback(() => {
+  const openDownloads = useCallback(() => {
     setDownloadFiles(mediaFiles);
     setDownloadLabel(null);
   }, [mediaFiles]);
 
-  const handlePlayEpisode = useCallback((ep) => {
+  const playEpisode = useCallback((ep) => {
     launch(ep?.files, { season: ep?.seasonNumber, episode: ep?.episodeNumber });
   }, [launch]);
 
-  const handleDownloadEpisode = useCallback((ep) => {
+  const downloadEpisode = useCallback((ep) => {
     setDownloadFiles(ep?.files ?? []);
     setDownloadLabel(
       ep?.seasonNumber != null && ep?.episodeNumber != null
@@ -394,6 +404,26 @@ export default function RecordDetailContent({
         : null,
     );
   }, []);
+
+  // Streaming and downloading are the two hard gates — the routes behind them
+  // (/player, the media-files page) are PrivateRoute'd anyway, so prompting here
+  // just replaces a jarring bounce-to-login with an explicit ask.
+  const handlePlay = useMemo(
+    () => requireAuth(playResume, 'Sign in to watch'),
+    [requireAuth, playResume],
+  );
+  const handleOpenDownloads = useMemo(
+    () => requireAuth(openDownloads, 'Sign in to download'),
+    [requireAuth, openDownloads],
+  );
+  const handlePlayEpisode = useMemo(
+    () => requireAuth(playEpisode, 'Sign in to watch'),
+    [requireAuth, playEpisode],
+  );
+  const handleDownloadEpisode = useMemo(
+    () => requireAuth(downloadEpisode, 'Sign in to download'),
+    [requireAuth, downloadEpisode],
+  );
 
   // ── Page meta ──
   useEffect(() => {
@@ -643,6 +673,10 @@ export default function RecordDetailContent({
               <RelatedSection recordId={id} isMobile={isMobile} />
             </Box>
           )}
+
+          {/* Last thing on the page, below every real section. Kept out of the hero
+              and away from the action row so a mis-tap can never land on an ad. */}
+          <AdSlot slot="cinemaDetail" minHeight={120} />
         </Container>
       ) : (
         // Same-layout skeletons for the below-the-fold sections; they fill in when

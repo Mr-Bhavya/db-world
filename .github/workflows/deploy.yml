@@ -92,6 +92,12 @@ jobs:
     runs-on: self-hosted
     environment: production
     steps:
+      # Same stale-workspace problem as the frontend, but this one can deploy the
+      # WRONG BUILD: the step below takes `ls war/*.war | head -1`, which is
+      # alphabetical, so an older WAR left behind from a previous run can sort
+      # first and get deployed instead of the one just built.
+      - name: Clear the workspace before downloading
+        run: rm -rf war
       - uses: actions/download-artifact@v8
         with:
           name: backend-war
@@ -120,12 +126,21 @@ jobs:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
           npm ci --no-audit --no-fund
-          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
-            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-            npm run build:production
-          else
-            npm run build
+          # No silent fallback to `npm run build`. That path compiles fine with no
+          # env at all, so every VITE_* inlines as undefined and the deploy looks
+          # healthy while features quietly do nothing.
+          if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
+            echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
+            echo "A production bundle built without it has no API URL, no Firebase"
+            echo "config and no ad slots, and fails silently rather than loudly."
+            exit 1
           fi
+          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+          # Catches a secret that has drifted behind the code -- adding a VITE_* var
+          # does not update the secret, and the resulting gap is invisible at build,
+          # deploy and runtime.
+          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
+          npm run build:production
       - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
@@ -139,6 +154,13 @@ jobs:
     runs-on: self-hosted
     environment: production
     steps:
+      # The runner is SELF-HOSTED, so its workspace survives between runs, and
+      # download-artifact does not clean its target directory. Without this, every
+      # build's output piles up in dist/ and `cp -r dist/.` copies the lot into the
+      # new release: 76 MB and ~1000 files instead of 5.9 MB and 81, with several
+      # generations of index-*.js sitting side by side.
+      - name: Clear the workspace before downloading
+        run: rm -rf dist
       - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
@@ -146,12 +168,14 @@ jobs:
       - name: Publish to /var/www/dbworld
         run: |
           set -euxo pipefail
-          REL="/var/www/dbworld/releases/$(date +%Y%m%d-%H%M%S)"
-          mkdir -p "$REL"
-          cp -r dist/. "$REL/"
-          ln -sfn "$REL" /var/www/dbworld/current
-          ls -dt /var/www/dbworld/releases/* | tail -n +6 | xargs rm -rf || true
-          echo "Deployed frontend -> $REL"
+          # Goes through dbworldctl for the same reason the WAR does: it runs under
+          # sudo, so it can set ownership to dbworld_admin:dbworld and prune releases
+          # left behind by earlier manual deploys.
+          #
+          # Doing it inline as the runner user is what caused the old failure -- the
+          # prune hit "Permission denied" on root-owned directories, and `|| true`
+          # swallowed it, so /var/www grew unbounded and nobody saw a thing.
+          sudo /usr/local/bin/dbworldctl publish-frontend "$PWD/dist"
 
   # ── Android: build the signed APK and publish the versioned Release ────────
   android-release:
@@ -205,12 +229,21 @@ jobs:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
           npm ci --no-audit --no-fund
-          if [ -n "$FRONTEND_ENV_PRODUCTION" ]; then
-            mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-            npm run build:production
-          else
-            npm run build
+          # No silent fallback to `npm run build`. That path compiles fine with no
+          # env at all, so every VITE_* inlines as undefined and the deploy looks
+          # healthy while features quietly do nothing.
+          if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
+            echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
+            echo "A production bundle built without it has no API URL, no Firebase"
+            echo "config and no ad slots, and fails silently rather than loudly."
+            exit 1
           fi
+          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+          # Catches a secret that has drifted behind the code -- adding a VITE_* var
+          # does not update the secret, and the resulting gap is invisible at build,
+          # deploy and runtime.
+          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
+          npm run build:production
           npx cap sync android
 
       - name: Inject google-services.json (Firebase / FCM)

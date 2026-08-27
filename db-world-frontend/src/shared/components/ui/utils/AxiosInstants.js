@@ -117,8 +117,16 @@ axiosInstance.interceptors.response.use(
 
     const isPublicPath = NO_TOKEN_PATHS.some(p => original?.url?.includes(p));
 
+    // A visitor who has never signed in has no access token at all. The browse pages
+    // are open to them, and the personalised calls those pages make (progress, watchlist
+    // state) answer 401 by design. Attempting a refresh here would POST to
+    // /api/auth/refresh-token with no cookie on every such call, 401 again, and then
+    // fire auth:force-logout at someone who was never logged in. An EXPIRED token is
+    // still a token, so real sessions keep refreshing normally.
+    const neverSignedIn = !localStorage.getItem('token');
+
     // Only intercept 401/403 on protected endpoints and only once per request.
-    if ((status === 401 || status === 403) && !original._retry && !isPublicPath) {
+    if ((status === 401 || status === 403) && !original._retry && !isPublicPath && !neverSignedIn) {
       original._retry = true;
       try {
         const newToken = await refreshAccessToken();

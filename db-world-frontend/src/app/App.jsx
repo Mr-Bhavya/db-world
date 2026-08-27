@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
+import Footer from '@shared/components/layout/Footer';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Login from '@features/auth/Login';
@@ -26,6 +27,7 @@ import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import NotifyProvider from '@shared/notify/NotifyProvider';
+import { RequireAuthProvider } from '@features/auth/useRequireAuth';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
@@ -77,6 +79,11 @@ import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
+// Legal pages — tiny, but split out so they never sit in the initial bundle.
+const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
+const ContactPage    = lazy(() => import('@features/legal/Contact'));
+
 const Weather     = lazy(() => import('@features/weather/weather'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
@@ -189,8 +196,19 @@ const routeConfig = {
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
-  ],
-  protected: [
+
+    // Legal pages. Public and linked from the footer — AdSense will not approve a
+    // site without them, and a reviewer must be able to reach them signed out.
+    { path: Constants.DB_PRIVACY_ROUTE, element: <PrivacyPolicy /> },
+    { path: Constants.DB_TERMS_ROUTE,   element: <TermsOfService /> },
+    { path: Constants.DB_CONTACT_ROUTE, element: <ContactPage /> },
+
+    // ── Open browse surface ───────────────────────────────────────────────────
+    // Reading the catalog and the IPO tracker needs no account, so links are
+    // shareable and search engines can index them. The line is drawn at ACTING on
+    // a record: playback, downloads, requests, votes, watchlist/like and anything
+    // user-scoped stays behind PrivateRoute below, and the in-page controls for
+    // those go through useRequireAuth() to prompt for sign-in.
     { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },
     { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
     { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
@@ -199,22 +217,26 @@ const routeConfig = {
     { path: Constants.DB_CINEMA_BROWSE_GENRE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home-genre"   /> },
     { path: Constants.DB_CINEMA_MOVIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies-genre" /> },
     { path: Constants.DB_CINEMA_SERIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="series" key="series-genre" /> },
+    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
+    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
+    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
+  ],
+  protected: [
+    // Acting on a record — the files list is the download surface, the player is
+    // the stream surface.
     { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
+    { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
+    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
-    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
-    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
-    { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
-    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
-    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []
@@ -276,6 +298,14 @@ const ThemedApp = () => {
   // "card stack" depth cue. The mobile sheet covers most of the screen so the page
   // can recede a long way; the desktop modal leaves a visible frame of page around
   // itself, where the same cue only works if it is slight.
+  // Site chrome rules. The player is full-screen by design, and the admin console
+  // brings its own layout — a public-site footer in either would be wrong. Everywhere
+  // else gets it, which is also what keeps the legal links reachable from every page
+  // AdSense might land on.
+  const isPlayerRoute = location.pathname.includes('/player');
+  const isAdminRoute  = location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE);
+  const showFooter    = !isPlayerRoute && !isAdminRoute;
+
   const overlayOpen = !!background;
   const pageScaled = overlayOpen;
   const pageScale = isSheetViewport ? 0.94 : 0.985;
@@ -355,6 +385,7 @@ const ThemedApp = () => {
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <NotifyProvider>
+        <RequireAuthProvider>
         <CategoryProvider>
           {/* Transparent by default so the hybrid player's native video layer
               (behind the transparent WebView) shows through. Painted dark only while a
@@ -393,7 +424,7 @@ const ThemedApp = () => {
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
-            {!location.pathname.includes('/player') && <Header />}
+            {!isPlayerRoute && <Header />}
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -422,8 +453,11 @@ const ThemedApp = () => {
                 </Route>
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
-
             </Suspense>
+            {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
+                fallback replaces its children, and a footer that vanishes and reappears
+                on every first navigation to a page reads as a layout glitch. */}
+            {showFooter && <Footer />}
             </Box>
 
             {/* Detail overlay — only mounted when a record was opened IN-APP
@@ -439,15 +473,17 @@ const ThemedApp = () => {
             {background && (
               <Suspense fallback={null}>
                 <Routes>
-                  <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                  </Route>
+                  {/* Public, matching the detail pages they overlay — a signed-out
+                      visitor clicking a card opens the sheet/modal instead of being
+                      bounced to login. The actions inside it still prompt. */}
+                  <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
+                  <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
                 </Routes>
               </Suspense>
             )}
           </div>
         </CategoryProvider>
+        </RequireAuthProvider>
       </NotifyProvider>
     </ThemeProvider>
   );

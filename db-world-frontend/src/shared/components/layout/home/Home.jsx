@@ -15,8 +15,8 @@ import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
+import AdSlot from '@shared/ads/AdSlot';
 
-import Footer from '@shared/components/layout/Footer';
 import SectionHeading from '@shared/components/ui/SectionHeading';
 import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
@@ -414,10 +414,16 @@ const Home = () => {
               )}
             </Box>
           )}
+
+          {/* Last thing on the hub, below the app tiles and Recent Activity.
+
+              Not between the tiles: they are a grid of tap targets, and a unit in
+              that flow invites the mis-taps that AdSense counts as invalid traffic.
+              Renders nothing until VITE_AD_SLOT_HOME is set. */}
+          <AdSlot slot="home" minHeight={120} sx={{ mt: 4 }} />
         </Container>
       </Box>
 
-      <Footer />
     </Box>
   );
 };
