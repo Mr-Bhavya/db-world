@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
+  daysLeftLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
   averageSubscription, computeQuickStats, shortFinancialLabel, websiteDomain,
-  orderSubscriptionCategories, subscriptionCategoryColor, computeLotBreakdown,
+  orderSubscriptionCategories, computeLotBreakdown,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -89,18 +89,6 @@ describe('daysLeftLabel', () => {
   });
 });
 
-describe('subscriptionLabel', () => {
-  it('formats to 1 decimal with the × sign', () => {
-    expect(subscriptionLabel(2.4)).toBe('2.4× subscribed');
-    expect(subscriptionLabel(0.65)).toBe('0.7× subscribed');
-    expect(subscriptionLabel(15)).toBe('15.0× subscribed');
-  });
-
-  it('is null when subTotal is null/undefined', () => {
-    expect(subscriptionLabel(null)).toBeNull();
-    expect(subscriptionLabel(undefined)).toBeNull();
-  });
-});
 
 describe('subscriptionMeta', () => {
   const T = {
@@ -509,23 +497,6 @@ describe('orderSubscriptionCategories', () => {
   });
 });
 
-describe('subscriptionCategoryColor', () => {
-  it('gives the same well-known category the same color regardless of index', () => {
-    expect(subscriptionCategoryColor('QIB', 0)).toBe(subscriptionCategoryColor('qib', 3));
-  });
-
-  it('gives different well-known categories different colors', () => {
-    const colors = new Set([
-      subscriptionCategoryColor('QIB'), subscriptionCategoryColor('NII'),
-      subscriptionCategoryColor('Retail'), subscriptionCategoryColor('Anchor'),
-    ]);
-    expect(colors.size).toBe(4);
-  });
-
-  it('cycles the fallback palette by index for an unrecognized category', () => {
-    expect(subscriptionCategoryColor('SomeNewCategory', 0)).not.toBe(subscriptionCategoryColor('SomeNewCategory', 1));
-  });
-});
 
 describe('computeLotBreakdown', () => {
   it('reproduces the mainboard tiers exactly (lot 34 @ ₹425)', () => {

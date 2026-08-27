@@ -172,10 +172,6 @@ export const daysLeftLabel = (ipo) => {
   }
 };
 
-/** `subTotal` (e.g. 2.4) → "2.4× subscribed"; null if not yet known. */
-export const subscriptionLabel = (subTotal) =>
-  (subTotal == null ? null : `${Number(subTotal).toFixed(1)}× subscribed`);
-
 /**
  * Subscription progress-bar fill % (capped at 100 — anything past 1× reads as "full
  * bar, multiple emphasized in the label" rather than an ever-growing bar) + color tier
@@ -272,34 +268,6 @@ export const orderSubscriptionCategories = (keys) => {
   });
 };
 
-/**
- * Fixed line color per well-known subscription category (case-insensitive) so the same
- * category reads as the same color on the day-wise chart across every IPO — e.g. QIB is
- * always the same blue whether it's issue A or issue B. An unrecognized category (a source
- * we've never seen) cycles through the same fallback palette by its position in the ordered
- * series rather than rendering uncolored.
- */
-const CATEGORY_COLOR_MAP = {
-  qib: '#38bdf8',
-  nii: '#a855f7',
-  'nii (hni)': '#a855f7',
-  hni: '#a855f7',
-  's-nii': '#c084fc',
-  'b-nii': '#7c3aed',
-  retail: '#f59e0b',
-  rii: '#f59e0b',
-  employee: '#34d399',
-  shareholder: '#f472b6',
-  anchor: '#818cf8',
-  other: '#94a3b8',
-};
-const CATEGORY_COLOR_FALLBACK = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#f472b6', '#818cf8', '#facc15', '#fb7185'];
-
-export const subscriptionCategoryColor = (key, index = 0) => {
-  const known = CATEGORY_COLOR_MAP[String(key ?? '').toLowerCase()];
-  if (known) return known;
-  return CATEGORY_COLOR_FALLBACK[index % CATEGORY_COLOR_FALLBACK.length];
-};
 
 /**
  * `fiscalYear` display label → a short label for the financials chart's x-axis (the P&L

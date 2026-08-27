@@ -100,7 +100,7 @@ class IpoIngestServiceTest {
                 null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    /** Returns a copy of {@code dto} with {@code financials} swapped in — mirrors {@code IpoNormalizer.withMatchKey}. */
+    /** Returns a copy of {@code dto} with {@code financials} swapped in. */
     private static IpoDto withFinancials(IpoDto dto, List<IpoFinancialRowDto> financials) {
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
