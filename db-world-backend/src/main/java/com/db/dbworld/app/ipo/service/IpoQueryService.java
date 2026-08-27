@@ -40,6 +40,7 @@ public class IpoQueryService {
     private static final String STATUS_LISTED = "listed";
     private static final String SORT_GMP = "gmp";
     private static final String SORT_SUBSCRIPTION = "subscription";
+    private static final String SORT_CLOSING = "closing";
 
     /** Indian IPO calendar zone — "listed long ago" is measured against today in IST. */
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
@@ -55,6 +56,14 @@ public class IpoQueryService {
     /** Highest subscription total first; IPOs with no subscription reading yet sort to the end. */
     private static final Comparator<IpoListingEntity> SORT_SUBSCRIPTION_DESC =
             Comparator.comparing(IpoListingEntity::getSubTotal, Comparator.nullsLast(Comparator.reverseOrder()));
+
+    /**
+     * Soonest close date first — the only ASCENDING sort here, and the only actionable one: the
+     * other three describe an IPO ("newest", "hottest GMP", "most subscribed") whereas this one
+     * answers "what do I have to decide about next". IPOs with no close date sort to the end.
+     */
+    private static final Comparator<IpoListingEntity> SORT_CLOSING_ASC =
+            Comparator.comparing(IpoListingEntity::getCloseDate, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final IpoListingRepository listingRepository;
     private final IpoGmpHistoryRepository gmpHistoryRepository;
@@ -104,7 +113,8 @@ public class IpoQueryService {
      * All IPOs, optionally filtered by {@code status} (canonicalized so any of a source's raw
      * wordings still matches) and {@code type} ({@code mainboard}|{@code sme}; blank/{@code all}
      * = no filter), sorted per {@code sort} ({@code date} default, {@code gmp}, or
-     * {@code subscription} — each descending, nulls last).
+     * {@code subscription} — each descending — plus {@code closing}, which is ascending; all
+     * nulls last).
      */
     public IpoListResponse list(String status, String type, String sort) {
         String canonicalStatus = IpoStatusCanonicalizer.canonical(status);
@@ -234,6 +244,9 @@ public class IpoQueryService {
     private static Comparator<IpoListingEntity> sortComparator(String sort) {
         if (SORT_GMP.equalsIgnoreCase(sort)) {
             return SORT_GMP_DESC;
+        }
+        if (SORT_CLOSING.equalsIgnoreCase(sort)) {
+            return SORT_CLOSING_ASC;
         }
         if (SORT_SUBSCRIPTION.equalsIgnoreCase(sort)) {
             return SORT_SUBSCRIPTION_DESC;

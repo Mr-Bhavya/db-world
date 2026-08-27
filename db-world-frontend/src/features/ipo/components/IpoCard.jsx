@@ -12,7 +12,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
   formatShortDate, formatPriceBand, formatPct, formatCurrency,
-  statusMeta, ipoTypeMeta, daysLeftLabel, subscriptionMeta,
+  statusMeta, ipoTypeMeta, daysLeftLabel, subscriptionMeta, isClosingToday,
 } from '../utils/format';
 import { saveListScrollForBack } from '../utils/listScrollRestore';
 import CompanyLogo from './CompanyLogo';
@@ -88,16 +88,16 @@ function Value({ children, color, mono = false }) {
 }
 
 /**
- * Investorgain's 1–5 GMP rating as flames, on its OWN row beneath the figure — never inline beside
- * it. Sharing a line is exactly what truncated the value ("₹330 (+76.92…") once the grid narrowed.
- * Hidden when they haven't rated the issue.
+ * Investorgain's 1–5 GMP rating as flames. Rendered on the hero's LABEL row, not beside the figure
+ * (which truncated it) and not on a row of its own (which cost every card a line of height for one
+ * glyph). Hidden when they haven't rated the issue.
  */
 function GmpRating({ rating }) {
   const T = useT();
   if (rating == null || rating <= 0) return null;
   return (
     <Box
-      sx={{ display: 'flex', alignItems: 'center', gap: 0.2, mt: 0.4 }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.15, flexShrink: 0 }}
       aria-label={`Investorgain GMP rating ${rating} out of 5`}
     >
       {Array.from({ length: Math.min(rating, 5) }).map((_, i) => (
@@ -111,30 +111,47 @@ function GmpRating({ rating }) {
  * The card's single largest number — whichever one this IPO's stage is actually about. At 26px it's
  * what the eye lands on first, which a flat grid of equal-weight 13px values never gave you.
  */
-function HeroStat({ label, value, sub, color, children }) {
+function HeroStat({ label, value, sub, color, right, badge }) {
   const T = useT();
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{
-        fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase',
-        letterSpacing: 0.6, fontWeight: 700, lineHeight: 1.4,
-      }}>
-        {label}
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.6, minWidth: 0, mt: 0.15 }}>
+      {/* Label row carries the badge (the flame rating) on its right. Giving the rating its own
+          third row made every card taller for no information, and putting it inline with the
+          FIGURE is what truncated the figure. The label is short, so this is the free space. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, minWidth: 0 }}>
         <Typography sx={{
-          fontSize: 26, fontWeight: 800, color: color ?? T.textPrimary, lineHeight: 1.15,
-          letterSpacing: -0.5, fontVariantNumeric: 'tabular-nums',
+          fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase',
+          letterSpacing: 0.6, fontWeight: 700, lineHeight: 1.4,
         }} noWrap>
-          {value}
+          {label}
         </Typography>
-        {sub && (
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: color ?? T.textMuted, opacity: 0.85 }} noWrap>
-            {sub}
+        {badge}
+      </Box>
+      {/* Value row carries the companion figure on its right, on the same baseline. */}
+      <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.6, minWidth: 0 }}>
+          <Typography sx={{
+            fontSize: 26, fontWeight: 800, color: color ?? T.textPrimary, lineHeight: 1.2,
+            letterSpacing: -0.5, fontVariantNumeric: 'tabular-nums',
+          }} noWrap>
+            {value}
+          </Typography>
+          {sub && (
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: color ?? T.textMuted, opacity: 0.85 }} noWrap>
+              {sub}
+            </Typography>
+          )}
+        </Box>
+        {right && (
+          <Typography sx={{
+            fontSize: 12, fontWeight: 700, color: T.textMuted, flexShrink: 0,
+            fontVariantNumeric: 'tabular-nums',
+          }} noWrap>
+            <Box component="span" sx={{ color: T.textFaint, fontWeight: 600 }}>{right.label} </Box>
+            {right.value}
           </Typography>
         )}
       </Box>
-      {children}
     </Box>
   );
 }
@@ -183,66 +200,91 @@ function DaysLeftPill({ ipo }) {
   const counting = ipo.status === 'upcoming' || ipo.status === 'open';
   const Icon = counting ? AccessTimeRoundedIcon : EventAvailableRoundedIcon;
   const meta = statusMeta(ipo.status, T);
+  const urgent = isClosingToday(ipo);
+  const color = urgent ? T.error : meta.color;
   return (
     <Box sx={{
       display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0,
-      px: 0.9, py: 0.3, borderRadius: 999, bgcolor: meta.bg,
+      px: 0.9, py: 0.3, borderRadius: 999,
+      bgcolor: urgent ? T.errorBg : meta.bg,
+      border: urgent ? `1px solid ${T.error}55` : 'none',
     }}>
-      <Icon sx={{ fontSize: 12, color: meta.color }} />
-      <Typography sx={{ fontSize: 11, fontWeight: 800, color: meta.color, whiteSpace: 'nowrap' }}>
+      <Icon sx={{ fontSize: 12, color }} />
+      <Typography sx={{ fontSize: 11, fontWeight: 800, color, whiteSpace: 'nowrap' }}>
         {label}
       </Typography>
     </Box>
   );
 }
 
-/** GMP figure + percentage + rating. Used as the hero (upcoming/open) or as a secondary stat. */
-function GmpBlock({ ipo, hero }) {
+/**
+ * The GMP hero: figure, percentage, flame rating, and — in the companion slot — whichever
+ * GMP-adjacent number we actually have. Investorgain's own estimated listing price is preferred
+ * (it is reported, not computed here); its low/high GMP range for the cycle is the fallback, since
+ * report 331 carries that for every live row even when the per-IPO estimate hasn't been fetched yet.
+ */
+function GmpHero({ ipo }) {
   const T = useT();
-  const { color, Icon } = trendOf(ipo.gmp ?? ipo.gmpPct, T);
-  if (ipo.gmp == null && ipo.gmpPct == null) {
-    return hero
-      ? <HeroStat label="Grey market premium" value="—" color={T.textFaint} />
-      : <Stat label="GMP"><Value color={T.textFaint}>—</Value></Stat>;
-  }
-  const figure = ipo.gmp != null ? formatCurrency(ipo.gmp) : '—';
-  const pct = ipo.gmpPct != null ? `(${formatPct(ipo.gmpPct)})` : null;
+  const { color } = trendOf(ipo.gmp ?? ipo.gmpPct, T);
+  const hasGmp = ipo.gmp != null || ipo.gmpPct != null;
 
-  if (hero) {
-    return (
-      <HeroStat label="Grey market premium" value={figure} sub={pct} color={color}>
-        <GmpRating rating={ipo.gmpRating} />
-      </HeroStat>
-    );
+  let right = null;
+  if (ipo.estimatedListingPrice != null) {
+    right = { label: 'Est. listing', value: formatCurrency(ipo.estimatedListingPrice) };
+  } else if (ipo.gmpMin != null && ipo.gmpMax != null) {
+    right = { label: 'GMP range', value: `${formatCurrency(ipo.gmpMin)}–${formatCurrency(ipo.gmpMax)}` };
   }
+
   return (
-    <Stat label="GMP">
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
-        <Icon sx={{ fontSize: 15, color, flexShrink: 0 }} />
-        <Value color={color} mono>{figure}{pct ? ` ${pct}` : ''}</Value>
-      </Box>
-    </Stat>
+    <HeroStat
+      label="Grey market premium"
+      value={hasGmp && ipo.gmp != null ? formatCurrency(ipo.gmp) : '—'}
+      sub={ipo.gmpPct != null ? `(${formatPct(ipo.gmpPct)})` : null}
+      color={hasGmp ? color : T.textFaint}
+      right={right}
+      badge={<GmpRating rating={ipo.gmpRating} />}
+    />
   );
 }
 
 /**
- * Picks the hero figure and the two secondary stats from the IPO's lifecycle stage.
+ * Picks the hero figure and the secondary stats from the IPO's lifecycle stage.
  *
- * This is the substance of the redesign, not a cosmetic tweak. The old card showed the same four
- * cells (price band / lot size / GMP / subscription) at every stage, which guaranteed dead ones: an
- * upcoming IPO has no subscription yet and a listed one has no grey market, so a quarter to a half
- * of every card was an em dash. Each stage now leads with the figure that stage is about and fills
- * the rest with what's genuinely known; price band and lot size move to the always-present meta
- * line below, still available but no longer competing for the eye.
+ * The old card showed the same four cells (price band / lot size / GMP / subscription) at every
+ * stage, which guaranteed dead ones: an upcoming IPO has no subscription yet and a listed one has no
+ * grey market, so a quarter to a half of every card was an em dash.
+ *
+ * Price band and lot size are LABELLED STATS here, not footnotes. They were briefly demoted to an
+ * inline meta line, which was wrong: for an upcoming IPO they're the two numbers you need to work
+ * out what an application costs you — that's the opposite of a footnote.
+ *
+ * The row deliberately carries no open/close date. Those already appear, once, in the footer range;
+ * showing them twice per card ("OPENS 28 Aug 2026 / CLOSES 01 Sep 2026" directly above
+ * "28 Aug 2026 – 01 Sep 2026") was pure repetition.
  */
 function cardStats(ipo, T, reduce) {
+  const priceBand = (
+    <Stat key="band" label="Price band">
+      <Value mono>{formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}</Value>
+    </Stat>
+  );
+  const lotSize = (
+    <Stat key="lot" label="Lot size" align="right">
+      <Value mono>{ipo.lotSize != null ? `${ipo.lotSize} sh` : '—'}</Value>
+    </Stat>
+  );
+
   switch (ipo.status) {
     case 'open':
       return {
-        hero: <GmpBlock ipo={ipo} hero />,
+        hero: <GmpHero ipo={ipo} />,
         stats: [
-          <Stat key="sub" label="Subscription"><SubscriptionBar subTotal={ipo.subTotal} reduce={reduce} /></Stat>,
-          <Stat key="close" label="Closes" align="right"><Value>{formatShortDate(ipo.closeDate) ?? '—'}</Value></Stat>,
+          priceBand,
+          lotSize,
+          // Spans both tracks so the bar has room to read as a bar rather than a stub.
+          <Box key="sub" sx={{ gridColumn: 'span 2' }}>
+            <Stat label="Subscription"><SubscriptionBar subTotal={ipo.subTotal} reduce={reduce} /></Stat>
+          </Box>,
         ],
       };
     case 'closed':
@@ -252,11 +294,12 @@ function cardStats(ipo, T, reduce) {
             label="Final subscription"
             value={subMultiple(ipo.subTotal) ?? '—'}
             color={subscriptionMeta(ipo.subTotal, T)?.color ?? T.textFaint}
+            right={ipo.gmp != null ? { label: 'GMP', value: formatCurrency(ipo.gmp) } : null}
           />
         ),
         stats: [
-          <GmpBlock key="gmp" ipo={ipo} />,
-          <Stat key="allot" label="Allotment" align="right"><Value>{formatShortDate(ipo.allotmentDate) ?? '—'}</Value></Stat>,
+          <Stat key="allot" label="Allotment"><Value>{formatShortDate(ipo.allotmentDate) ?? '—'}</Value></Stat>,
+          <Stat key="lists" label="Lists on" align="right"><Value>{formatShortDate(ipo.listingDate) ?? '—'}</Value></Stat>,
         ],
       };
     case 'listed':
@@ -266,26 +309,23 @@ function cardStats(ipo, T, reduce) {
             label="Listing gain"
             value={ipo.listingGainPct != null ? formatPct(ipo.listingGainPct) : '—'}
             color={ipo.listingGainPct != null ? trendOf(ipo.listingGainPct, T).color : T.textFaint}
+            right={ipo.listingPrice != null
+              ? { label: 'Listed at', value: formatCurrency(ipo.listingPrice) }
+              : null}
           />
         ),
         stats: [
-          <Stat key="lp" label="Listed at"><Value mono>{formatCurrency(ipo.listingPrice) ?? '—'}</Value></Stat>,
-          <Stat key="sub" label="Subscription" align="right">
+          <Stat key="sub" label="Final subscription">
             <Value color={subscriptionMeta(ipo.subTotal, T)?.color} mono>
               {subMultiple(ipo.subTotal) ?? '—'}
             </Value>
           </Stat>,
+          lotSize,
         ],
       };
     case 'upcoming':
     default:
-      return {
-        hero: <GmpBlock ipo={ipo} hero />,
-        stats: [
-          <Stat key="open" label="Opens"><Value>{formatShortDate(ipo.openDate) ?? '—'}</Value></Stat>,
-          <Stat key="close" label="Closes" align="right"><Value>{formatShortDate(ipo.closeDate) ?? '—'}</Value></Stat>,
-        ],
-      };
+      return { hero: <GmpHero ipo={ipo} />, stats: [priceBand, lotSize] };
   }
 }
 
@@ -307,8 +347,11 @@ export default function IpoCard({ ipo, index = 0 }) {
   const meta = statusMeta(ipo.status, T);
   const typeMeta = ipoTypeMeta(ipo.ipoType, T);
   const { hero, stats } = cardStats(ipo, T, reduce);
+  // A same-day bidding deadline is the one thing on this screen the user can still miss, so it
+  // overrides the status accent with the alert colour instead of sharing "open"'s calm green.
+  const urgent = isClosingToday(ipo);
+  const accent = urgent ? T.error : meta.color;
   const dateLabel = keyDateLabel(ipo);
-  const priceBand = formatPriceBand(ipo.priceMin, ipo.priceMax);
 
   // Remember the list's current scroll position before leaving it for this IPO's detail page, so a
   // subsequent in-app "back" (see `IpoDetailPage`'s back action) can restore it — see
@@ -365,9 +408,9 @@ export default function IpoCard({ ipo, index = 0 }) {
           overflow: 'hidden',
           transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease',
           '&:hover': {
-            borderColor: `${meta.color}66`,
+            borderColor: `${accent}66`,
             bgcolor: T.glassHover,
-            boxShadow: `0 10px 30px -12px ${meta.color}55`,
+            boxShadow: `0 10px 30px -12px ${accent}55`,
           },
           '&:focus-visible': { outline: `2px solid ${T.teal}`, outlineOffset: 2 },
           // Status accent as a top edge rather than a left strip: at the narrow widths the old
@@ -375,7 +418,10 @@ export default function IpoCard({ ipo, index = 0 }) {
           '&::before': {
             content: '""',
             position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-            background: `linear-gradient(90deg, ${meta.color}, ${meta.color}00)`,
+            background: `linear-gradient(90deg, ${accent}, ${accent}00)`,
+            // A closing-today card gets a full-width edge rather than a fade, so the row of cards
+            // reads as "this one is different" before you've read a word of it.
+            ...(urgent && { background: accent, height: 4 }),
           },
         }}
       >
@@ -414,32 +460,19 @@ export default function IpoCard({ ipo, index = 0 }) {
 
         {hero}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25 }}>
-          {stats}
-        </Box>
-
-        <Box sx={{
-          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5,
-          mt: 'auto', pt: 1.25, borderTop: `1px solid ${T.border}`,
-        }}>
-          {priceBand && (
-            <Typography component="span" sx={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }} noWrap>
-              {priceBand}
-            </Typography>
-          )}
-          {priceBand && ipo.lotSize != null && (
-            <Typography component="span" sx={{ fontSize: 12, color: T.textFaint }}>·</Typography>
-          )}
-          {ipo.lotSize != null && (
-            <Typography component="span" sx={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }} noWrap>
-              {ipo.lotSize} shares/lot
-            </Typography>
-          )}
-        </Box>
+        {stats.length > 0 && (
+          <Box sx={{
+            display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            columnGap: 1.5, rowGap: 1.25,
+          }}>
+            {stats}
+          </Box>
+        )}
 
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           gap: 0.75, flexWrap: 'wrap',
+          mt: 'auto', pt: 1.25, borderTop: `1px solid ${T.border}`,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
             <CalendarTodayRoundedIcon sx={{ fontSize: 13, color: T.textFaint, flexShrink: 0 }} />

@@ -141,6 +141,63 @@ export const daysUntil = (dateStr) => {
  *              else "Lists in Nd" → else "Listing soon" (always non-null)
  *   listed   → "Listed Nd ago" / "Listed today"
  */
+/**
+ * An open IPO whose bidding window ends today. Broken out because it's the only state on this
+ * screen with a same-day deadline, so it earns louder treatment than "Listed 4d ago" — everything
+ * else on a card is descriptive, this one is a decision the user has hours left to make.
+ */
+export const isClosingToday = (ipo) =>
+  ipo?.status === 'open' && daysUntil(ipo.closeDate) === 0;
+
+/**
+ * Sections for the grouped list, in the order they matter to someone deciding what to do next:
+ * a same-day deadline first, then what they can still act on, then what's merely announced, then
+ * the archive.
+ *
+ * Grouping replaces most of the reason to touch the status filter at all — the filter narrows,
+ * whereas this ORDERS by urgency and keeps everything visible, which is what a tracker is for.
+ * Sections with nothing in them are dropped by the caller rather than rendered as empty headings.
+ */
+export const IPO_GROUPS = [
+  { key: 'closingToday', label: 'Closing today', match: isClosingToday },
+  { key: 'open', label: 'Open now', match: (i) => i.status === 'open' },
+  { key: 'upcoming', label: 'Upcoming', match: (i) => i.status === 'upcoming' },
+  { key: 'closed', label: 'Awaiting listing', match: (i) => i.status === 'closed' },
+  { key: 'listed', label: 'Recently listed', match: (i) => i.status === 'listed' },
+];
+
+/**
+ * Buckets `ipos` into {@link IPO_GROUPS}, preserving the order the server sorted them in within
+ * each bucket. First matching group wins, so an open IPO closing today lands in "Closing today"
+ * and not also in "Open now". Anything matching no group (an unrecognised status) is appended
+ * under a neutral heading rather than silently dropped.
+ */
+export const groupIposByStage = (ipos) => {
+  const buckets = new Map(IPO_GROUPS.map((g) => [g.key, []]));
+  const other = [];
+  (ipos ?? []).forEach((ipo) => {
+    const group = IPO_GROUPS.find((g) => g.match(ipo));
+    if (group) buckets.get(group.key).push(ipo);
+    else other.push(ipo);
+  });
+  const sections = IPO_GROUPS
+    .map((g) => ({ key: g.key, label: g.label, ipos: buckets.get(g.key) }))
+    .filter((sec) => sec.ipos.length > 0);
+  if (other.length > 0) sections.push({ key: 'other', label: 'Other', ipos: other });
+  return sections;
+};
+
+/**
+ * Case-insensitive company-name match for the list's search box. Deliberately client-side over the
+ * already-loaded page: the list is one bounded response (a financial year, a couple of hundred rows
+ * at most), so a round-trip per keystroke would be slower and noisier than filtering in place.
+ */
+export const matchesIpoQuery = (ipo, query) => {
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q) return true;
+  return (ipo?.companyName ?? '').toLowerCase().includes(q);
+};
+
 export const daysLeftLabel = (ipo) => {
   if (!ipo) return null;
   switch (ipo.status) {

@@ -39,7 +39,7 @@ class IpoControllerTest {
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), null,
                 new BigDecimal("100.00"), new BigDecimal("110.00"), new BigDecimal("20.00"),
                 new BigDecimal("18.00"), new BigDecimal("1.50"), 130, null, null, null, "awaited", null, null, null,
-                null, null);
+                null, null, null, null, null);
         IpoListResponse expected = new IpoListResponse(List.of(summary), Instant.parse("2026-07-24T09:00:00Z"));
         when(queryService.list("open", "mainboard", "gmp")).thenReturn(expected);
 

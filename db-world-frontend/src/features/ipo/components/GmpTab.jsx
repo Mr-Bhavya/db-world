@@ -29,12 +29,20 @@ function ChangeCell({ change }) {
   );
 }
 
-/** Expected listing price = upper price band + latest GMP, with the implied gain % vs
- * the band. Hidden entirely (renders nothing) when either input is missing. */
+/**
+ * Expected listing price. Investorgain publishes this themselves (`estimatedListingPrice`, cap +
+ * current GMP) so their figure is used verbatim when we have it — recomputing a number the source
+ * already gives us risks quietly disagreeing with the value shown everywhere else.
+ * `expectedListingPrice` stays as the fallback for IPOs the per-IPO estimate fetch hasn't reached.
+ * Hidden entirely when neither is available.
+ */
 function ExpectedListingStat({ ipo, points }) {
   const T = useT();
   const latestGmp = ipo.gmp ?? (points.length ? points[points.length - 1].gmp : null);
-  const result = expectedListingPrice(ipo.priceMax, latestGmp);
+  const reported = ipo.estimatedListingPrice != null && ipo.gmpPct != null
+    ? { price: ipo.estimatedListingPrice, gainPct: ipo.gmpPct, source: 'investorgain' }
+    : null;
+  const result = reported ?? expectedListingPrice(ipo.priceMax, latestGmp);
   if (!result) return null;
   const gainColor = result.gainPct > 0 ? T.success : result.gainPct < 0 ? T.error : T.textMuted;
   const gainBg = result.gainPct > 0 ? T.successBg : result.gainPct < 0 ? T.errorBg : T.glassHover;
@@ -52,6 +60,7 @@ function ExpectedListingStat({ ipo, points }) {
       </Box>
       <Typography sx={{ fontSize: 11.5, color: T.textFaint, mt: 0.5 }}>
         vs upper price band {formatCurrency(ipo.priceMax) ?? '—'}
+        {result.source === 'investorgain' && ' · as reported by Investorgain'}
       </Typography>
     </SectionCard>
   );

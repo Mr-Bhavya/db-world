@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useT } from '@shared/theme';
 import { useIpos } from '../hooks/useIpo';
-import { formatIstTime } from '../utils/format';
+import { formatIstTime, groupIposByStage, matchesIpoQuery } from '../utils/format';
 import IpoHero from '../components/IpoHero';
 import IpoFilterBar from '../components/IpoFilterBar';
 import IpoCard from '../components/IpoCard';
@@ -16,6 +16,40 @@ import AdSlot from '@shared/ads/AdSlot';
 import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
+
+/**
+ * Sticky heading for one grouped section. Sticks to just under the fixed app bar so you always know
+ * which stage the cards under your cursor belong to while scrolling a long list — the whole point of
+ * grouping is lost if the label scrolls away from the cards it describes.
+ */
+function SectionHeading({ label, count }) {
+  const T = useT();
+  return (
+    <Box sx={{
+      position: 'sticky',
+      top: { xs: 56, md: 64 },
+      zIndex: 2,
+      display: 'flex', alignItems: 'center', gap: 1,
+      py: 1, mb: 1.25,
+      // Matches the page background rather than using a transparent blur: cards scrolling under a
+      // translucent heading on AMOLED black turn it into mud.
+      bgcolor: T.bg,
+    }}>
+      <Typography sx={{
+        fontSize: { xs: 13, sm: 14 }, fontWeight: 800, color: T.textPrimary, letterSpacing: -0.1,
+      }}>
+        {label}
+      </Typography>
+      <Typography sx={{
+        fontSize: 11, fontWeight: 800, color: T.textMuted,
+        px: 0.75, py: 0.15, borderRadius: 999, bgcolor: T.glassHover,
+      }}>
+        {count}
+      </Typography>
+      <Box sx={{ flex: 1, height: '1px', bgcolor: T.border }} />
+    </Box>
+  );
+}
 
 const DEFAULT_TYPE = 'mainboard';
 const DEFAULT_SORT = 'date';
@@ -33,9 +67,26 @@ export default function IpoListPage() {
   const sort = searchParams.get('sort') || DEFAULT_SORT;
 
   const { data, isLoading } = useIpos({ status, type, sort });
-  const ipos = data?.ipos ?? [];
   const lastUpdated = formatIstTime(data?.lastUpdated);
-  const hasActiveFilter = !!status || type !== 'all';
+
+  // Search is local state, not a URL param: it's a transient "find this one" gesture rather than a
+  // view worth sharing or restoring, and every keystroke in the query string would bury the back
+  // button under history entries.
+  const [query, setQuery] = useState('');
+  // The `?? []` lives INSIDE the memo: as a separate `const` it minted a fresh array reference on
+  // every render whenever the query was still in flight, which defeats the memo entirely.
+  const ipos = useMemo(
+    () => (data?.ipos ?? []).filter((ipo) => matchesIpoQuery(ipo, query)),
+    [data?.ipos, query],
+  );
+
+  // Group into urgency-ordered sections ONLY when no explicit status filter is applied. With a
+  // status chosen the user has already said what they want to look at, so a single "Open now"
+  // heading over the whole grid would be noise; without one, the sections are what turn a flat
+  // wall of cards into something scannable.
+  const sections = useMemo(() => (status ? null : groupIposByStage(ipos)), [status, ipos]);
+
+  const hasActiveFilter = !!status || type !== 'all' || !!query;
 
   // Bonus (nice-to-have): remember where the user was scrolled to on the list so a genuine
   // in-app "back" from an IPO's detail page restores it, instead of always dropping back to
@@ -102,6 +153,8 @@ export default function IpoListPage() {
         sort={sort}
         onChange={handleFilterChange}
         count={isLoading ? null : ipos.length}
+        query={query}
+        onQueryChange={setQuery}
       />
 
       {isLoading ? (
@@ -137,7 +190,7 @@ export default function IpoListPage() {
               <Button
                 variant="outlined"
                 size="small"
-                onClick={() => setSearchParams({}, { replace: true })}
+                onClick={() => { setQuery(''); setSearchParams({}, { replace: true }); }}
                 sx={{
                   mt: 0.5, textTransform: 'none', fontWeight: 700, fontSize: 12.5,
                   borderColor: T.border, color: T.textPrimary, bgcolor: T.glass,
@@ -149,6 +202,19 @@ export default function IpoListPage() {
             )}
           </Box>
         </motion.div>
+      ) : sections ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 3, sm: 3.5 } }}>
+          {sections.map((section) => (
+            <Box key={section.key}>
+              <SectionHeading label={section.label} count={section.ipos.length} />
+              <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
+                {section.ipos.map((ipo, i) => (
+                  <IpoCard key={ipo.id} ipo={ipo} index={i} />
+                ))}
+              </Box>
+            </Box>
+          ))}
+        </Box>
       ) : (
         <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
           {ipos.map((ipo, i) => (
