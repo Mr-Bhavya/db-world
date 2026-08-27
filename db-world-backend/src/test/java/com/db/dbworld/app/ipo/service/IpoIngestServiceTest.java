@@ -403,6 +403,99 @@ class IpoIngestServiceTest {
     }
 
     @Test
+    void ingest_staleUpcomingPastIstOpenCutoff_promotedToOpenAndNotifies() {
+        // The mirror of the open-cutoff clamp above: a feed still advertising the issue as
+        // forthcoming hours after 10 AM IST bidding opened. 2026-07-20T07:00Z = 12:30 PM IST on the
+        // open day. The IST calendar wins, so the "IPO is open" push fires at the first poll after
+        // the real open moment instead of whenever the slowest source happens to catch up.
+        IpoListingEntity existing = existingEntity("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                null, null, null, null, null);
+        stubExisting(existing);
+        IpoDto dto = dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T07:00:00Z")).ingest(List.of(dto));
+
+        assertThat(existing.getStatus()).isEqualTo("open");
+        // The persisted STATUS event IS the notification queue — this row is what
+        // IpoNotificationService.dispatchPending() turns into the "IPO is open" push.
+        ArgumentCaptor<IpoChangeEventEntity> eventCaptor = ArgumentCaptor.forClass(IpoChangeEventEntity.class);
+        verify(changeEventRepo).save(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("STATUS");
+        assertThat(eventCaptor.getValue().getOldValue()).isEqualTo("upcoming");
+        assertThat(eventCaptor.getValue().getNewValue()).isEqualTo("open");
+        assertThat(eventCaptor.getValue().getNotifiedAt()).isNull();
+    }
+
+    @Test
+    void ingest_staleUpcomingPastIstCloseCutoff_promotedStraightToClosed() {
+        stubNoExisting();
+        // A feed that never updated the issue at all: 2026-07-25T07:00Z is a day past the 07-24
+        // close, so it must land on "closed" rather than staying stuck at "upcoming" forever.
+        IpoDto dto = dto("upcoming", null, null, null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-25T07:00:00Z")).ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("closed");
+    }
+
+    @Test
+    void ingest_upcomingBeforeIstOpenCutoff_notPromoted() {
+        stubNoExisting();
+        // 2026-07-20T03:00Z = 08:30 IST on the open day — before bidding opens, so a legitimately
+        // "upcoming" issue must be left alone (the promotion must not run ahead of the calendar).
+        IpoDto dto = dto("upcoming", null, null, null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T03:00:00Z")).ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("upcoming");
+    }
+
+    @Test
+    void ingest_listingPriceWithNoReportedGain_derivesGainPctFromPriceBandTop() {
+        stubNoExisting();
+        // No live source publishes a listing gain, so it has to be computed: listed at 132.00
+        // against the 110.00 band cap = +20.00%.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", null, new BigDecimal("132.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    void ingest_listedBelowIssuePrice_derivesNegativeGainPct() {
+        stubNoExisting();
+        // 99.00 against the 110.00 cap = -10.00% — a discount listing must stay signed, not absolute.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", null, new BigDecimal("99.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("-10.00");
+    }
+
+    @Test
+    void ingest_sourceReportedGain_isNotOverwrittenByDerivation() {
+        stubNoExisting();
+        // A source that DOES carry a gain stays authoritative — derivation only fills a gap.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", new BigDecimal("7.77"), new BigDecimal("132.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("7.77");
+    }
+
+    @Test
     void ingest_sourceReportsListedRawCasing_canonicalizesAndTriggersListingTransition() {
         IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
                 new BigDecimal("1.50"), "finalized", null, null, null);

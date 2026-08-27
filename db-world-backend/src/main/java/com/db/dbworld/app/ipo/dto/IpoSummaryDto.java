@@ -19,9 +19,14 @@ public record IpoSummaryDto(
         BigDecimal subTotal,
         Integer lotSize,
         String listingExchange,
+        BigDecimal listingPrice,
         BigDecimal listingGainPct,
         String allotmentStatus,
         String logoUrl,
         String logoDomain,
-        String registrarUrl
+        String registrarUrl,
+        /** Investorgain's 1–5 GMP rating — the card's at-a-glance "how hot is this" signal. */
+        Integer gmpRating,
+        /** Their own "as of" label for the GMP, so the card can say how fresh the number is. */
+        String gmpUpdatedLabel
 ) {}

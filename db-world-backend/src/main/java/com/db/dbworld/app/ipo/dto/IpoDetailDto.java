@@ -47,5 +47,22 @@ public record IpoDetailDto(
         List<IpoKpiDto> kpis,
         List<IpoIssueObjectDto> issueObjects,
         List<String> leadManagers,
-        IpoIssueDetailsDto issueDetails
+        IpoIssueDetailsDto issueDetails,
+
+        // ── Investorgain live tier ──────────────────────────────────────────────────────────
+        // All reported, none computed: investorgain publishes the percentages, the estimated
+        // listing price and the profit estimate itself. The three grey-market figures
+        // (estimatedListingPrice / subjectToSauda / estProfit) are unofficial by nature, so the
+        // UI renders them attributed to investorgain rather than as our own numbers.
+        Integer gmpRating,
+        BigDecimal gmpMin,
+        BigDecimal gmpMax,
+        String gmpUpdatedLabel,
+        BigDecimal estimatedListingPrice,
+        BigDecimal subjectToSauda,
+        BigDecimal estProfit,
+        BigDecimal peRatio,
+        Boolean anchorInvestor,
+        String allotmentLink,
+        String subscriptionUpdatedLabel
 ) {}

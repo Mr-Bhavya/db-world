@@ -9,6 +9,12 @@ import java.util.Optional;
 
 public interface IpoListingRepository extends JpaRepository<IpoListingEntity, String> {
     Optional<IpoListingEntity> findByMatchKey(String matchKey);
+
+    /**
+     * Listings whose matchKey starts with {@code prefix} — used with a {@code "<normalized name>|"}
+     * prefix to find an IPO by company name alone, ignoring the open date the key also encodes.
+     */
+    List<IpoListingEntity> findByMatchKeyStartingWith(String prefix);
     List<IpoListingEntity> findByStatus(String status);
 
     /**

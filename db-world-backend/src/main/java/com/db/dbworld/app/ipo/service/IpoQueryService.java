@@ -208,7 +208,10 @@ public class IpoQueryService {
                 dto.strengths(), dto.risks(),
                 dto.foundedYear(), dto.managingDirector(), dto.parentCompany(),
                 dto.sector(), dto.headquarters(), dto.website(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails(),
+                dto.gmpRating(), dto.gmpMin(), dto.gmpMax(), dto.gmpUpdatedLabel(),
+                dto.estimatedListingPrice(), dto.subjectToSauda(), dto.estProfit(), dto.peRatio(),
+                dto.anchorInvestor(), dto.allotmentLink(), dto.subscriptionUpdatedLabel());
     }
 
     /** The given date, rolled forward to the next trading day — skips weekends AND configured NSE holidays. */

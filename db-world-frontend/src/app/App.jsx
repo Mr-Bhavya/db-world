@@ -421,10 +421,20 @@ const ThemedApp = () => {
                 overflow: pageScaled && isSheetViewport ? 'hidden' : 'visible',
                 transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
                 minHeight: '100vh',
+                // Column flex + `flex: 1` on the route area below is what keeps the footer AT THE
+                // BOTTOM when a page renders little or nothing — while a lazy route chunk downloads,
+                // or on an empty/errored page. As a plain block box the children just stacked from
+                // the top, and since the Header is a `position: fixed` AppBar with no spacer in the
+                // shell (each page supplies its own top padding), a zero-height route area left the
+                // footer as the first in-flow element — rendering it at y=0, printed straight over
+                // the header. Affects every lazy route, not one page.
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!isPlayerRoute && <Header />}
+            <Box component="main" sx={{ flex: '1 0 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -454,6 +464,7 @@ const ThemedApp = () => {
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
             </Suspense>
+            </Box>
             {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
                 fallback replaces its children, and a footer that vanishes and reappears
                 on every first navigation to a page reads as a layout glitch. */}

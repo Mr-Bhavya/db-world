@@ -7,11 +7,12 @@ import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
   formatShortDate, formatPriceBand, formatPct, statusMeta, ipoTypeMeta, daysLeftLabel,
-  subscriptionMeta,
+  subscriptionMeta, formatCurrency,
 } from '../utils/format';
 import { saveListScrollForBack } from '../utils/listScrollRestore';
 import CompanyLogo from './CompanyLogo';
@@ -59,6 +60,27 @@ function GmpValue({ gmp, gmpPct }) {
         {gmp != null ? `₹${gmp}` : '—'}
         {gmpPct != null && <Box component="span" sx={{ fontWeight: 600, opacity: 0.85 }}> ({formatPct(gmpPct)})</Box>}
       </Typography>
+    </Box>
+  );
+}
+
+/**
+ * Investorgain's 1-5 GMP rating as a row of flames — their own "how hot is this issue" signal,
+ * shown as-is rather than re-scored by us. Sits beside the GMP value because it IS a read on the
+ * GMP, not an independent measure. Hidden entirely when they haven't rated the issue.
+ */
+function GmpRating({ rating }) {
+  const T = useT();
+  if (rating == null || rating <= 0) return null;
+  return (
+    <Box
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.15, flexShrink: 0 }}
+      title={`Investorgain GMP rating ${rating}/5`}
+      aria-label={`Investorgain GMP rating ${rating} out of 5`}
+    >
+      {Array.from({ length: Math.min(rating, 5) }).map((_, i) => (
+        <LocalFireDepartmentRoundedIcon key={i} sx={{ fontSize: 11, color: T.warning }} />
+      ))}
     </Box>
   );
 }
@@ -129,9 +151,9 @@ function SubscriptionMiniBar({ subTotal }) {
 
 /**
  * Minimal IPO card: logo + name + type chip, status badge, a 2-column stat grid (price
- * band/lot size, GMP/subscription) and one key date — heavier detail lives on the detail
- * page. A left accent strip (via `statusMeta`) gives an at-a-glance read on where the IPO
- * is in its lifecycle.
+ * band/lot size, then GMP/subscription — or listing price/subscription once listed) and one
+ * key date — heavier detail lives on the detail page. A left accent strip (via `statusMeta`)
+ * gives an at-a-glance read on where the IPO is in its lifecycle.
  */
 export default function IpoCard({ ipo, index = 0 }) {
   const T = useT();
@@ -233,9 +255,23 @@ export default function IpoCard({ ipo, index = 0 }) {
               {ipo.lotSize != null ? ipo.lotSize : '—'}
             </Typography>
           </Stat>
-          <Stat label="GMP">
-            <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
-          </Stat>
+          {/* Grey market closes the moment the shares list, so a listed IPO's GMP cell could only
+              ever render an empty "—". Swap it for the stat that replaces it in the user's head at
+              that point — what the shares actually opened at (the % gain keeps its footer pill). */}
+          {ipo.status === 'listed' ? (
+            <Stat label="Listing price">
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }} noWrap>
+                {formatCurrency(ipo.listingPrice) ?? '—'}
+              </Typography>
+            </Stat>
+          ) : (
+            <Stat label="GMP">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                <GmpValue gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
+                <GmpRating rating={ipo.gmpRating} />
+              </Box>
+            </Stat>
+          )}
           <Stat label="Subscription">
             {(ipo.status === 'open' || ipo.status === 'closed' || ipo.status === 'listed') && ipo.subTotal != null
               ? <SubscriptionMiniBar subTotal={ipo.subTotal} />

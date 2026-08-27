@@ -83,7 +83,8 @@ class IpoApplicationControllerTest {
     void myApplications_delegatesWithCurrentUserId() {
         when(userContext.userId()).thenReturn(USER_ID);
         IpoSummaryDto summary = new IpoSummaryDto("ipo-1", "Acme Corp", "mainboard", "open",
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null);
         List<MyIpoDto> expected = List.of(new MyIpoDto(applicationDto(), summary));
         when(applicationService.listMine(USER_ID)).thenReturn(expected);
 

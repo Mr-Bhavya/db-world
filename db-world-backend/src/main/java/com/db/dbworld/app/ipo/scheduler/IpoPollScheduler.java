@@ -1,7 +1,6 @@
 package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.dto.IpoDto;
-import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
 import com.db.dbworld.app.ipo.notification.IpoNotificationService;
 import com.db.dbworld.app.ipo.service.InvestorgainGmpService;
 import com.db.dbworld.app.ipo.service.IpoIngestService;
@@ -103,7 +102,7 @@ public class IpoPollScheduler {
         }
 
         List<IpoDto> merged = mergeService.merge(allDtos);
-        List<IpoLifecycleChange> changes = ingestService.ingest(merged);
+        ingestService.ingest(merged);
 
         // GMP + day-wise category subscription are time series from investorgain (not part of the
         // source→merge→ingest snapshot pipeline), backfilled AFTER ingest so the listings they match
@@ -112,11 +111,12 @@ public class IpoPollScheduler {
         gmpService.refreshGmp();
         gmpService.refreshSubscription();
 
-        // Broadcast the notification-worthy changes from this cycle (open / listed / allotment /
-        // GMP jump), then the once-per-IPO "closing soon" reminders. Both are best-effort and gated
-        // behind push.enabled — a push hiccup can never affect the poll outcome.
-        notificationService.dispatch(changes);
-        notificationService.notifyClosingSoon();
+        // Deliver immediately after ingest so an alert isn't held for the notifier's next tick — but
+        // this is only the fast path, NOT the guarantee. Delivery reads the pending change events
+        // ingest just committed, so it's idempotent and the standalone notify job re-runs it to pick
+        // up anything this pass couldn't send (e.g. a poll that landed outside the IST notification
+        // window). Best-effort and gated behind push.enabled — a push hiccup can't affect the poll.
+        notificationService.deliverPending();
 
         // Keep the market-holiday calendar current — a once-a-year best-effort NSE fetch (a no-op the
         // rest of the year) so weekend/holiday notification-gating + timeline derivation stay correct

@@ -99,6 +99,9 @@ class IpoPollSchedulerTest {
         verify(ingestService).ingest(mergedResult);
         verify(gmpService).refreshGmp(); // GMP backfill runs after ingest
         verify(holidayService).refreshIfNeeded(); // yearly market-holiday sync (no-op most cycles)
+        // The poll delivers the pushes ingest just queued, so an alert isn't held for the standalone
+        // notify job's next tick — but it's the fast path only, not the delivery guarantee.
+        verify(notificationService).deliverPending();
 
         verify(pollService).recordSuccess("ipoguru", NOW);
         verify(pollService).recordSuccess("nse", NOW);

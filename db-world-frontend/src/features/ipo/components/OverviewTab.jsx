@@ -25,6 +25,11 @@ import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
+import LocalFireDepartmentOutlinedIcon from '@mui/icons-material/LocalFireDepartmentOutlined';
+import SwapVertOutlinedIcon from '@mui/icons-material/SwapVertOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
+import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
@@ -280,6 +285,82 @@ function DocLink({ label, url }) {
   );
 }
 
+/**
+ * True when investorgain has given us anything for the "Live market read" section — every field in
+ * it is independently optional, so the section only appears once at least one has arrived.
+ */
+const hasLiveRead = (ipo) => !!ipo && (
+  ipo.gmpRating != null || ipo.gmpMin != null || ipo.gmpMax != null || ipo.peRatio != null
+  || ipo.anchorInvestor != null || ipo.estimatedListingPrice != null
+  || ipo.subjectToSauda != null || ipo.estProfit != null
+);
+
+/**
+ * Investorgain's live read on the issue: its GMP rating and range, the P/E and anchor-investor
+ * flag, and the three grey-market estimates.
+ *
+ * Every value here is shown EXACTLY as investorgain publishes it — they compute the estimated
+ * listing price (cap + GMP), the percentage and the per-lot profit themselves, so nothing on this
+ * card is our arithmetic. That also drives the framing: the estimates are unofficial grey-market
+ * numbers, not an exchange figure and not our own projection, so the section is titled and
+ * footnoted as theirs rather than presented as fact. The "as of" labels are their own wording,
+ * carried through verbatim, so a stale number reads as stale instead of looking live.
+ */
+function LiveMarketRead({ ipo }) {
+  const T = useT();
+  const facts = [];
+  if (ipo.gmpRating != null) {
+    facts.push({ icon: LocalFireDepartmentOutlinedIcon, label: 'GMP rating', value: `${ipo.gmpRating}/5` });
+  }
+  if (ipo.gmpMin != null && ipo.gmpMax != null) {
+    facts.push({
+      icon: SwapVertOutlinedIcon,
+      label: 'GMP range',
+      value: `${formatCurrency(ipo.gmpMin)} – ${formatCurrency(ipo.gmpMax)}`,
+    });
+  }
+  if (ipo.estimatedListingPrice != null) {
+    facts.push({
+      icon: TrendingUpOutlinedIcon,
+      label: 'Est. listing price',
+      value: formatCurrency(ipo.estimatedListingPrice),
+    });
+  }
+  if (ipo.estProfit != null) {
+    facts.push({ icon: SavingsOutlinedIcon, label: 'Est. profit / lot', value: formatCurrency(ipo.estProfit) });
+  }
+  if (ipo.subjectToSauda != null) {
+    facts.push({ icon: HandshakeOutlinedIcon, label: 'Subject to sauda', value: formatCurrency(ipo.subjectToSauda) });
+  }
+  if (ipo.peRatio != null) {
+    facts.push({ icon: QueryStatsOutlinedIcon, label: 'P/E ratio', value: String(ipo.peRatio) });
+  }
+  if (ipo.anchorInvestor != null) {
+    facts.push({
+      icon: AccountBalanceWalletOutlinedIcon,
+      label: 'Anchor investors',
+      value: ipo.anchorInvestor ? 'Yes' : 'No',
+    });
+  }
+
+  const asOf = [
+    ipo.gmpUpdatedLabel && `GMP as of ${ipo.gmpUpdatedLabel}`,
+    ipo.subscriptionUpdatedLabel && `subscription as of ${ipo.subscriptionUpdatedLabel}`,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 2 }}>
+        {facts.map((f) => <FactTile key={f.label} icon={f.icon} label={f.label} value={f.value} />)}
+      </Box>
+      <Typography sx={{ fontSize: 11, color: T.textFaint, lineHeight: 1.5 }}>
+        Grey-market figures reported by Investorgain{asOf ? ` — ${asOf}` : ''}. Unofficial and
+        indicative only; not an exchange price and not investment advice.
+      </Typography>
+    </Box>
+  );
+}
+
 const hasIssueDetails = (d) =>
   !!d && (!!d.issueType || !!d.minOrderQuantity || !!d.sponsorBank || !!d.rhpUrl || !!d.drhpUrl);
 
@@ -446,6 +527,15 @@ export default function OverviewTab({ ipo, id }) {
       )}
 
       {lotBreakdown && <LotSizeSection breakdown={lotBreakdown} />}
+
+      {hasLiveRead(ipo) && (
+        <SectionCard
+          title="Live market read"
+          icon={<LocalFireDepartmentOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+        >
+          <LiveMarketRead ipo={ipo} />
+        </SectionCard>
+      )}
 
       {hasIssueDetails(ipo.issueDetails) && (
         <SectionCard title="Issue details" icon={<ReceiptLongOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
