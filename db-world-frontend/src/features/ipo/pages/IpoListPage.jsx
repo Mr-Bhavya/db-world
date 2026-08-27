@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useT } from '@shared/theme';
@@ -58,18 +58,17 @@ export default function IpoListPage() {
     return () => clearTimeout(t);
   }, [isLoading, ipos.length]);
 
-  // `minmax(0, 1fr)` (not bare `1fr`) — a CSS Grid track's automatic minimum size
-  // otherwise defaults to the *content* min-content size of whatever's inside, so a
-  // long/unbreakable string anywhere in a card (e.g. a lengthy company name) can force
-  // the whole track — and every card sharing it — wider than the viewport at 360px.
-  // `minmax(0, 1fr)` pins the floor to 0 so the track (and the card) can always shrink
-  // down to the available width instead of overflowing it.
-  const gridTemplateColumns = {
-    xs: 'minmax(0, 1fr)',
-    sm: 'repeat(2, minmax(0, 1fr))',
-    md: 'repeat(3, minmax(0, 1fr))',
-    xl: 'repeat(4, minmax(0, 1fr))',
-  };
+  // Column count follows the available width instead of four guessed breakpoints: `auto-fill`
+  // fits as many ~300px tracks as there's room for, so 360px gets 1, a tablet gets 2, and the
+  // capped 1500px container tops out at 4 of roughly 348px each. The old fixed `xl: repeat(4)`
+  // had no container cap behind it, so an ultrawide window stretched four cards across the
+  // entire viewport and every one of them read as a dense wall.
+  //
+  // `min(100%, 300px)` rather than a bare `300px` is what keeps it safe at the small end: a
+  // grid track's automatic minimum is the min-content size of its contents, so a long
+  // unbreakable string in a card could otherwise force the track — and the page — wider than a
+  // 360px viewport. Clamping the minimum to the container width can never overflow it.
+  const gridTemplateColumns = 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))';
 
   // Only non-default values are written to the URL, so it stays clean (no `?type=mainboard&status=`
   // noise) at the default view. `replace: true` — a filter tweak shouldn't push a history entry you
@@ -83,10 +82,27 @@ export default function IpoListPage() {
   };
 
   return (
-    <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
+    <Box sx={{
+      // maxWidth + auto margins: without a cap the grid ran the full width of an ultrawide
+      // window, which is both a wall of cards and a line length well past what's comfortable
+      // to scan. 1500px keeps the grid at four columns at the top end and leaves the hero,
+      // toolbar and ad slot aligned to the same measure.
+      pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' },
+      px: { xs: 2, sm: 3 },
+      pb: 3,
+      maxWidth: 1500,
+      mx: 'auto',
+      color: T.textPrimary,
+    }}>
       <IpoHero lastUpdated={lastUpdated} />
 
-      <IpoFilterBar type={type} status={status} sort={sort} onChange={handleFilterChange} />
+      <IpoFilterBar
+        type={type}
+        status={status}
+        sort={sort}
+        onChange={handleFilterChange}
+        count={isLoading ? null : ipos.length}
+      />
 
       {isLoading ? (
         <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
@@ -95,18 +111,42 @@ export default function IpoListPage() {
           ))}
         </Box>
       ) : ipos.length === 0 ? (
-        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.28, ease: 'easeOut' }}
+        >
           <Box sx={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            textAlign: 'center', gap: 1.5, py: 8,
+            textAlign: 'center', gap: 1.5, py: { xs: 6, sm: 9 },
+            borderRadius: 4, border: `1px dashed ${T.border}`, bgcolor: T.glass,
           }}>
-            <TrendingUpIcon sx={{ fontSize: 56, color: T.textFaint }} />
-            <Typography sx={{ fontSize: 17, fontWeight: 700, color: T.textPrimary }}>No IPOs found</Typography>
-            <Typography sx={{ fontSize: 13, color: T.textMuted, maxWidth: 320 }}>
+            <Box sx={{
+              width: 60, height: 60, borderRadius: '50%', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', bgcolor: T.glassHover,
+            }}>
+              <TrendingUpIcon sx={{ fontSize: 30, color: T.textMuted }} />
+            </Box>
+            <Typography sx={{ fontSize: 17, fontWeight: 800, color: T.textPrimary }}>No IPOs found</Typography>
+            <Typography sx={{ fontSize: 13.5, color: T.textMuted, maxWidth: 340, lineHeight: 1.6 }}>
               {hasActiveFilter
-                ? 'No IPOs match these filters right now. Try a different type, status or sort.'
+                ? 'No IPOs match these filters right now.'
                 : 'Nothing to show yet — check back soon.'}
             </Typography>
+            {hasActiveFilter && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setSearchParams({}, { replace: true })}
+                sx={{
+                  mt: 0.5, textTransform: 'none', fontWeight: 700, fontSize: 12.5,
+                  borderColor: T.border, color: T.textPrimary, bgcolor: T.glass,
+                  '&:hover': { borderColor: T.teal, bgcolor: T.tealBg, color: T.teal },
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
           </Box>
         </motion.div>
       ) : (
