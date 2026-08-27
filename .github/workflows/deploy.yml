@@ -92,6 +92,12 @@ jobs:
     runs-on: self-hosted
     environment: production
     steps:
+      # Same stale-workspace problem as the frontend, but this one can deploy the
+      # WRONG BUILD: the step below takes `ls war/*.war | head -1`, which is
+      # alphabetical, so an older WAR left behind from a previous run can sort
+      # first and get deployed instead of the one just built.
+      - name: Clear the workspace before downloading
+        run: rm -rf war
       - uses: actions/download-artifact@v8
         with:
           name: backend-war
@@ -148,6 +154,13 @@ jobs:
     runs-on: self-hosted
     environment: production
     steps:
+      # The runner is SELF-HOSTED, so its workspace survives between runs, and
+      # download-artifact does not clean its target directory. Without this, every
+      # build's output piles up in dist/ and `cp -r dist/.` copies the lot into the
+      # new release: 76 MB and ~1000 files instead of 5.9 MB and 81, with several
+      # generations of index-*.js sitting side by side.
+      - name: Clear the workspace before downloading
+        run: rm -rf dist
       - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
