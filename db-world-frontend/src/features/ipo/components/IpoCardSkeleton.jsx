@@ -7,9 +7,10 @@ import { useT } from '@shared/theme';
  * badge opposite, the hero's label+badge row over its 26px figure row, a row of evenly-divided
  * stats, then the divided footer with its countdown pill.
  *
- * Modelled on the UPCOMING card (two stats), which is both the most common state in the list and
- * the shorter of the two widths — an open card adds a third stat to the same row rather than a new
- * row, so the height it settles into is the same.
+ * The stat row mirrors the card's three even columns and its edge-spread alignment (first flush
+ * left, last flush right, middle centred) — on live data upcoming, open and closed all settle on
+ * three, so that is the shape to reserve. Cards that can only fill one or two columns end up
+ * shorter than the placeholder rather than taller, which the grid absorbs without reflowing.
  */
 export default function IpoCardSkeleton() {
   const T = useT();
@@ -56,12 +57,16 @@ export default function IpoCardSkeleton() {
         </Box>
       </Box>
 
-      {/* Stats — two even columns, each a label over a value. */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1.25 }}>
-        {[76, 58].map((labelWidth, i) => (
-          <Box key={labelWidth}>
-            <Skeleton variant="text" width={labelWidth} height={13} sx={bar} />
-            <Skeleton variant="text" width={i === 0 ? 84 : 56} height={18} sx={{ mt: 0.35, ...bar }} />
+      {/* Stats — three even columns, aligned exactly as the card aligns them. */}
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', columnGap: 1.5,
+        '& > *:last-child': { justifyItems: 'end' },
+        '& > *:not(:first-of-type):not(:last-child)': { justifyItems: 'center' },
+      }}>
+        {[{ l: 74, v: 62 }, { l: 52, v: 44 }, { l: 62, v: 50 }].map((w, i) => (
+          <Box key={i} sx={{ display: 'grid', justifyItems: 'start' }}>
+            <Skeleton variant="text" width={w.l} height={13} sx={bar} />
+            <Skeleton variant="text" width={w.v} height={18} sx={{ mt: 0.35, ...bar }} />
           </Box>
         ))}
       </Box>
