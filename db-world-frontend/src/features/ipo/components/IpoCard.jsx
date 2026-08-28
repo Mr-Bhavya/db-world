@@ -11,7 +11,7 @@ import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartm
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
-  formatShortDate, formatPriceBand, formatPct, formatCurrency,
+  formatShortDate, formatPriceBand, formatPct, formatCurrency, formatExchange,
   statusMeta, ipoTypeMeta, daysLeftLabel, subscriptionMeta, isClosingToday,
 } from '../utils/format';
 import { saveListScrollForBack } from '../utils/listScrollRestore';
@@ -55,14 +55,18 @@ function StatusBadge({ status }) {
 }
 
 /**
- * A labelled secondary stat. Labels sit at `textMuted`, not `textFaint`, on purpose — at 10.5px on
- * AMOLED black the fainter token was the single biggest readability problem, and 0.68 alpha clears
- * 4.5:1 against the card where 0.46 does not.
+ * A labelled secondary stat. Every one is left-aligned: right-aligning the second column looked
+ * tidy until a full-width row (the subscription bar) joined them, at which point the card read
+ * left / right / left and the interior went ragged. One alignment, one edge to scan down.
+ *
+ * Labels sit at `textMuted`, not `textFaint` — at 10.5px on AMOLED black the fainter token was the
+ * single biggest readability problem, and 0.68 alpha clears 4.5:1 against the card where 0.46 does
+ * not.
  */
-function Stat({ label, children, align = 'left' }) {
+function Stat({ label, children }) {
   const T = useT();
   return (
-    <Box sx={{ minWidth: 0, textAlign: align }}>
+    <Box sx={{ minWidth: 0 }}>
       <Typography sx={{
         fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase',
         letterSpacing: 0.6, fontWeight: 700, lineHeight: 1.4,
@@ -162,9 +166,17 @@ function SubscriptionBar({ subTotal, reduce }) {
   const meta = subscriptionMeta(subTotal, T);
   if (!meta) return <Value color={T.textFaint}>—</Value>;
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+      <Typography sx={{
+        fontSize: 14, fontWeight: 800, color: meta.color, flexShrink: 0,
+        fontVariantNumeric: 'tabular-nums',
+      }} noWrap>
+        {subMultiple(subTotal)}
+      </Typography>
+      {/* Fills the rest of its own cell, which is now one of three even columns rather than a
+          full-width spanned row — the same bar across ~300px read as a loading bar, not a gauge. */}
       <Box sx={{
-        flex: 1, minWidth: 24, maxWidth: 68, height: 6, borderRadius: 999,
+        flex: 1, minWidth: 20, maxWidth: 72, height: 6, borderRadius: 999,
         bgcolor: T.glassHover, overflow: 'hidden',
       }}>
         <Box sx={{
@@ -173,12 +185,6 @@ function SubscriptionBar({ subTotal, reduce }) {
           transition: reduce ? 'none' : 'width 0.45s cubic-bezier(0.32,0.72,0,1)',
         }} />
       </Box>
-      <Typography sx={{
-        fontSize: 14, fontWeight: 800, color: meta.color, flexShrink: 0,
-        fontVariantNumeric: 'tabular-nums',
-      }} noWrap>
-        {subMultiple(subTotal)}
-      </Typography>
     </Box>
   );
 }
@@ -226,7 +232,6 @@ function DaysLeftPill({ ipo }) {
 function GmpHero({ ipo }) {
   const T = useT();
   const { color } = trendOf(ipo.gmp ?? ipo.gmpPct, T);
-  const hasGmp = ipo.gmp != null || ipo.gmpPct != null;
 
   let right = null;
   if (ipo.estimatedListingPrice != null) {
@@ -238,9 +243,9 @@ function GmpHero({ ipo }) {
   return (
     <HeroStat
       label="Grey market premium"
-      value={hasGmp && ipo.gmp != null ? formatCurrency(ipo.gmp) : '—'}
-      sub={ipo.gmpPct != null ? `(${formatPct(ipo.gmpPct)})` : null}
-      color={hasGmp ? color : T.textFaint}
+      value={formatCurrency(ipo.gmp) ?? formatPct(ipo.gmpPct)}
+      sub={ipo.gmp != null && ipo.gmpPct != null ? `(${formatPct(ipo.gmpPct)})` : null}
+      color={color}
       right={right}
       badge={<GmpRating rating={ipo.gmpRating} />}
     />
@@ -248,85 +253,125 @@ function GmpHero({ ipo }) {
 }
 
 /**
- * Picks the hero figure and the secondary stats from the IPO's lifecycle stage.
+ * Chooses the hero figure and the secondary stats for one IPO.
  *
- * The old card showed the same four cells (price band / lot size / GMP / subscription) at every
- * stage, which guaranteed dead ones: an upcoming IPO has no subscription yet and a listed one has no
- * grey market, so a quarter to a half of every card was an em dash.
+ * ONE RULE, APPLIED TO EVERYTHING: a metric is only ever offered when its value exists. Each stage
+ * lists more candidates than it can show, most relevant first, and the first available ones win.
+ * There is therefore no combination of missing data that can render an em dash — not in a stat cell,
+ * and not (as an earlier version managed for 19 of 34 real cards) as a 26px "—" where the headline
+ * number should be, which is the single most conspicuous place to put a hole.
  *
- * Price band and lot size are LABELLED STATS here, not footnotes. They were briefly demoted to an
- * inline meta line, which was wrong: for an upcoming IPO they're the two numbers you need to work
- * out what an application costs you — that's the opposite of a footnote.
- *
- * The row deliberately carries no open/close date. Those already appear, once, in the footer range;
- * showing them twice per card ("OPENS 28 Aug 2026 / CLOSES 01 Sep 2026" directly above
- * "28 Aug 2026 – 01 Sep 2026") was pure repetition.
+ * The hero's metric is removed from the stat candidates, so nothing is shown twice.
  */
 function cardStats(ipo, T, reduce) {
-  const priceBand = (
-    <Stat key="band" label="Price band">
-      <Value mono>{formatPriceBand(ipo.priceMin, ipo.priceMax) ?? '—'}</Value>
-    </Stat>
-  );
-  const lotSize = (
-    <Stat key="lot" label="Lot size" align="right">
-      <Value mono>{ipo.lotSize != null ? `${ipo.lotSize} sh` : '—'}</Value>
-    </Stat>
-  );
+  const priceBand = formatPriceBand(ipo.priceMin, ipo.priceMax);
+  const subColor = subscriptionMeta(ipo.subTotal, T)?.color;
+  const gmpTrend = trendOf(ipo.gmp ?? ipo.gmpPct, T);
 
-  switch (ipo.status) {
-    case 'open':
-      return {
-        hero: <GmpHero ipo={ipo} />,
-        stats: [
-          priceBand,
-          lotSize,
-          // Spans both tracks so the bar has room to read as a bar rather than a stub.
-          <Box key="sub" sx={{ gridColumn: 'span 2' }}>
-            <Stat label="Subscription"><SubscriptionBar subTotal={ipo.subTotal} reduce={reduce} /></Stat>
-          </Box>,
-        ],
-      };
-    case 'closed':
-      return {
-        hero: (
-          <HeroStat
-            label="Final subscription"
-            value={subMultiple(ipo.subTotal) ?? '—'}
-            color={subscriptionMeta(ipo.subTotal, T)?.color ?? T.textFaint}
-            right={ipo.gmp != null ? { label: 'GMP', value: formatCurrency(ipo.gmp) } : null}
-          />
-        ),
-        stats: [
-          <Stat key="allot" label="Allotment"><Value>{formatShortDate(ipo.allotmentDate) ?? '—'}</Value></Stat>,
-          <Stat key="lists" label="Lists on" align="right"><Value>{formatShortDate(ipo.listingDate) ?? '—'}</Value></Stat>,
-        ],
-      };
-    case 'listed':
-      return {
-        hero: (
-          <HeroStat
-            label="Listing gain"
-            value={ipo.listingGainPct != null ? formatPct(ipo.listingGainPct) : '—'}
-            color={ipo.listingGainPct != null ? trendOf(ipo.listingGainPct, T).color : T.textFaint}
-            right={ipo.listingPrice != null
-              ? { label: 'Listed at', value: formatCurrency(ipo.listingPrice) }
-              : null}
-          />
-        ),
-        stats: [
-          <Stat key="sub" label="Final subscription">
-            <Value color={subscriptionMeta(ipo.subTotal, T)?.color} mono>
-              {subMultiple(ipo.subTotal) ?? '—'}
-            </Value>
-          </Stat>,
-          lotSize,
-        ],
-      };
-    case 'upcoming':
-    default:
-      return { hero: <GmpHero ipo={ipo} />, stats: [priceBand, lotSize] };
-  }
+  // Each metric knows whether it has a value, and how to render as either the hero or a stat.
+  const metrics = {
+    gmp: {
+      has: ipo.gmp != null || ipo.gmpPct != null,
+      hero: () => <GmpHero ipo={ipo} />,
+      stat: () => (
+        <Stat key="gmp" label="GMP">
+          <Value color={gmpTrend.color} mono>{formatCurrency(ipo.gmp)}</Value>
+        </Stat>
+      ),
+    },
+    subscription: {
+      has: ipo.subTotal != null,
+      hero: () => (
+        <HeroStat
+          label={ipo.status === 'open' ? 'Subscription' : 'Final subscription'}
+          value={subMultiple(ipo.subTotal)}
+          color={subColor}
+          right={ipo.gmp != null ? { label: 'GMP', value: formatCurrency(ipo.gmp) } : null}
+        />
+      ),
+      stat: () => (
+        <Stat key="sub" label={ipo.status === 'open' ? 'Subscription' : 'Final subscription'}>
+          {ipo.status === 'open'
+            ? <SubscriptionBar subTotal={ipo.subTotal} reduce={reduce} />
+            : <Value color={subColor} mono>{subMultiple(ipo.subTotal)}</Value>}
+        </Stat>
+      ),
+    },
+    listingGain: {
+      has: ipo.listingGainPct != null,
+      hero: () => (
+        <HeroStat
+          label="Listing gain"
+          value={formatPct(ipo.listingGainPct)}
+          color={trendOf(ipo.listingGainPct, T).color}
+          right={ipo.listingPrice != null
+            ? { label: 'Listed at', value: formatCurrency(ipo.listingPrice) }
+            : null}
+        />
+      ),
+      stat: () => (
+        <Stat key="gain" label="Listing gain">
+          <Value color={trendOf(ipo.listingGainPct, T).color} mono>{formatPct(ipo.listingGainPct)}</Value>
+        </Stat>
+      ),
+    },
+    listingPrice: {
+      has: ipo.listingPrice != null,
+      hero: () => <HeroStat label="Listed at" value={formatCurrency(ipo.listingPrice)} />,
+      stat: () => (
+        <Stat key="lp" label="Listed at"><Value mono>{formatCurrency(ipo.listingPrice)}</Value></Stat>
+      ),
+    },
+    priceBand: {
+      has: priceBand != null,
+      hero: () => <HeroStat label="Price band" value={priceBand} />,
+      stat: () => <Stat key="band" label="Price band"><Value mono>{priceBand}</Value></Stat>,
+    },
+    lotSize: {
+      has: ipo.lotSize != null,
+      stat: () => <Stat key="lot" label="Lot size"><Value mono>{`${ipo.lotSize} sh`}</Value></Stat>,
+    },
+    allotment: {
+      has: ipo.allotmentDate != null,
+      stat: () => (
+        <Stat key="allot" label="Allotment"><Value>{formatShortDate(ipo.allotmentDate)}</Value></Stat>
+      ),
+    },
+    listsOn: {
+      has: ipo.listingDate != null,
+      stat: () => <Stat key="lists" label="Lists on"><Value>{formatShortDate(ipo.listingDate)}</Value></Stat>,
+    },
+    exchange: {
+      has: !!ipo.listingExchange,
+      stat: () => (
+        <Stat key="exch" label="Exchange"><Value>{formatExchange(ipo.listingExchange)}</Value></Stat>
+      ),
+    },
+  };
+
+  // Hero candidates then stat candidates, per stage — richest first, each falling back gracefully.
+  const ORDER = {
+    upcoming: { hero: ['gmp', 'priceBand'], stats: ['priceBand', 'lotSize', 'exchange'] },
+    open: { hero: ['gmp', 'subscription', 'priceBand'], stats: ['subscription', 'priceBand', 'lotSize'] },
+    closed: {
+      hero: ['subscription', 'gmp', 'priceBand'],
+      stats: ['allotment', 'listsOn', 'lotSize', 'priceBand', 'exchange'],
+    },
+    listed: {
+      hero: ['listingGain', 'listingPrice', 'subscription', 'priceBand'],
+      stats: ['subscription', 'lotSize', 'priceBand', 'exchange', 'listingPrice'],
+    },
+  };
+  const order = ORDER[ipo.status] ?? ORDER.upcoming;
+
+  const heroKey = order.hero.find((k) => metrics[k]?.has);
+  const hero = heroKey ? metrics[heroKey].hero() : null;
+  const stats = order.stats
+    .filter((k) => k !== heroKey && metrics[k]?.has)
+    .slice(0, 3)
+    .map((k) => metrics[k].stat());
+
+  return { hero, stats };
 }
 
 /**
@@ -419,9 +464,10 @@ export default function IpoCard({ ipo, index = 0 }) {
             content: '""',
             position: 'absolute', top: 0, left: 0, right: 0, height: 3,
             background: `linear-gradient(90deg, ${accent}, ${accent}00)`,
-            // A closing-today card gets a full-width edge rather than a fade, so the row of cards
-            // reads as "this one is different" before you've read a word of it.
-            ...(urgent && { background: accent, height: 4 }),
+            // A closing-today card gets a solid edge rather than a fade, so the row reads as "this
+            // one is different" before you've read a word of it. Colour and fill only — making it
+            // taller as well pushed that card's content a pixel below its neighbours'.
+            ...(urgent && { background: accent }),
           },
         }}
       >
@@ -461,9 +507,26 @@ export default function IpoCard({ ipo, index = 0 }) {
         {hero}
 
         {stats.length > 0 && (
+          // One row of as many even columns as there are stats. A fixed 2-up grid left the third
+          // stat alone on its own row: spanning it produced a ~300px progress bar that dominated
+          // the card, and not spanning it left half a row empty. Even columns are neither.
+          //
+          // First flush left, last flush right, any middle centred. With equal tracks and every
+          // cell left-aligned, a wide value in the first column (a price band like ₹546–₹575 nearly
+          // fills its track) ended up 10px from the next column's label and the two read as one
+          // crowded block. Anchoring the outer columns to the card's own edges puts the free space
+          // BETWEEN the values instead of trailing after each one.
+          //
+          // Safe now in a way it wasn't earlier: every row is a uniform N columns, so there is no
+          // full-width spanning cell left to make the alignment look ragged. The subscription bar
+          // is a flex row that textAlign can't move, but it is only ever built as the FIRST stat
+          // (open IPOs), which stays left-aligned.
           <Box sx={{
-            display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            columnGap: 1.5, rowGap: 1.25,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, minmax(0, 1fr))`,
+            columnGap: 1.5,
+            '& > *:last-child': { textAlign: stats.length > 1 ? 'right' : 'left' },
+            '& > *:not(:first-of-type):not(:last-child)': { textAlign: 'center' },
           }}>
             {stats}
           </Box>

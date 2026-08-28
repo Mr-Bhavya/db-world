@@ -2,11 +2,18 @@ import { Box, Skeleton } from '@mui/material';
 import { useT } from '@shared/theme';
 
 /**
- * Loading placeholder matching `IpoCard`'s shape 1:1 — same shell, top accent edge, hero figure,
- * 2-up secondary stats, meta line and footer — so the list doesn't reflow once real data lands.
+ * Loading placeholder for `IpoCard`, matching its shape row for row so the grid doesn't reflow when
+ * real data lands: top accent edge, 42px logo beside a two-line name and type chip with the status
+ * badge opposite, the hero's label+badge row over its 26px figure row, a row of evenly-divided
+ * stats, then the divided footer with its countdown pill.
+ *
+ * Modelled on the UPCOMING card (two stats), which is both the most common state in the list and
+ * the shorter of the two widths — an open card adds a third stat to the same row rather than a new
+ * row, so the height it settles into is the same.
  */
 export default function IpoCardSkeleton() {
   const T = useT();
+  const bar = { bgcolor: T.glassHover };
   return (
     <Box
       sx={{
@@ -26,39 +33,46 @@ export default function IpoCardSkeleton() {
         },
       }}
     >
+      {/* Header — logo, name over type chip, status badge. */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
-        <Skeleton variant="rounded" width={42} height={42} sx={{ borderRadius: 2, bgcolor: T.glassHover, flexShrink: 0 }} />
+        <Skeleton variant="rounded" width={42} height={42} sx={{ borderRadius: 2, ...bar, flexShrink: 0 }} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Skeleton variant="text" width="80%" height={20} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="rounded" width={62} height={16} sx={{ mt: 0.5, borderRadius: 1, bgcolor: T.glassHover }} />
+          <Skeleton variant="text" width="88%" height={20} sx={bar} />
+          <Skeleton variant="rounded" width={62} height={17} sx={{ mt: 0.5, borderRadius: 1, ...bar }} />
         </Box>
-        <Skeleton variant="rounded" width={62} height={21} sx={{ borderRadius: 999, bgcolor: T.glassHover, flexShrink: 0 }} />
+        <Skeleton variant="rounded" width={64} height={22} sx={{ borderRadius: 999, ...bar, flexShrink: 0 }} />
       </Box>
 
-      {/* The hero figure — a 10.5px label over a 26px number. */}
+      {/* Hero — label row (with the rating badge opposite) over the 26px figure row (with its
+          companion figure opposite). */}
       <Box>
-        <Skeleton variant="text" width={120} height={12} sx={{ bgcolor: T.glassHover }} />
-        <Skeleton variant="text" width={104} height={32} sx={{ bgcolor: T.glassHover }} />
-      </Box>
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25 }}>
-        <Box>
-          <Skeleton variant="text" width={64} height={12} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="text" width={72} height={18} sx={{ mt: 0.35, bgcolor: T.glassHover }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Skeleton variant="text" width={124} height={13} sx={bar} />
+          <Skeleton variant="rounded" width={54} height={12} sx={{ borderRadius: 999, ...bar }} />
         </Box>
-        <Box>
-          <Skeleton variant="text" width={48} height={12} sx={{ ml: 'auto', bgcolor: T.glassHover }} />
-          <Skeleton variant="text" width={60} height={18} sx={{ mt: 0.35, ml: 'auto', bgcolor: T.glassHover }} />
+        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25 }}>
+          <Skeleton variant="text" width={112} height={34} sx={bar} />
+          <Skeleton variant="text" width={86} height={16} sx={bar} />
         </Box>
       </Box>
 
-      <Box sx={{ mt: 'auto', pt: 1.25, borderTop: `1px solid ${T.border}` }}>
-        <Skeleton variant="text" width={150} height={14} sx={{ bgcolor: T.glassHover }} />
+      {/* Stats — two even columns, each a label over a value. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1.25 }}>
+        {[76, 58].map((labelWidth, i) => (
+          <Box key={labelWidth}>
+            <Skeleton variant="text" width={labelWidth} height={13} sx={bar} />
+            <Skeleton variant="text" width={i === 0 ? 84 : 56} height={18} sx={{ mt: 0.35, ...bar }} />
+          </Box>
+        ))}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-        <Skeleton variant="text" width={130} height={14} sx={{ bgcolor: T.glassHover }} />
-        <Skeleton variant="rounded" width={64} height={19} sx={{ borderRadius: 999, bgcolor: T.glassHover }} />
+      {/* Footer — date range and countdown pill, above the same divider the card uses. */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+        mt: 'auto', pt: 1.25, borderTop: `1px solid ${T.border}`,
+      }}>
+        <Skeleton variant="text" width={148} height={15} sx={bar} />
+        <Skeleton variant="rounded" width={68} height={20} sx={{ borderRadius: 999, ...bar }} />
       </Box>
     </Box>
   );

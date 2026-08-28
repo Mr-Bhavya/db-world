@@ -434,6 +434,8 @@ const ThemedApp = () => {
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!isPlayerRoute && <Header />}
+            {/* `minWidth: 0` alone is not enough here — see the width:100% note on the page shells
+                this wraps. A flex item with auto side margins does not stretch. */}
             <Box component="main" sx={{ flex: '1 0 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>

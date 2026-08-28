@@ -142,6 +142,11 @@ export default function IpoListPage() {
       px: { xs: 2, sm: 3 },
       pb: 3,
       maxWidth: 1500,
+      // `width: 100%` is load-bearing alongside `mx: auto`. This Box is a flex item of the app
+      // shell's <main> column, and AUTO SIDE MARGINS CANCEL `align-items: stretch` — so without an
+      // explicit width the Box shrink-wrapped its own max-content instead of the viewport, came out
+      // 465px wide on a 390px phone, and gave the whole page a horizontal scrollbar.
+      width: '100%',
       mx: 'auto',
       color: T.textPrimary,
     }}>
