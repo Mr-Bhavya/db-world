@@ -4,6 +4,7 @@ import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -604,4 +605,32 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
      * a TV record or vice versa.
      */
     List<RecordEntity> findByTmdbIdInAndType(Collection<Long> tmdbIds, RecordType type);
+
+    /* ================================================================
+       HOME DASHBOARD
+    ================================================================= */
+
+    /**
+     * Newest published titles for the home hub's Cinema widget. Ordered by {@code publishedAt} —
+     * when the title became available here — not by its own release date, so a decade-old film
+     * added yesterday still shows up as new. Rows with no publish stamp are excluded rather than
+     * sorted last: a NULL there means the record was never actually published.
+     */
+    @Query("""
+            SELECT r
+            FROM RecordEntity r
+            JOIN FETCH r.tmdb
+            WHERE r.visibility = com.db.dbworld.app.cinema.enums.RecordVisibility.PUBLISHED
+              AND r.publishedAt IS NOT NULL
+            ORDER BY r.publishedAt DESC
+            """)
+    List<RecordEntity> findLatestPublished(Pageable pageable);
+
+    long countByVisibility(RecordVisibility visibility);
+
+    /** Library size split by kind, for the Cinema tile's figures. */
+    long countByVisibilityAndType(RecordVisibility visibility, RecordType type);
+
+    /** How much the library has grown lately — the figure that makes the tile worth re-reading. */
+    long countByVisibilityAndPublishedAtAfter(RecordVisibility visibility, java.time.Instant since);
 }

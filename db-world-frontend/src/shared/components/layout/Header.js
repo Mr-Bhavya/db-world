@@ -35,9 +35,11 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   LightMode as LightModeIcon,
   Lock as LockIcon,
+  LoginRounded as SignInIcon,
   Logout as LogoutIcon,
   Menu as MenuIcon,
   Person as PersonIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 
 import DbWorldLogo from '@assets/images/db-circle-icon.webp';
@@ -45,11 +47,20 @@ import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
 import { useThemeMode } from '@shared/theme';
 import { APPS } from '@shared/components/layout/home/homeData';
+import { useHomeSummary } from '@shared/components/layout/home/dashboard/homeSummaryApi';
+import AppsMenu from './header/AppsMenu';
+import CommandPalette from './header/CommandPalette';
+import NotificationBell from './header/NotificationBell';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Navigation — apps come from the shared home launcher list (homeData.APPS) so
 // the header never has to be kept in sync by hand and never crowds the bar: all
-// apps live behind a single "Apps" dropdown.
+// apps live behind a single "Apps" panel.
+//
+// That panel, and the drawer's app list, render for signed-out visitors too. Cinema,
+// IPO Radar, Weather and Arcade are public routes, so gating navigation on auth left
+// exactly the visitors the public browse surface exists for with nowhere to go; the
+// protected apps bounce through PrivateRoute's login redirect and come back.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +92,16 @@ const getInitial = (user) => {
     'U'
   ).toUpperCase();
 };
+
+/**
+ * The label for the search shortcut. ⌘ is Mac-only — this app also ships as a Windows desktop
+ * browser target and an Android build, where "⌘K" names a key the user does not have.
+ */
+const SEARCH_SHORTCUT_LABEL =
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad|iPod/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? '')
+    ? '⌘K'
+    : 'Ctrl K';
 
 const isRouteActive = (pathname, route) => {
   if (!route) return false;
@@ -269,8 +290,16 @@ const Header = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [appsAnchor, setAppsAnchor] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Latches on the first Apps-panel open so the summary is fetched at most once per session
+  // from the header, and never at all for a visitor who does not use the panel.
+  const [appsPanelUsed, setAppsPanelUsed] = useState(false);
 
   const initial = useMemo(() => getInitial(user), [user]);
+
+  // Live per-app status for the Apps panel. Same query key as the hub's, so arriving from the
+  // dashboard costs nothing; elsewhere it stays unfetched until the panel is actually opened.
+  const { data: summary } = useHomeSummary({ enabled: appsPanelUsed });
 
   // All launchable apps for this user (admin-only apps hidden for viewers),
   // sourced from the single home-launcher list so the header never drifts.
@@ -284,6 +313,23 @@ const Header = () => {
 
   const drawerBg =
     mode === 'dark' ? 'rgba(10,10,15,0.98)' : 'rgba(255,255,255,0.98)';
+
+  // ⌘K / Ctrl-K anywhere opens search. Ignored while typing into a field so it cannot
+  // hijack a form, and Escape closes it (the Dialog's own onClose handles that).
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key?.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return;
+
+      const tag = event.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target?.isContentEditable) return;
+
+      event.preventDefault();
+      setPaletteOpen((open) => !open);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     let frameId = null;
@@ -314,6 +360,7 @@ const Header = () => {
       setDrawerOpen(false);
       setMenuAnchor(null);
       setAppsAnchor(null);
+      setPaletteOpen(false);
     },
     [navigate]
   );
@@ -327,6 +374,11 @@ const Header = () => {
   const shouldHideHeader =
     location.pathname.includes(Constants.DB_CINEMA_ROUTE) ||
     location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE);
+
+  // The hub's own intro carries "Sign in" and "Create account" as its primary calls to action, so
+  // the bar repeating them there showed four buttons for two destinations in a single viewport.
+  // Everywhere else the bar is the only way in, so it keeps them.
+  const showAuthActions = !isAuth && location.pathname !== Constants.DB_WORLD_HOME_ROUTE;
 
   if (shouldHideHeader) return null;
 
@@ -381,15 +433,16 @@ const Header = () => {
           >
             <BrandLogo onClick={() => handleNav(Constants.DB_WORLD_HOME_ROUTE)} />
 
-            {/* Desktop nav — a single "Apps" dropdown that lists every app, so
-                the bar never crowds as more apps are added. */}
-            {!isMobile && isAuth && (
+            {/* Desktop nav — one "Apps" panel that lists every app, so the bar never
+                crowds as more apps are added, plus the search entry point. */}
+            {!isMobile && (
               <Box
                 component="nav"
                 aria-label="Main navigation"
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
+                  gap: 1,
                   flex: '1 1 auto',
                   minWidth: 0,
                 }}
@@ -397,7 +450,10 @@ const Header = () => {
                 <Box
                   component="button"
                   type="button"
-                  onClick={(event) => setAppsAnchor(event.currentTarget)}
+                  onClick={(event) => {
+                    setAppsPanelUsed(true);
+                    setAppsAnchor(event.currentTarget);
+                  }}
                   aria-haspopup="menu"
                   aria-expanded={Boolean(appsAnchor)}
                   sx={{
@@ -432,10 +488,58 @@ const Header = () => {
                     }}
                   />
                 </Box>
+
+                {/* Search entry point. A field-shaped button rather than a real input: the
+                    palette owns the input, and this way the shortcut hint is discoverable. */}
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => setPaletteOpen(true)}
+                  aria-label="Search DB World"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    flex: '0 1 320px',
+                    minWidth: 0,
+                    px: 1.5,
+                    py: 0.7,
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    border: `1px solid ${T.glassBorder}`,
+                    bgcolor: T.glass,
+                    color: T.textFaint,
+                    fontFamily: 'inherit',
+                    fontSize: { md: '0.82rem', xl: '0.9rem' },
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    transition: 'border-color 0.2s ease, color 0.2s ease',
+                    ...focusSx(T.teal),
+                    '&:hover': { borderColor: T.borderHover, color: T.textMuted },
+                  }}
+                >
+                  <SearchIcon sx={{ fontSize: 18, flexShrink: 0 }} />
+                  <Box component="span" sx={{ flex: 1, ...clampTextSx(1) }}>
+                    Search apps, titles, IPOs
+                  </Box>
+                  <Box
+                    component="span"
+                    sx={{
+                      display: { md: 'none', lg: 'block' },
+                      flexShrink: 0,
+                      px: 0.6,
+                      py: 0.1,
+                      borderRadius: 0.8,
+                      border: `1px solid ${T.border}`,
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {SEARCH_SHORTCUT_LABEL}
+                  </Box>
+                </Box>
               </Box>
             )}
-
-            {!isMobile && !isAuth && <Box sx={{ flex: 1, minWidth: 0 }} />}
 
             {/* Desktop actions */}
             {!isMobile && (
@@ -448,6 +552,8 @@ const Header = () => {
                   ml: 1,
                 }}
               >
+                {isAuth && <NotificationBell size={36} iconSize={21} />}
+
                 <Tooltip
                   title={
                     mode === 'dark'
@@ -513,7 +619,7 @@ const Header = () => {
                       </Avatar>
                     </IconButton>
                   </Tooltip>
-                ) : (
+                ) : showAuthActions ? (
                   <Box
                     sx={{
                       display: 'flex',
@@ -543,7 +649,7 @@ const Header = () => {
                         },
                       }}
                     >
-                      Login
+                      Sign in
                     </Box>
 
                     <Box
@@ -568,21 +674,74 @@ const Header = () => {
                         },
                       }}
                     >
-                      Register
+                      Create account
                     </Box>
                   </Box>
-                )}
+                ) : null}
               </Box>
             )}
 
-            {/* Mobile hamburger */}
+            {/* Mobile actions */}
             {isMobile && (
               <Box
                 sx={{
                   ml: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.25,
                   flexShrink: 0,
                 }}
               >
+                <IconButton
+                  onClick={() => setPaletteOpen(true)}
+                  aria-label="Search DB World"
+                  sx={{
+                    color: T.textMuted,
+                    width: 42,
+                    height: 42,
+                    ...focusSx(T.teal),
+                    '&:hover': { color: T.teal, bgcolor: T.tealBg },
+                  }}
+                >
+                  <SearchIcon />
+                </IconButton>
+
+                {isAuth && <NotificationBell size={42} iconSize={22} />}
+
+                {/* Signed-out visitors get the way in on the bar itself, not buried two taps deep
+                    in the drawer. Labelled, not icon-only: a padlock on its own does not read as
+                    "sign in", and the bar has ~120px of slack at 375px even with the word. */}
+                {showAuthActions && (
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                    aria-label="Sign in"
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      bgcolor: T.teal,
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#fff',
+                      px: 1.4,
+                      height: 34,
+                      borderRadius: 1.7,
+                      fontFamily: 'inherit',
+                      fontSize: '0.82rem',
+                      fontWeight: 850,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      ...focusSx(T.teal),
+                      '&:hover': { bgcolor: T.tealHover },
+                    }}
+                  >
+                    <SignInIcon sx={{ fontSize: 16 }} />
+                    Sign in
+                  </Box>
+                )}
+
                 <IconButton
                   onClick={() => setDrawerOpen(true)}
                   aria-label="Open navigation menu"
@@ -698,59 +857,23 @@ const Header = () => {
         </MenuItem>
       </Menu>
 
-      {/* Desktop apps menu */}
-      <Menu
+      {/* Desktop apps panel — icon + name + a live one-liner per app */}
+      <AppsMenu
         anchorEl={appsAnchor}
-        open={Boolean(appsAnchor)}
         onClose={() => setAppsAnchor(null)}
-        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
-        PaperProps={{
-          sx: {
-            mt: 1,
-            minWidth: 240,
-            maxWidth: 300,
-            borderRadius: 2.5,
-            bgcolor: T.sidebar,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${T.glassBorder}`,
-            backgroundImage: 'none',
-            '& .MuiMenuItem-root': {
-              fontSize: '0.875rem',
-              color: T.textMuted,
-              py: 1.1,
-              minHeight: 44,
-              '&:hover': { bgcolor: T.tealBg, color: T.text },
-              '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal },
-              '&.Mui-selected:hover': { bgcolor: T.tealBg, color: T.teal },
-            },
-          },
-        }}
-      >
-        {visibleApps.map((app) => {
-          const AppIcon = app.Icon;
-          const active = isRouteActive(location.pathname, app.route);
+        apps={visibleApps}
+        summary={summary}
+        activeRoute={location.pathname}
+        onNavigate={handleNav}
+      />
 
-          return (
-            <MenuItem
-              key={app.id}
-              selected={active}
-              onClick={() => handleNav(app.route)}
-            >
-              {AppIcon && (
-                <AppIcon
-                  sx={{
-                    fontSize: 19,
-                    mr: 1.5,
-                    color: active ? T.teal : T.textMuted,
-                  }}
-                />
-              )}
-              {app.label}
-            </MenuItem>
-          );
-        })}
-      </Menu>
+      {/* Global search */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        apps={visibleApps}
+        onNavigate={handleNav}
+      />
 
       {/* Mobile drawer */}
       <Drawer
@@ -949,7 +1072,36 @@ const Header = () => {
               minWidth: 0,
             }}
           >
-            {(isAuth ? visibleApps : []).map((item) => {
+            <ListItemButton
+              onClick={() => {
+                setDrawerOpen(false);
+                setPaletteOpen(true);
+              }}
+              sx={{
+                borderRadius: 1.7,
+                mb: 0.5,
+                minHeight: 50,
+                border: `1px solid ${T.glassBorder}`,
+                ...focusSx(T.teal),
+                '&:hover': { bgcolor: T.tealBg },
+              }}
+            >
+              <ListItemIcon sx={{ color: T.textMuted, minWidth: 38 }}>
+                <SearchIcon />
+              </ListItemIcon>
+
+              <ListItemText
+                primary="Search"
+                primaryTypographyProps={{
+                  fontSize: '0.9rem',
+                  color: T.textMuted,
+                  fontWeight: 650,
+                  noWrap: true,
+                }}
+              />
+            </ListItemButton>
+
+            {visibleApps.map((item) => {
               const active = isRouteActive(location.pathname, item.route);
               const ItemIcon = item.Icon;
 
@@ -1133,7 +1285,7 @@ const Header = () => {
                   </ListItemIcon>
 
                   <ListItemText
-                    primary="Login"
+                    primary="Sign in"
                     primaryTypographyProps={{
                       fontSize: '0.9rem',
                       color: T.text,
@@ -1158,7 +1310,7 @@ const Header = () => {
                   </ListItemIcon>
 
                   <ListItemText
-                    primary="Register"
+                    primary="Create account"
                     primaryTypographyProps={{
                       fontSize: '0.9rem',
                       color: T.text,

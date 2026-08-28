@@ -122,6 +122,9 @@ public final class AppConstants {
      * simply report no content instead of throwing.
      */
     public static final String[] PUBLIC_GET_APIS = {
+            // Home hub summary. Answers signed out, and gains the user-scoped
+            // sections when a token happens to be present.
+            "/api/home/summary",
             // Cinema browse — category strips and rail pages
             "/api/cinema/home", "/api/cinema/home/categories",
             "/api/cinema/movies", "/api/cinema/movies/categories",

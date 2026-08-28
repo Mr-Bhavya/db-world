@@ -20,6 +20,7 @@ import { notify } from '@shared/notify';
 import { useT, getFieldSx } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { getWeatherCity, saveWeatherCity } from './weatherPrefs';
 import { Aurora, GlassPanel } from '@shared/ui/surfaces';
 
 const kelvinToC = (k) => Math.round(k - 273.15);
@@ -152,7 +153,7 @@ function Weather() {
   const reduce = useReducedMotion();
 
   const [weatherData, setWeatherData] = useState(null);
-  const [city, setCity] = useState('Pune');
+  const [city, setCity] = useState(getWeatherCity);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [permState, setPermState] = useState('prompt'); // granted | denied | prompt
@@ -167,7 +168,11 @@ function Weather() {
     const q = name ?? city;
     setRefreshing(true);
     try {
-      setWeatherData(await fetchWeather({ city: q }));
+      const data = await fetchWeather({ city: q });
+      setWeatherData(data);
+      // Remember where the user actually looked, so the home dashboard's weather
+      // tile opens on their place instead of the app default.
+      saveWeatherCity(data?.name ?? q);
     } catch (err) {
       if (err?.response?.status === 404) notify.error('City not found. Please try another.');
       else notify.error('Failed to fetch weather. Check your connection.');
@@ -180,7 +185,10 @@ function Weather() {
   const fetchByCoords = useCallback(async ({ latitude, longitude }) => {
     setRefreshing(true);
     try {
-      setWeatherData(await fetchWeather({ lat: latitude, lon: longitude }));
+      const data = await fetchWeather({ lat: latitude, lon: longitude });
+      setWeatherData(data);
+      // Only the resolved city name is kept — never the coordinates themselves.
+      saveWeatherCity(data?.name);
     } catch {
       notify.error('Failed to fetch weather for your location.');
       await fetchByCity();

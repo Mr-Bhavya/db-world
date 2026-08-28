@@ -146,19 +146,15 @@ export const deleteReview = (recordId) =>
   axiosInstance.delete(`${BASE}/reviews`, { params: { recordId } }).then(unwrap);
 
 // ─── Notifications ────────────────────────────────────────────────────────────
+// These now live in @shared/notifications — the bell is in the global header, not
+// just the cinema navbar, and IPO alerts arrive through the same list. Re-exported
+// here so existing cinema imports keep working.
 
-/** GET /api/notifications?limit=N → UserNotificationDto[] */
-export const fetchNotifications = (limit = 30) =>
-  axiosInstance.get('/api/notifications', { params: { limit } }).then(unwrap);
-
-/** GET /api/notifications/unread-count → number */
-export const fetchUnreadCount = () =>
-  axiosInstance.get('/api/notifications/unread-count')
-    .then(r => r.data?.data?.count ?? 0);
-
-/** PUT /api/notifications/mark-read */
-export const markNotificationsRead = () =>
-  axiosInstance.put('/api/notifications/mark-read').then(unwrap);
+export {
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationsRead,
+} from '@shared/notifications/notificationsApi';
 
 // ─── Media Requests ───────────────────────────────────────────────────────────
 // Kinds: NEW_FILES (empty state), HIGHER_QUALITY, LOWER_QUALITY.

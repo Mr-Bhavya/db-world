@@ -174,6 +174,19 @@ const buildMuiTheme = (mode) => createTheme({
   },
   shape: { borderRadius: 8 },
   typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        // index.html paints html AND body black so the boot loader has no white flash before
+        // React mounts. CssBaseline then themes `body` but leaves `html` on that boot black, so in
+        // light mode the document element stayed #000 — visible as a black band whenever the page
+        // overscrolls (rubber-band on Android, trackpad bounce on desktop) or is shorter than the
+        // viewport. Re-theme html alongside body.
+        html: { backgroundColor: mode === 'dark' ? '#000000' : '#ffffff' },
+      },
+    },
+  },
 });
 
 /** Thin wrapper so the lazy import receives the pageType prop. */
