@@ -472,15 +472,17 @@ export default function IpoCard({ ipo, index = 0 }) {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, minWidth: 0 }}>
-          {/* Bordered, tinted well behind the logo — several of these are white-on-transparent
-              PNGs that all but vanished directly against AMOLED black. */}
-          <Box sx={{
-            width: 42, height: 42, borderRadius: 2, flexShrink: 0, overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            bgcolor: T.glassHover, border: `1px solid ${T.border}`,
-          }}>
-            <CompanyLogo logoUrl={ipo.logoUrl} logoDomain={ipo.logoDomain} companyName={ipo.companyName} />
-          </Box>
+          {/* One tinted, bordered well — the logo IS the well. It used to be a bordered Box
+              wrapping a bordered circular logo, which drew two rings and shrank the mark to fit
+              inside both. The tint still matters: several of these are white-on-transparent PNGs
+              that all but vanish directly against AMOLED black. */}
+          <CompanyLogo
+            logoUrl={ipo.logoUrl}
+            logoDomain={ipo.logoDomain}
+            companyName={ipo.companyName}
+            size={42}
+            radius={2}
+          />
           <Box sx={{ minWidth: 0, flex: 1 }}>
             {/* Two lines then ellipsis — a truncated name ("ESDS Software Solution Li…") is worse
                 than a slightly taller card. */}
