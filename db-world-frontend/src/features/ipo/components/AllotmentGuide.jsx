@@ -62,7 +62,7 @@ function StepRow({ step, index, isLast }) {
         {!isLast && <Box sx={{ width: 2, flex: 1, minHeight: 20, bgcolor: T.border, my: 0.5 }} />}
       </Box>
       <Box sx={{ minWidth: 0, pb: isLast ? 0 : 2 }}>
-        <Typography sx={{ fontSize: 10, color: T.textFaint, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        <Typography sx={{ fontSize: 10, color: T.textMuted, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>
           Step {index + 1}
         </Typography>
         <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: T.textPrimary, mt: 0.15 }}>
@@ -80,12 +80,20 @@ function StepRow({ step, index, isLast }) {
  * "How to check allotment" — a short, numbered, icon-led guide, reusable anywhere in the
  * Allotment flow (currently `AllotmentTab`). Purely presentational/static: no props, no
  * data dependency, so it can drop into any IPO's Allotment tab unchanged.
+ *
+ * Collapsed by default. These five steps are read once and then never again, but expanded they
+ * cost ~350px between the "Check allotment status" button and the form the reader actually came
+ * back for — so the heading stays (it's the thing you look for the first time) and the body is
+ * one tap away.
  */
 export default function AllotmentGuide() {
   const T = useT();
   return (
     <SectionCard
       title="How to check allotment"
+      subtitle="Five steps, on the registrar's site."
+      collapsible
+      defaultOpen={false}
       icon={<AssignmentTurnedInOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>

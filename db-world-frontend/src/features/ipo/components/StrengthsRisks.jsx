@@ -36,17 +36,27 @@ function BulletRow({ text, kind }) {
   );
 }
 
-/** One side of the section (Strengths or Risks) — a tinted heading over its bullet list. */
-function StrengthsRisksColumn({ kind, title, items }) {
+/**
+ * One side of the section (Strengths or Risks) — a tinted heading over its bullet list.
+ *
+ * The heading is only drawn when BOTH sides are present, because that is the only time it tells
+ * you anything: with one side, the card's own title already reads "Strengths", and printing the
+ * word again immediately underneath gave every single-sided section a stuttering
+ * "STRENGTHS / STRENGTHS" — which is exactly what Chittorgarh-sourced IPOs (no risks section)
+ * all showed.
+ */
+function StrengthsRisksColumn({ kind, title, items, showHeading }) {
   const T = useT();
   const color = toneOf(T, kind);
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{
-        fontSize: 11, color, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800, mb: 1.25,
-      }}>
-        {title}
-      </Typography>
+      {showHeading && (
+        <Typography sx={{
+          fontSize: 11, color, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 800, mb: 1.25,
+        }}>
+          {title}
+        </Typography>
+      )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {items.map((text) => <BulletRow key={text} text={text} kind={kind} />)}
       </Box>
@@ -79,8 +89,12 @@ export default function StrengthsRisks({ ipo }) {
         gridTemplateColumns: { xs: '1fr', md: bothPresent ? '1fr 1fr' : '1fr' },
         gap: { xs: 2, md: 3 },
       }}>
-        {hasStrengths && <StrengthsRisksColumn kind="strength" title="Strengths" items={strengths} />}
-        {hasRisks && <StrengthsRisksColumn kind="risk" title="Risks" items={risks} />}
+        {hasStrengths && (
+          <StrengthsRisksColumn kind="strength" title="Strengths" items={strengths} showHeading={bothPresent} />
+        )}
+        {hasRisks && (
+          <StrengthsRisksColumn kind="risk" title="Risks" items={risks} showHeading={bothPresent} />
+        )}
       </Box>
     </SectionCard>
   );

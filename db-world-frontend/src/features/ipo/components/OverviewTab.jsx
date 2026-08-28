@@ -25,80 +25,32 @@ import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
-import LocalFireDepartmentOutlinedIcon from '@mui/icons-material/LocalFireDepartmentOutlined';
-import SwapVertOutlinedIcon from '@mui/icons-material/SwapVertOutlined';
-import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
-import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
+import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import { useT } from '@shared/theme';
 import {
   formatPriceBand, formatCurrency, formatPct, formatMultiplier, formatExchange, websiteDomain,
-  computeLotBreakdown,
+  formatAmount, computeLotBreakdown, minInvestment, detailFigures,
 } from '../utils/format';
 import IpoTimeline from './IpoTimeline';
-import SectionCard from './SectionCard';
+import SectionCard, { SectionStack } from './SectionCard';
+import { FactGrid } from './FactTile';
 import FinancialsTable from './FinancialsTable';
 import StrengthsRisks from './StrengthsRisks';
 
-/** One compact stat tile in the "key facts" grid — icon + label + value, null-safe
- * (falls back to an em dash rather than hiding the tile, so the grid never reflows). */
-function FactTile({ icon: Icon, label, value, valueColor }) {
-  const T = useT();
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
-      <Box sx={{
-        width: 30, height: 30, borderRadius: 2, flexShrink: 0, mt: 0.1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: T.tealBg,
-      }}>
-        <Icon sx={{ fontSize: 16, color: T.teal }} />
-      </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: 14, fontWeight: 800, color: valueColor ?? T.textPrimary, mt: 0.15 }} noWrap>
-          {value ?? '—'}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-/** GMP fact tile needs its own up/down/flat treatment (color + arrow), unlike the other
- * plain tiles — mirrors the same convention IpoCard's GmpValue uses on the list page. */
-function GmpFactTile({ gmp, gmpPct }) {
-  const T = useT();
-  if (gmp == null && gmpPct == null) {
-    return <FactTile icon={TrendingFlatIcon} label="GMP" value={null} />;
-  }
-  // Direction follows gmpPct when it's present (it's the more meaningful signal — gmp
-  // itself can be legitimately 0 while the % is still nonzero), falling back to gmp
-  // only when there's no gmpPct at all. Prevents `(gmp ?? gmpPct)` from silently
-  // keeping a 0 gmp and reading "flat" when gmpPct clearly isn't.
-  const signal = gmpPct ?? gmp;
+/** Up/down/flat treatment for a signed figure (GMP, listing gain) — the same colour + arrow
+ * convention the list card and the detail hero use, so a premium reads alike everywhere. */
+function signedMeta(signal, T) {
   const positive = signal > 0;
   const negative = signal < 0;
-  const color = positive ? T.success : negative ? T.error : T.textMuted;
-  const Icon = positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon;
-  const value = `${gmp != null ? `₹${gmp}` : '—'}${gmpPct != null ? ` (${formatPct(gmpPct)})` : ''}`;
-  return <FactTile icon={Icon} label="GMP" value={value} valueColor={color} />;
-}
-
-/** Listing gain fact tile — same up/down/flat color treatment as `GmpFactTile`, for the
- * post-listing gain % vs. the issue price. Only ever rendered when `gainPct` is non-null
- * (see call site), so no null-guard needed here. */
-function ListingGainFactTile({ gainPct }) {
-  const T = useT();
-  const positive = gainPct > 0;
-  const negative = gainPct < 0;
-  const color = positive ? T.success : negative ? T.error : T.textMuted;
-  const Icon = positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon;
-  return <FactTile icon={Icon} label="Listing gain" value={formatPct(gainPct)} valueColor={color} />;
+  return {
+    color: positive ? T.success : negative ? T.error : T.textMuted,
+    Icon: positive ? TrendingUpIcon : negative ? TrendingDownIcon : TrendingFlatIcon,
+  };
 }
 
 /** The About section's Website fact renders as an external link rather than plain text —
@@ -126,67 +78,116 @@ function WebsiteLink({ website }) {
 }
 
 /**
- * The expanded "About" company facts — Founded/MD-CEO/Parent company/Sector/Headquarters/
- * Website — laid out as the same compact icon+label+value tile grid as "Key facts", right
- * alongside the free-text `about` blurb. Every field is independently optional (a real
- * source may report some and not others), so each tile is only rendered when its own value
- * is present rather than the whole grid gating on one field.
+ * Builds the "Key facts" grid for one IPO.
+ *
+ * Three rules, all borrowed from the list redesign:
+ *   1. A fact is only built when its value exists, so the grid can never render a hole. The old
+ *      version rendered a fixed set of tiles and printed "—" for whatever the stage didn't have,
+ *      which on an upcoming IPO meant an empty Subscription, an empty GMP and an empty Exchange.
+ *   2. Anything the hero already leads with is dropped here rather than repeated 200px lower —
+ *      `heroKeys` comes straight from `detailFigures`, so the two can't disagree about what has
+ *      already been said.
+ *   3. A fact that merely restates another is dropped too: a fresh issue equal to the issue size
+ *      (an issue with no offer-for-sale component, which is common) was printing the same crore
+ *      figure into two adjacent tiles.
  */
-function AboutFacts({ ipo }) {
-  const T = useT();
-  return (
-    <Box sx={{
-      display: 'grid',
-      gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' },
-      gap: 2,
-      color: T.textPrimary,
-    }}>
-      {ipo.foundedYear != null && (
-        <FactTile icon={CalendarMonthOutlinedIcon} label="Founded" value={String(ipo.foundedYear)} />
-      )}
-      {ipo.managingDirector && (
-        <FactTile icon={BadgeOutlinedIcon} label="MD / CEO" value={ipo.managingDirector} />
-      )}
-      {ipo.parentCompany && (
-        <FactTile icon={AccountTreeOutlinedIcon} label="Parent company" value={ipo.parentCompany} />
-      )}
-      {ipo.sector && (
-        <FactTile icon={CategoryOutlinedIcon} label="Sector" value={ipo.sector} />
-      )}
-      {ipo.headquarters && (
-        <FactTile icon={LocationOnOutlinedIcon} label="Headquarters" value={ipo.headquarters} />
-      )}
-      {ipo.website && (
-        <FactTile icon={LanguageOutlinedIcon} label="Website" value={<WebsiteLink website={ipo.website} />} />
-      )}
-    </Box>
-  );
+function keyFacts(ipo, T, heroKeys) {
+  const facts = [];
+  const add = (key, icon, label, value, valueColor) => {
+    if (value == null || value === '' || heroKeys.includes(key)) return;
+    facts.push({ key, icon, label, value, valueColor });
+  };
+
+  add('priceBand', CurrencyRupeeOutlinedIcon, 'Price band', formatPriceBand(ipo.priceMin, ipo.priceMax));
+  add('lotSize', Inventory2OutlinedIcon, 'Lot size', ipo.lotSize != null ? `${ipo.lotSize} shares` : null);
+  add('minInvestment', SavingsOutlinedIcon, 'Min. investment', formatAmount(minInvestment(ipo.lotSize, ipo.priceMax)));
+  add('issueSize', AccountBalanceWalletOutlinedIcon, 'Issue size', ipo.issueSize);
+  // `formatExchange` prints an em dash for a missing exchange, so gate on the raw field instead.
+  add('exchange', StorefrontOutlinedIcon, 'Exchange', ipo.listingExchange ? formatExchange(ipo.listingExchange) : null);
+  add('faceValue', SellOutlinedIcon, 'Face value', formatCurrency(ipo.faceValue));
+
+  // A fresh issue that IS the whole issue tells you nothing the issue-size tile didn't. Compared
+  // on digits only because the two arrive in different shapes from different fields — a formatted
+  // string ("₹720.00 Cr") against a bare number (720).
+  const digits = (v) => String(v ?? '').replace(/[^\d]/g, '').replace(/0+$/, '');
+  const freshIsWholeIssue = ipo.freshIssue != null && ipo.offerForSale == null
+    && digits(ipo.issueSize) !== '' && digits(ipo.issueSize) === digits(ipo.freshIssue);
+  if (!freshIsWholeIssue) {
+    add('freshIssue', AddCircleOutlineIcon, 'Fresh issue', ipo.freshIssue != null ? `${formatCurrency(ipo.freshIssue)} Cr` : null);
+  }
+  add('offerForSale', SwapHorizOutlinedIcon, 'Offer for sale', ipo.offerForSale != null ? `${formatCurrency(ipo.offerForSale)} Cr` : null);
+  add('listingPrice', PriceCheckOutlinedIcon, 'Listing price', formatCurrency(ipo.listingPrice));
+
+  if (ipo.listingGainPct != null) {
+    const { color, Icon } = signedMeta(ipo.listingGainPct, T);
+    add('listingGain', Icon, 'Listing gain', formatPct(ipo.listingGainPct), color);
+  }
+  if (ipo.gmp != null || ipo.gmpPct != null) {
+    // Direction follows gmpPct when it's present (it's the more meaningful signal — gmp itself
+    // can be legitimately 0 while the % is still nonzero), falling back to gmp only when there's
+    // no gmpPct at all.
+    const { color, Icon } = signedMeta(ipo.gmpPct ?? ipo.gmp, T);
+    const value = [formatCurrency(ipo.gmp), ipo.gmpPct != null ? `(${formatPct(ipo.gmpPct)})` : null]
+      .filter(Boolean).join(' ');
+    // The grey market ends at listing, so a listed IPO's figure is the last one recorded before
+    // that — not a live premium. Labelling it plain "GMP" beside a real listing gain invited the
+    // reading that both are current. Named honestly it becomes the interesting comparison: what
+    // the grey market predicted, against what actually happened.
+    add('gmp', Icon, ipo.status === 'listed' ? 'Final GMP' : 'GMP', value, color);
+  }
+
+  add('subscription', PeopleAltOutlinedIcon, 'Subscription', formatMultiplier(ipo.subTotal));
+  add('registrar', DomainOutlinedIcon, 'Registrar', ipo.registrar);
+  return facts;
 }
 
-const hasAboutFacts = (ipo) =>
-  ipo.foundedYear != null || !!ipo.managingDirector || !!ipo.parentCompany
-  || !!ipo.sector || !!ipo.headquarters || !!ipo.website;
+/** The expanded "About" company facts, as the same tile grid as Key facts. Every field is
+ * independently optional — a real source reports some and not others — so each is only built
+ * when its own value is present. */
+function aboutFacts(ipo) {
+  const facts = [];
+  if (ipo.foundedYear != null) facts.push({ key: 'founded', icon: CalendarMonthOutlinedIcon, label: 'Founded', value: String(ipo.foundedYear) });
+  if (ipo.managingDirector) facts.push({ key: 'md', icon: BadgeOutlinedIcon, label: 'MD / CEO', value: ipo.managingDirector });
+  if (ipo.parentCompany) facts.push({ key: 'parent', icon: AccountTreeOutlinedIcon, label: 'Parent company', value: ipo.parentCompany });
+  if (ipo.sector) facts.push({ key: 'sector', icon: CategoryOutlinedIcon, label: 'Sector', value: ipo.sector });
+  if (ipo.headquarters) facts.push({ key: 'hq', icon: LocationOnOutlinedIcon, label: 'Headquarters', value: ipo.headquarters });
+  if (ipo.website) facts.push({ key: 'web', icon: LanguageOutlinedIcon, label: 'Website', value: <WebsiteLink website={ipo.website} /> });
+  return facts;
+}
 
 /**
  * Key metrics (KPI) grid — label/value pairs (ROE, P/E, EPS, Market Cap, …) as reported by the
  * source, values kept verbatim (%, ₹, ratios). Icon-less compact cells since the metrics are
- * heterogeneous; same faint-uppercase-label / bold-value type scale as `FactTile`.
+ * heterogeneous; same muted-uppercase-label / bold-value type scale as `FactTile`. Metrics a
+ * source reported without a figure are filtered out by the caller rather than shown as em dashes,
+ * which also means an all-empty list never renders a "Key metrics" heading over nothing.
  */
 function KpiGrid({ kpis }) {
   const T = useT();
+  const clamp2 = {
+    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+  };
   return (
     <Box sx={{
       display: 'grid',
-      gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(4,1fr)' },
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 150px), 1fr))',
       gap: 2,
     }}>
       {kpis.map((kpi) => (
         <Box key={kpi.label} sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }} noWrap>
+          {/* Source-supplied labels run long ("Promoter and promoter group", "Market cap at offer
+              price") and were being clipped mid-word; they wrap, bounded at two lines. */}
+          <Typography sx={{
+            fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4,
+            fontWeight: 700, lineHeight: 1.4, ...clamp2,
+          }}>
             {kpi.label}
           </Typography>
-          <Typography sx={{ fontSize: 14, fontWeight: 800, color: T.textPrimary, mt: 0.15 }} noWrap>
-            {kpi.value ?? '—'}
+          <Typography sx={{
+            fontSize: 14, fontWeight: 800, color: T.textPrimary, mt: 0.15,
+            lineHeight: 1.35, wordBreak: 'break-word', ...clamp2,
+          }}>
+            {kpi.value}
           </Typography>
         </Box>
       ))}
@@ -197,19 +198,25 @@ function KpiGrid({ kpis }) {
 /**
  * "Objects of the Issue" — a numbered list of what the net proceeds fund, with the estimated
  * ₹-crore amount right-aligned per row (omitted for rows with no figure, e.g. "General corporate
- * purposes"). Divider between rows, none after the last.
+ * purposes").
+ *
+ * Sources append their own "Total" row to this list, and numbering it as object 3 of 3 made the
+ * sum read as another use of funds. It is split out and rendered as a footer instead.
  */
 function ObjectsList({ objects }) {
   const T = useT();
+  const isTotal = (o) => /^\s*total\b/i.test(o.purpose ?? '');
+  const items = objects.filter((o) => !isTotal(o));
+  const total = objects.find(isTotal);
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       {/* The index stays: it drives the "1." numbering and the last-row border. */}
-      {objects.map((obj, i) => (
+      {items.map((obj, i) => (
         <Box
           key={obj.purpose}
           sx={{
             display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5,
-            py: 1, borderBottom: i < objects.length - 1 ? `1px solid ${T.border}` : 'none',
+            py: 1, borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : 'none',
           }}
         >
           <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
@@ -223,6 +230,22 @@ function ObjectsList({ objects }) {
           )}
         </Box>
       ))}
+      {total?.amount && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+          mt: 1, pt: 1, borderTop: `1px solid ${T.border}`,
+        }}>
+          <Typography sx={{
+            fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase',
+            letterSpacing: 0.4, fontWeight: 700,
+          }}>
+            Total
+          </Typography>
+          <Typography sx={{ fontSize: 14, fontWeight: 800, color: T.textPrimary, whiteSpace: 'nowrap' }}>
+            {total.amount}
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -285,82 +308,6 @@ function DocLink({ label, url }) {
   );
 }
 
-/**
- * True when investorgain has given us anything for the "Live market read" section — every field in
- * it is independently optional, so the section only appears once at least one has arrived.
- */
-const hasLiveRead = (ipo) => !!ipo && (
-  ipo.gmpRating != null || ipo.gmpMin != null || ipo.gmpMax != null || ipo.peRatio != null
-  || ipo.anchorInvestor != null || ipo.estimatedListingPrice != null
-  || ipo.subjectToSauda != null || ipo.estProfit != null
-);
-
-/**
- * Investorgain's live read on the issue: its GMP rating and range, the P/E and anchor-investor
- * flag, and the three grey-market estimates.
- *
- * Every value here is shown EXACTLY as investorgain publishes it — they compute the estimated
- * listing price (cap + GMP), the percentage and the per-lot profit themselves, so nothing on this
- * card is our arithmetic. That also drives the framing: the estimates are unofficial grey-market
- * numbers, not an exchange figure and not our own projection, so the section is titled and
- * footnoted as theirs rather than presented as fact. The "as of" labels are their own wording,
- * carried through verbatim, so a stale number reads as stale instead of looking live.
- */
-function LiveMarketRead({ ipo }) {
-  const T = useT();
-  const facts = [];
-  if (ipo.gmpRating != null) {
-    facts.push({ icon: LocalFireDepartmentOutlinedIcon, label: 'GMP rating', value: `${ipo.gmpRating}/5` });
-  }
-  if (ipo.gmpMin != null && ipo.gmpMax != null) {
-    facts.push({
-      icon: SwapVertOutlinedIcon,
-      label: 'GMP range',
-      value: `${formatCurrency(ipo.gmpMin)} – ${formatCurrency(ipo.gmpMax)}`,
-    });
-  }
-  if (ipo.estimatedListingPrice != null) {
-    facts.push({
-      icon: TrendingUpOutlinedIcon,
-      label: 'Est. listing price',
-      value: formatCurrency(ipo.estimatedListingPrice),
-    });
-  }
-  if (ipo.estProfit != null) {
-    facts.push({ icon: SavingsOutlinedIcon, label: 'Est. profit / lot', value: formatCurrency(ipo.estProfit) });
-  }
-  if (ipo.subjectToSauda != null) {
-    facts.push({ icon: HandshakeOutlinedIcon, label: 'Subject to sauda', value: formatCurrency(ipo.subjectToSauda) });
-  }
-  if (ipo.peRatio != null) {
-    facts.push({ icon: QueryStatsOutlinedIcon, label: 'P/E ratio', value: String(ipo.peRatio) });
-  }
-  if (ipo.anchorInvestor != null) {
-    facts.push({
-      icon: AccountBalanceWalletOutlinedIcon,
-      label: 'Anchor investors',
-      value: ipo.anchorInvestor ? 'Yes' : 'No',
-    });
-  }
-
-  const asOf = [
-    ipo.gmpUpdatedLabel && `GMP as of ${ipo.gmpUpdatedLabel}`,
-    ipo.subscriptionUpdatedLabel && `subscription as of ${ipo.subscriptionUpdatedLabel}`,
-  ].filter(Boolean).join(' · ');
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 2 }}>
-        {facts.map((f) => <FactTile key={f.label} icon={f.icon} label={f.label} value={f.value} />)}
-      </Box>
-      <Typography sx={{ fontSize: 11, color: T.textFaint, lineHeight: 1.5 }}>
-        Grey-market figures reported by Investorgain{asOf ? ` — ${asOf}` : ''}. Unofficial and
-        indicative only; not an exchange price and not investment advice.
-      </Typography>
-    </Box>
-  );
-}
-
 const hasIssueDetails = (d) =>
   !!d && (!!d.issueType || !!d.minOrderQuantity || !!d.sponsorBank || !!d.rhpUrl || !!d.drhpUrl);
 
@@ -371,21 +318,15 @@ const hasIssueDetails = (d) =>
  */
 function IssueDetails({ details }) {
   const facts = [];
-  if (details.issueType) facts.push({ icon: CategoryOutlinedIcon, label: 'Issue type', value: details.issueType });
-  if (details.minOrderQuantity) facts.push({ icon: Inventory2OutlinedIcon, label: 'Min. order qty', value: details.minOrderQuantity });
-  if (details.sponsorBank) facts.push({ icon: AccountBalanceWalletOutlinedIcon, label: 'Sponsor bank', value: details.sponsorBank });
+  if (details.issueType) facts.push({ key: 'type', icon: CategoryOutlinedIcon, label: 'Issue type', value: details.issueType });
+  if (details.minOrderQuantity) facts.push({ key: 'moq', icon: Inventory2OutlinedIcon, label: 'Min. order qty', value: details.minOrderQuantity });
+  if (details.sponsorBank) facts.push({ key: 'bank', icon: AccountBalanceWalletOutlinedIcon, label: 'Sponsor bank', value: details.sponsorBank });
   const docs = [];
   if (details.rhpUrl) docs.push({ label: 'Red Herring Prospectus', url: details.rhpUrl });
   if (details.drhpUrl) docs.push({ label: 'Draft RHP (DRHP)', url: details.drhpUrl });
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: facts.length && docs.length ? 2 : 0 }}>
-      {facts.length > 0 && (
-        <Box sx={{
-          display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)' }, gap: 2,
-        }}>
-          {facts.map((f) => <FactTile key={f.label} icon={f.icon} label={f.label} value={f.value} />)}
-        </Box>
-      )}
+      {facts.length > 0 && <FactGrid facts={facts} />}
       {docs.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {docs.map((d) => <DocLink key={d.label} label={d.label} url={d.url} />)}
@@ -412,142 +353,196 @@ function LeadManagers({ managers }) {
 
 /** Green for the retail tranche, purple for HNI — mid-tone hexes that read on both themes. */
 const LOT_GROUP_COLOR = { retail: '#059669', hni: '#7c3aed' };
-const INR0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+const INT_FMT = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 
-/** One application-lot-size tier card — amount (colour-coded by category) over a Lots / Shares pair. */
-function LotTierCard({ tier }) {
+/** A range as one string, collapsing to a single value when both ends are the same (an SME lot can
+ * be large enough that retail gets exactly one lot) and reading "from X" when the tranche is
+ * open-ended at the top, which B-HNI genuinely is. */
+const rangeText = (min, max, fmt) => {
+  if (max == null) return `from ${fmt(min)}`;
+  if (min === max) return fmt(min);
+  return `${fmt(min)} – ${fmt(max)}`;
+};
+
+/** The caption line's tighter register: no spaces around the dash, and an open-ended top reads as
+ * a "+" suffix rather than a second "from" (the amount above it already says "from", and
+ * "from 69 lots · from 2,346 shares" said it twice in one line). */
+const compactRange = (min, max, fmt) => {
+  if (max == null) return `${fmt(min)}+`;
+  if (min === max) return fmt(min);
+  return `${fmt(min)}–${fmt(max)}`;
+};
+
+const intText = (n) => INT_FMT.format(n);
+
+/** Lots carry the unit once at the end, not on both ends of the range. */
+const lotsText = (min, max) =>
+  `${compactRange(min, max, intText)} lot${min === 1 && max === 1 ? '' : 's'}`;
+
+/**
+ * One investor tranche as a rung on the ladder: who it is on the left, what a bid in it costs on
+ * the right, and the lots and shares that buys underneath.
+ *
+ * Laid out as a wide row rather than a tile because the three tranches ARE a ladder — retail, then
+ * small HNI, then big HNI, each starting where the last one stops — and stacking them full-width
+ * keeps that ascent visible while a grid of tiles broke it into an arbitrary 2 + 1. The left
+ * accent bar carries the tranche colour so retail separates from HNI without a second label.
+ */
+function TrancheRow({ tranche }) {
   const T = useT();
-  const color = LOT_GROUP_COLOR[tier.group];
+  const color = LOT_GROUP_COLOR[tranche.group];
   return (
-    <Box sx={{ p: 1.5, borderRadius: 2.5, border: `1px solid ${color}33`, bgcolor: `${color}12`, minWidth: 0 }}>
-      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted }} noWrap>{tier.label}</Typography>
-      <Typography sx={{ fontSize: 19, fontWeight: 800, color, mt: 0.25 }} noWrap>₹{INR0.format(tier.amount)}</Typography>
-      <Box sx={{ display: 'flex', gap: 2.5, mt: 0.85 }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>Lots</Typography>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: T.textPrimary }}>{INR0.format(tier.lots)}</Typography>
-        </Box>
-        <Box sx={{ minWidth: 0, borderLeft: `1px solid ${T.border}`, pl: 2.5 }}>
-          <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>Shares</Typography>
-          <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: T.textPrimary }}>{INR0.format(tier.shares)}</Typography>
-        </Box>
+    <Box sx={{
+      position: 'relative', overflow: 'hidden', minWidth: 0,
+      py: 1.15, px: 1.5, pl: 1.75, borderRadius: 2,
+      border: `1px solid ${color}33`, bgcolor: `${color}0f`,
+      '&::before': {
+        content: '""', position: 'absolute', top: 0, bottom: 0, left: 0, width: 3, bgcolor: color,
+      },
+    }}>
+      <Box sx={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        gap: 1.5, flexWrap: 'wrap',
+      }}>
+        <Typography sx={{
+          fontSize: 11, fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: 0.5,
+        }} noWrap>
+          {tranche.label}
+        </Typography>
+        <Typography sx={{
+          fontSize: { xs: 15, sm: 16 }, fontWeight: 800, color: T.textPrimary, lineHeight: 1.3,
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {rangeText(tranche.minAmount, tranche.maxAmount, formatAmount)}
+        </Typography>
       </Box>
+      <Typography sx={{ fontSize: 11.5, color: T.textMuted, mt: 0.2, fontVariantNumeric: 'tabular-nums' }}>
+        {lotsText(tranche.minLots, tranche.maxLots)}
+        {' · '}
+        {compactRange(tranche.minShares, tranche.maxShares, intText)} shares
+      </Typography>
     </Box>
   );
 }
 
 /**
- * "IPO lot size" — the per-category application ladder (Retail Min/Max, S-HNI Min/Max, B-HNI Min),
- * derived from lot size + the cut-off price via {@code computeLotBreakdown}. Renders nothing when
- * lot size / price aren't known yet (see call site gating on the return being null).
+ * "Application amounts" — what a bid costs in each investor tranche, from `computeLotBreakdown`.
+ *
+ * This has now been three things. It started as five tile-cards, one per endpoint, each repeating
+ * the words "Lots" and "Shares" and costing 470px. A table halved that, but left the Overview
+ * reading as three stacked tables in a row — and it still made the reader pair "Retail (Min)" with
+ * "Retail (Max)" themselves to get the one number they came for. These are three RANGES, not five
+ * rows, and they are a ladder rather than a set, so they are drawn as three stacked rungs.
+ *
+ * Renders nothing when lot size / price aren't known (see the call site).
  */
-function LotSizeSection({ breakdown }) {
+function LotSizeSection({ breakdown, ipoType }) {
   const T = useT();
   return (
-    <SectionCard title="IPO lot size" icon={<LayersOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-      <Typography sx={{ fontSize: 13, color: T.textMuted, mb: 2 }}>
-        Minimum bid:{' '}
-        <Box component="span" sx={{ fontWeight: 800, color: T.textPrimary }}>{breakdown.minBidShares}</Box>
-        {' '}shares and in multiples thereof
-      </Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)' }, gap: 1.5 }}>
-        {breakdown.tiers.map((tier) => <LotTierCard key={tier.label} tier={tier} />)}
+    <SectionCard
+      title="Application amounts"
+      subtitle={`One lot is ${breakdown.minBidShares} shares (${formatAmount(breakdown.lotValue)}); bids go up in whole lots.`}
+      icon={<LayersOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {breakdown.tranches.map((tranche) => <TrancheRow key={tranche.key} tranche={tranche} />)}
       </Box>
+      <Typography sx={{ fontSize: 11, color: T.textFaint, mt: 1.5, lineHeight: 1.5 }}>
+        {String(ipoType).toLowerCase() === 'sme'
+          ? 'A retail application is capped at ₹2,00,000; anything above that bids as HNI.'
+          : 'SEBI caps a retail application at ₹2,00,000 and an S-HNI application at ₹10,00,000.'}
+      </Typography>
     </SectionCard>
   );
 }
 
 /**
- * Overview tab — the at-a-glance summary, ordered by decision-usefulness: timeline stepper, the
- * compact "key facts" grid, a brief (collapsible) About so the reader knows what the company is
- * before the numbers, then the financials snapshot + key metrics, and finally the remaining
- * prospectus detail (Strengths, Lead managers, Objects of the issue). The full GMP/subscription
- * charts live on their own tabs.
+ * Overview tab — everything about the issue and the company that isn't the grey market (GMP tab),
+ * the bidding (Subscription tab) or the allotment (Allotment tab).
+ *
+ * Two things changed structurally.
+ *
+ * ORDER. It now runs in the order the questions actually get asked: when is it, what is it, what
+ * does an application cost, who is the company, how do they trade, what are they good at, where
+ * does the money go, and finally the paperwork. "IPO lot size" — the answer to "what will this
+ * cost me" — used to sit eighth, below the list of lead managers. "Live market read" used to sit
+ * here at all, which put investorgain's P/E directly beneath the prospectus's own P/E from a
+ * different source and read as a contradiction; it now lives with the rest of the grey market on
+ * the GMP tab.
+ *
+ * WIDTH. Ten full-width cards stacked in one column ran ~2,750px of card on a desktop, with a
+ * 100px-tall facts grid spending a whole 1,050px-wide row and the About paragraph running at a
+ * line length well past comfortable. From `lg` up the sections split into two columns — the offer
+ * on the left, the company and its filings on the right — with the timeline full-width above
+ * both, since a six-stage stepper is the one thing here that genuinely wants the whole row.
  */
 export default function OverviewTab({ ipo, id }) {
   const T = useT();
-  const showAbout = !!ipo.about || hasAboutFacts(ipo);
+  const facts = keyFacts(ipo, T, detailFigures(ipo));
+  const about = aboutFacts(ipo);
+  const kpis = (ipo.kpis ?? []).filter((kpi) => kpi.value != null && kpi.value !== '');
   const lotBreakdown = computeLotBreakdown(ipo.lotSize, ipo.priceMax, ipo.ipoType);
+  const sectionIcon = (Icon) => <Icon sx={{ fontSize: 15, color: T.teal }} />;
+
+  // The offer: what it is, what it costs, who is selling, what the proceeds are for.
+  const offerColumn = [
+    facts.length > 0 && (
+      <SectionCard key="facts" title="Key facts" icon={sectionIcon(ListAltOutlinedIcon)}>
+        <FactGrid facts={facts} />
+      </SectionCard>
+    ),
+    lotBreakdown && <LotSizeSection key="lots" breakdown={lotBreakdown} ipoType={ipo.ipoType} />,
+    (ipo.about || about.length > 0) && (
+      <SectionCard key="about" title="About" icon={sectionIcon(InfoOutlinedIcon)}>
+        {ipo.about && <AboutBlurb text={ipo.about} mb={about.length > 0 ? 2 : 0} />}
+        {about.length > 0 && <FactGrid facts={about} />}
+      </SectionCard>
+    ),
+    ipo.issueObjects?.length > 0 && (
+      <SectionCard key="objects" title="Objects of the issue" icon={sectionIcon(FlagOutlinedIcon)}>
+        <ObjectsList objects={ipo.issueObjects} />
+      </SectionCard>
+    ),
+  ].filter(Boolean);
+
+  // The company: how it trades, what it claims, and who arranged the issue.
+  const companyColumn = [
+    <FinancialsTable key="fin" id={id} />,
+    kpis.length > 0 && (
+      <SectionCard key="kpi" title="Key metrics" icon={sectionIcon(QueryStatsOutlinedIcon)}>
+        <KpiGrid kpis={kpis} />
+      </SectionCard>
+    ),
+    <StrengthsRisks key="sr" ipo={ipo} />,
+    hasIssueDetails(ipo.issueDetails) && (
+      <SectionCard key="issue" title="Issue details" icon={sectionIcon(ReceiptLongOutlinedIcon)}>
+        <IssueDetails details={ipo.issueDetails} />
+      </SectionCard>
+    ),
+    ipo.leadManagers?.length > 0 && (
+      <SectionCard key="lm" title="Lead manager(s)" icon={sectionIcon(GroupsOutlinedIcon)}>
+        <LeadManagers managers={ipo.leadManagers} />
+      </SectionCard>
+    ),
+  ].filter(Boolean);
+
   return (
-    <Box>
-      <SectionCard title="Timeline">
+    <SectionStack>
+      <SectionCard title="Timeline" icon={sectionIcon(EventOutlinedIcon)}>
         <IpoTimeline ipo={ipo} />
       </SectionCard>
 
-      <SectionCard title="Key facts" icon={<ListAltOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(4,1fr)' },
-          gap: 2,
-        }}>
-          <FactTile icon={CurrencyRupeeOutlinedIcon} label="Price band" value={formatPriceBand(ipo.priceMin, ipo.priceMax)} />
-          <FactTile icon={Inventory2OutlinedIcon} label="Lot size" value={ipo.lotSize != null ? `${ipo.lotSize} shares` : null} />
-          <FactTile icon={AccountBalanceWalletOutlinedIcon} label="Issue size" value={ipo.issueSize} />
-          <FactTile icon={StorefrontOutlinedIcon} label="Exchange" value={formatExchange(ipo.listingExchange)} />
-          {ipo.faceValue != null && (
-            <FactTile icon={SellOutlinedIcon} label="Face value" value={formatCurrency(ipo.faceValue)} />
-          )}
-          {ipo.freshIssue != null && (
-            <FactTile icon={AddCircleOutlineIcon} label="Fresh issue" value={`${formatCurrency(ipo.freshIssue)} Cr`} />
-          )}
-          {ipo.offerForSale != null && (
-            <FactTile icon={SwapHorizOutlinedIcon} label="Offer for sale" value={`${formatCurrency(ipo.offerForSale)} Cr`} />
-          )}
-          {ipo.listingPrice != null && (
-            <FactTile icon={PriceCheckOutlinedIcon} label="Listing price" value={formatCurrency(ipo.listingPrice)} />
-          )}
-          {ipo.listingGainPct != null && <ListingGainFactTile gainPct={ipo.listingGainPct} />}
-          <GmpFactTile gmp={ipo.gmp} gmpPct={ipo.gmpPct} />
-          <FactTile icon={PeopleAltOutlinedIcon} label="Subscription" value={formatMultiplier(ipo.subTotal)} />
-          <FactTile icon={DomainOutlinedIcon} label="Registrar" value={ipo.registrar} />
-        </Box>
-      </SectionCard>
-
-      {showAbout && (
-        <SectionCard title="About" icon={<InfoOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          {ipo.about && <AboutBlurb text={ipo.about} mb={hasAboutFacts(ipo) ? 2 : 0} />}
-          {hasAboutFacts(ipo) && <AboutFacts ipo={ipo} />}
-        </SectionCard>
-      )}
-
-      <FinancialsTable id={id} />
-
-      {ipo.kpis?.length > 0 && (
-        <SectionCard title="Key metrics" icon={<QueryStatsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <KpiGrid kpis={ipo.kpis} />
-        </SectionCard>
-      )}
-
-      <StrengthsRisks ipo={ipo} />
-
-      {ipo.leadManagers?.length > 0 && (
-        <SectionCard title="Lead manager(s)" icon={<GroupsOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <LeadManagers managers={ipo.leadManagers} />
-        </SectionCard>
-      )}
-
-      {lotBreakdown && <LotSizeSection breakdown={lotBreakdown} />}
-
-      {hasLiveRead(ipo) && (
-        <SectionCard
-          title="Live market read"
-          icon={<LocalFireDepartmentOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
-        >
-          <LiveMarketRead ipo={ipo} />
-        </SectionCard>
-      )}
-
-      {hasIssueDetails(ipo.issueDetails) && (
-        <SectionCard title="Issue details" icon={<ReceiptLongOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <IssueDetails details={ipo.issueDetails} />
-        </SectionCard>
-      )}
-
-      {ipo.issueObjects?.length > 0 && (
-        <SectionCard title="Objects of the issue" icon={<FlagOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <ObjectsList objects={ipo.issueObjects} />
-        </SectionCard>
-      )}
-    </Box>
+      {/* Below `lg` this collapses to one column and the two arrays simply concatenate, which is
+          why the offer column is ordered to read sensibly straight on into the company one. */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' },
+        gap: 2,
+        alignItems: 'start',
+      }}>
+        <SectionStack>{offerColumn}</SectionStack>
+        <SectionStack>{companyColumn}</SectionStack>
+      </Box>
+    </SectionStack>
   );
 }

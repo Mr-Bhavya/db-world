@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
-import { Box, Typography, Chip } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import { useT } from '@shared/theme';
-import { formatShortDate, formatCurrency, formatPct, expectedListingPrice, dayOverDayDelta } from '../utils/format';
+import { formatShortDate, formatCurrency, formatPct, dayOverDayDelta } from '../utils/format';
 import GmpChart from './GmpChart';
-import SectionCard from './SectionCard';
+import SectionCard, { SectionStack } from './SectionCard';
 import DayWiseTable from './DayWiseTable';
+import GreyMarketRead, { hasGreyMarketRead } from './GreyMarketRead';
 
 /** Small ▲/▼ day-over-day change cell — a plain em dash for the earliest row (nothing to
  * compare against) or a genuinely flat day. */
@@ -22,47 +23,24 @@ function ChangeCell({ change }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.3 }}>
       <Icon sx={{ fontSize: 14, color }} />
-      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color }}>
+      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
         {up ? '+' : '-'}{formatCurrency(Math.abs(change.delta))}
       </Typography>
     </Box>
   );
 }
 
-/**
- * Expected listing price. Investorgain publishes this themselves (`estimatedListingPrice`, cap +
- * current GMP) so their figure is used verbatim when we have it — recomputing a number the source
- * already gives us risks quietly disagreeing with the value shown everywhere else.
- * `expectedListingPrice` stays as the fallback for IPOs the per-IPO estimate fetch hasn't reached.
- * Hidden entirely when neither is available.
- */
-function ExpectedListingStat({ ipo, points }) {
+/** Plain text cell — kept tiny/local since it's used only by the column renderers below. */
+function Cell({ children, bold, muted, align }) {
   const T = useT();
-  const latestGmp = ipo.gmp ?? (points.length ? points[points.length - 1].gmp : null);
-  const reported = ipo.estimatedListingPrice != null && ipo.gmpPct != null
-    ? { price: ipo.estimatedListingPrice, gainPct: ipo.gmpPct, source: 'investorgain' }
-    : null;
-  const result = reported ?? expectedListingPrice(ipo.priceMax, latestGmp);
-  if (!result) return null;
-  const gainColor = result.gainPct > 0 ? T.success : result.gainPct < 0 ? T.error : T.textMuted;
-  const gainBg = result.gainPct > 0 ? T.successBg : result.gainPct < 0 ? T.errorBg : T.glassHover;
   return (
-    <SectionCard title="Expected listing price" icon={<TrendingUpIcon sx={{ fontSize: 15, color: T.teal }} />}>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flexWrap: 'wrap' }}>
-        <Typography sx={{ fontSize: 24, fontWeight: 900, color: T.textPrimary }}>
-          {formatCurrency(result.price)}
-        </Typography>
-        <Chip
-          size="small"
-          label={formatPct(result.gainPct)}
-          sx={{ height: 22, fontSize: 12, fontWeight: 800, color: gainColor, bgcolor: gainBg }}
-        />
-      </Box>
-      <Typography sx={{ fontSize: 11.5, color: T.textFaint, mt: 0.5 }}>
-        vs upper price band {formatCurrency(ipo.priceMax) ?? '—'}
-        {result.source === 'investorgain' && ' · as reported by Investorgain'}
-      </Typography>
-    </SectionCard>
+    <Typography sx={{
+      fontSize: 13, fontWeight: bold ? 700 : 400, textAlign: align ?? 'left',
+      color: muted ? T.textMuted : T.textPrimary,
+      fontVariantNumeric: align === 'right' ? 'tabular-nums' : undefined,
+    }}>
+      {children}
+    </Typography>
   );
 }
 
@@ -85,24 +63,20 @@ const GMP_COLUMNS = [
   },
 ];
 
-/** Plain text cell — kept tiny/local since it's used only by the column renderers above. */
-function Cell({ children, bold, muted, align }) {
-  const T = useT();
-  return (
-    <Typography sx={{
-      fontSize: 13, fontWeight: bold ? 700 : 400, textAlign: align ?? 'left',
-      color: muted ? T.textMuted : T.textPrimary,
-    }}>
-      {children}
-    </Typography>
-  );
-}
-
 /**
- * GMP tab — the "GMP journey" chart, an expected-listing-price stat, and a most-recent-first
- * day-wise GMP history table. (Source attribution was removed pending the final crediting
- * requirement — it will be re-added deliberately once that's settled, hence `IpoGuruAttribution`
- * is intentionally left in the tree unused.)
+ * GMP tab — the whole grey market for this IPO, and nothing else.
+ *
+ * It used to be the chart, an "Expected listing price" stat, and a history table, while the
+ * grey market's other half — investorgain's rating, range, per-lot profit estimate, subject-to-
+ * sauda and P/E — sat on the Overview tab under the heading "Live market read". That split cost
+ * two things: the estimated listing price was rendered three times across the page (hero footnote,
+ * Overview, here), and investorgain's P/E landed on the Overview immediately below the
+ * prospectus's own P/E from a different source, where two legitimately different numbers read as
+ * one being wrong. Both now live here, in one attributed section.
+ *
+ * (Source attribution for the day-wise series was removed pending the final crediting requirement
+ * — it will be re-added deliberately once that's settled, hence `IpoGuruAttribution` is
+ * intentionally left in the tree unused.)
  */
 export default function GmpTab({ ipo, points, loading }) {
   const T = useT();
@@ -119,16 +93,27 @@ export default function GmpTab({ ipo, points, loading }) {
   }, [points]);
 
   return (
-    <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box sx={{ width: '100%', minWidth: 0, mb: 2 }}>
-        <GmpChart points={points} loading={loading} />
-      </Box>
+    <SectionStack>
+      <GmpChart points={points} loading={loading} />
 
-      {!loading && <ExpectedListingStat ipo={ipo} points={points} />}
+      {!loading && hasGreyMarketRead(ipo, points) && <GreyMarketRead ipo={ipo} points={points} />}
 
-      <SectionCard title="Day-wise GMP" icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+      <SectionCard
+        title="Day-wise GMP"
+        subtitle="Each row is a reading recorded on that date, most recent first."
+        icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+      >
         <DayWiseTable columns={GMP_COLUMNS} rows={rows} loading={loading} emptyLabel="No GMP history yet." />
       </SectionCard>
-    </Box>
+
+      {/* One disclaimer for the tab rather than one per section: the chart and the grey-market
+          read each carried their own, saying nearly the same thing a screen apart — and the
+          chart's lived inside its "has history" branch, so it vanished precisely when there was
+          no chart to qualify. Here it is always present, exactly once. */}
+      <Typography sx={{ fontSize: 11, color: T.textFaint, lineHeight: 1.55 }}>
+        Grey market premium is informal and sourced from unofficial grey-market channels. Every
+        figure on this tab is indicative only — not an exchange price, and not investment advice.
+      </Typography>
+    </SectionStack>
   );
 }

@@ -234,13 +234,17 @@ export const daysLeftLabel = (ipo) => {
  * bar, multiple emphasized in the label" rather than an ever-growing bar) + color tier
  * resolved against the live tokens: <1× muted/grey (undersubscribed), 1–3× teal,
  * 3–10× success/green (comfortably oversubscribed), >10× warning/orange ("hot" issue).
+ *
+ * The undersubscribed tier is `textMuted`, not `textFaint`: it is still the dimmest of the four,
+ * but 0.46 alpha rendered both the figure and the bar tracking it as barely-there grey — the same
+ * contrast problem the labels had.
  */
 export const subscriptionMeta = (subTotal, T) => {
   if (subTotal == null) return null;
   const n = Number(subTotal);
   const fillPct = Math.max(0, Math.min(n, 1)) * 100;
   let color;
-  if (n < 1)        { color = T.textFaint; }
+  if (n < 1)        { color = T.textMuted; }
   else if (n < 3)   { color = T.teal; }
   else if (n <= 10) { color = T.success; }
   else              { color = T.warning; }
@@ -248,24 +252,17 @@ export const subscriptionMeta = (subTotal, T) => {
 };
 
 /**
- * Mean of the available (non-null) subscription multiples — e.g. QIB/NII/Retail on the
- * detail page's Subscription tab — so a category that hasn't reported yet doesn't drag
- * the average toward zero. Null when none of the inputs are known yet (never `NaN`).
- */
-export const averageSubscription = (values) => {
-  const known = (values ?? []).filter((v) => v != null).map(Number);
-  if (known.length === 0) return null;
-  return known.reduce((sum, v) => sum + v, 0) / known.length;
-};
-
-/**
- * The application lot-size breakdown investorgain/Chittorgarh show — how many lots each investor
- * category can bid, derived purely from the lot size + the cut-off price (upper band) and SEBI's
- * category caps: Retail ≤ ₹2,00,000, S-HNI ₹2,00,000–₹10,00,000, B-HNI > ₹10,00,000. Returns
- * `{ minBidShares, tiers: [{ label, group, lots, shares, amount }] }`, or `null` when lot size /
- * price is missing. SME issues have no 2L/10L split — a single HNI tier above the retail cap.
- *   - Retail (Min) = 1 lot; Retail (Max) = most lots still ≤ ₹2L.
- *   - S-HNI (Min) = Retail-max + 1; S-HNI (Max) = most lots still ≤ ₹10L; B-HNI (Min) = S-HNI-max + 1.
+ * The per-category application ladder SEBI's caps produce, derived purely from the lot size and
+ * the cut-off price: Retail ≤ ₹2,00,000, S-HNI ₹2,00,000–₹10,00,000, B-HNI above that. An SME
+ * issue has no 2L/10L split — one HNI tranche above the retail cap.
+ *
+ * Returns RANGES, not endpoint rows. The five endpoints ("Retail (Min)", "Retail (Max)", …) were
+ * only ever the ends of three ranges, and splitting each one into its own row made the reader
+ * reassemble them; a tranche IS "1 to 13 lots, ₹14,586 to ₹1,89,618". The last tranche is
+ * open-ended, so its `max*` fields are null rather than an invented ceiling.
+ *
+ * `{ minBidShares, lotValue, tranches: [{ key, label, group, minLots, maxLots, minShares,
+ * maxShares, minAmount, maxAmount }] }`, or null when lot size / price is missing.
  */
 export const computeLotBreakdown = (lotSize, price, ipoType) => {
   const lot = Number(lotSize);
@@ -275,20 +272,71 @@ export const computeLotBreakdown = (lotSize, price, ipoType) => {
   const RETAIL_CAP = 200000;
   const SHNI_CAP = 1000000;
   const lotValue = lot * p;
-  const tier = (label, group, lots) => ({ label, group, lots, shares: lots * lot, amount: lots * lotValue });
+  const tranche = (key, label, group, minLots, maxLots) => ({
+    key,
+    label,
+    group,
+    minLots,
+    maxLots,
+    minShares: minLots * lot,
+    maxShares: maxLots == null ? null : maxLots * lot,
+    minAmount: minLots * lotValue,
+    maxAmount: maxLots == null ? null : maxLots * lotValue,
+  });
 
   const retailMaxLots = Math.max(1, Math.floor(RETAIL_CAP / lotValue));
-  const tiers = [tier('Retail (Min)', 'retail', 1), tier('Retail (Max)', 'retail', retailMaxLots)];
+  const tranches = [tranche('retail', 'Retail', 'retail', 1, retailMaxLots)];
 
   if (String(ipoType).toLowerCase() === 'sme') {
-    tiers.push(tier('HNI (Min)', 'hni', retailMaxLots + 1));
+    tranches.push(tranche('hni', 'HNI', 'hni', retailMaxLots + 1, null));
   } else {
     const sHniMaxLots = Math.max(retailMaxLots + 1, Math.floor(SHNI_CAP / lotValue));
-    tiers.push(tier('S-HNI (Min)', 'hni', retailMaxLots + 1));
-    tiers.push(tier('S-HNI (Max)', 'hni', sHniMaxLots));
-    tiers.push(tier('B-HNI (Min)', 'hni', sHniMaxLots + 1));
+    tranches.push(tranche('shni', 'S-HNI', 'hni', retailMaxLots + 1, sHniMaxLots));
+    tranches.push(tranche('bhni', 'B-HNI', 'hni', sHniMaxLots + 1, null));
   }
-  return { minBidShares: lot, tiers };
+  return { minBidShares: lot, lotValue, tranches };
+};
+
+/**
+ * Categories that are a SLICE of another category rather than a peer of it: S-NII and B-NII are
+ * the small- and big-HNI halves of NII (and S-HNI/B-HNI are the same split under the other
+ * source's naming). Maps a key to its parent's key, or null when it stands alone.
+ */
+const SUB_TRANCHE_PARENT = {
+  's-nii': 'nii', 'b-nii': 'nii',
+  's-hni': 'hni', 'b-hni': 'hni',
+};
+
+/**
+ * The parent category a key is a slice of, but only when that parent is actually present in
+ * `siblings` — a source that reports S-NII and B-NII WITHOUT an NII line isn't double counting,
+ * so those two are peers there and must not be treated as slices.
+ *
+ * This is what stops the shares-offered total being inflated. Summing every reported category
+ * counted the NII tranche twice (once whole, once as its two halves), which put the denominator
+ * ~21% too high and made every "% of offer" wrong on every mainboard IPO.
+ */
+export const subTrancheParentOf = (key, siblings = []) => {
+  const parent = SUB_TRANCHE_PARENT[String(key).toLowerCase()];
+  if (!parent) return null;
+  const match = siblings.find((k) => String(k).toLowerCase() === parent);
+  return match ?? null;
+};
+
+/**
+ * Total shares on offer across categories, counting each share once — sub-tranches are skipped
+ * when their parent is also reported. Null when nothing carries a `sharesOffered`, so the caller
+ * hides the "% of offer" figures rather than dividing by zero.
+ */
+export const totalSharesOffered = (rows) => {
+  const list = rows ?? [];
+  const keys = list.map((r) => r.category);
+  const total = list.reduce((sum, r) => (
+    subTrancheParentOf(r.category, keys) || r.sharesOffered == null
+      ? sum
+      : sum + Number(r.sharesOffered)
+  ), 0);
+  return total > 0 ? total : null;
 };
 
 /**
@@ -459,4 +507,119 @@ export const computeQuickStats = (ipos) => {
     }
   }
   return { openCount, upcomingCount, topGmp };
+};
+
+
+// ─── Detail page ─────────────────────────────────────────────────────────────
+// The detail page follows the same rule the list cards do (see `IpoCard`'s `cardStats`): a
+// figure is only ever offered when its value exists, so no stage can render a hole where a
+// number should be. These helpers are the shared, testable half of that — the components own
+// the rendering, this file owns "what does this IPO actually have, and what leads".
+
+/** Whole-rupee amount with Indian digit grouping — "₹14,450". Paise are never meaningful for
+ * an application amount or an issue figure, and two trailing zeros only add width. */
+export const formatAmount = (n) =>
+  (n == null ? null : `₹${Math.round(Number(n)).toLocaleString('en-IN')}`);
+
+/**
+ * What one retail application actually costs: the minimum bid (one lot) at the cut-off price.
+ * This is the number a reader is really after when they look at a price band and a lot size —
+ * the detail page shows it rather than making them multiply. Null whenever either input is
+ * missing or non-positive, so the caller hides the figure instead of printing "₹0".
+ */
+export const minInvestment = (lotSize, priceMax) => {
+  const lot = Number(lotSize);
+  const price = Number(priceMax);
+  if (!lot || !price || lot <= 0 || price <= 0) return null;
+  return lot * price;
+};
+
+/**
+ * How far through its bidding window an IPO is, 0–100, counting whole days INCLUSIVELY — on the
+ * open day of a 28 Aug–01 Sep issue you are 1 day into 5, not 0. Clamped at both ends so a
+ * not-yet-open issue reads 0 and a closed one reads 100 rather than going negative/past full.
+ * Null when either date is unknown or the window is inverted, so the bar is hidden rather than
+ * drawn at some arbitrary width.
+ */
+export const biddingProgressPct = (openDate, closeDate) => {
+  const fromOpen = daysUntil(openDate);
+  const fromClose = daysUntil(closeDate);
+  if (fromOpen == null || fromClose == null) return null;
+  const totalDays = fromClose - fromOpen + 1;
+  if (totalDays <= 0) return null;
+  const elapsed = Math.max(0, Math.min(1 - fromOpen, totalDays));
+  return (elapsed / totalDays) * 100;
+};
+
+/**
+ * Presence test per hero figure — the single place that decides whether the detail page has a
+ * given number at all. Keyed the same way as `DETAIL_FIGURE_ORDER` below and as the Key-facts
+ * grid's exclusion list, so "does it exist", "does the hero lead with it" and "has the grid
+ * already shown it" can never drift apart.
+ */
+const DETAIL_FIGURE_HAS = {
+  gmp: (i) => i.gmp != null || i.gmpPct != null,
+  subscription: (i) => i.subTotal != null,
+  listingGain: (i) => i.listingGainPct != null,
+  listingPrice: (i) => i.listingPrice != null,
+  priceBand: (i) => i.priceMin != null || i.priceMax != null,
+  minInvestment: (i) => minInvestment(i.lotSize, i.priceMax) != null,
+  issueSize: (i) => !!i.issueSize,
+};
+
+/**
+ * Hero figures per lifecycle stage, most relevant first — the detail-page counterpart of
+ * `IpoCard`'s ORDER map, and deliberately the same shape of answer: each stage lists more
+ * candidates than it can show and the available ones win, so the headline is always a real
+ * number rather than an em dash.
+ *
+ * Every stage carries the price band and the minimum application amount, because those are what
+ * turn a headline into a decision ("₹330 premium" means nothing until you know a lot costs
+ * ₹14,950). The lead differs by stage exactly as it does on the card: grey market before
+ * bidding, subscription once bidding is done, listing gain once it is over.
+ */
+const DETAIL_FIGURE_ORDER = {
+  upcoming: ['gmp', 'priceBand', 'minInvestment', 'issueSize'],
+  open: ['gmp', 'subscription', 'priceBand', 'minInvestment'],
+  closed: ['subscription', 'gmp', 'priceBand', 'minInvestment'],
+  listed: ['listingGain', 'listingPrice', 'subscription', 'priceBand'],
+};
+
+/**
+ * The figure keys the detail hero should show for this IPO, in order — first one is the
+ * headline. Capped at `max` so the hero stays a hero rather than becoming another flat grid.
+ * Returns [] for a falsy IPO or one with nothing at all, which the hero renders as identity +
+ * timing only.
+ */
+export const detailFigures = (ipo, max = 4) => {
+  if (!ipo) return [];
+  const order = DETAIL_FIGURE_ORDER[ipo.status] ?? DETAIL_FIGURE_ORDER.upcoming;
+  return order.filter((key) => DETAIL_FIGURE_HAS[key](ipo)).slice(0, max);
+};
+
+/**
+ * Which detail tabs have something to say about this IPO.
+ *
+ * The tab strip had the same problem the cards did before the list redesign: it showed all four
+ * sections at every stage, so an upcoming IPO offered a Subscription tab with no bids yet and an
+ * Allotment tab for an application nobody could have made.
+ *
+ * Gating is primarily on the IPO's OWN fields, which arrive with the main query, so the strip
+ * settles in one go rather than reshuffling under the reader. `history` widens it: a source can
+ * report day-wise points without ever filling the summary figure (`SubscriptionTab` already falls
+ * back from `ipo.subTotal` to the latest point's total for exactly that reason), and hiding a tab
+ * that has real data behind it would be a worse failure than a tab that appears a moment late.
+ */
+export const detailTabsFor = (ipo, history = {}) => {
+  const { gmp: gmpCount = 0, subscription: subCount = 0 } = history;
+  const tabs = ['overview'];
+  const hasGreyMarket = !!ipo && (
+    ipo.gmp != null || ipo.gmpPct != null || ipo.gmpMin != null || ipo.gmpMax != null
+    || ipo.gmpRating != null || ipo.estimatedListingPrice != null
+  );
+  if (hasGreyMarket || gmpCount > 0) tabs.push('gmp');
+  if (ipo?.subTotal != null || subCount > 0) tabs.push('subscription');
+  // Bidding has to have opened before there is an application to record or an allotment to check.
+  if (ipo?.status && ipo.status !== 'upcoming') tabs.push('allotment');
+  return tabs;
 };
