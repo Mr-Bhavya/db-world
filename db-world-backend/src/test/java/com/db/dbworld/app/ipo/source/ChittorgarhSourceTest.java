@@ -418,6 +418,95 @@ class ChittorgarhSourceTest {
         assertThat(enrichment.leadManagers()).isEqualTo("Share India Capital Services Pvt.Ltd.");
     }
 
+    /** The standard "IPO Lot Size" table — the shape every Chittorgarh IPO page carries. */
+    private static final String LOT_SIZE_TABLE_HTML = """
+            <html><body>
+              <table>
+                <thead><tr><th>Application</th><th>Lots</th><th>Shares</th><th>Amount</th></tr></thead>
+                <tbody>
+                  <tr><td>Retail (Min)</td><td>1</td><td>1,200</td><td>₹1,20,000</td></tr>
+                  <tr><td>Retail (Max)</td><td>1</td><td>1,200</td><td>₹1,20,000</td></tr>
+                  <tr><td>HNI (Min)</td><td>2</td><td>2,400</td><td>₹2,40,000</td></tr>
+                </tbody>
+              </table>
+            </body></html>
+            """;
+
+    @Test
+    void parseDetail_extractsLotSizeFromRetailMinRowOfLotTable() {
+        Document doc = Jsoup.parse(LOT_SIZE_TABLE_HTML, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        // Retail's minimum application is one lot by definition, so its Shares cell IS the lot size.
+        // The comma matters: without stripping it, "1,200" reads as 1.
+        assertThat(enrichment.lotSize()).isEqualTo(1200);
+    }
+
+    @Test
+    void parseDetail_lotTableAbsent_fallsBackToLabelledLotSizeRow() {
+        String html = """
+                <html><body>
+                  <table><tbody>
+                    <tr><td>Face Value</td><td>₹10 per share</td></tr>
+                    <tr><td>Lot Size</td><td>1,600 Shares</td></tr>
+                  </tbody></table>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
+
+        ChittorgarhSource.DetailEnrichment enrichment = newSource().parseDetail(doc);
+
+        assertThat(enrichment.lotSize()).isEqualTo(1600);
+    }
+
+    @Test
+    void parseDetail_extractsListingPriceFromListingDayTradingTable() {
+        // The listing-day table is the ONLY place a listing price appears anywhere in our sources —
+        // NSE's endpoints only cover open/upcoming issues, and the list JSON has no such column.
+        String html = """
+                <html><body>
+                  <table>
+                    <thead><tr><th>Exchange</th><th>Final Issue Price</th><th>Open</th><th>Low</th>
+                      <th>High</th><th>Last Trade</th></tr></thead>
+                    <tbody>
+                      <tr><td>NSE</td><td>₹101.00</td><td>₹1,165.00</td><td>₹150.00</td>
+                        <td>₹172.00</td><td>₹168.50</td></tr>
+                    </tbody>
+                  </table>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
+
+        assertThat(newSource().parseDetail(doc).listingPrice()).isEqualByComparingTo("1165.00");
+    }
+
+    @Test
+    void parseDetail_openHeaderOutsideTheListingDayTable_isIgnored() {
+        // An "Open"-ish header on some unrelated table must not be mistaken for a listing price —
+        // the same header row has to also carry "Final Issue Price" or "Last Trade".
+        String html = """
+                <html><body>
+                  <table>
+                    <thead><tr><th>Opening Date</th><th>Closing Date</th></tr></thead>
+                    <tbody><tr><td>25 Aug 2026</td><td>28 Aug 2026</td></tr></tbody>
+                  </table>
+                </body></html>
+                """;
+        Document doc = Jsoup.parse(html, DETAIL_URL);
+
+        assertThat(newSource().parseDetail(doc).listingPrice()).isNull();
+    }
+
+    @Test
+    void parseDetail_noLotInformation_leavesLotSizeNull() {
+        // Null (not 0) so the merge can still take another source's value rather than storing a bogus one.
+        Document doc = Jsoup.parse("<html><body><p>Nothing relevant here.</p></body></html>", DETAIL_URL);
+
+        assertThat(newSource().parseDetail(doc).lotSize()).isNull();
+        assertThat(newSource().parseDetail(doc).listingPrice()).isNull();
+    }
+
     @Test
     void parseDetail_noSummaryOrFinancialTable_returnsNullsAndEmpty() {
         Document doc = Jsoup.parse("<html><body><p>Nothing relevant here.</p></body></html>", DETAIL_URL);

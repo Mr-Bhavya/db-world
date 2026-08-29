@@ -84,12 +84,14 @@ const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
 const ContactPage    = lazy(() => import('@features/legal/Contact'));
 
-const Weather     = lazy(() => import('@features/weather/weather'));
+const Weather     = lazy(() => import('@features/weather/WeatherPage'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
 const Snake       = lazy(() => import('@features/games/Snake'));
 const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
 const Game2048    = lazy(() => import('@features/games/Game2048'));
+const Minesweeper = lazy(() => import('@features/games/Minesweeper'));
+const ConnectFour = lazy(() => import('@features/games/ConnectFour'));
 
 
 // Error Boundary Component
@@ -174,6 +176,19 @@ const buildMuiTheme = (mode) => createTheme({
   },
   shape: { borderRadius: 8 },
   typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        // index.html paints html AND body black so the boot loader has no white flash before
+        // React mounts. CssBaseline then themes `body` but leaves `html` on that boot black, so in
+        // light mode the document element stayed #000 — visible as a black band whenever the page
+        // overscrolls (rubber-band on Android, trackpad bounce on desktop) or is shorter than the
+        // viewport. Re-theme html alongside body.
+        html: { backgroundColor: mode === 'dark' ? '#000000' : '#ffffff' },
+      },
+    },
+  },
 });
 
 /** Thin wrapper so the lazy import receives the pageType prop. */
@@ -193,6 +208,8 @@ const routeConfig = {
     { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },
     { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
     { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
+    { path: Constants.DB_GAMES_MINESWEEPER_ROUTE,  element: <Minesweeper /> },
+    { path: Constants.DB_GAMES_CONNECT_FOUR_ROUTE, element: <ConnectFour /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
@@ -421,10 +438,22 @@ const ThemedApp = () => {
                 overflow: pageScaled && isSheetViewport ? 'hidden' : 'visible',
                 transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
                 minHeight: '100vh',
+                // Column flex + `flex: 1` on the route area below is what keeps the footer AT THE
+                // BOTTOM when a page renders little or nothing — while a lazy route chunk downloads,
+                // or on an empty/errored page. As a plain block box the children just stacked from
+                // the top, and since the Header is a `position: fixed` AppBar with no spacer in the
+                // shell (each page supplies its own top padding), a zero-height route area left the
+                // footer as the first in-flow element — rendering it at y=0, printed straight over
+                // the header. Affects every lazy route, not one page.
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!isPlayerRoute && <Header />}
+            {/* `minWidth: 0` alone is not enough here — see the width:100% note on the page shells
+                this wraps. A flex item with auto side margins does not stretch. */}
+            <Box component="main" sx={{ flex: '1 0 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -454,6 +483,7 @@ const ThemedApp = () => {
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
             </Suspense>
+            </Box>
             {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
                 fallback replaces its children, and a footer that vanishes and reappears
                 on every first navigation to a page reads as a layout glitch. */}

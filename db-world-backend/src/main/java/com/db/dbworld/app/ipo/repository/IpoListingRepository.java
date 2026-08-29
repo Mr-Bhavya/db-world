@@ -9,6 +9,7 @@ import java.util.Optional;
 
 public interface IpoListingRepository extends JpaRepository<IpoListingEntity, String> {
     Optional<IpoListingEntity> findByMatchKey(String matchKey);
+
     List<IpoListingEntity> findByStatus(String status);
 
     /**

@@ -6,8 +6,8 @@ import {
 } from '@mui/material';
 import { Close, RateReview, NotificationsNone, NotificationsActive, Block, NewReleases, Search as SearchIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { fetchNotifications, markNotificationsRead } from '../../api/cinemaApi';
-import Constants from '@shared/constants';
+import { fetchNotifications, markNotificationsRead } from './notificationsApi';
+import { recordRoute } from '@shared/components/layout/home/dashboard/recordRoute';
 
 function relativeTime(iso) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -19,24 +19,45 @@ function relativeTime(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function getRecordRoute(recordType, recordTitle, recordId) {
-  const slug = (recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
-  const param = recordId ? `${recordId}-${slug}` : encodeURIComponent(recordTitle ?? '');
-  const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((recordType ?? '').toUpperCase());
-  if (isSeries) return Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', param);
-  return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', param);
-}
+/**
+ * The panel's own colours.
+ *
+ * It hangs off two different app bars now — the always-dark cinema navbar and the global header,
+ * which follows the light/dark theme — so the surface is a prop rather than a constant. The dark
+ * default matches GenreMenu, keeping the two cinema panels reading as one system.
+ *
+ * Body text colours are part of the surface too: they used to be MUI's `text.secondary` /
+ * `text.disabled`, which follow the app theme and would have rendered dark-on-dark the moment this
+ * panel was opened over a light-mode header.
+ */
+export const DARK_SURFACE = {
+  bg: '#0b0b0b',
+  border: 'rgba(255,255,255,0.14)',
+  hairline: 'rgba(255,255,255,0.08)',
+  divider: 'rgba(255,255,255,0.06)',
+  grip: 'rgba(255,255,255,0.20)',
+  text: '#ffffff',
+  textMuted: 'rgba(255,255,255,0.68)',
+  textFaint: 'rgba(255,255,255,0.46)',
+};
 
-// Matches GenreMenu so the two panels hanging off the same app bar read as one
-// system rather than two different apps.
-const PANEL_BG = '#0b0b0b';
-const PANEL_BORDER = 'rgba(255,255,255,0.14)';
+/** Builds a surface from the app's own `useT()` tokens, for the themed global header. */
+export const surfaceFromTokens = (T) => ({
+  bg: T.sidebar ?? T.bg,
+  border: T.glassBorder,
+  hairline: T.border,
+  divider: T.border,
+  grip: T.borderHover,
+  text: T.text,
+  textMuted: T.textMuted,
+  textFaint: T.textFaint,
+});
 const HIDE_SCROLLBAR = {
   scrollbarWidth: 'none',
   '&::-webkit-scrollbar': { display: 'none' },
 };
 
-const NotificationItem = ({ notif, onNavigate }) => {
+const NotificationItem = ({ notif, onNavigate, surface }) => {
   const theme = useTheme();
   const isFulfilled = notif.type === 'REQUEST_FULFILLED';
   const isDismissed = notif.type === 'REQUEST_DISMISSED';
@@ -79,7 +100,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* 0.875rem floor — 0.83rem/0.7rem was under the readable minimum on a phone. */}
-        <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
+        <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.45, color: surface.text, fontWeight: notif.read ? 400 : 600 }}>
           {isCatalogIn && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
@@ -118,11 +139,11 @@ const NotificationItem = ({ notif, onNavigate }) => {
           )}
         </Typography>
         {isDismissed && notif.message && (
-          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mt: 0.4, fontStyle: 'italic' }}>
+          <Typography sx={{ fontSize: '0.8rem', color: surface.textMuted, mt: 0.4, fontStyle: 'italic' }}>
             “{notif.message}”
           </Typography>
         )}
-        <Typography sx={{ fontSize: '0.75rem', color: 'text.disabled', mt: 0.4 }}>
+        <Typography sx={{ fontSize: '0.75rem', color: surface.textFaint, mt: 0.4 }}>
           {relativeTime(notif.createdAt)}
         </Typography>
       </Box>
@@ -130,7 +151,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
   );
 };
 
-const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
+const PanelContent = ({ onClose, onUnreadClear, hasUnread = true, surface }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +176,7 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
     // so there's nowhere to navigate to — keep the panel open and do nothing.
     if (!notif.recordId || notif.recordId === 0) return;
     onClose();
-    navigate(getRecordRoute(notif.recordType, notif.recordTitle, notif.recordId));
+    navigate(recordRoute(notif.recordType, notif.recordTitle, notif.recordId));
   }, [onClose, navigate]);
 
   return (
@@ -168,12 +189,12 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         px: 2, py: 1.25,
-        borderBottom: `1px solid ${alpha('#fff', 0.08)}`,
+        borderBottom: `1px solid ${surface.hairline}`,
         flexShrink: 0,
       }}>
         <Typography sx={{
           fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
-          textTransform: 'uppercase', color: alpha('#fff', 0.45),
+          textTransform: 'uppercase', color: surface.textFaint,
         }}>
           Notifications
         </Typography>
@@ -181,7 +202,7 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
         <IconButton
           onClick={onClose}
           aria-label="Close notifications"
-          sx={{ width: 40, height: 40, mr: -1, color: alpha('#fff', 0.45), '&:hover': { color: '#fff' } }}
+          sx={{ width: 40, height: 40, mr: -1, color: surface.textFaint, '&:hover': { color: surface.text } }}
         >
           <Close sx={{ fontSize: 19 }} />
         </IconButton>
@@ -193,7 +214,7 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
           <CircularProgress size={28} />
         </Box>
       ) : notifications.length === 0 ? (
-        <Box sx={{ flex: 1, minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.disabled', px: 3, py: 4 }}>
+        <Box sx={{ flex: 1, minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: surface.textFaint, px: 3, py: 4 }}>
           <NotificationsNone sx={{ fontSize: 44, opacity: 0.3 }} />
           <Typography sx={{ fontSize: '0.875rem', textAlign: 'center', opacity: 0.6, lineHeight: 1.5 }}>
             Nothing here yet. New titles, fulfilled requests and reviews will show up in this list.
@@ -204,8 +225,8 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
           <List disablePadding>
             {notifications.map((n, i) => (
               <React.Fragment key={n.id}>
-                {i > 0 && <Divider sx={{ borderColor: alpha('#fff', 0.06) }} />}
-                <NotificationItem notif={n} onNavigate={handleNavigate} />
+                {i > 0 && <Divider sx={{ borderColor: surface.divider }} />}
+                <NotificationItem notif={n} onNavigate={handleNavigate} surface={surface} />
               </React.Fragment>
             ))}
           </List>
@@ -221,7 +242,7 @@ const PanelContent = ({ onClose, onUnreadClear, hasUnread = true }) => {
  *   onClose       — called when panel should close
  *   onUnreadClear — called after markNotificationsRead succeeds (to zero the badge)
  */
-const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true }) => {
+const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true, surface = DARK_SURFACE }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const open = Boolean(anchorEl);
@@ -234,13 +255,13 @@ const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true 
         onClose={onClose}
         PaperProps={{
           sx: {
-            background: PANEL_BG,
+            background: surface.bg,
             backgroundImage: 'none',
             // The paper must be the flex column, otherwise the scrollable body
             // inside has no bounded height to scroll within.
             display: 'flex', flexDirection: 'column',
             borderTopLeftRadius: 20, borderTopRightRadius: 20,
-            borderTop: `1px solid ${alpha('#fff', 0.08)}`,
+            borderTop: `1px solid ${surface.hairline}`,
             // maxHeight, not a fixed 70vh: a two-item list used to leave most
             // of the sheet empty.
             maxHeight: '76vh',
@@ -253,9 +274,9 @@ const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true 
       >
         {/* Drag handle — matches the genre sheet */}
         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5, flexShrink: 0 }}>
-          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: alpha('#fff', 0.2) }} />
+          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: surface.grip }} />
         </Box>
-        <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} />
+        <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} surface={surface} />
       </Drawer>
     );
   }
@@ -274,17 +295,17 @@ const NotificationPanel = ({ anchorEl, onClose, onUnreadClear, hasUnread = true 
           maxHeight: 'min(520px, 70vh)',
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
-          background: PANEL_BG,
+          background: surface.bg,
           backgroundImage: 'none',
           borderRadius: 2,
-          border: `1px solid ${PANEL_BORDER}`,
+          border: `1px solid ${surface.border}`,
           boxShadow: `0 16px 48px ${alpha('#000', 0.7)}`,
           mt: 1,
         },
       }}
       disableScrollLock
     >
-      <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} />
+      <PanelContent onClose={onClose} onUnreadClear={onUnreadClear} hasUnread={hasUnread} surface={surface} />
     </Popover>
   );
 };

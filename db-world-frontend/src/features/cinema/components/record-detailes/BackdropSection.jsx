@@ -116,7 +116,7 @@ const BackdropSection = ({ record }) => {
             <HeaderContent>
                 <Grid container spacing={3} alignItems="flex-end">
                     {!isMobile && (
-                        <Grid item xs={12} md="auto">
+                        <Grid size={{ xs: 12, md: "auto" }}>
                             <motion.img
                                 src={`https://image.tmdb.org/t/p/w500${tmdb.posterPath ?? tmdb.poster_path ?? tmdb.backdropPath ?? tmdb.backdrop_path}`}
                                 alt={tmdb.title ?? tmdb.name}
@@ -137,7 +137,7 @@ const BackdropSection = ({ record }) => {
                             />
                         </Grid>
                     )}
-                    <Grid item xs={12} md>
+                    <Grid size={{ xs: 12, md: 'grow' }}>
                         <Typography
                             variant="h3"
                             sx={{

@@ -1,189 +1,187 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Box, Typography, Container, Grid } from '@mui/material';
-import {
-  SportsEsports as GamesIcon,
-  Grid3x3 as TicTacToeIcon,
-  LinearScale as SnakeIcon,
-  Style as MemoryIcon,
-  Apps as Icon2048,
-  ArrowForward as ArrowIcon,
-} from '@mui/icons-material';
-import Constants from '@shared/constants';
+import { Box, Container, Typography } from '@mui/material';
+import { ArrowForwardRounded, SportsEsportsRounded } from '@mui/icons-material';
+import { motion, useReducedMotion } from 'framer-motion';
+
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { useT, getGlowProps } from '@shared/theme';
+import { useT } from '@shared/theme';
+import { Aurora, GlassPanel } from '@shared/ui/surfaces';
+import { GAMES } from './gamesData';
 
-const GAMES = [
-  {
-    id: 'tictactoe',
-    title: 'Tic Tac Toe',
-    description: 'Classic two-player strategy game. Place X and O on a 3×3 grid. First to align three wins.',
-    icon: TicTacToeIcon,
-    route: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE,
-    badge: '2 Players',
-    color: '#6366f1',
-  },
-  {
-    id: 'snake',
-    title: 'Snake',
-    description: "Guide the snake to eat food and grow longer. Don't hit the walls or yourself!",
-    icon: SnakeIcon,
-    route: Constants.DB_GAMES_SNAKE_ROUTE,
-    badge: 'Single Player',
-    color: '#10b981',
-  },
-  {
-    id: 'memory',
-    title: 'Memory Match',
-    description: 'Flip cards to find matching pairs. Test your memory with 16 cards in 8 pairs.',
-    icon: MemoryIcon,
-    route: Constants.DB_GAMES_MEMORY_MATCH_ROUTE,
-    badge: 'Single Player',
-    color: '#f59e0b',
-  },
-  {
-    id: '2048',
-    title: '2048',
-    description: 'Slide numbered tiles to combine them. Reach the 2048 tile to win — if you can.',
-    icon: Icon2048,
-    route: Constants.DB_GAMES_2048_ROUTE,
-    badge: 'Puzzle',
-    color: '#ec4899',
-  },
-];
+/**
+ * The arcade.
+ *
+ * Rebuilt on the same `Aurora` + `GlassPanel` surfaces as the hub, the weather page and sign-in,
+ * so it stops looking like a different product. The list itself comes from `gamesData`, which the
+ * home dashboard's tile also reads — there used to be two hand-maintained copies.
+ *
+ * Each card shows that game's own best score when there is one. They are the reason to come back,
+ * and they were previously only visible once you were already inside the game.
+ */
 
-const GameCard = ({ game, index }) => {
+function GameCard({ game, index, reduce }) {
   const T = useT();
   const navigate = useNavigate();
-  const Icon = game.icon;
+  const best = game.readBest();
+  const { Icon } = game;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
+    <Box
+      component={motion.div}
+      initial={reduce ? false : { opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.08 }}
-      whileHover={{ y: -4 }}
-      style={{ height: '100%' }}
+      transition={{ duration: 0.4, delay: index * 0.06, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={reduce ? undefined : { y: -4 }}
     >
-      <Box
+      <GlassPanel
         onClick={() => navigate(game.route)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate(game.route); }}
+        aria-label={`Play ${game.title}`}
         sx={{
           height: '100%',
-          minHeight: 200,
-          p: 3,
-          bgcolor: T.glass,
-          border: `1px solid ${T.glassBorder}`,
-          borderRadius: 3,
+          minHeight: 196,
+          p: 2.5,
           cursor: 'pointer',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1.5,
-          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
+          gap: 1.25,
           '&:hover': {
-            bgcolor: T.glassHover,
-            borderColor: `${game.color}55`,
-            boxShadow: `0 0 32px ${game.color}22`,
+            borderColor: `${game.accent}66`,
+            boxShadow: `0 0 0 1px ${game.accent}33, 0 24px 60px ${game.accent}22`,
           },
+          '&:focus-visible': { outline: `3px solid ${game.accent}`, outlineOffset: 3 },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{
-            width: 44, height: 44, borderRadius: 2,
-            bgcolor: `${game.color}18`,
-            border: `1px solid ${game.color}33`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Icon sx={{ fontSize: 22, color: game.color }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Box
+            sx={{
+              width: 46, height: 46, flexShrink: 0, borderRadius: 2.5,
+              display: 'grid', placeItems: 'center',
+              bgcolor: `${game.accent}1f`,
+              border: `1px solid ${game.accent}3d`,
+            }}
+          >
+            <Icon sx={{ fontSize: 23, color: game.accent }} />
           </Box>
-          <Box sx={{
-            px: 1.25, py: 0.4,
-            bgcolor: `${game.color}12`,
-            border: `1px solid ${game.color}28`,
-            borderRadius: 5,
-          }}>
-            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: game.color }}>
+
+          <Box
+            sx={{
+              px: 1.25, py: 0.4, borderRadius: 5, flexShrink: 0,
+              bgcolor: `${game.accent}14`,
+              border: `1px solid ${game.accent}2e`,
+            }}
+          >
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: game.accent, whiteSpace: 'nowrap' }}>
               {game.badge}
             </Typography>
           </Box>
         </Box>
 
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.textPrimary, mb: 0.5 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: '1.05rem', fontWeight: 900, color: T.textPrimary, letterSpacing: '-0.01em' }}>
             {game.title}
           </Typography>
-          <Typography sx={{ fontSize: '0.8rem', color: T.textMuted, lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: '0.82rem', color: T.textMuted, lineHeight: 1.6, mt: 0.5 }}>
             {game.description}
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: game.color }}>
-            Play Now
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, color: game.accent }}>
+            Play
           </Typography>
-          <ArrowIcon sx={{ fontSize: 14, color: game.color }} />
+          <ArrowForwardRounded sx={{ fontSize: 15, color: game.accent }} />
+
+          {best && (
+            <Typography
+              sx={{
+                ml: 'auto', fontSize: '0.72rem', fontWeight: 800, color: T.textFaint,
+                fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+              }}
+            >
+              Best {best.label}
+            </Typography>
+          )}
         </Box>
-      </Box>
-    </motion.div>
+      </GlassPanel>
+    </Box>
   );
-};
+}
 
-const Games = () => {
-  usePageMeta('Games', { description: 'Play Tic Tac Toe, Snake, Memory Match and 2048 on DB World.' });
+export default function Games() {
+  usePageMeta('Games', {
+    description: 'Play Minesweeper, Connect Four, 2048, Snake, Memory Match and Tic Tac Toe on DB World.',
+  });
 
-  const T    = useT();
-  const GLOW = getGlowProps(T);
+  const T = useT();
+  const reduce = useReducedMotion();
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div {...GLOW} />
+    <Box
+      sx={{
+        position: 'relative',
+        bgcolor: T.bg,
+        minHeight: '100dvh',
+        color: T.textPrimary,
+        pt: { xs: '56px', md: '64px' },
+        overflowX: 'hidden',
+      }}
+    >
+      <Aurora />
 
-      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 5, md: 8 } }}>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Box sx={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 56, height: 56, borderRadius: 2.5, mb: 2.5,
-              bgcolor: T.tealBg, border: `1px solid ${T.tealBg}`,
-            }}>
-              <GamesIcon sx={{ fontSize: 28, color: T.teal }} />
+      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, sm: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+        <Box
+          component={motion.div}
+          initial={reduce ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: { xs: 3, md: 4 } }}>
+            <Box
+              sx={{
+                width: { xs: 48, sm: 54 }, height: { xs: 48, sm: 54 }, flexShrink: 0, borderRadius: 3,
+                display: 'grid', placeItems: 'center', bgcolor: T.tealBg,
+                border: `1px solid ${T.teal}44`, boxShadow: `0 0 30px ${T.tealGlow}`,
+              }}
+            >
+              <SportsEsportsRounded sx={{ fontSize: { xs: 24, sm: 27 }, color: T.teal }} />
             </Box>
-            <Typography sx={{
-              fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15,
-              fontSize: { xs: '2rem', md: '2.75rem' }, color: T.textPrimary,
-            }}>
-              Games
-            </Typography>
-            <Typography sx={{ mt: 1.5, fontSize: '1rem', color: T.textMuted, maxWidth: 440, mx: 'auto' }}>
-              A collection of classic games to pass the time.
-            </Typography>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="h1"
+                sx={{
+                  fontSize: 'clamp(1.5rem, 6vw, 2.2rem)', fontWeight: 900, letterSpacing: '-0.03em',
+                  lineHeight: 1.05, color: T.textPrimary,
+                }}
+              >
+                Arcade
+              </Typography>
+              <Typography sx={{ fontSize: 'clamp(0.82rem, 2.6vw, 0.95rem)', color: T.textMuted, mt: 0.35 }}>
+                {GAMES.length} classics. No account, no ads, no waiting.
+              </Typography>
+            </Box>
           </Box>
-        </motion.div>
+        </Box>
 
-        <Grid container spacing={2.5}>
-          {GAMES.map((game, i) => (
-            <Grid key={game.id} item xs={12} sm={6}>
-              <GameCard game={game} index={i} />
-            </Grid>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+            gap: { xs: 1.75, sm: 2.25 },
+          }}
+        >
+          {GAMES.map((game, index) => (
+            <GameCard key={game.id} game={game} index={index} reduce={reduce} />
           ))}
-        </Grid>
+        </Box>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
-          <Box sx={{
-            mt: 6, p: 2, textAlign: 'center',
-            bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2,
-          }}>
-            <Typography sx={{ fontSize: '0.8rem', color: T.textFaint }}>
-              More games coming soon.
-            </Typography>
-          </Box>
-        </motion.div>
+        <Typography sx={{ mt: 4, textAlign: 'center', fontSize: '0.74rem', color: T.textFaint }}>
+          Scores are kept on this device only — nothing is uploaded.
+        </Typography>
       </Container>
     </Box>
   );
-};
-
-export default Games;
+}

@@ -45,19 +45,6 @@ public class IpoNormalizer {
         return name + "|" + (openDate == null ? "" : openDate.toString());
     }
 
-    /** Returns a copy of {@code dto} with {@code matchKey} set (or cleared to {@code null}). */
-    public IpoDto withMatchKey(IpoDto dto) {
-        return new IpoDto(dto.source(), matchKey(dto), dto.companyName(), dto.ipoType(), dto.status(),
-                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
-                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
-                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
-                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
-                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
-                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
-                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
-    }
-
     private String normalize(String companyName) {
         String s = companyName.toLowerCase().trim();
         // Repeatedly strip trailing legal-suffix tokens (a name can carry more than one, e.g.

@@ -28,7 +28,7 @@ export default function DayWiseTable({ columns, rows, loading, emptyLabel = 'No 
   const gridTemplateColumns = columns.map((c, i) => `minmax(${colWidths[i]}px, ${c.width ?? '1fr'})`).join(' ');
   const tableMinWidth = colWidths.reduce((sum, w) => sum + w, 0) + GAP_PX * (columns.length - 1);
   const labelSx = {
-    fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700,
+    fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700,
   };
 
   if (loading) {
@@ -58,7 +58,7 @@ export default function DayWiseTable({ columns, rows, loading, emptyLabel = 'No 
   if (!rows || rows.length === 0) {
     return (
       <Box sx={{ py: 1.5, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: 12.5, color: T.textFaint }}>{emptyLabel}</Typography>
+        <Typography sx={{ fontSize: 12.5, color: T.textMuted }}>{emptyLabel}</Typography>
       </Box>
     );
   }

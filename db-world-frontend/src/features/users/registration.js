@@ -1,51 +1,68 @@
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Button, Checkbox, CircularProgress, FormControl, FormHelperText,
-  Grid, IconButton, InputAdornment, MenuItem,
-  TextField, Typography, Avatar, Divider,
+  Grid, IconButton, InputAdornment, MenuItem, TextField, Typography,
 } from '@mui/material';
 import {
-  Person as PersonIcon,
-  Email as EmailIcon,
-  Lock as LockIcon,
-  Phone as PhoneIcon,
-  CalendarToday as CalendarIcon,
-  HowToReg as RegisterIcon,
-  ArrowBack as ArrowBackIcon,
-  Visibility,
-  VisibilityOff,
+  CalendarTodayRounded, EmailRounded, LockRounded, PersonRounded, PhoneRounded,
+  Visibility, VisibilityOff,
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
+
 import Constants from '@shared/constants';
 import { register } from '@shared/services/ApiServices';
 import { notify } from '@shared/notify';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
+import { useT, getFieldSx, getSelectMenuProps } from '@shared/theme';
+import { Aurora, GlassPanel } from '@shared/ui/surfaces';
 
-// ─── Section label ────────────────────────────────────────────────────────────
-const SectionLabel = ({ children }) => {
+/**
+ * The `/registration` route.
+ *
+ * The only way to create an account: the sign-in modal deliberately links out here rather than
+ * trying to fit seven fields, a date picker and a terms checkbox into a dialog. Every new account
+ * comes through this page, which makes it the auth flow's most important screen, not its least.
+ *
+ * Ordered account-first. The two fields that *make* the account — email and password — come
+ * before the four that describe its owner, so the page opens on the same two inputs the visitor
+ * just saw in the sign-in panel they clicked out of, rather than on a wall of personal details.
+ */
+
+/** Small caption dividing the form into two readable halves. */
+const SectionLabel = ({ children, first = false }) => {
   const T = useT();
   return (
     <Typography sx={{
-      fontSize: '0.68rem', fontWeight: 700, color: T.textFaint,
-      textTransform: 'uppercase', letterSpacing: '0.1em',
-      mt: 2, mb: 1.5,
+      fontSize: '0.66rem', fontWeight: 800, color: T.textFaint,
+      textTransform: 'uppercase', letterSpacing: '0.09em',
+      mt: first ? 0 : 2.5, mb: 1.5,
     }}>
       {children}
     </Typography>
   );
 };
 
-const Registration = () => {
-  usePageMeta('Create Account');
+const GENDERS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Prefer not to say' },
+];
 
-  const navigate  = useNavigate();
-  const T            = useT();
-  const FIELD        = getFieldSx(T);
-  const SELECT_MENU  = getSelectMenuProps(T);
-  const GLOW         = getGlowProps(T);
+const Registration = () => {
+  usePageMeta('Create Account', { description: 'Create your free DB World account.' });
+
+  const navigate = useNavigate();
+  // Whatever the visitor was originally trying to reach, handed over by the sign-in modal or the
+  // login page. Passed straight back so signing in afterwards returns them there rather than
+  // dumping them on the hub.
+  const location = useLocation();
+  const T = useT();
+  const FIELD = getFieldSx(T);
+  const SELECT_MENU = getSelectMenuProps(T);
+  const reduce = useReducedMotion();
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -117,7 +134,7 @@ const Registration = () => {
       if (res.httpStatusCode === 200 || res.httpStatusCode === 201) {
         notify.success('Account created! Redirecting to sign in…', {
           duration: 1200,
-          onClose: () => navigate(Constants.LOGIN_ROUTE),
+          onClose: () => navigate(Constants.LOGIN_ROUTE, { state: location.state }),
         });
       } else {
         notify.error(res?.message || res?.error || 'Registration failed.');
@@ -129,94 +146,154 @@ const Registration = () => {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Shared field props ────────────────────────────────────────────────────
+
+  /**
+   * Every field reserves its helper line whether or not it is in error, so validating as you type
+   * cannot shunt the rest of the form down the page under your cursor.
+   */
+  const helper = (field, message) => (errors[field] ? message : ' ');
+
+  const adornment = (Icon, field) => ({
+    startAdornment: (
+      <InputAdornment position="start">
+        <Icon sx={{ fontSize: 18, color: errors[field] ? T.error : T.textMuted }} />
+      </InputAdornment>
+    ),
+  });
+
   return (
     <Box sx={{
-      minHeight: '100vh',
+      position: 'relative',
+      minHeight: '100dvh',
       bgcolor: T.bg,
-      background: T.bgGradient,
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'center',
-      px: 2,
+      px: { xs: 2, sm: 3 },
       pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 40px)' },
       pb: { xs: 3, md: 5 },
-      position: 'relative',
+      overflowX: 'hidden',
     }}>
-      {/* Radial glow */}
-      <motion.div {...GLOW} />
+      <Aurora />
 
-      {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 28 }}
+      <Box
+        component={motion.div}
+        initial={reduce ? false : { opacity: 0, y: 22 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-        style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 700 }}
+        transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+        sx={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 640, minWidth: 0 }}
       >
-        <Box sx={{
-          bgcolor: T.glass,
-          border: `1px solid ${T.glassBorder}`,
-          borderRadius: 3,
-          p: { xs: 3, sm: 4 },
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-        }}>
+        <GlassPanel sx={{ p: { xs: 2.5, sm: 4 } }}>
 
-          {/* Brand header */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-            <Avatar
+          {/* Brand header — the same shape as the sign-in panel, so the two read as one flow. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+            <Box
+              component="img"
               src={db_world_icon}
-              sx={{
-                width: 48, height: 48,
-                bgcolor: T.tealBg,
-                border: `1px solid ${T.teal}`,
-                boxShadow: `0 0 22px ${T.tealGlow}`,
-                mb: 2,
-              }}
+              alt=""
+              sx={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }}
             />
-            <Typography sx={{ fontWeight: 800, color: T.text, fontSize: '1.4rem', letterSpacing: '-0.02em' }}>
-              Create your account
-            </Typography>
-            <Typography sx={{ color: T.textMuted, fontSize: '0.875rem', mt: 0.5 }}>
-              Join DB World — it only takes a minute
-            </Typography>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography component="h1" sx={{ fontSize: '1.3rem', fontWeight: 900, color: T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                Create your account
+              </Typography>
+              <Typography sx={{ color: T.textMuted, fontSize: '0.84rem', mt: 0.25 }}>
+                Free, and it takes about a minute.
+              </Typography>
+            </Box>
           </Box>
 
-          {/* Form */}
           <Box component="form" onSubmit={handleSubmit} noValidate>
 
-            {/* ── Personal info ────────────────────────────────────────────── */}
-            <SectionLabel>Personal information</SectionLabel>
+            {/* ── Account ──────────────────────────────────────────────────── */}
+            <SectionLabel first>Your account</SectionLabel>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={12}>
+                <TextField
+                  fullWidth label="Email address" name="email" type="email"
+                  value={formData.email} onChange={handleChange}
+                  autoComplete="email"
+                  error={errors.email}
+                  helperText={helper('email', 'Enter a valid email address')}
+                  slotProps={{ input: adornment(EmailRounded, 'email') }}
+                  sx={FIELD}
+                />
+              </Grid>
+              <Grid size={12}>
+                <TextField
+                  fullWidth label="Password" name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password} onChange={handleChange}
+                  autoComplete="new-password"
+                  error={errors.password}
+                  // Standing guidance rather than only an error: the rule is worth knowing before
+                  // you have broken it.
+                  helperText={errors.password ? 'Minimum 6 characters, no spaces' : 'At least 6 characters, no spaces'}
+                  slotProps={{
+                    input: {
+                      ...adornment(LockRounded, 'password'),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            size="small"
+                            onClick={() => setShowPassword(p => !p)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            sx={{ color: T.textMuted, '&:hover': { color: T.text } }}
+                          >
+                            {showPassword
+                              ? <VisibilityOff sx={{ fontSize: 18 }} />
+                              : <Visibility sx={{ fontSize: 18 }} />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                  sx={FIELD}
+                />
+              </Grid>
+            </Grid>
+
+            {/* ── About you ────────────────────────────────────────────────── */}
+            <SectionLabel>About you</SectionLabel>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth label="First name" name="firstName"
                   value={formData.firstName} onChange={handleChange}
+                  autoComplete="given-name"
                   error={errors.firstName}
-                  helperText={errors.firstName ? 'First name is required' : ''}
-                  InputProps={{ startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon sx={{ fontSize: 18, color: errors.firstName ? T.error : T.textMuted }} />
-                    </InputAdornment>
-                  )}}
+                  helperText={helper('firstName', 'First name is required')}
+                  slotProps={{ input: adornment(PersonRounded, 'firstName') }}
                   sx={FIELD}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth label="Last name" name="lastName"
                   value={formData.lastName} onChange={handleChange}
+                  autoComplete="family-name"
                   error={errors.lastName}
-                  helperText={errors.lastName ? 'Last name is required' : ''}
-                  InputProps={{ startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon sx={{ fontSize: 18, color: errors.lastName ? T.error : T.textMuted }} />
-                    </InputAdornment>
-                  )}}
+                  helperText={helper('lastName', 'Last name is required')}
+                  slotProps={{ input: adornment(PersonRounded, 'lastName') }}
                   sx={FIELD}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth label="Date of birth" name="dob" type="date"
+                  value={formData.dob} onChange={handleChange}
+                  autoComplete="bday"
+                  error={errors.dob}
+                  helperText={helper('dob', 'Enter a valid date')}
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    input: adornment(CalendarTodayRounded, 'dob'),
+                  }}
+                  sx={FIELD}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   select
                   fullWidth
@@ -225,102 +302,31 @@ const Registration = () => {
                   value={formData.gender}
                   onChange={handleChange}
                   error={errors.gender}
-                  helperText={errors.gender ? 'Please select a gender' : ''}
-                  SelectProps={{ MenuProps: SELECT_MENU }}
+                  helperText={helper('gender', 'Please select an option')}
+                  slotProps={{ select: { MenuProps: SELECT_MENU } }}
                   sx={FIELD}
                 >
-                  <MenuItem value=""><em style={{ color: T.textFaint }}>Select gender</em></MenuItem>
-                  <MenuItem value="male">Male</MenuItem>
-                  <MenuItem value="female">Female</MenuItem>
-                  <MenuItem value="other">Prefer not to say</MenuItem>
+                  {GENDERS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                  ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={12}>
                 <TextField
-                  fullWidth label="Date of birth" name="dob" type="date"
-                  value={formData.dob} onChange={handleChange}
-                  InputLabelProps={{ shrink: true }}
-                  error={errors.dob}
-                  helperText={errors.dob ? 'Enter a valid date' : ''}
-                  InputProps={{ startAdornment: (
-                    <InputAdornment position="start">
-                      <CalendarIcon sx={{ fontSize: 18, color: errors.dob ? T.error : T.textMuted }} />
-                    </InputAdornment>
-                  )}}
-                  sx={FIELD}
-                />
-              </Grid>
-            </Grid>
-
-            {/* ── Contact ──────────────────────────────────────────────────── */}
-            <SectionLabel>Contact &amp; security</SectionLabel>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth label="Mobile number" name="mobileNo"
+                  fullWidth label="Mobile number" name="mobileNo" type="tel"
                   value={formData.mobileNo} onChange={handleChange}
+                  autoComplete="tel-national"
                   error={errors.mobileNo}
-                  helperText={errors.mobileNo ? '10-digit number required' : ''}
-                  InputProps={{ startAdornment: (
-                    <InputAdornment position="start">
-                      <PhoneIcon sx={{ fontSize: 18, color: errors.mobileNo ? T.error : T.textMuted }} />
-                    </InputAdornment>
-                  )}}
-                  sx={FIELD}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth label="Email address" name="email" type="email"
-                  value={formData.email} onChange={handleChange}
-                  autoComplete="email"
-                  error={errors.email}
-                  helperText={errors.email ? 'Enter a valid email address' : ''}
-                  InputProps={{ startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon sx={{ fontSize: 18, color: errors.email ? T.error : T.textMuted }} />
-                    </InputAdornment>
-                  )}}
-                  sx={FIELD}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth label="Password (min 6 characters)" name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password} onChange={handleChange}
-                  autoComplete="new-password"
-                  error={errors.password}
-                  helperText={errors.password ? 'Minimum 6 characters, no spaces' : ''}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon sx={{ fontSize: 18, color: errors.password ? T.error : T.textMuted }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          onClick={() => setShowPassword(p => !p)}
-                          sx={{ color: T.textMuted, '&:hover': { color: T.text } }}
-                        >
-                          {showPassword
-                            ? <VisibilityOff sx={{ fontSize: 18 }} />
-                            : <Visibility sx={{ fontSize: 18 }} />
-                          }
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
+                  helperText={helper('mobileNo', '10-digit number required')}
+                  slotProps={{ input: adornment(PhoneRounded, 'mobileNo') }}
                   sx={FIELD}
                 />
               </Grid>
             </Grid>
 
             {/* ── Terms ────────────────────────────────────────────────────── */}
-            <FormControl error={errors.agreeCheckBox} sx={{ mt: 1, mb: 3, display: 'block' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FormControl error={errors.agreeCheckBox} sx={{ mt: 1, mb: 2.5, display: 'block' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                 <Checkbox
                   name="agreeCheckBox"
                   checked={formData.agreeCheckBox}
@@ -329,9 +335,10 @@ const Registration = () => {
                     color: errors.agreeCheckBox ? T.error : T.textMuted,
                     '&.Mui-checked': { color: T.teal },
                     p: 0.5,
+                    mt: -0.25,
                   }}
                 />
-                <Typography sx={{ fontSize: '0.875rem', color: T.textMuted }}>
+                <Typography sx={{ fontSize: '0.84rem', color: T.textMuted, lineHeight: 1.6 }}>
                   I agree to the{' '}
                   {/* Real links, opened in a new tab so a half-filled form is not lost
                       on the way to reading them. Both are public routes, so a visitor
@@ -341,7 +348,7 @@ const Registration = () => {
                     to={Constants.DB_TERMS_ROUTE}
                     target="_blank"
                     rel="noopener noreferrer"
-                    sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    sx={{ color: T.teal, fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
                   >
                     Terms of Service
                   </Box>
@@ -351,7 +358,7 @@ const Registration = () => {
                     to={Constants.DB_PRIVACY_ROUTE}
                     target="_blank"
                     rel="noopener noreferrer"
-                    sx={{ color: T.teal, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    sx={{ color: T.teal, fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
                   >
                     Privacy Policy
                   </Box>
@@ -365,52 +372,44 @@ const Registration = () => {
               )}
             </FormControl>
 
-            {/* ── Buttons ──────────────────────────────────────────────────── */}
             <Button
               type="submit"
               fullWidth
+              variant="contained"
               disabled={loading || !formData.agreeCheckBox}
-              startIcon={!loading && <RegisterIcon />}
               sx={{
-                py: 1.4, mb: 1.5,
                 bgcolor: T.teal,
                 color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-                borderRadius: 1.5,
-                textTransform: 'none',
+                fontWeight: 800,
+                minHeight: 48,
+                borderRadius: 2.5,
+                boxShadow: `0 12px 32px ${T.tealGlow}`,
                 '&:hover': { bgcolor: T.tealHover },
-                '&.Mui-disabled': { bgcolor: T.tealBg, color: T.textFaint },
+                '&.Mui-disabled': { bgcolor: T.tealBg, color: T.textFaint, boxShadow: 'none' },
               }}
             >
               {loading
-                ? <><CircularProgress size={18} color="inherit" sx={{ mr: 1 }} />Creating account…</>
-                : 'Create account'
-              }
+                ? <CircularProgress size={20} color="inherit" />
+                : 'Create account'}
             </Button>
           </Box>
 
-          {/* ── Back to login ────────────────────────────────────────────── */}
-          <Divider sx={{ borderColor: T.border, mb: 2 }} />
-          <Button
-            fullWidth
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(Constants.LOGIN_ROUTE)}
-            sx={{
-              py: 1.2,
-              border: `1px solid ${T.glassBorder}`,
-              color: T.textMuted,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              fontWeight: 500,
-              '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
-            }}
-          >
-            Already have an account? Sign in
-          </Button>
+          {/* Mirrors the sign-in panel's footer rather than a bordered button — the two screens
+              link to each other and should not disagree about what that link looks like. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, mt: 2.5 }}>
+            <Typography sx={{ fontSize: '0.85rem', color: T.textMuted }}>
+              Already have an account?
+            </Typography>
+            <Button
+              onClick={() => navigate(Constants.LOGIN_ROUTE, { state: location.state })}
+              sx={{ fontSize: '0.85rem', fontWeight: 800, color: T.teal, minWidth: 0, p: 0.5, '&:hover': { bgcolor: T.tealBg } }}
+            >
+              Sign in
+            </Button>
+          </Box>
 
-        </Box>
-      </motion.div>
+        </GlassPanel>
+      </Box>
     </Box>
   );
 };

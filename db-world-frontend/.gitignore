@@ -1,0 +1,4 @@
+# Tesseract OCR assets — copied out of node_modules by scripts/copy-tesseract-assets.mjs on
+# postinstall. Generated, not authored: ~23 MB of wasm cores and language data derived entirely
+# from the tesseract.js and @tesseract.js-data/eng packages.
+public/tesseract/

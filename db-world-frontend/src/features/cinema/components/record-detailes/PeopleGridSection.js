@@ -8,7 +8,7 @@ const PeopleGridSection = ({ title, people = [], getSecondaryText }) => {
   if (!visiblePeople?.length) return null;
 
   return (
-    <Grid item xs={12} md={6}>
+    <Grid size={{ xs: 12, md: 6 }}>
       <SubSectionTitle variant="h6" gutterBottom>{title}</SubSectionTitle>
       <PeopleGrid>
         {visiblePeople.map(person => (

@@ -22,11 +22,25 @@ export default function StickyWatchBar({ record, progress, onWatchClick, scrollR
     const target = scrollRoot ?? window;
     const read = () => (scrollRoot ? scrollRoot.scrollTop : window.scrollY);
 
-    const onScroll = () => setVisible(read() > SHOW_AFTER_PX);
+    let frameId = null;
+      // Coalesced to one read per frame. A scroll listener that calls setState fires far
+      // more often than the screen refreshes, and each call runs React's bail-out path
+      // even when the boolean has not changed — on a low-end phone that is work competing
+      // with the scroll it is measuring. Same shape as the global header's handler.
+    const onScroll = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(() => {
+        setVisible(read() > SHOW_AFTER_PX);
+        frameId = null;
+      });
+    };
     onScroll();
 
     target.addEventListener('scroll', onScroll, { passive: true });
-    return () => target.removeEventListener('scroll', onScroll);
+    return () => {
+      target.removeEventListener('scroll', onScroll);
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
   }, [scrollRoot]);
 
   if (!onWatchClick) return null;

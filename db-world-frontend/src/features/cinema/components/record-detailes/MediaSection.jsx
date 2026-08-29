@@ -21,7 +21,7 @@ const MediaSection = ({ record }) => {
 
                 <Grid container spacing={2}>
                     {/* Posters */}
-                    <Grid item xs={12} md={isMdDown ? 6 : 4}>
+                    <Grid size={{ xs: 12, md: isMdDown ? 6 : 4 }}>
                         <MediaCarousel
                             items={posters}
                             type="poster"
@@ -31,7 +31,7 @@ const MediaSection = ({ record }) => {
                     </Grid>
 
                     {/* Backdrops */}
-                    <Grid item xs={12} md={isMdDown ? 6 : 4}>
+                    <Grid size={{ xs: 12, md: isMdDown ? 6 : 4 }}>
                         <MediaCarousel
                             items={backdrops}
                             type="backdrop"
@@ -41,7 +41,7 @@ const MediaSection = ({ record }) => {
                     </Grid>
 
                     {/* Trailers */}
-                    <Grid item xs={12} md={isMdDown ? 12 : 4}>
+                    <Grid size={{ xs: 12, md: isMdDown ? 12 : 4 }}>
                         <VideoTrailers videos={videos} />
                     </Grid>
                 </Grid>

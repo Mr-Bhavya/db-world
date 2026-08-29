@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  daysLeftLabel, subscriptionLabel, subscriptionMeta, ipoTypeMeta,
+  daysLeftLabel, subscriptionMeta, ipoTypeMeta,
   formatStageDate, buildTimelineStages, expectedListingPrice, dayOverDayDelta, formatExchange,
-  averageSubscription, computeQuickStats, shortFinancialLabel, websiteDomain,
-  orderSubscriptionCategories, subscriptionCategoryColor, computeLotBreakdown,
+  computeQuickStats, shortFinancialLabel, websiteDomain,
+  orderSubscriptionCategories, computeLotBreakdown,
+  formatAmount, minInvestment, biddingProgressPct, detailFigures, detailTabsFor,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -89,22 +90,10 @@ describe('daysLeftLabel', () => {
   });
 });
 
-describe('subscriptionLabel', () => {
-  it('formats to 1 decimal with the × sign', () => {
-    expect(subscriptionLabel(2.4)).toBe('2.4× subscribed');
-    expect(subscriptionLabel(0.65)).toBe('0.7× subscribed');
-    expect(subscriptionLabel(15)).toBe('15.0× subscribed');
-  });
-
-  it('is null when subTotal is null/undefined', () => {
-    expect(subscriptionLabel(null)).toBeNull();
-    expect(subscriptionLabel(undefined)).toBeNull();
-  });
-});
 
 describe('subscriptionMeta', () => {
   const T = {
-    textFaint: 'faint', glassHover: 'faintBg',
+    textMuted: 'muted', textFaint: 'faint', glassHover: 'faintBg',
     teal: 'teal', tealBg: 'tealBg',
     success: 'green', successBg: 'greenBg',
     warning: 'orange', warningBg: 'orangeBg',
@@ -116,7 +105,9 @@ describe('subscriptionMeta', () => {
 
   it('tiers <1x as muted/grey with a partial fill', () => {
     const meta = subscriptionMeta(0.4, T);
-    expect(meta.color).toBe('faint');
+    // `textMuted`, not `textFaint`: still the dimmest of the four tiers, but readable — 0.46
+    // alpha rendered an undersubscribed multiple and its bar as barely-there grey.
+    expect(meta.color).toBe('muted');
     expect(meta.fillPct).toBe(40);
     expect(meta.hot).toBe(false);
   });
@@ -140,26 +131,6 @@ describe('subscriptionMeta', () => {
 
   it('never exceeds a 100% fill even far past 1x', () => {
     expect(subscriptionMeta(50, T).fillPct).toBe(100);
-  });
-});
-
-describe('averageSubscription', () => {
-  it('averages every known value', () => {
-    expect(averageSubscription([1, 2, 3])).toBe(2);
-  });
-
-  it('ignores null/undefined entries rather than treating them as zero', () => {
-    expect(averageSubscription([2, null, 4, undefined])).toBe(3);
-  });
-
-  it('is null when nothing is known yet', () => {
-    expect(averageSubscription([null, undefined])).toBeNull();
-    expect(averageSubscription([])).toBeNull();
-    expect(averageSubscription(undefined)).toBeNull();
-  });
-
-  it('coerces numeric strings', () => {
-    expect(averageSubscription(['2', '4'])).toBe(3);
   });
 });
 
@@ -509,42 +480,43 @@ describe('orderSubscriptionCategories', () => {
   });
 });
 
-describe('subscriptionCategoryColor', () => {
-  it('gives the same well-known category the same color regardless of index', () => {
-    expect(subscriptionCategoryColor('QIB', 0)).toBe(subscriptionCategoryColor('qib', 3));
-  });
-
-  it('gives different well-known categories different colors', () => {
-    const colors = new Set([
-      subscriptionCategoryColor('QIB'), subscriptionCategoryColor('NII'),
-      subscriptionCategoryColor('Retail'), subscriptionCategoryColor('Anchor'),
-    ]);
-    expect(colors.size).toBe(4);
-  });
-
-  it('cycles the fallback palette by index for an unrecognized category', () => {
-    expect(subscriptionCategoryColor('SomeNewCategory', 0)).not.toBe(subscriptionCategoryColor('SomeNewCategory', 1));
-  });
-});
 
 describe('computeLotBreakdown', () => {
-  it('reproduces the mainboard tiers exactly (lot 34 @ ₹425)', () => {
-    const { minBidShares, tiers } = computeLotBreakdown(34, 425, 'mainboard');
+  it('returns the mainboard tranches as ranges, with B-HNI open-ended (lot 34 @ ₹425)', () => {
+    const { minBidShares, lotValue, tranches } = computeLotBreakdown(34, 425, 'mainboard');
     expect(minBidShares).toBe(34);
-    expect(tiers).toEqual([
-      { label: 'Retail (Min)', group: 'retail', lots: 1, shares: 34, amount: 14450 },
-      { label: 'Retail (Max)', group: 'retail', lots: 13, shares: 442, amount: 187850 },
-      { label: 'S-HNI (Min)', group: 'hni', lots: 14, shares: 476, amount: 202300 },
-      { label: 'S-HNI (Max)', group: 'hni', lots: 69, shares: 2346, amount: 997050 },
-      { label: 'B-HNI (Min)', group: 'hni', lots: 70, shares: 2380, amount: 1011500 },
+    expect(lotValue).toBe(14450);
+    expect(tranches).toEqual([
+      {
+        key: 'retail', label: 'Retail', group: 'retail',
+        minLots: 1, maxLots: 13, minShares: 34, maxShares: 442, minAmount: 14450, maxAmount: 187850,
+      },
+      {
+        key: 'shni', label: 'S-HNI', group: 'hni',
+        minLots: 14, maxLots: 69, minShares: 476, maxShares: 2346, minAmount: 202300, maxAmount: 997050,
+      },
+      {
+        key: 'bhni', label: 'B-HNI', group: 'hni',
+        minLots: 70, maxLots: null, minShares: 2380, maxShares: null, minAmount: 1011500, maxAmount: null,
+      },
     ]);
   });
 
-  it('gives SME a single HNI tier above the retail cap (no 2L/10L split)', () => {
-    const { tiers } = computeLotBreakdown(1200, 100, 'sme'); // lot value ₹1,20,000
-    expect(tiers.map((t) => t.label)).toEqual(['Retail (Min)', 'Retail (Max)', 'HNI (Min)']);
-    expect(tiers[1]).toMatchObject({ lots: 1 });   // 1 lot = ₹1,20,000 ≤ ₹2L, 2 lots > ₹2L
-    expect(tiers[2]).toMatchObject({ lots: 2 });
+  it('keeps every tranche inside its SEBI cap', () => {
+    const { tranches } = computeLotBreakdown(34, 425, 'mainboard');
+    const [retail, shni, bhni] = tranches;
+    expect(retail.maxAmount).toBeLessThanOrEqual(200000);
+    expect(shni.minAmount).toBeGreaterThan(200000);
+    expect(shni.maxAmount).toBeLessThanOrEqual(1000000);
+    expect(bhni.minAmount).toBeGreaterThan(1000000);
+  });
+
+  it('gives SME a single open-ended HNI tranche above the retail cap (no 2L/10L split)', () => {
+    const { tranches } = computeLotBreakdown(1200, 100, 'sme'); // lot value ₹1,20,000
+    expect(tranches.map((t) => t.label)).toEqual(['Retail', 'HNI']);
+    // One lot is ₹1,20,000 — a second would breach ₹2L, so retail is a single-lot "range".
+    expect(tranches[0]).toMatchObject({ minLots: 1, maxLots: 1 });
+    expect(tranches[1]).toMatchObject({ minLots: 2, maxLots: null, maxAmount: null });
   });
 
   it('is null when lot size or price is missing/zero', () => {
@@ -570,5 +542,143 @@ describe('dayOverDayDelta', () => {
   it('is null when either side is missing (e.g. the earliest row)', () => {
     expect(dayOverDayDelta(50, null)).toBeNull();
     expect(dayOverDayDelta(null, 50)).toBeNull();
+  });
+});
+
+
+describe('formatAmount', () => {
+  it('groups the Indian way and drops paise', () => {
+    expect(formatAmount(14950)).toBe('₹14,950');
+    expect(formatAmount(1011500)).toBe('₹10,11,500');
+    expect(formatAmount(14449.6)).toBe('₹14,450');
+  });
+
+  it('is null-safe', () => {
+    expect(formatAmount(null)).toBeNull();
+    expect(formatAmount(undefined)).toBeNull();
+  });
+
+  it('formats a genuine zero rather than treating it as missing', () => {
+    expect(formatAmount(0)).toBe('₹0');
+  });
+});
+
+describe('minInvestment', () => {
+  it('is one lot at the cut-off price', () => {
+    expect(minInvestment(26, 575)).toBe(14950);
+  });
+
+  it('is null when either input is missing or non-positive', () => {
+    expect(minInvestment(null, 575)).toBeNull();
+    expect(minInvestment(26, null)).toBeNull();
+    expect(minInvestment(0, 575)).toBeNull();
+    expect(minInvestment(26, 0)).toBeNull();
+    expect(minInvestment(-26, 575)).toBeNull();
+  });
+});
+
+describe('biddingProgressPct', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(TODAY)); // 2026-07-24
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('counts whole days inclusively — the open day is day 1 of the window', () => {
+    // 24-28 Jul is a 5-day window; today is the open day.
+    expect(biddingProgressPct('2026-07-24', '2026-07-28')).toBeCloseTo(20);
+  });
+
+  it('reports the midpoint part-way through', () => {
+    // 22-26 Jul: today (24th) is day 3 of 5.
+    expect(biddingProgressPct('2026-07-22', '2026-07-26')).toBeCloseTo(60);
+  });
+
+  it('clamps to 0 before the window opens and 100 once it has closed', () => {
+    expect(biddingProgressPct('2026-07-28', '2026-08-01')).toBe(0);
+    expect(biddingProgressPct('2026-07-14', '2026-07-18')).toBe(100);
+  });
+
+  it('handles a single-day window', () => {
+    expect(biddingProgressPct('2026-07-24', '2026-07-24')).toBe(100);
+  });
+
+  it('is null when a date is missing or the window is inverted', () => {
+    expect(biddingProgressPct(null, '2026-07-28')).toBeNull();
+    expect(biddingProgressPct('2026-07-24', null)).toBeNull();
+    expect(biddingProgressPct('2026-07-28', '2026-07-24')).toBeNull();
+  });
+});
+
+describe('detailFigures', () => {
+  const open = {
+    status: 'open', gmp: 330, gmpPct: 57.4, subTotal: 12.3,
+    priceMin: 546, priceMax: 575, lotSize: 26,
+  };
+
+  it('leads an open IPO with the grey market, then subscription, band and cost', () => {
+    expect(detailFigures(open)).toEqual(['gmp', 'subscription', 'priceBand', 'minInvestment']);
+  });
+
+  it('leads a listed IPO with its listing gain', () => {
+    expect(detailFigures({
+      status: 'listed', listingGainPct: 12.5, listingPrice: 647, subTotal: 30, priceMax: 575,
+    })).toEqual(['listingGain', 'listingPrice', 'subscription', 'priceBand']);
+  });
+
+  it('leads a closed IPO with the final subscription', () => {
+    expect(detailFigures({ status: 'closed', subTotal: 30, gmp: 100, priceMax: 575, lotSize: 26 })[0])
+      .toBe('subscription');
+  });
+
+  it('never offers a figure whose value is missing, so nothing can render as an em dash', () => {
+    // An upcoming IPO with no grey market yet falls through to what it does have.
+    expect(detailFigures({ status: 'upcoming', priceMin: 100, priceMax: 120, lotSize: 100 }))
+      .toEqual(['priceBand', 'minInvestment']);
+    expect(detailFigures({ status: 'open' })).toEqual([]);
+  });
+
+  it('caps how many figures the hero shows', () => {
+    expect(detailFigures(open, 2)).toEqual(['gmp', 'subscription']);
+  });
+
+  it('falls back to the upcoming order for an unrecognised status, and is null-safe', () => {
+    expect(detailFigures({ status: 'weird', priceMin: 100, priceMax: 120 })).toEqual(['priceBand']);
+    expect(detailFigures(null)).toEqual([]);
+  });
+});
+
+describe('detailTabsFor', () => {
+  it('gives an upcoming IPO with no grey market the overview alone', () => {
+    expect(detailTabsFor({ status: 'upcoming' })).toEqual(['overview']);
+  });
+
+  it('adds GMP as soon as any grey-market figure exists', () => {
+    expect(detailTabsFor({ status: 'upcoming', gmpRating: 4 })).toEqual(['overview', 'gmp']);
+    expect(detailTabsFor({ status: 'upcoming', estimatedListingPrice: 900 })).toEqual(['overview', 'gmp']);
+  });
+
+  it('adds subscription only once bids have been reported', () => {
+    expect(detailTabsFor({ status: 'open' })).toEqual(['overview', 'allotment']);
+    expect(detailTabsFor({ status: 'open', subTotal: 1.2 })).toEqual(['overview', 'subscription', 'allotment']);
+  });
+
+  it('withholds allotment until bidding has opened', () => {
+    expect(detailTabsFor({ status: 'upcoming', subTotal: 1.2 })).toEqual(['overview', 'subscription']);
+    expect(detailTabsFor({ status: 'listed', gmp: 10, subTotal: 30 }))
+      .toEqual(['overview', 'gmp', 'subscription', 'allotment']);
+  });
+
+  it('still offers a tab when a history exists without its summary figure', () => {
+    expect(detailTabsFor({ status: 'closed' }, { gmp: 4, subscription: 3 }))
+      .toEqual(['overview', 'gmp', 'subscription', 'allotment']);
+  });
+
+  it('is null-safe, and defaults the history counts', () => {
+    expect(detailTabsFor(null)).toEqual(['overview']);
+    expect(detailTabsFor(undefined)).toEqual(['overview']);
+    expect(detailTabsFor({ status: 'closed' }, {})).toEqual(['overview', 'allotment']);
   });
 });

@@ -3,6 +3,7 @@ import { App } from '@capacitor/app';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
+import { runBackInterceptors } from './backInterceptors';
 
 // Root routes where Back should EXIT the app (double-press) instead of navigating.
 const EXIT_ROUTES = new Set([
@@ -28,6 +29,10 @@ const BackButtonHandler = () => {
       const now = Date.now();
       if (now - lastFiredRef.current < 450) return;
       lastFiredRef.current = now;
+
+      // An open overlay owns the press: closing the auth modal must not also navigate the
+      // page behind it away.
+      if (runBackInterceptors()) return;
 
       const path = locationRef.current.pathname;
       if (EXIT_ROUTES.has(path)) {

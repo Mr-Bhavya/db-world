@@ -31,4 +31,15 @@ public class IpoChangeEventEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    /**
+     * When this event's user-facing push was handled — set once it has been broadcast, OR
+     * deliberately skipped (not a notifiable transition, below the GMP threshold, or too old to be
+     * worth announcing). Null means "still pending delivery", which is what
+     * {@code IpoNotificationService.dispatchPending()} drains: an event detected outside the IST
+     * notification window stays pending and goes out at the next in-window pass instead of being
+     * lost, and no event can ever be pushed twice.
+     */
+    @Column(name = "notified_at")
+    private Instant notifiedAt;
 }

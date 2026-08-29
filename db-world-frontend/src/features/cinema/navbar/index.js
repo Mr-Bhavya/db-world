@@ -37,7 +37,7 @@ import { useQuery } from '@tanstack/react-query';
 import GenreMenu from './GenreMenu';
 import { genrePath, pagePath } from '../utils/genreNav';
 import { useCategory } from './CategoryContext';
-import NotificationPanel from '../components/notifications/NotificationPanel';
+import NotificationPanel from '@shared/notifications/NotificationPanel';
 import { useActiveDownloadCount } from '../download-queue/useActiveDownloadCount';
 import useDeviceTier from '../hooks/useDeviceTier';
 
