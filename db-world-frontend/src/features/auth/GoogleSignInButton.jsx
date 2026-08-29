@@ -27,20 +27,47 @@ const GoogleMark = ({ size = 18 }) => (
  *
  * @param onSuccess called with the backend login payload ({ token, refreshToken?, user }).
  * @param onError   called with a message to display, or null when the user simply cancelled.
+ * @param divider   where the "OR" rule sits: 'top' below an existing submit button, 'bottom'
+ *                  when this leads a form, 'none' to omit it. The rule is part of THIS
+ *                  component so it disappears with the button — a stray divider above a form
+ *                  that no longer has anything above it looks like a rendering bug.
  */
-export default function GoogleSignInButton({ onSuccess, onError, label = 'Continue with Google', divider = true }) {
+export default function GoogleSignInButton({
+  onSuccess,
+  onError,
+  label = 'Continue with Google',
+  divider = 'top',
+}) {
   const T = useT();
   const [serverEnabled, setServerEnabled] = useState(null); // null = still checking
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+
+    // Both sides have to be provisioned, and when one is not the button simply does not render.
+    // That is right in production but baffling in development, so say which half is missing.
     if (!canUseGoogleSignIn()) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[GoogleSignInButton] hidden: the CLIENT is not configured. On web that means the '
+          + 'VITE_FIREBASE_* build env is missing; on a native build it means '
+          + '@capacitor-firebase/authentication is not installed.'
+        );
+      }
       setServerEnabled(false);
       return undefined;
     }
+
     fetchGoogleEnabled().then(enabled => {
-      if (!cancelled) setServerEnabled(enabled);
+      if (cancelled) return;
+      if (!enabled && import.meta.env.DEV) {
+        console.warn(
+          '[GoogleSignInButton] hidden: the SERVER reports Google is off. Set GOOGLE_CLIENT_IDS '
+          + 'on the backend (see /api/auth/providers).'
+        );
+      }
+      setServerEnabled(enabled);
     });
     return () => { cancelled = true; };
   }, []);
@@ -62,15 +89,20 @@ export default function GoogleSignInButton({ onSuccess, onError, label = 'Contin
 
   if (!serverEnabled) return null;
 
+  // `divider` accepts a boolean for callers that only care whether there is one at all.
+  const placement = divider === true ? 'top' : divider === false ? 'none' : divider;
+
+  const rule = (
+    <Divider sx={{ my: 2.5, '&::before, &::after': { borderColor: T.divider } }}>
+      <Typography sx={{ color: T.textMuted, fontSize: 12, letterSpacing: 0.6 }}>
+        OR
+      </Typography>
+    </Divider>
+  );
+
   return (
     <Box sx={{ width: '100%' }}>
-      {divider && (
-        <Divider sx={{ my: 2.5, '&::before, &::after': { borderColor: T.divider } }}>
-          <Typography sx={{ color: T.textMuted, fontSize: 12, letterSpacing: 0.6 }}>
-            OR
-          </Typography>
-        </Divider>
-      )}
+      {placement === 'top' && rule}
 
       <Button
         fullWidth
@@ -91,6 +123,8 @@ export default function GoogleSignInButton({ onSuccess, onError, label = 'Contin
       >
         {loading ? <CircularProgress size={20} sx={{ color: T.text }} /> : label}
       </Button>
+
+      {placement === 'bottom' && rule}
     </Box>
   );
 }

@@ -17,6 +17,8 @@ import db_world_icon from '@assets/images/db-circle-icon.webp';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getSelectMenuProps } from '@shared/theme';
 import { Aurora, GlassPanel } from '@shared/ui/surfaces';
+import GoogleSignInButton from '@features/auth/GoogleSignInButton';
+import { useAuth } from '@features/auth/context/Authentication';
 
 /**
  * The `/registration` route.
@@ -54,6 +56,7 @@ const Registration = () => {
   usePageMeta('Create Account', { description: 'Create your free DB World account.' });
 
   const navigate = useNavigate();
+  const { login } = useAuth();
   // Whatever the visitor was originally trying to reach, handed over by the sign-in modal or the
   // login page. Passed straight back so signing in afterwards returns them there rather than
   // dumping them on the hub.
@@ -110,6 +113,21 @@ const Registration = () => {
     }
     setErrors(p => ({ ...p, [name]: !ok }));
     return ok;
+  };
+
+  /**
+   * Google signs the visitor straight in rather than bouncing them to /login.
+   *
+   * There is no separate "sign up with Google" on the server: the same endpoint creates the
+   * account when the verified identity is new and signs into it when it is not. So unlike the
+   * password path — which registers, then redirects to sign in — this already holds a session
+   * and should just go where the visitor was originally headed.
+   */
+  const handleGoogleSuccess = (payload) => {
+    const role = payload?.user?.role ?? Constants.VIEWER_USER_ROLE;
+    login(payload.token, payload.user, role, payload.refreshToken);
+    notify.success(`Welcome, ${payload.user?.name ?? 'to DB World'}!`);
+    navigate(location.state?.from?.pathname ?? Constants.DB_WORLD_HOME_ROUTE, { replace: true });
   };
 
   const handleChange = (e) => {
@@ -203,6 +221,16 @@ const Registration = () => {
               </Typography>
             </Box>
           </Box>
+
+          {/* Placed ABOVE the form: it replaces seven fields and a date picker, so burying it
+              under them would hide the fastest way to sign up. Renders nothing when Google is
+              not configured, in which case the form simply starts where it always did. */}
+          <GoogleSignInButton
+            label="Sign up with Google"
+            divider="bottom"
+            onSuccess={handleGoogleSuccess}
+            onError={(message) => message && notify.error(message)}
+          />
 
           <Box component="form" onSubmit={handleSubmit} noValidate>
 
