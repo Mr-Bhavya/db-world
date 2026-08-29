@@ -38,6 +38,10 @@ public class JwtService {
                 .claim("userId", user.getUserId())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().getName().name())
+                // Stamps the version this token was minted at. TokenVersionValidator compares
+                // it on every request, so bumping the user's version kills this token instantly
+                // instead of leaving it valid for the rest of its TTL.
+                .claim(TokenVersionService.CLAIM, user.getTokenVersion())
 
                 .build();
 

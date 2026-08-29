@@ -3,6 +3,8 @@ package com.db.dbworld.security.auth;
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.dto.AuthToken;
+import java.util.UUID;
+import com.db.dbworld.security.dto.SessionContext;
 import com.db.dbworld.security.dto.BiometricDeviceDto;
 import com.db.dbworld.security.entity.BiometricDeviceEntity;
 import com.db.dbworld.security.repository.BiometricDeviceRepository;
@@ -26,6 +28,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class BiometricDeviceServiceTest {
+
+    private static final SessionContext CONTEXT = SessionContext.unknown();
+
 
     BiometricDeviceRepository repo;
     UserService userService;
@@ -95,10 +100,10 @@ class BiometricDeviceServiceTest {
         e.setDeviceId("dev-1");
         e.setExpiry(Instant.now().plus(Duration.ofDays(1)));
         when(repo.findByTokenHashAndRevokedFalse(sha256Hex(raw))).thenReturn(Optional.of(e));
-        AuthToken token = new AuthToken("access", "refresh", Duration.ofDays(30), null);
-        when(authenticationService.issueSession(user)).thenReturn(token);
+        AuthToken token = new AuthToken("access", "refresh", UUID.randomUUID(), Duration.ofDays(30), null);
+        when(authenticationService.issueSession(user, CONTEXT)).thenReturn(token);
 
-        AuthToken result = service.exchange(raw);
+        AuthToken result = service.exchange(raw, CONTEXT);
 
         assertThat(result).isSameAs(token);
         assertThat(e.getLastUsed()).isNotNull();
@@ -109,8 +114,8 @@ class BiometricDeviceServiceTest {
     @Test
     void exchange_unknownOrRevokedToken_throws() {
         when(repo.findByTokenHashAndRevokedFalse(anyString())).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.exchange("bad")).isInstanceOf(BadCredentialsException.class);
-        verify(authenticationService, never()).issueSession(any());
+        assertThatThrownBy(() -> service.exchange("bad", CONTEXT)).isInstanceOf(BadCredentialsException.class);
+        verify(authenticationService, never()).issueSession(any(), any());
     }
 
     @Test
@@ -120,7 +125,7 @@ class BiometricDeviceServiceTest {
         e.setUser(user);
         e.setExpiry(Instant.now().minus(Duration.ofDays(1)));
         when(repo.findByTokenHashAndRevokedFalse(sha256Hex(raw))).thenReturn(Optional.of(e));
-        assertThatThrownBy(() -> service.exchange(raw)).isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> service.exchange(raw, CONTEXT)).isInstanceOf(BadCredentialsException.class);
     }
 
     @Test
@@ -133,8 +138,8 @@ class BiometricDeviceServiceTest {
         e.setUser(disabled);
         e.setExpiry(Instant.now().plus(Duration.ofDays(1)));
         when(repo.findByTokenHashAndRevokedFalse(sha256Hex(raw))).thenReturn(Optional.of(e));
-        assertThatThrownBy(() -> service.exchange(raw)).isInstanceOf(DisabledException.class);
-        verify(authenticationService, never()).issueSession(any());
+        assertThatThrownBy(() -> service.exchange(raw, CONTEXT)).isInstanceOf(DisabledException.class);
+        verify(authenticationService, never()).issueSession(any(), any());
     }
 
     @Test
@@ -178,8 +183,8 @@ class BiometricDeviceServiceTest {
         saved.setUser(user);
 
         when(repo.findByTokenHashAndRevokedFalse(saved.getTokenHash())).thenReturn(Optional.of(saved));
-        when(authenticationService.issueSession(user)).thenReturn(new AuthToken("a", "r", Duration.ofDays(30), null));
+        when(authenticationService.issueSession(user, CONTEXT)).thenReturn(new AuthToken("a", "r", UUID.randomUUID(), Duration.ofDays(30), null));
 
-        assertThat(service.exchange(raw)).isNotNull();
+        assertThat(service.exchange(raw, CONTEXT)).isNotNull();
     }
 }

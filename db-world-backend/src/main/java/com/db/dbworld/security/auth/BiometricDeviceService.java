@@ -3,6 +3,7 @@ package com.db.dbworld.security.auth;
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.dto.AuthToken;
+import com.db.dbworld.security.dto.SessionContext;
 import com.db.dbworld.security.dto.BiometricDeviceDto;
 import com.db.dbworld.security.entity.BiometricDeviceEntity;
 import com.db.dbworld.security.repository.BiometricDeviceRepository;
@@ -66,7 +67,7 @@ public class BiometricDeviceService {
 
     /** Exchanges a device token for a fresh session (access token + persisted refresh token). */
     @Transactional
-    public AuthToken exchange(String rawToken) {
+    public AuthToken exchange(String rawToken, SessionContext context) {
         BiometricDeviceEntity e = repo.findByTokenHashAndRevokedFalse(sha256Hex(rawToken))
                 .filter(d -> d.getExpiry() != null && d.getExpiry().isAfter(Instant.now()))
                 .orElseThrow(() -> new BadCredentialsException("Invalid or expired device token"));
@@ -81,7 +82,7 @@ public class BiometricDeviceService {
         repo.save(e);
 
         log.info("Biometric unlock for user [{}] (device={})", user.getEmail(), e.getDeviceId());
-        return authenticationService.issueSession(user);
+        return authenticationService.issueSession(user, context);
     }
 
     /** Revokes one device for the caller (settings toggle / logout). */

@@ -1,6 +1,7 @@
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
+import { getAccessToken } from '@shared/auth/tokenStore';
 const REACT_APP_BASEURL = getApiBaseUrl();
 
 /**
@@ -263,7 +264,7 @@ export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) =>
     method: "GET",
     credentials: "include",
     headers: {
-      Authorization: 'Bearer ' + localStorage.getItem("token")
+      Authorization: 'Bearer ' + (getAccessToken() ?? '')
     }
   });
   return await response.json();
@@ -444,7 +445,7 @@ export const postStreamTrackEventsOnExit = (events, { app = false } = {}) => {
 
 function keepaliveSend(path, { method, body, headers } = {}) {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     fetch(`${REACT_APP_BASEURL}${path}`, {
       method, body, keepalive: true, credentials: 'include',
       headers: {

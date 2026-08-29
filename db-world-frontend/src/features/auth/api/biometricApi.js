@@ -9,10 +9,22 @@ export const enrollDevice = (deviceId, deviceLabel) =>
 
 /**
  * Exchange a device token for a fresh session. PUBLIC — must NOT carry a (possibly stale) bearer
- * token, so `${BASE}/exchange` is listed in the axios NO_TOKEN_PATHS. Returns { accessToken, user }.
+ * token, so `${BASE}/exchange` is listed in the axios NO_TOKEN_PATHS.
+ *
+ * Returns { accessToken, refreshToken, user }. The endpoint answers with the same shape as
+ * /login, whose access-token field is named `token` — it is renamed here because every caller
+ * destructures `accessToken`, and reading the wrong key silently produced an undefined token.
+ * `refreshToken` is present only on native, which stores it itself.
  */
 export const exchangeDeviceToken = (deviceToken) =>
-  axiosInstance.post(`${BASE}/exchange`, { deviceToken }).then(unwrap);
+  axiosInstance.post(`${BASE}/exchange`, { deviceToken }).then((r) => {
+    const payload = unwrap(r) ?? {};
+    return {
+      accessToken: payload.token ?? payload.accessToken,
+      refreshToken: payload.refreshToken,
+      user: payload.user,
+    };
+  });
 
 /** List the current user's enrolled devices (authenticated). */
 export const listDevices = () => axiosInstance.get(`${BASE}/devices`).then(unwrap);

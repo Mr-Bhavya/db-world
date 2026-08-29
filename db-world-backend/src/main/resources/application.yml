@@ -125,6 +125,19 @@ jwt:
   refresh-cookie-secure: true
   refresh-cookie-same-site: None
 
+# Google Sign-In. The backend verifies the ID token itself against Google's JWKS, so no
+# Google SDK or client secret is involved — only the client IDs a token may be issued FOR.
+#
+# There is one ID PER PLATFORM and all of them must be listed: a token minted for the Android
+# client carries the Android ID in `aud`, and an audience the server does not know is rejected.
+# The Android ID is also bound to the signing certificate's SHA-1, so the RELEASE keystore
+# fingerprint has to be registered in Google Cloud Console or sign-in works in debug and fails
+# in release. Leaving this empty simply disables the feature; /api/auth/providers reports that
+# so the client can hide the button.
+google:
+  auth:
+    client-ids: ${GOOGLE_CLIENT_IDS:}
+
 jasypt:
   encryptor:
     bean: jasyptStringEncryptor
@@ -201,6 +214,12 @@ app:
 # db-world feature configs
 # =========================================================
 dbworld:
+  # ── Account deletion housekeeping ─────────────────────────────────────────
+  # Both run daily, offset so they never overlap.
+  account:
+    purge-cron: ${ACCOUNT_PURGE_CRON:0 30 3 * * *}
+    session-sweep-cron: ${SESSION_SWEEP_CRON:0 45 3 * * *}
+
   # ── Filesystem ↔ DB reconciliation ────────────────────────────────────────
   # Periodic scan that keeps `media_files` in sync with the on-disk state of
   # `app.stream-path`. The dynamic knobs (enabled, interval) live in the

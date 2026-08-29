@@ -20,7 +20,8 @@ public class LoginDataEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user", referencedColumnName = "id",  nullable = false, updatable = false)
+    // Nullable so a purge can detach the login history and keep the counts intact.
+    @JoinColumn(name = "user", referencedColumnName = "id", updatable = false)
     public UserEntity user;
 
     @CreatedDate

@@ -27,11 +27,11 @@ export default function BiometricGate() {
     setPhase('scanning');
     setError(null);
     try {
-      const { accessToken, user } = await biometricUnlock();
+      const { accessToken, refreshToken, user } = await biometricUnlock();
       setPhase('success');
       haptic.success();
       // Let the success tick land before handing off to the app.
-      setTimeout(() => login(accessToken, user, extractAppRole(user)), 480);
+      setTimeout(() => login(accessToken, user, extractAppRole(user), refreshToken), 480);
     } catch (e) {
       const status = e?.response?.status;
       if (status === 401 || status === 403) {

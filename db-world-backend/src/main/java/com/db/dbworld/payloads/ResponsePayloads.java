@@ -1,5 +1,6 @@
 package com.db.dbworld.payloads;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.db.dbworld.core.role.dto.RoleDto;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.core.user.dto.UserDto;
@@ -19,17 +20,37 @@ public class ResponsePayloads {
 //    public static Object PasswordMangerCredential;
 
     @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class LoginResponse{
         String token;
+
+        /**
+         * Only populated for native clients, which store it in the Keychain / AndroidKeyStore.
+         *
+         * <p>Web never receives it in the body — there the refresh token stays in an httpOnly
+         * cookie that JavaScript cannot read, which is strictly safer. Native cannot rely on
+         * that cookie: WKWebView's tracking prevention drops cross-site cookies, so an iOS
+         * build would silently lose its session on every cold start.
+         */
+        String refreshToken;
+
         Map<String, Object> user = new HashMap<>();
 
         public LoginResponse(String token, UserDto userDetails){
+            this(token, null, userDetails);
+        }
+
+        public LoginResponse(String token, String refreshToken, UserDto userDetails){
             this.token = token;
+            this.refreshToken = refreshToken;
             this.user.put("userId", userDetails.getUserId());
             this.user.put("email", userDetails.getEmail());
             this.user.put("name", userDetails.getFirstName() + " " + userDetails.getLastName());
             this.user.put("dob", userDetails.getDob());
             this.user.put("role", userDetails.getUserRole() != null ? userDetails.getUserRole().getName() : null);
+            this.user.put("avatarUrl", userDetails.getAvatarUrl());
+            this.user.put("hasPassword", userDetails.isHasPassword());
+            this.user.put("googleLinked", userDetails.isGoogleLinked());
         }
 
     }

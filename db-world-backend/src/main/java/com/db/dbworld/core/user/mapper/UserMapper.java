@@ -14,7 +14,12 @@ import org.mapstruct.*;
 public interface UserMapper {
 
     // ✅ Entity → Response DTO
+    // hasPassword/googleLinked are derived, not fields: UserEntity exposes them as
+    // hasPassword()/hasGoogleLinked(), which are not JavaBean accessors, so MapStruct cannot
+    // discover them by name and needs the expression spelled out.
     @Mapping(source = "role", target = "userRole")
+    @Mapping(target = "hasPassword", expression = "java(entity.hasPassword())")
+    @Mapping(target = "googleLinked", expression = "java(entity.hasGoogleLinked())")
     UserDto toDto(UserEntity entity);
 
     // ✅ Create Request → Entity

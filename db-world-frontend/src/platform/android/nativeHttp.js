@@ -1,4 +1,5 @@
 import { CapacitorHttp } from '@capacitor/core';
+import { getAccessToken } from '@shared/auth/tokenStore';
 
 /**
  * Fetches a URL as a correct binary Blob on a native Capacitor build.
@@ -10,7 +11,7 @@ import { CapacitorHttp } from '@capacitor/core';
  * base64-encoded, which we decode losslessly. Native-only; the web path keeps using axios blobs.
  */
 function authHeaders() {
-  const token = localStorage.getItem('token');
+  const token = getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

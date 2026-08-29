@@ -19,6 +19,7 @@ import {
   Close as CloseIcon,
   Visibility, VisibilityOff,
   Devices as DevicesIcon,
+  DeleteForever as DeleteForeverIcon,
   AccessTime as TimeIcon,
   Save as SaveIcon,
   Badge as BadgeIcon,
@@ -27,6 +28,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
 import BiometricSetting from '@features/auth/BiometricSetting';
 import BiometricDevicesSection from '@features/auth/BiometricDevicesSection';
+import ActiveSessionsDialog from '@features/auth/ActiveSessionsDialog';
+import DeleteAccountDialog from '@features/auth/DeleteAccountDialog';
 import { getUserDetail, updateUserDetails, changePassword, getLoginHistory } from '@shared/services/ApiServices';
 import { notify } from '@shared/notify';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -329,6 +332,8 @@ const Profile = () => {
   const [loading,      setLoading]      = useState(true);
   const [showChangePw, setShowChangePw] = useState(false);
   const [showHistory,  setShowHistory]  = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
+  const [showDelete,   setShowDelete]   = useState(false);
 
   const [editing,   setEditing]   = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -696,7 +701,35 @@ const Profile = () => {
                   >
                     Change Password
                   </Button>
+                  <Button
+                    fullWidth startIcon={<DevicesIcon />}
+                    onClick={() => setShowSessions(true)}
+                    sx={{
+                      py: 1.3,
+                      border: `1px solid ${T.glassBorder}`,
+                      color: T.textMuted, borderRadius: 2, textTransform: 'none', fontWeight: 500,
+                      '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
+                    }}
+                  >
+                    Where you&apos;re signed in
+                  </Button>
                   <BiometricSetting />
+
+                  {/* Separated from the rest: this one is destructive and should not sit flush
+                      against the everyday actions. */}
+                  <Divider sx={{ borderColor: T.border, my: 1 }} />
+                  <Button
+                    fullWidth startIcon={<DeleteForeverIcon />}
+                    onClick={() => setShowDelete(true)}
+                    sx={{
+                      py: 1.3,
+                      border: `1px solid ${T.glassBorder}`,
+                      color: T.textFaint, borderRadius: 2, textTransform: 'none', fontWeight: 500,
+                      '&:hover': { borderColor: '#ef4444', color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' },
+                    }}
+                  >
+                    Delete account
+                  </Button>
                 </Box>
               )}
 
@@ -707,6 +740,15 @@ const Profile = () => {
 
       <ChangePasswordDialog open={showChangePw} onClose={() => setShowChangePw(false)} />
       <LoginHistoryDialog   open={showHistory}  onClose={() => setShowHistory(false)} />
+      <ActiveSessionsDialog open={showSessions} onClose={() => setShowSessions(false)} />
+      <DeleteAccountDialog
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        email={userData.email}
+        // A Google-only account has no password to re-enter, so the dialog asks for the email
+        // alone. Defaults to true so a profile that hasn't loaded yet never skips the check.
+        hasPassword={userData.hasPassword !== false}
+      />
     </Box>
   );
 };

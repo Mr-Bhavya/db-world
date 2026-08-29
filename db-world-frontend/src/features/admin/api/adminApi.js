@@ -47,9 +47,37 @@ export const getUserSessions = (userId) =>
 export const revokeUserSessions = (userId) =>
   axiosInstance.delete(`/api/user/${userId}/sessions`).then(r => r.data);
 
-/** Enable or disable (lock) a user. Disabling also revokes their sessions. */
+/** Enable or disable a user. Disabling also revokes their sessions and access tokens. */
 export const setUserStatus = (userId, enabled) =>
   axiosInstance.patch(`/api/user/${userId}/status`, null, { params: { enabled } }).then(r => r.data);
+
+/** Lock or unlock a user. Locking revokes their sessions the same way disabling does. */
+export const setUserLocked = (userId, locked) =>
+  axiosInstance.patch(`/api/user/${userId}/lock`, null, { params: { locked } }).then(r => r.data);
+
+/** Revoke ONE session. `familyId` is the rotation family id from {@link getUserSessions}. */
+export const revokeUserSession = (userId, familyId) =>
+  axiosInstance.delete(`/api/user/${userId}/sessions/${encodeURIComponent(familyId)}`).then(r => r.data);
+
+/** Detach the Google identity. Refused when Google is the only way into the account. */
+export const unlinkGoogle = (userId) =>
+  axiosInstance.delete(`/api/user/${userId}/google`).then(r => r.data);
+
+/** Drop every biometric enrollment — another way in that survives a password reset. */
+export const revokeBiometricDevices = (userId) =>
+  axiosInstance.delete(`/api/user/${userId}/biometric-devices`).then(r => r.data);
+
+/** Drop every push registration, so notifications stop reaching an old device. */
+export const revokePushTokens = (userId) =>
+  axiosInstance.delete(`/api/user/${userId}/push-tokens`).then(r => r.data);
+
+/** Erase the account and its data immediately, skipping the 30-day grace window. */
+export const purgeUser = (userId) =>
+  axiosInstance.delete(`/api/user/${userId}/purge`).then(r => r.data);
+
+/** Cancel a pending deletion before the grace window elapses. */
+export const restoreUser = (userId) =>
+  axiosInstance.post(`/api/user/${userId}/restore`).then(r => r.data);
 
 /* ─── RECORD APIS ───────────────────────────────────────────────── */
 

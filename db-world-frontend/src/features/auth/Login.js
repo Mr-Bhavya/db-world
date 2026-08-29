@@ -32,6 +32,7 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { useAuth } from '@features/auth/context/Authentication';
+import GoogleSignInButton from '@features/auth/GoogleSignInButton';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { updateDobForUser } from '@shared/services/ApiServices';
 import Constants from '@shared/constants';
@@ -225,7 +226,7 @@ const Login = () => {
           throw new Error('Unable to determine user role');
         }
 
-        login(payload.token, payload.user, role);
+        login(payload.token, payload.user, role, payload.refreshToken);
 
         if (!payload.user.dob) {
           setPendingUser(payload.user);
@@ -246,6 +247,31 @@ const Login = () => {
       }
     },
     [destination, formData.email, formData.password, loading, login, navigate, validateField]
+  );
+
+  /**
+   * Completes a successful sign-in, whatever produced it.
+   *
+   * Google accounts arrive with no date of birth, so they hit the same DOB prompt a fresh
+   * password registration does rather than skipping it.
+   */
+  const handleAuthSuccess = useCallback(
+    (payload) => {
+      const role = extractLoginRole(payload);
+      if (!role) {
+        setLoginError('Unable to determine user role');
+        return;
+      }
+      login(payload.token, payload.user, role, payload.refreshToken);
+
+      if (!payload.user.dob) {
+        setPendingUser(payload.user);
+        setDobOpen(true);
+        return;
+      }
+      navigate(destination, { replace: true });
+    },
+    [destination, login, navigate]
   );
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -564,6 +590,11 @@ const Login = () => {
               )}
             </Button>
           </Box>
+
+          <GoogleSignInButton
+            onSuccess={handleAuthSuccess}
+            onError={(msg) => setLoginError(msg ?? '')}
+          />
 
           <Divider sx={{ borderColor: T.border, my: 3 }}>
             <Typography
