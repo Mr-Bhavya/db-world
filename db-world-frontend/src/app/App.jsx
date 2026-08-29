@@ -90,6 +90,8 @@ const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
 const Snake       = lazy(() => import('@features/games/Snake'));
 const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
 const Game2048    = lazy(() => import('@features/games/Game2048'));
+const Minesweeper = lazy(() => import('@features/games/Minesweeper'));
+const ConnectFour = lazy(() => import('@features/games/ConnectFour'));
 
 
 // Error Boundary Component
@@ -206,6 +208,8 @@ const routeConfig = {
     { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },
     { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
     { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
+    { path: Constants.DB_GAMES_MINESWEEPER_ROUTE,  element: <Minesweeper /> },
+    { path: Constants.DB_GAMES_CONNECT_FOUR_ROUTE, element: <ConnectFour /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },

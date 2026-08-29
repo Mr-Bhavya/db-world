@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 
-import Constants from '@shared/constants';
+import { GAMES } from '@features/games/gamesData';
 import { useT } from '@shared/theme';
 import { clampTextSx } from '../../homeStyles';
 import WidgetShell from '../WidgetShell';
@@ -13,36 +13,27 @@ import WidgetShell from '../WidgetShell';
  *
  * Every game is listed whether or not it has been played: a first-time visitor gets a menu they
  * can launch from instead of a tile telling them it has nothing to show yet.
+ *
+ * The list comes from the arcade's own registry, so adding a game no longer means remembering to
+ * add it here too. Each entry knows how to read and format its own best — they are scored in
+ * points, moves, seconds and wins, which is also why they are not sorted against each other.
  */
-const GAMES = [
-  { key: '2048_best', label: '2048', route: Constants.DB_GAMES_2048_ROUTE },
-  { key: 'snake_best', label: 'Snake', route: Constants.DB_GAMES_SNAKE_ROUTE },
-  { key: 'memory_best', label: 'Memory', route: Constants.DB_GAMES_MEMORY_MATCH_ROUTE },
-  // Tic-tac-toe keeps no high score, so it has no storage key — it is here to be launched.
-  { key: null, label: 'Tic-tac-toe', route: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE },
-];
-
-const readBest = (key) => {
-  if (typeof window === 'undefined' || !key) return 0;
-
-  const value = Number.parseInt(localStorage.getItem(key) ?? '0', 10);
-  return Number.isFinite(value) && value > 0 ? value : 0;
-};
 
 export default function ArcadeWidget({ widget, onNavigate, ...shell }) {
   const T = useT();
 
   // Played games first, so a returning player's scores are what they see; the rest follow as
-  // things left to try.
+  // things left to try. Within each group the registry's own order stands — comparing a 2048
+  // score against a Minesweeper time would be sorting on numbers that mean different things.
   const games = useMemo(() => {
-    const withScores = GAMES.map((game) => ({ ...game, best: readBest(game.key) }));
+    const withScores = GAMES.map((game) => ({ ...game, best: game.readBest() }));
     return [
-      ...withScores.filter((game) => game.best > 0).sort((a, b) => b.best - a.best),
-      ...withScores.filter((game) => game.best === 0),
+      ...withScores.filter((game) => game.best),
+      ...withScores.filter((game) => !game.best),
     ];
   }, []);
 
-  const played = games.some((game) => game.best > 0);
+  const played = games.some((game) => game.best);
   // A small tile is one grid row: three games fit, four clip. The section caption is dropped there
   // too — the tile is already titled "Arcade", so it was costing a row to repeat itself.
   const compact = widget.size === 'sm';
@@ -71,7 +62,7 @@ export default function ArcadeWidget({ widget, onNavigate, ...shell }) {
             key={game.route}
             role="button"
             tabIndex={0}
-            aria-label={`Play ${game.label}`}
+            aria-label={`Play ${game.title}`}
             onClick={(event) => {
               event.stopPropagation();
               onNavigate?.(game.route);
@@ -99,17 +90,18 @@ export default function ArcadeWidget({ widget, onNavigate, ...shell }) {
             <Typography
               sx={{ color: T.textMuted, fontSize: '0.74rem', fontWeight: 700, ...clampTextSx(1) }}
             >
-              {game.label}
+              {game.title}
             </Typography>
             <Typography
               sx={{
-                color: game.best > 0 ? widget.accent : T.textFaint,
-                fontSize: game.best > 0 ? '0.86rem' : '0.7rem',
-                fontWeight: game.best > 0 ? 900 : 700,
+                color: game.best ? widget.accent : T.textFaint,
+                fontSize: game.best ? '0.86rem' : '0.7rem',
+                fontWeight: game.best ? 900 : 700,
                 flexShrink: 0,
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {game.best > 0 ? game.best.toLocaleString() : 'Play'}
+              {game.best ? game.best.label : 'Play'}
             </Typography>
           </Box>
         ))}

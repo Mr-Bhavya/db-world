@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, Button, Container, Grid, Typography } from '@mui/material';
-import { ArrowBack, Refresh } from '@mui/icons-material';
+import { Box, Button, Grid, Typography } from '@mui/material';
+import { Refresh } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
+import GameShell from './GameShell';
 
 const EMOJIS = ['🐉', '🦄', '🚀', '🌊', '🔥', '⚡', '🎯', '🍀', '🦋', '🌙', '💎', '🎸', '🦊', '🐬', '🌸', '🏔️'];
 
@@ -29,7 +28,6 @@ const MemoryMatch = () => {
   usePageMeta('Memory Match — DB Games', { exact: true });
 
   const T          = useT();
-  const navigate   = useNavigate();
   const [cards, setCards]     = useState(() => makeCards(8));
   const [flipped, setFlipped] = useState([]);   // indices currently face-up (max 2)
   const [locked, setLocked]   = useState(false);
@@ -98,61 +96,25 @@ const MemoryMatch = () => {
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div
-        animate={{ opacity: [0.06, 0.14, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-          background: `radial-gradient(ellipse 50% 40% at 50% 30%, ${T.tealGlow ?? 'rgba(13,148,136,0.12)'} 0%, transparent 70%)`,
-        }}
-      />
-
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, md: 5 } }}>
-        <Box sx={{ mb: 2 }}>
-          <Button
-            startIcon={<ArrowBack />}
-            onClick={() => navigate(Constants.DB_GAMES_ROUTE)}
-            sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
-          >
-            Games
-          </Button>
-        </Box>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, color: T.textPrimary }}>Memory Match</Typography>
-              <Button
-                size="small" startIcon={<Refresh />} onClick={reset}
-                variant="outlined"
-                sx={{ borderColor: T.glassBorder, color: T.textMuted, '&:hover': { borderColor: T.teal, color: T.teal } }}
-              >
-                New
-              </Button>
-            </Box>
-
-            {/* Stats */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'center' }}>
-              {[
-                { label: 'Moves', value: moves },
-                { label: 'Time',  value: fmt(time) },
-                { label: 'Best',  value: best ? `${best} moves` : '—' },
-              ].map(({ label, value }) => (
-                <Box key={label} sx={{
-                  flex: 1, textAlign: 'center', p: 1.5,
-                  bgcolor: 'rgba(255,255,255,0.03)', border: `1px solid ${T.glassBorder}`, borderRadius: 2,
-                }}>
-                  <Typography sx={{ fontSize: '0.68rem', color: T.textMuted, mb: 0.25 }}>{label}</Typography>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.teal }}>{value}</Typography>
-                </Box>
-              ))}
-            </Box>
-
+    <GameShell
+      title="Memory Match"
+      width="sm"
+      stats={[{ label: 'Moves', value: moves, accent: true }, { label: 'Time', value: fmt(time) }, { label: 'Best', value: best ? best : '—' }]}
+      actions={
+        <Button
+          size="small"
+          startIcon={<Refresh sx={{ fontSize: 16 }} />}
+          onClick={reset}
+          sx={{
+            fontWeight: 800, fontSize: '0.74rem', borderRadius: 2, minHeight: 34,
+            color: T.textMuted, border: `1px solid ${T.glassBorder}`,
+            '&:hover': { color: T.teal, borderColor: T.teal, bgcolor: T.tealBg },
+          }}
+        >
+          New game
+        </Button>
+      }
+    >
             {/* Win banner */}
             <AnimatePresence>
               {won && (
@@ -179,7 +141,7 @@ const MemoryMatch = () => {
             {/* Cards grid */}
             <Grid container spacing={1}>
               {cards.map((card, idx) => (
-                <Grid key={card.id} item xs={3}>
+                <Grid key={card.id} size={3}>
                   <Box
                     onClick={() => handleFlip(idx)}
                     sx={{
@@ -230,10 +192,7 @@ const MemoryMatch = () => {
             <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, textAlign: 'center', mt: 2 }}>
               Find all 8 matching pairs
             </Typography>
-          </Box>
-        </motion.div>
-      </Container>
-    </Box>
+    </GameShell>
   );
 };
 

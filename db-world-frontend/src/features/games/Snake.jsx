@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, Button, Container, Typography, IconButton } from '@mui/material';
-import { ArrowBack, Refresh, PlayArrow, Pause } from '@mui/icons-material';
+import { Box, Button, Typography, IconButton } from '@mui/material';
+import { Refresh, PlayArrow, Pause } from '@mui/icons-material';
 import {
   KeyboardArrowUp, KeyboardArrowDown,
   KeyboardArrowLeft, KeyboardArrowRight,
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
-import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
+import GameShell from './GameShell';
 
 const COLS = 20;
 const ROWS = 20;
@@ -31,7 +29,6 @@ const Snake = () => {
   usePageMeta('Snake — DB Games', { exact: true });
 
   const T          = useT();
-  const navigate   = useNavigate();
   const canvasRef  = useRef(null);
   const stateRef   = useRef(null); // mutable game state accessed in rAF
   const rafRef     = useRef(null);
@@ -183,48 +180,7 @@ const Snake = () => {
   const dpad = (dir) => { if (phase === 'playing') queueRef.current.push(dir); };
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div
-        animate={{ opacity: [0.06, 0.14, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-          background: `radial-gradient(ellipse 50% 40% at 50% 30%, ${T.tealGlow ?? 'rgba(13,148,136,0.12)'} 0%, transparent 70%)`,
-        }}
-      />
-
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, md: 5 } }}>
-        {/* Back */}
-        <Box sx={{ mb: 2 }}>
-          <Button
-            startIcon={<ArrowBack />}
-            onClick={() => navigate(Constants.DB_GAMES_ROUTE)}
-            sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
-          >
-            Games
-          </Button>
-        </Box>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, color: T.textPrimary }}>Snake</Typography>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.68rem', color: T.textMuted }}>SCORE</Typography>
-                  <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: T.teal }}>{score}</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.68rem', color: T.textMuted }}>BEST</Typography>
-                  <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: T.textPrimary }}>{best}</Typography>
-                </Box>
-              </Box>
-            </Box>
-
+    <GameShell title="Snake" width="sm" stats={[{ label: 'Score', value: score, accent: true }, { label: 'Best', value: best }]}>
             {/* Canvas */}
             <Box sx={{
               position: 'relative', borderRadius: 2, overflow: 'hidden',
@@ -304,10 +260,7 @@ const Snake = () => {
             <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, textAlign: 'center', mt: 1 }}>
               Arrow keys / WASD to move · Space to pause
             </Typography>
-          </Box>
-        </motion.div>
-      </Container>
-    </Box>
+    </GameShell>
   );
 };
 
