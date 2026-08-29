@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { Box } from '@mui/material';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useDragControls, useReducedMotion } from 'framer-motion';
 
 /**
  * Grid footprint per widget size. Four columns on desktop, two on phones and tablets, so `md`
@@ -18,6 +18,53 @@ export const SIZE_SPANS = {
 
 /** How close two reorders may be, in ms. Without it, one drag oscillates between two slots. */
 const REORDER_COOLDOWN_MS = 120;
+
+/**
+ * One tile.
+ *
+ * Its own component solely so it can hold `useDragControls`, which is per-tile and cannot be
+ * called from inside the parent's map.
+ *
+ * Dragging starts from the handle in {@link WidgetShell} and nowhere else — `dragListener={false}`
+ * means framer ignores pointer-downs on the tile body. That is what leaves a touch anywhere else
+ * on the tile free to scroll the page: the tile keeps `touch-action: auto`, and only the handle
+ * opts out of the browser's own gestures.
+ */
+function GridItem({ widget, index, editing, span, itemRef, onDrag, renderItem, reduced, constraintsRef }) {
+  const dragControls = useDragControls();
+
+  return (
+    <Box
+      ref={itemRef}
+      component={motion.div}
+      layout={!reduced}
+      transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+      drag={editing}
+      dragListener={false}
+      dragControls={dragControls}
+      dragSnapToOrigin
+      dragConstraints={constraintsRef}
+      dragElastic={0.16}
+      dragMomentum={false}
+      onDrag={onDrag}
+      whileDrag={{
+        scale: 1.04,
+        zIndex: 20,
+        boxShadow: '0 30px 70px rgba(0,0,0,0.38)',
+        cursor: 'grabbing',
+      }}
+      sx={{
+        gridColumn: span.columns,
+        gridRow: span.rows,
+        display: 'flex',
+        minWidth: 0,
+        position: 'relative',
+      }}
+    >
+      {renderItem(widget, index, editing ? dragControls : null)}
+    </Box>
+  );
+}
 
 /**
  * The dashboard's sortable bento grid.
@@ -97,41 +144,20 @@ export default function DashboardGrid({ items, editing, onMove, renderItem }) {
         minWidth: 0,
       }}
     >
-      {items.map((widget, index) => {
-        const span = SIZE_SPANS[widget.size] ?? SIZE_SPANS.sm;
-
-        return (
-          <Box
-            key={widget.id}
-            ref={setItemRef(widget.id)}
-            component={motion.div}
-            layout={!prefersReducedMotion}
-            transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-            drag={editing}
-            dragSnapToOrigin
-            dragElastic={0.16}
-            dragMomentum={false}
-            dragConstraints={containerRef}
-            onDrag={handleDrag(index)}
-            whileDrag={{
-              scale: 1.04,
-              zIndex: 20,
-              boxShadow: '0 30px 70px rgba(0,0,0,0.38)',
-              cursor: 'grabbing',
-            }}
-            sx={{
-              gridColumn: span.columns,
-              gridRow: span.rows,
-              display: 'flex',
-              minWidth: 0,
-              position: 'relative',
-              touchAction: editing ? 'none' : 'auto',
-            }}
-          >
-            {renderItem(widget, index)}
-          </Box>
-        );
-      })}
+      {items.map((widget, index) => (
+        <GridItem
+          key={widget.id}
+          widget={widget}
+          index={index}
+          editing={editing}
+          span={SIZE_SPANS[widget.size] ?? SIZE_SPANS.sm}
+          itemRef={setItemRef(widget.id)}
+          onDrag={handleDrag(index)}
+          renderItem={renderItem}
+          reduced={prefersReducedMotion}
+          constraintsRef={containerRef}
+        />
+      ))}
     </Box>
   );
 }

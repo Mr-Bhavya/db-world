@@ -31,6 +31,7 @@ const WidgetShell = memo(function WidgetShell({
   onMove,
   onCycleSize,
   onHide,
+  dragControls,
   children,
   footer,
 }) {
@@ -273,8 +274,23 @@ const WidgetShell = memo(function WidgetShell({
             <IconButton
               size="small"
               onKeyDown={handleHandleKeyDown}
+              // The only thing that starts a drag. The tile itself no longer listens, so on a
+              // phone a swipe anywhere else on it scrolls the page instead of dragging the
+              // widget out from under your thumb.
+              onPointerDown={(event) => dragControls?.start(event)}
               aria-label={`Reorder ${label}. Position ${index + 1} of ${total}. Use the arrow keys to move it.`}
-              sx={{ color: T.textMuted, cursor: 'grab', '&:hover': { color: accent } }}
+              sx={{
+                color: T.textMuted,
+                cursor: 'grab',
+                position: 'relative',
+                // Only this control opts out of the browser's own gestures — the rest of the
+                // tile keeps `touch-action: auto` and can still be scrolled through.
+                touchAction: 'none',
+                // A 30px icon button is well under a thumb's width, and this is now the only way
+                // to reorder by touch. Grows the hit area without changing what is drawn.
+                '&::after': { content: '""', position: 'absolute', inset: -7 },
+                '&:hover': { color: accent },
+              }}
             >
               <DragIcon sx={{ fontSize: 18 }} />
             </IconButton>

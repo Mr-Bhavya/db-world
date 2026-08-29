@@ -199,13 +199,14 @@ const Home = () => {
             items={tiles}
             editing={editing}
             onMove={move}
-            renderItem={(widget, index) => {
+            renderItem={(widget, index, dragControls) => {
               const Widget = widget.Component;
 
               return (
                 <Widget
                   widget={widget}
                   index={index}
+                  dragControls={dragControls}
                   total={tiles.length}
                   editing={editing}
                   summary={summary}
