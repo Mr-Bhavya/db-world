@@ -125,6 +125,11 @@ public final class AppConstants {
             // Home hub summary. Answers signed out, and gains the user-scoped
             // sections when a token happens to be present.
             "/api/home/summary",
+            // Weather. The page is a public route, so gating its only data source behind a
+            // token gave anonymous visitors a page that rendered and then 401'd. Nothing here
+            // is user-scoped — the OpenWeather key stays server-side either way, which is the
+            // reason this is a proxy at all.
+            "/api/weather", "/api/weather/search",
             // Cinema browse — category strips and rail pages
             "/api/cinema/home", "/api/cinema/home/categories",
             "/api/cinema/movies", "/api/cinema/movies/categories",

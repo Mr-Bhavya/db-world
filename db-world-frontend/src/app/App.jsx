@@ -84,7 +84,7 @@ const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
 const ContactPage    = lazy(() => import('@features/legal/Contact'));
 
-const Weather     = lazy(() => import('@features/weather/weather'));
+const Weather     = lazy(() => import('@features/weather/WeatherPage'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
 const Snake       = lazy(() => import('@features/games/Snake'));
