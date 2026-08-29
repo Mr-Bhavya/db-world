@@ -45,6 +45,7 @@ import {
 import DbWorldLogo from '@assets/images/db-circle-icon.webp';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 import { useThemeMode } from '@shared/theme';
 import { APPS } from '@shared/components/layout/home/homeData';
 import { useHomeSummary } from '@shared/components/layout/home/dashboard/homeSummaryApi';
@@ -274,6 +275,8 @@ const Header = () => {
   const isTiny = useMediaQuery('(max-width:380px)');
 
   const navigate = useNavigate();
+
+  const { promptSignIn } = useRequireAuth();
   const location = useLocation();
 
   const { auth, logout } = useAuth();
@@ -354,15 +357,31 @@ const Header = () => {
     };
   }, []);
 
+  const closeAllMenus = useCallback(() => {
+    setDrawerOpen(false);
+    setMenuAnchor(null);
+    setAppsAnchor(null);
+    setPaletteOpen(false);
+  }, []);
+
+  /**
+   * Sign in without leaving the page.
+   *
+   * The header is mounted on every route, so navigating to /login from here would throw away
+   * whatever the visitor was reading. The modal keeps it, and the page fills in with their data
+   * once they are through.
+   */
+  const handleSignIn = useCallback(() => {
+    closeAllMenus();
+    promptSignIn();
+  }, [closeAllMenus, promptSignIn]);
+
   const handleNav = useCallback(
     (route) => {
       navigate(route);
-      setDrawerOpen(false);
-      setMenuAnchor(null);
-      setAppsAnchor(null);
-      setPaletteOpen(false);
+      closeAllMenus();
     },
-    [navigate]
+    [navigate, closeAllMenus]
   );
 
   const handleLogout = useCallback(() => {
@@ -630,7 +649,7 @@ const Header = () => {
                     <Box
                       component="button"
                       type="button"
-                      onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                      onClick={handleSignIn}
                       sx={{
                         bgcolor: 'transparent',
                         border: `1px solid ${T.teal}66`,
@@ -715,7 +734,7 @@ const Header = () => {
                   <Box
                     component="button"
                     type="button"
-                    onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                    onClick={handleSignIn}
                     aria-label="Sign in"
                     sx={{
                       display: 'flex',
@@ -1269,7 +1288,7 @@ const Header = () => {
             ) : (
               <>
                 <ListItemButton
-                  onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                  onClick={handleSignIn}
                   sx={{
                     borderRadius: 1.7,
                     mb: 0.5,

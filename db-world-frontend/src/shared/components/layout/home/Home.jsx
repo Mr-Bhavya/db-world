@@ -5,6 +5,7 @@ import { Box, Container, Typography } from '@mui/material';
 
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import AdSlot from '@shared/ads/AdSlot';
@@ -43,6 +44,7 @@ const Home = () => {
 
   const T = useT();
   const navigate = useNavigate();
+  const { promptSignIn } = useRequireAuth();
 
   const { auth } = useAuth();
 
@@ -118,7 +120,9 @@ const Home = () => {
     [navigate]
   );
 
-  const handleSignIn = useCallback(() => navigate(Constants.LOGIN_ROUTE), [navigate]);
+  // Opens the sign-in modal rather than leaving the hub: the tiles behind it repopulate with
+  // the visitor's own figures as it closes, which is the whole point of asking here.
+  const handleSignIn = useCallback(() => promptSignIn(), [promptSignIn]);
   const handleRegister = useCallback(() => navigate(Constants.REGISTRATION_ROUTE), [navigate]);
 
   const handleHide = useCallback((id) => setHidden(id, true), [setHidden]);
