@@ -334,6 +334,16 @@ const Header = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  /*
+   * The bar is transparent only while the page is genuinely at the top.
+   *
+   * The threshold used to be 80px, which left an 80-pixel dead zone: the header is fixed and
+   * every page pads its content clear of it, so content starts sliding underneath from the very
+   * first pixel of scroll — but the backdrop, the blur and the rule did not arrive until much
+   * later. In between, headings and tiles ran straight through the bar with nothing behind it.
+   *
+   * A few pixels of slack rather than zero so overscroll rubber-banding cannot flicker it.
+   */
   useEffect(() => {
     let frameId = null;
 
@@ -341,11 +351,12 @@ const Header = () => {
       if (frameId) return;
 
       frameId = window.requestAnimationFrame(() => {
-        setScrolled(window.scrollY > 80);
+        setScrolled(window.scrollY > 4);
         frameId = null;
       });
     };
 
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
@@ -394,10 +405,20 @@ const Header = () => {
     location.pathname.includes(Constants.DB_CINEMA_ROUTE) ||
     location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE);
 
-  // The hub's own intro carries "Sign in" and "Create account" as its primary calls to action, so
-  // the bar repeating them there showed four buttons for two destinations in a single viewport.
-  // Everywhere else the bar is the only way in, so it keeps them.
-  const showAuthActions = !isAuth && location.pathname !== Constants.DB_WORLD_HOME_ROUTE;
+  /*
+   * One way in, in one place, on every route.
+   *
+   * This used to be hidden on the hub, on the grounds that the hub's own intro already carries
+   * "Sign in" and "Create account". The result was worse than the duplication it avoided: the
+   * control MOVED. Landing on the hub you reached for the top right and found nothing; a click
+   * into any app and two buttons appeared there while the two big ones vanished from the page.
+   * A persistent affordance beats a non-duplicated one.
+   *
+   * The bar now carries a single "Sign in" — the same button the phone header always had, so the
+   * two breakpoints stop disagreeing too. Registration keeps its prominence where it converts:
+   * the hub's pitch, and the "Create an account" link inside the modal this opens.
+   */
+  const showAuthActions = !isAuth;
 
   if (shouldHideHeader) return null;
 
@@ -640,61 +661,31 @@ const Header = () => {
                   </Tooltip>
                 ) : showAuthActions ? (
                   <Box
+                    component="button"
+                    type="button"
+                    onClick={handleSignIn}
                     sx={{
                       display: 'flex',
-                      gap: 1,
+                      alignItems: 'center',
+                      gap: 0.5,
+                      bgcolor: T.teal,
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#fff',
+                      px: 2,
+                      py: 0.75,
+                      borderRadius: 1.5,
+                      fontSize: '0.875rem',
+                      fontFamily: 'inherit',
+                      fontWeight: 850,
+                      whiteSpace: 'nowrap',
                       flexShrink: 0,
+                      ...focusSx(T.teal),
+                      '&:hover': { bgcolor: T.tealHover },
                     }}
                   >
-                    <Box
-                      component="button"
-                      type="button"
-                      onClick={handleSignIn}
-                      sx={{
-                        bgcolor: 'transparent',
-                        border: `1px solid ${T.teal}66`,
-                        cursor: 'pointer',
-                        color: T.teal,
-                        px: 2,
-                        py: 0.75,
-                        borderRadius: 1.5,
-                        fontSize: '0.875rem',
-                        fontFamily: 'inherit',
-                        fontWeight: 800,
-                        whiteSpace: 'nowrap',
-                        ...focusSx(T.teal),
-                        '&:hover': {
-                          bgcolor: T.tealBg,
-                        },
-                      }}
-                    >
-                      Sign in
-                    </Box>
-
-                    <Box
-                      component="button"
-                      type="button"
-                      onClick={() => handleNav(Constants.REGISTRATION_ROUTE)}
-                      sx={{
-                        bgcolor: T.teal,
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#fff',
-                        px: 2,
-                        py: 0.75,
-                        borderRadius: 1.5,
-                        fontSize: '0.875rem',
-                        fontFamily: 'inherit',
-                        fontWeight: 850,
-                        whiteSpace: 'nowrap',
-                        ...focusSx(T.teal),
-                        '&:hover': {
-                          bgcolor: T.tealHover,
-                        },
-                      }}
-                    >
-                      Create account
-                    </Box>
+                    <SignInIcon sx={{ fontSize: 17 }} />
+                    Sign in
                   </Box>
                 ) : null}
               </Box>

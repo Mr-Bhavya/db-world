@@ -149,10 +149,14 @@ function AuthButton({ label, Icon, primary, trailing, onClick, T, reduced }) {
  * Signed out it becomes the site's actual pitch, since this is the landing page search engines
  * index and the `<h1>` they read.
  *
- * Laid out as a named grid rather than a flex row, so the customise control sits beside the
- * heading on a desktop and drops under the calls to action on a phone — from a single instance in
- * the DOM. Sharing one action row with it stranded the buttons a thousand pixels apart on a wide
- * screen; the calls to action belong under the copy they follow from.
+ * Laid out as a named grid rather than a flex row, so the customise control moves with the shape
+ * of the band from a single instance in the DOM.
+ *
+ * Signed in, the copy is one short greeting and customise sits beside it. Signed out, the copy is
+ * a heading and a paragraph of pitch, so customise drops to share the row with the calls to
+ * action — level with them, at the other end. Left on the top row it hung on its own in the far
+ * corner with several hundred pixels of nothing between it and the text it was supposed to
+ * belong to.
  */
 export default function DashboardIntro({
   firstName,
@@ -194,7 +198,7 @@ export default function DashboardIntro({
         gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
         gridTemplateAreas: {
           xs: '"copy" "auth" "tools"',
-          sm: '"copy tools" "auth auth"',
+          sm: isAuthenticated ? '"copy tools"' : '"copy copy" "auth tools"',
         },
         columnGap: 2,
         rowGap: { xs: 1.5, sm: 2.5 },
@@ -298,6 +302,9 @@ export default function DashboardIntro({
           gridArea: 'tools',
           display: 'flex',
           justifyContent: 'flex-end',
+          // Centred rather than start-aligned: on the signed-out layout this shares a row with
+          // the 46px calls to action and has to sit level with them, not hang above them.
+          alignItems: 'center',
           flexShrink: 0,
           minWidth: 0,
         }}
