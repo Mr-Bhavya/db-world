@@ -129,8 +129,14 @@ export default function PillNav({
       // T.bg: in dark mode T.bg is pure AMOLED black while the body sits on
       // #141414, so tinting from T.bg made the bar a visibly darker band.
       bgcolor: alpha(T.bg === '#000000' ? '#141414' : T.bg, 0.72),
-      backdropFilter: 'blur(22px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(22px) saturate(180%)',
+      // Only while stuck. A backdrop-filter re-samples and re-blurs whatever is behind the
+      // element on every frame it is composited, which on a long page means every frame of
+      // every scroll — and this is a full-width bar. In normal flow there is nothing behind
+      // it but the page's own background, so the filter costs that per-frame work and buys
+      // literally nothing. Dropping it there is invisible and gives the phone back the part
+      // of the scroll before the bar starts floating.
+      backdropFilter: stuck ? 'blur(22px) saturate(180%)' : 'none',
+      WebkitBackdropFilter: stuck ? 'blur(22px) saturate(180%)' : 'none',
       // Edge and shadow ONLY while stuck. In normal flow the bar has nothing to separate
       // itself from — the border was just a line drawn across the page under the pills.
       // It earns its keep the moment the bar starts floating over scrolled content, which

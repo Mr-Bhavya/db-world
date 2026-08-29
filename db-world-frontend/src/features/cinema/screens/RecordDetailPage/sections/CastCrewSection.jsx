@@ -168,6 +168,9 @@ export default function CastCrewSection({ record, onPersonClick }) {
                     <Avatar
                       src={imgUrl ?? undefined}
                       alt={c.person?.name}
+                      // Twenty cast portraits and eight crew ones, all decoded on the main
+                      // thread at mount by default. Neither list is above the fold.
+                      slotProps={{ img: { loading: 'lazy', decoding: 'async' } }}
                       sx={{
                         width: { xs: 76, xl: 96 }, height: { xs: 76, xl: 96 },
                         '@media (min-width:1920px)': { width: 120, height: 120 },
