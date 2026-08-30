@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Typography } from '@mui/material';
-import FingerprintRoundedIcon from '@mui/icons-material/FingerprintRounded';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useAuth } from '@features/auth/context/Authentication';
 import { extractAppRole } from '@features/auth/roleUtils';
 import { biometricUnlock, clearBiometricLocal } from '@platform/android/biometric';
 import { haptic } from '@shared/platform/platform';
-import FingerprintPulse from './components/FingerprintPulse';
+import UnlockSensor from './components/UnlockSensor';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 
 /**
@@ -15,22 +14,47 @@ import db_world_icon from '@assets/images/db-circle-icon.webp';
  * fingerprint/face, exchanges the stored device token for a fresh session, then hands off to
  * login(). If the server rejects the token (revoked/expired) we drop biometric and fall back to
  * password login; a transient failure just lets the user retry. Renders nothing when not locked.
+ *
+ * <h3>Why it looks like this</h3>
+ * This is the first thing seen on every app open, so it is built to be forgettable in the way a
+ * system lock screen is forgettable. The previous layout was a web call-to-action — a large
+ * pulsing emblem with a filled "Unlock" button centred beneath it — which asks the user to make
+ * a decision they have already made by opening the app.
+ *
+ * So: identity at the top, deliberate emptiness through the middle, and the unlock affordance
+ * low where a thumb already rests. The filled button is gone, because the system biometric sheet
+ * opens by itself; the only reason to touch anything here is to retry, and the sensor glyph is
+ * the understood target for that. The one moving part is the status line.
  */
+
+/**
+ * Every state's words, in one place.
+ *
+ * Fixed slots rather than assembled strings, so the line can never reflow between states — text
+ * that shifts position as it changes is the single clearest tell that a screen is a web page.
+ * Failures say what happened and what to do, and do not apologise.
+ */
+const STATES = {
+  idle: { title: 'Locked', hint: 'Confirm your fingerprint or face' },
+  scanning: { title: 'Scanning', hint: 'Hold still' },
+  success: { title: 'Unlocked', hint: 'Signing you in' },
+  error: { title: 'Not recognised', hint: 'Tap the sensor to try again' },
+};
+
 export default function BiometricGate() {
   const T = useT();
+  const reduce = useReducedMotion();
   const { auth, login, cancelBiometricLock } = useAuth();
   const [phase, setPhase] = useState('idle'); // idle | scanning | success | error
-  const [error, setError] = useState(null);
   const busy = phase === 'scanning';
 
   const attempt = useCallback(async () => {
     setPhase('scanning');
-    setError(null);
     try {
       const { accessToken, refreshToken, user } = await biometricUnlock();
       setPhase('success');
       haptic.success();
-      // Let the success tick land before handing off to the app.
+      // Let the success state land before handing off, so the screen does not flash past.
       setTimeout(() => login(accessToken, user, extractAppRole(user), refreshToken), 480);
     } catch (e) {
       const status = e?.response?.status;
@@ -43,7 +67,6 @@ export default function BiometricGate() {
       // Biometric cancelled/failed, or network/5xx — let the user retry or use a password.
       haptic.error();
       setPhase('error');
-      setError('Unlock failed. Try again, or sign in with your password.');
     }
   }, [login, cancelBiometricLock]);
 
@@ -54,61 +77,111 @@ export default function BiometricGate() {
 
   if (!auth.locked) return null;
 
-  const subtitle = phase === 'error' ? error
-    : phase === 'success' ? 'Unlocked'
-    : busy ? 'Scanning…'
-    : 'Confirm your fingerprint or face to continue.';
+  const { title, hint } = STATES[phase];
 
   return (
     <Box
+      component={motion.div}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
       sx={{
-        position: 'fixed', inset: 0, zIndex: 2000,
-        bgcolor: T.bg, color: T.text,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        px: 3, textAlign: 'center', overflow: 'hidden',
-        pt: 'env(safe-area-inset-top)', pb: 'env(safe-area-inset-bottom)',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 2000,
+        bgcolor: T.bg,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: 4,
+        textAlign: 'center',
+        overflow: 'hidden',
+        pt: 'calc(env(safe-area-inset-top) + 44px)',
+        pb: 'calc(env(safe-area-inset-bottom) + 28px)',
       }}
     >
-      {/* Ambient teal glow (matches the app's signature background accent). */}
-      <Box
-        component={motion.div}
-        aria-hidden
-        animate={{ opacity: [0.06, 0.14, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(ellipse 60% 45% at 50% 34%, ${T.tealGlow} 0%, transparent 70%)` }}
-      />
+      {/* ── Identity ─────────────────────────────────────────────────────
+          Quiet and small. The app is not selling itself to someone who already
+          chose to open it; this is the system-chrome register. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25 }}>
+        <Box
+          component="img"
+          src={db_world_icon}
+          alt=""
+          sx={{ width: 34, height: 34, borderRadius: '50%', opacity: 0.9 }}
+        />
+        <Typography
+          component="p"
+          sx={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: T.textFaint,
+          }}
+        >
+          DB World
+        </Typography>
+      </Box>
 
-      <Box
-        component="img"
-        src={db_world_icon}
-        alt="DB World"
-        sx={{ width: 52, height: 52, borderRadius: '50%', position: 'absolute', top: 'calc(env(safe-area-inset-top) + 28px)' }}
-      />
-
-      <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5 }}>
-        <FingerprintPulse state={phase} size={128} />
-
-        <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: 22 }}>Unlock DB World</Typography>
-          <Typography sx={{ color: phase === 'error' ? T.error : T.textMuted, fontSize: 14, maxWidth: 300, mt: 0.5 }}>
-            {subtitle}
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', maxWidth: 300, mt: 1 }}>
-          <Button
-            onClick={attempt}
-            disabled={busy || phase === 'success'}
-            variant="contained"
-            startIcon={<FingerprintRoundedIcon />}
-            sx={{ bgcolor: T.teal, textTransform: 'none', fontWeight: 700, py: 1.3, borderRadius: 2, '&:hover': { bgcolor: T.tealHover } }}
+      {/* ── Status ───────────────────────────────────────────────────────
+          The only thing on screen that changes. minHeight pins it so the two
+          lines never move as the words swap. */}
+      <Box sx={{ minHeight: 92, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <AnimatePresence mode="wait" initial={false}>
+          <Box
+            key={phase}
+            component={motion.div}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            {busy ? 'Unlocking…' : phase === 'error' ? 'Try again' : 'Unlock'}
-          </Button>
-          <Button onClick={cancelBiometricLock} disabled={busy} sx={{ color: T.textMuted, textTransform: 'none' }}>
-            Use password instead
-          </Button>
-        </Box>
+            <Typography
+              component="h1"
+              sx={{
+                // Light and large reads as system typography; heavy and large reads as
+                // marketing, which is the wrong register for a lock screen.
+                fontSize: 27,
+                fontWeight: 300,
+                letterSpacing: '-0.01em',
+                color: phase === 'error' ? T.error : T.textPrimary,
+              }}
+            >
+              {title}
+            </Typography>
+            <Typography sx={{ mt: 0.75, fontSize: 14, color: T.textMuted }}>
+              {hint}
+            </Typography>
+          </Box>
+        </AnimatePresence>
+      </Box>
+
+      {/* ── Actions ──────────────────────────────────────────────────────
+          Bottom third, inside comfortable thumb reach on a tall phone. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5 }}>
+        <UnlockSensor
+          state={phase}
+          onPress={attempt}
+          disabled={busy || phase === 'success'}
+        />
+
+        <Button
+          onClick={cancelBiometricLock}
+          disabled={busy || phase === 'success'}
+          sx={{
+            minHeight: 44,
+            px: 2,
+            color: T.textMuted,
+            fontSize: 14,
+            fontWeight: 600,
+            textTransform: 'none',
+            '&:hover': { color: T.textPrimary, bgcolor: 'transparent' },
+          }}
+        >
+          Use password instead
+        </Button>
       </Box>
     </Box>
   );
