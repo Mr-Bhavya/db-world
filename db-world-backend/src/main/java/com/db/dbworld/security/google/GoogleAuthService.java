@@ -12,8 +12,10 @@ import com.db.dbworld.security.dto.SessionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,7 @@ public class GoogleAuthService {
     private final UserRepository userRepository;
     private final UserRoleRepository roleRepository;
     private final AuthenticationService authenticationService;
+    private final PasswordEncoder passwordEncoder;
 
     /** Verifies the ID token, resolves it to an account, and starts a session. */
     @Transactional
@@ -82,6 +85,8 @@ public class GoogleAuthService {
                         "This email is already linked to a different Google account. "
                                 + "Sign in with your password instead.");
             }
+            requireLinkIsSafe(existing);
+
             log.info("Linking Google identity to existing account [{}]", existing.getEmail());
             existing.setGoogleSub(identity.subject());
             existing.setEmailVerified(true);
@@ -89,6 +94,79 @@ public class GoogleAuthService {
         }
 
         return createAccount(identity);
+    }
+
+    /**
+     * Refuses to silently absorb an account whose email nobody ever proved.
+     *
+     * <p>Google verifying the address proves the CALLER owns the mailbox. It says nothing about
+     * the local account that happens to share the address — and registration does not verify
+     * emails, so anyone can create one against an address they do not own. Linking on the
+     * strength of a matching string alone gives this attack:
+     *
+     * <ol>
+     *   <li>Attacker registers with victim@example.com and a password they choose.</li>
+     *   <li>The victim later signs in with Google.</li>
+     *   <li>Google is linked to the attacker's account, and the victim lands inside it —
+     *       then files documents in a wallet and passwords in a vault the attacker can open.</li>
+     * </ol>
+     *
+     * <p>So a local account is only absorbed silently when it has nothing to hijack (no
+     * password) or its address has actually been proven. Otherwise the caller has to present
+     * the password, via {@link #linkWithPassword}. A password-less account is safe because there
+     * is no credential for anyone else to already hold.
+     */
+    private void requireLinkIsSafe(final UserEntity existing) {
+        if (!existing.hasPassword() || existing.isEmailVerified()) {
+            return;
+        }
+        log.warn("Refusing to auto-link Google to [{}]: the account has a password and its "
+                + "email was never verified", existing.getEmail());
+        throw new DbWorldException(HttpStatus.CONFLICT,
+                "An account already exists for this email. Enter its password once to connect "
+                        + "Google, or reset the password if it is not yours.");
+    }
+
+    /**
+     * Completes the link that {@link #requireLinkIsSafe} held back, given the account password.
+     *
+     * <p>Knowing the password proves the caller owns the local account; the Google token proves
+     * they own the mailbox. Both sides are now established, which is exactly the evidence
+     * verification would have provided up front.
+     */
+    @Transactional
+    public AuthToken linkWithPassword(final String idToken, final String password,
+                                      final SessionContext context) {
+        final GoogleIdentity identity = verifier.verify(idToken);
+
+        final UserEntity user = userRepository.findByEmail(identity.email())
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND,
+                        "No account exists for this email"));
+
+        if (user.hasGoogleLinked()) {
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    "This account is already linked to a Google account");
+        }
+        if (!user.hasPassword() || password == null
+                || !passwordEncoder.matches(password, user.getPassword())) {
+            log.warn("Google link refused for [{}]: password did not match", user.getEmail());
+            throw new BadCredentialsException("Incorrect password");
+        }
+        if (!user.isEnabled() && !user.isPendingDeletion()) {
+            throw new DisabledException("Account is disabled");
+        }
+        if (!user.isAccountNonLocked()) {
+            throw new LockedException("Account is locked");
+        }
+
+        user.setGoogleSub(identity.subject());
+        user.setEmailVerified(true);
+        final UserEntity linked = refreshProfile(user, identity);
+        log.warn("Google linked to [{}] after password confirmation", linked.getEmail());
+
+        final AuthToken tokens = authenticationService.issueSession(linked, context);
+        authenticationService.recordLogin(linked, context.userAgent());
+        return tokens;
     }
 
     /** Creates a Google-only account: no password, VIEWER role, mailbox already proven. */

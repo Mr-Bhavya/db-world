@@ -11,7 +11,12 @@ import com.db.dbworld.security.dto.AuthToken;
 import com.db.dbworld.security.dto.BiometricDeviceDto;
 import com.db.dbworld.security.dto.BiometricEnrollRequest;
 import com.db.dbworld.security.dto.BiometricExchangeRequest;
+import com.db.dbworld.security.dto.ConfirmEmailRequest;
+import com.db.dbworld.security.dto.ForgotPasswordRequest;
+import com.db.dbworld.security.dto.GoogleLinkRequest;
 import com.db.dbworld.security.dto.GoogleSignInRequest;
+import com.db.dbworld.security.dto.ResetPasswordRequest;
+import com.db.dbworld.security.token.AccountRecoveryService;
 import com.db.dbworld.security.dto.SessionContext;
 import com.db.dbworld.security.enums.ClientPlatform;
 import com.db.dbworld.security.google.GoogleAuthService;
@@ -58,6 +63,7 @@ public class AuthController {
     private final BiometricDeviceService biometricDeviceService;
     private final GoogleAuthService googleAuthService;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final AccountRecoveryService accountRecoveryService;
     private final JwtProperties jwtProperties;
     private final DbWorldUtils dbWorldUtils;
 
@@ -67,8 +73,12 @@ public class AuthController {
     public ApiResponse<UserDto> register(@Valid @RequestBody CreateUserRequest request) {
         log.debug("register called for email={}", request.getEmail());
         UserDto createdUser = userService.createUser(request);
+        // Until this is confirmed the address is only a claim, which is why an unverified
+        // account will not silently absorb a Google identity (see GoogleAuthService).
+        accountRecoveryService.sendVerificationEmail(createdUser.getUserId());
         log.info("New user registered: {}", createdUser.getEmail());
-        return ApiResponse.success("User registered successfully", createdUser);
+        return ApiResponse.success(
+                "Account created. Check your email to confirm your address.", createdUser);
     }
 
     /* ── Login ─────────────────────────────────────────────────────── */
@@ -146,6 +156,70 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(SET_COOKIE, buildRefreshCookie(tokens).toString())
                 .body(ApiResponse.success(body));
+    }
+
+    /**
+     * Connects Google to an existing password account whose email was never verified.
+     *
+     * <p>Plain sign-in refuses that case on purpose: a matching email proves the caller owns the
+     * mailbox, not that they own the local account, and registration never verified the address.
+     * Presenting the password supplies the missing half.
+     */
+    @PostMapping("/google/link")
+    public ResponseEntity<ApiResponse<ResponsePayloads.LoginResponse>> googleLink(
+            @Valid @RequestBody GoogleLinkRequest linkRequest,
+            HttpServletRequest request
+    ) {
+        SessionContext context = sessionContext(request);
+        AuthToken tokens = googleAuthService.linkWithPassword(
+                linkRequest.idToken(), linkRequest.password(), context);
+        return sessionResponse(tokens, context, "Google connected");
+    }
+
+    /* ── Password reset ────────────────────────────────────────────── */
+
+    /**
+     * Emails a reset link.
+     *
+     * <p>Always answers the same way. Reporting whether the address is registered would turn
+     * this into an account-enumeration oracle, which matters more than usual on a site holding
+     * document wallets — knowing WHO has an account is itself worth something to an attacker.
+     */
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        accountRecoveryService.requestPasswordReset(request.email());
+        return ApiResponse.success(
+                "If that email has an account, a reset link is on its way.");
+    }
+
+    /** Sets a new password from an emailed link, and signs the account out everywhere. */
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        accountRecoveryService.resetPassword(request.token(), request.password());
+        return ApiResponse.success("Password updated. Sign in with your new password.");
+    }
+
+    /* ── Email verification ────────────────────────────────────────── */
+
+    /** Redeems a verification link. Public: the recipient is not signed in when they click it. */
+    @PostMapping("/verify-email/confirm")
+    public ApiResponse<Void> confirmEmail(@Valid @RequestBody ConfirmEmailRequest request) {
+        accountRecoveryService.confirmEmail(request.token());
+        return ApiResponse.success("Email confirmed");
+    }
+
+    /**
+     * Sends a fresh verification link to the signed-in user.
+     *
+     * <p>Authenticated rather than taking an address, so it cannot be used to probe which
+     * addresses exist or to have this server mail an arbitrary stranger.
+     */
+    @PostMapping("/verify-email/resend")
+    public ApiResponse<Void> resendVerification(Authentication authentication) {
+        String email = requireAuth(authentication);
+        accountRecoveryService.sendVerificationEmail(
+                userService.getUserEntityByEmail(email).getUserId());
+        return ApiResponse.success("Verification email sent");
     }
 
     /* ── Verify ────────────────────────────────────────────────────── */

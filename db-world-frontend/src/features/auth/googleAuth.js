@@ -88,12 +88,39 @@ async function getGoogleIdToken() {
  */
 export async function signInWithGoogle() {
   const idToken = await getGoogleIdToken();
-  const res = await axiosInstance.post('/api/auth/google', { idToken });
-  const payload = res.data?.data;
-  if (!payload?.token || !payload?.user) {
-    throw new Error('Unexpected response from server');
+  try {
+    const res = await axiosInstance.post('/api/auth/google', { idToken });
+    const payload = res.data?.data;
+    if (!payload?.token || !payload?.user) {
+      throw new Error('Unexpected response from server');
+    }
+    return payload;
+  } catch (err) {
+    // 409 means the server refused to auto-link: an account already holds this address with a
+    // password, and the address was never verified, so a match alone does not prove ownership.
+    // Attach the token — the caller can complete the link once it has the password, without
+    // sending the visitor back through the Google popup a second time.
+    if (err?.response?.status === 409) {
+      err.needsPasswordLink = true;
+      err.idToken = idToken;
+    }
+    throw err;
   }
-  return payload;
+}
+
+/**
+ * Reads the email out of a Google ID token WITHOUT verifying it.
+ *
+ * Display only — it decides what the link dialog says, never who anyone is. The server verifies
+ * the signature and audience before trusting a single claim.
+ */
+export function peekEmailFromIdToken(idToken) {
+  try {
+    const payload = idToken.split('.')[1];
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))?.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Asks the backend whether Google Sign-In is configured server-side. Never throws. */

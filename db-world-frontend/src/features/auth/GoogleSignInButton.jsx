@@ -5,8 +5,10 @@ import {
   canUseGoogleSignIn,
   describeGoogleError,
   fetchGoogleEnabled,
+  peekEmailFromIdToken,
   signInWithGoogle,
 } from './googleAuth';
+import GoogleLinkPasswordDialog from './GoogleLinkPasswordDialog';
 
 /** Google's mark, inlined so the button renders without a network round-trip. */
 const GoogleMark = ({ size = 18 }) => (
@@ -41,6 +43,7 @@ export default function GoogleSignInButton({
   const T = useT();
   const [serverEnabled, setServerEnabled] = useState(null); // null = still checking
   const [loading, setLoading] = useState(false);
+  const [linkPrompt, setLinkPrompt] = useState(null); // { idToken, email } when a link is needed
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +83,13 @@ export default function GoogleSignInButton({
       const payload = await signInWithGoogle();
       onSuccess?.(payload);
     } catch (err) {
-      // describeGoogleError returns null for a cancelled popup — not worth an error message.
-      onError?.(describeGoogleError(err));
+      if (err?.needsPasswordLink) {
+        // Not a failure — the account exists and needs one password to claim it.
+        setLinkPrompt({ idToken: err.idToken, email: peekEmailFromIdToken(err.idToken) });
+      } else {
+        // describeGoogleError returns null for a cancelled popup — not worth an error message.
+        onError?.(describeGoogleError(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -125,6 +133,14 @@ export default function GoogleSignInButton({
       </Button>
 
       {placement === 'bottom' && rule}
+
+      <GoogleLinkPasswordDialog
+        open={Boolean(linkPrompt)}
+        idToken={linkPrompt?.idToken}
+        email={linkPrompt?.email}
+        onClose={() => setLinkPrompt(null)}
+        onLinked={(payload) => { setLinkPrompt(null); onSuccess?.(payload); }}
+      />
     </Box>
   );
 }

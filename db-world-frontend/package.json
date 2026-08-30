@@ -8,6 +8,7 @@
   "license": "ISC",
   "dependencies": {
     "@capacitor-community/screen-brightness": "^7.0.0",
+    "@capacitor-firebase/authentication": "^7.5.0",
     "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/browser": "^7.0.0",

@@ -6,6 +6,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
+import ResetPassword from '@features/auth/ResetPassword';
+import VerifyEmail from '@features/auth/VerifyEmail';
 import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
@@ -203,6 +205,9 @@ const routeConfig = {
     { path: Constants.LOGIN_ROUTE, element: <Login /> },
     { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
     { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },
+    // Public on purpose: the visitor clicking these is by definition signed out.
+    { path: Constants.RESET_PASSWORD_ROUTE, element: <ResetPassword /> },
+    { path: Constants.VERIFY_EMAIL_ROUTE, element: <VerifyEmail /> },
     { path: Constants.DB_GAMES_ROUTE,              element: <Games /> },
     { path: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE, element: <TicTacToe /> },
     { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },

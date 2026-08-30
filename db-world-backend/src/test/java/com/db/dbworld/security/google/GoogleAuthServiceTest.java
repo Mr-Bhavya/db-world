@@ -12,8 +12,10 @@ import com.db.dbworld.security.dto.SessionContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -41,6 +44,7 @@ class GoogleAuthServiceTest {
     UserRepository userRepository;
     UserRoleRepository roleRepository;
     AuthenticationService authenticationService;
+    PasswordEncoder passwordEncoder;
     GoogleAuthService service;
 
     RoleEntity viewer;
@@ -51,7 +55,9 @@ class GoogleAuthServiceTest {
         userRepository = mock(UserRepository.class);
         roleRepository = mock(UserRoleRepository.class);
         authenticationService = mock(AuthenticationService.class);
-        service = new GoogleAuthService(verifier, userRepository, roleRepository, authenticationService);
+        passwordEncoder = mock(PasswordEncoder.class);
+        service = new GoogleAuthService(verifier, userRepository, roleRepository,
+                authenticationService, passwordEncoder);
 
         viewer = new RoleEntity();
         viewer.setName(Role.VIEWER);
@@ -115,6 +121,7 @@ class GoogleAuthServiceTest {
     @Test
     void linksToAnExistingPasswordAccountWithTheSameVerifiedEmail() {
         UserEntity existing = existingUser();
+        existing.setEmailVerified(true);   // the safe case: both sides of the address are proven
         when(userRepository.findByGoogleSub(SUB)).thenReturn(Optional.empty());
         when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(existing));
 
@@ -228,5 +235,84 @@ class GoogleAuthServiceTest {
         verify(userRepository).save(saved.capture());
         assertThat(saved.getValue().getFirstName()).hasSizeLessThanOrEqualTo(20);
         assertThat(saved.getValue().getLastName()).hasSizeLessThanOrEqualTo(20);
+    }
+
+    // ── Auto-link safety ──────────────────────────────────────────────────
+
+    /**
+     * The takeover this guard exists for: registration never verified emails, so an attacker can
+     * hold an account on someone else's address. Absorbing it on a string match would drop the
+     * real owner into the attacker's account - and then into their wallet and vault.
+     */
+    @Test
+    void refusesToAutoLinkAPasswordAccountWhoseEmailWasNeverVerified() {
+        UserEntity squatter = existingUser();
+        squatter.setPassword("$2a$10$attackerchosenhash");
+        squatter.setEmailVerified(false);
+        when(userRepository.findByGoogleSub(SUB)).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(squatter));
+
+        assertThatThrownBy(() -> service.signIn("token", CONTEXT))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("Enter its password");
+
+        assertThat(squatter.getGoogleSub()).isNull();
+        verify(authenticationService, never()).issueSession(any(), any());
+    }
+
+    /** A password-less account has no credential anyone else could already hold, so it is safe. */
+    @Test
+    void stillAutoLinksAnUnverifiedAccountThatHasNoPassword() {
+        UserEntity existing = existingUser();
+        existing.setPassword(null);
+        existing.setEmailVerified(false);
+        when(userRepository.findByGoogleSub(SUB)).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(existing));
+
+        service.signIn("token", CONTEXT);
+
+        assertThat(existing.getGoogleSub()).isEqualTo(SUB);
+    }
+
+    // ── Explicit link with password ───────────────────────────────────────
+
+    @Test
+    void linkWithPasswordConnectsGoogleWhenThePasswordMatches() {
+        UserEntity existing = existingUser();
+        existing.setPassword("$2a$10$existinghash");   // the shared fixture has none
+        existing.setEmailVerified(false);
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(existing));
+        when(passwordEncoder.matches("correct", existing.getPassword())).thenReturn(true);
+
+        service.linkWithPassword("token", "correct", CONTEXT);
+
+        assertThat(existing.getGoogleSub()).isEqualTo(SUB);
+        // Both halves are now proven, so the address counts as verified from here on.
+        assertThat(existing.isEmailVerified()).isTrue();
+        verify(authenticationService).issueSession(existing, CONTEXT);
+    }
+
+    @Test
+    void linkWithPasswordRefusesAWrongPassword() {
+        UserEntity existing = existingUser();
+        existing.setPassword("$2a$10$existinghash");
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(existing));
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.linkWithPassword("token", "wrong", CONTEXT))
+                .isInstanceOf(BadCredentialsException.class);
+
+        assertThat(existing.getGoogleSub()).isNull();
+        verify(authenticationService, never()).issueSession(any(), any());
+    }
+
+    @Test
+    void linkWithPasswordRefusesAnAccountThatHasNoPassword() {
+        UserEntity existing = existingUser();
+        existing.setPassword(null);
+        when(userRepository.findByEmail("user@gmail.com")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.linkWithPassword("token", "anything", CONTEXT))
+                .isInstanceOf(BadCredentialsException.class);
     }
 }

@@ -25,6 +25,12 @@
 			"showSpinner": false,
 			"splashFullScreen": true,
 			"splashImmersive": true
+		},
+		"FirebaseAuthentication": {
+			"skipNativeAuth": true,
+			"providers": [
+				"google.com"
+			]
 		}
 	}
 }

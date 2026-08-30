@@ -2,6 +2,7 @@ package com.db.dbworld.core.user.service;
 
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.security.repository.RefreshTokenRepository;
+import com.db.dbworld.security.token.VerificationTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,6 +28,7 @@ public class AccountPurgeJob {
 
     private final AccountDeletionService accountDeletionService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     /**
      * Purges each due account in its own call so one failure — a locked row, an unexpected
@@ -54,7 +56,7 @@ public class AccountPurgeJob {
         log.warn("Account purge complete: {}/{} account(s) erased", purged, due.size());
     }
 
-    /** Drops long-dead session rows so the table does not grow without bound. */
+    /** Drops long-dead session and verification rows so the tables do not grow without bound. */
     @Scheduled(cron = "${dbworld.account.session-sweep-cron:0 45 3 * * *}")
     @Transactional
     public void sweepExpiredSessions() {
@@ -62,6 +64,14 @@ public class AccountPurgeJob {
                 .deleteExpiredBefore(Instant.now().minus(SESSION_RETENTION));
         if (removed > 0) {
             log.info("Swept {} expired session row(s)", removed);
+        }
+
+        // Verification and reset tokens are single-use and short-lived, so nothing is kept for
+        // history here - a day past expiry is already well beyond any legitimate use.
+        final int tokens = verificationTokenRepository
+                .deleteExpiredBefore(Instant.now().minus(Duration.ofDays(1)));
+        if (tokens > 0) {
+            log.info("Swept {} expired verification token(s)", tokens);
         }
     }
 }

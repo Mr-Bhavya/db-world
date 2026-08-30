@@ -76,7 +76,10 @@ public class AccountDeletionService {
             new UserOwnedTable("media_request_voters", "user_id"),
             new UserOwnedTable("catalog_ingest_request_voters", "user_id"),
             new UserOwnedTable("push_device_token", "user_id"),
-            new UserOwnedTable("biometric_device", "user_id")
+            new UserOwnedTable("biometric_device", "user_id"),
+            // A live reset link outliving the account it belonged to would be a way
+            // back into an email address someone else may later register.
+            new UserOwnedTable("verification_token", "user_id")
     );
 
     /**
