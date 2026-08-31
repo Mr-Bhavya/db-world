@@ -14,9 +14,30 @@ public final class MailTemplates {
     private MailTemplates() {
     }
 
+    /**
+     * Wordmark rather than an image.
+     *
+     * <p>A logo needs an absolute hosted URL, and most clients block remote images by default —
+     * so an image-led header renders as a broken-image icon above the copy for a large share of
+     * recipients, on exactly the emails where looking legitimate matters most. Text always
+     * renders.
+     *
+     * <p>Set in the same letterspaced uppercase register as the app's lock screen, and kept to
+     * 12px with a hairline under it: this is a letterhead, not a banner. The teal is the brand's
+     * one colour and it does not compete with the button, which is far larger and lower down.
+     */
+    private static final String WORDMARK = """
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.18em;
+                          text-transform:uppercase;color:#0f766e;margin:0 0 22px;
+                          padding-bottom:14px;border-bottom:1px solid #e8e8e6">
+                DB World
+              </div>
+            """;
+
     private static final String SHELL = """
             <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
                         max-width:520px;margin:0 auto;padding:32px 24px;color:#1a1a1a">
+            """ + WORDMARK + """
               <h1 style="font-size:20px;font-weight:700;margin:0 0 16px">%s</h1>
               <p style="font-size:15px;line-height:1.6;color:#444;margin:0 0 24px">%s</p>
               <a href="%s" style="display:inline-block;background:#0f766e;color:#fff;
