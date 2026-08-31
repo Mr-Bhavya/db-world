@@ -129,6 +129,11 @@ public class SitemapController {
         // deploy without the page changing is one Google learns to disregard.
         url(xml, publicBaseUrl + "/db-world/db-weather", null, "daily",   "0.7");
         url(xml, publicBaseUrl + "/db-world/db-games",   null, "monthly", "0.7");
+        // The password generator, but NOT the vault it sits under. It is entirely
+        // self-contained — no API call, no storage, no account — which is what makes it
+        // both safe to expose and worth indexing on its own terms.
+        url(xml, publicBaseUrl + "/db-world/db-password-manager/generate-password",
+                null, "monthly", "0.7");
         for (String game : GAME_SLUGS) {
             url(xml, publicBaseUrl + "/db-world/db-games/" + game, null, "monthly", "0.6");
         }

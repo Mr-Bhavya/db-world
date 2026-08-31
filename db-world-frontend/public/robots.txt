@@ -13,6 +13,10 @@ Allow: /db-world/db-cinema/collection
 Allow: /db-world/db-ipo
 Allow: /db-world/db-games
 Allow: /db-world/db-weather
+# The generator only — a longer path than the Disallow on the vault below, and
+# robots resolves conflicts by specificity, so this narrows it rather than
+# reopening the whole password manager.
+Allow: /db-world/db-password-manager/generate-password
 Allow: /db-world/privacy
 Allow: /db-world/terms
 Allow: /db-world/contact

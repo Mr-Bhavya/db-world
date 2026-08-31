@@ -216,6 +216,10 @@ const routeConfig = {
     { path: Constants.DB_GAMES_MINESWEEPER_ROUTE,  element: <Minesweeper /> },
     { path: Constants.DB_GAMES_CONNECT_FOUR_ROUTE, element: <ConnectFour /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
+    // Public: the generator is entirely self-contained — no API call, no storage, no auth —
+    // so gating it only stopped people using a tool that works fine signed out, and kept a
+    // genuinely useful page out of every search index.
+    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
 
@@ -252,7 +256,6 @@ const routeConfig = {
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
-    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
