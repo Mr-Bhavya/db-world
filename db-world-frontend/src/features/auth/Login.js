@@ -58,6 +58,12 @@ const Login = () => {
 
   // Hands the onward destination to the registration page so it can return the visitor to
   // whatever they were originally trying to reach, not just to the hub.
+  // No dialog to dismiss on the page — this only has to route.
+  const handleForgotPassword = useCallback(
+    () => navigate(Constants.RESET_PASSWORD_ROUTE, { state: location.state }),
+    [navigate, location.state]
+  );
+
   const handleRegister = useCallback(
     () => navigate(Constants.REGISTRATION_ROUTE, { state: location.state }),
     [navigate, location.state]
@@ -91,6 +97,7 @@ const Login = () => {
           <AuthPanel
             reason={location.state?.reason}
             onComplete={handleComplete}
+            onForgotPassword={handleForgotPassword}
             onRegister={handleRegister}
           />
         </GlassPanel>

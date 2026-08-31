@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography,
@@ -58,8 +57,13 @@ const isValidDob = (value) => {
   );
 };
 
-export default function AuthPanel({ reason, onComplete, onRegister, autoFocus = true }) {
-  const navigate = useNavigate();
+export default function AuthPanel({
+  reason,
+  onComplete,
+  onRegister,
+  onForgotPassword,
+  autoFocus = true,
+}) {
   const T = useT();
   const FIELD = useMemo(() => getFieldSx(T), [T]);
   const reduce = useReducedMotion();
@@ -326,12 +330,12 @@ export default function AuthPanel({ reason, onComplete, onRegister, autoFocus = 
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1, mb: 1.5 }}>
         <Button
-          onClick={() => {
-            // The modal has no router of its own, so hand off to the page. onComplete closes
-            // it first, otherwise the dialog would sit on top of the destination.
-            onComplete?.();
-            navigate(Constants.RESET_PASSWORD_ROUTE);
-          }}
+          // Signals intent and lets the host route, exactly as onRegister does. It used to
+          // call onComplete() first to dismiss the modal — but onComplete means "signed in,
+          // go where you were headed", and on the /login PAGE that navigates to the
+          // destination with replace:true, which beat the navigate below. The visitor landed
+          // on the hub and the reset page was never reached.
+          onClick={() => onForgotPassword?.()}
           sx={{ fontSize: '0.8rem', fontWeight: 700, color: T.textMuted, minWidth: 0, p: 0.5,
                 textTransform: 'none', '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
         >

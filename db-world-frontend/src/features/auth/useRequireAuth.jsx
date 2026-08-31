@@ -94,6 +94,14 @@ export const RequireAuthProvider = ({ children }) => {
     navigate(Constants.REGISTRATION_ROUTE, { state: { from: location } });
   }, [navigate, location]);
 
+  // Same shape as handleRegister: dismiss first, or the dialog sits over the destination.
+  // Deliberately NOT handleComplete — nobody has signed in, so the resume-the-blocked-action
+  // path must not fire.
+  const handleForgotPassword = useCallback(() => {
+    setPrompt(null);
+    navigate(Constants.RESET_PASSWORD_ROUTE, { state: { from: location } });
+  }, [navigate, location]);
+
   // Android hardware back closes the modal instead of navigating the page behind it away.
   useEffect(() => addBackInterceptor(() => {
     if (!promptRef.current) return false;
@@ -169,6 +177,7 @@ export const RequireAuthProvider = ({ children }) => {
             reason={prompt?.message}
             onComplete={handleComplete}
             onRegister={handleRegister}
+            onForgotPassword={handleForgotPassword}
             // A dialog that steals focus the moment it opens fights screen readers announcing it,
             // and on a phone it throws the keyboard up over the heading explaining why you are
             // being asked. The field is one tap away.
