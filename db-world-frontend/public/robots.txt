@@ -32,6 +32,19 @@ Disallow: /db-world/db-password-manager
 Disallow: /db-world/db-file-manager
 
 # ─────────────────────────────────────────────────────────────
+# PUBLICLY REACHABLE BUT MUST NOT BE INDEXED
+#
+# These are in App.jsx's `public` block — no login redirect will stop a
+# crawler — so robots is the only thing keeping them out of an index.
+# ─────────────────────────────────────────────────────────────
+# A wallet share link IS the credential: anyone holding the URL can read the
+# document. Indexed, a shared government ID becomes a search result.
+Disallow: /db-world/shared-doc/
+
+# Internal player harness. Real content lives on record pages.
+Disallow: /db-world/player-demo
+
+# ─────────────────────────────────────────────────────────────
 # AUTH & USER DATA
 # ─────────────────────────────────────────────────────────────
 Disallow: /db-world/login
@@ -39,6 +52,12 @@ Disallow: /db-world/logout
 Disallow: /db-world/registration
 Disallow: /db-world/user-profile
 Disallow: /db-world/user-profile-edit
+
+# Top-level, NOT under /db-world — the rules above do not reach them. Both
+# carry a single-use token in the query string, and a crawler that fetches one
+# spends it: the user then gets "this link has already been used".
+Disallow: /reset-password
+Disallow: /verify-email
 
 # ─────────────────────────────────────────────────────────────
 # ADMIN
@@ -61,5 +80,9 @@ Disallow: /logs/
 # canonical, parameterless URL is the one worth indexing. Listed AFTER the
 # Allow rules above so it narrows rather than replaces them.
 Disallow: /*?*
+
+# Crawl-delay is deliberately omitted. Google ignores it, and the site is a
+# single Raspberry Pi behind a CDN — if load ever becomes the problem, rate
+# limiting in nginx is the control that actually works.
 
 Sitemap: https://db-world.in/sitemap.xml
