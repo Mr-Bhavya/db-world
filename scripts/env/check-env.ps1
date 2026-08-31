@@ -84,6 +84,43 @@ if (Test-Path $javaRoot) {
         ForEach-Object { [void]$javaLiterals.Add($_.Groups[1].Value) }
 }
 
+
+<#
+    Flags a value containing whitespace that is not quoted.
+
+    `dbworldctl` does `source "$ENV_FILE"`, so these files are shell script as well as
+    key-value pairs. A line like
+
+        MAIL_FROM_NAME=DB World
+
+    is read by a shell as the assignment `MAIL_FROM_NAME=DB` followed by a command named
+    `World` — which fails with "World: command not found" and exit 127, taking down every
+    dbworldctl subcommand before it does any work. systemd's EnvironmentFile is happy with
+    the unquoted form, so this passes locally and only breaks on deploy.
+
+    Only whitespace is checked. Quoting everything would be noisy, and the other shell
+    metacharacters have not caused a problem in practice — a space is the one that gets
+    typed by accident.
+#>
+function Get-UnquotedWhitespaceValues([string]$Path) {
+    if (-not (Test-Path $Path)) { return @() }
+    $lineNo = 0
+    Get-Content $Path | ForEach-Object {
+        $lineNo++
+        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            # Copy both captures out NOW. Every subsequent -match overwrites $matches, so
+            # reading $matches[1] after the quote tests below yields null and the report
+            # names no key at all.
+            $key = $matches[1]
+            $value = $matches[2]
+            $isQuoted = $value -match '^".*"$' -or $value -match "^'.*'$"
+            if ($value -match '\s' -and -not $isQuoted) {
+                [pscustomobject]@{ Line = $lineNo; Key = $key }
+            }
+        }
+    }
+}
+
 foreach ($envName in @('local', 'prod')) {
     $file = Join-Path $ConfigRoot "runtime\dbworld.$envName.env"
     $have = Get-KeyNames $file '^[A-Z0-9_]+='
@@ -112,7 +149,19 @@ foreach ($envName in @('local', 'prod')) {
         Write-Host "  DEAD (nothing reads these):" -ForegroundColor DarkGray
         $dead | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     }
-    if (-not $missing -and -not $degraded -and -not $dead) {
+    # Checked before the "clean" verdict: this one takes the whole deploy down, so it must
+    # never be reported as a footnote under an otherwise-green file.
+    $unsafe = Get-UnquotedWhitespaceValues $file
+    if ($unsafe) {
+        $exit = 1
+        Write-Host "  NOT SHELL-SAFE (dbworldctl sources this file — it will exit 127):" -ForegroundColor Red
+        $unsafe | ForEach-Object {
+            Write-Host "    line $($_.Line): $($_.Key) has an unquoted value containing whitespace" -ForegroundColor Red
+        }
+        Write-Host '    fix: wrap the value in double quotes — systemd strips them, a shell needs them' -ForegroundColor Red
+    }
+
+    if (-not $missing -and -not $degraded -and -not $dead -and -not $unsafe) {
         Write-Host "  clean" -ForegroundColor Green
     }
 }
@@ -152,8 +201,11 @@ foreach ($pair in @(@('local', '.env.local'), @('production', '.env.production')
 
 Write-Host ""
 if ($exit -ne 0) {
-    Write-Host "Drift found - see MISSING above." -ForegroundColor Red
+    # Deliberately does not name one category: MISSING and NOT SHELL-SAFE both set this,
+    # and pointing at "MISSING above" when the fault was a quoting error sends the reader
+    # looking for something that is not there.
+    Write-Host "Problems found - see the red lines above." -ForegroundColor Red
 } else {
-    Write-Host "No missing variables." -ForegroundColor Green
+    Write-Host "No problems found." -ForegroundColor Green
 }
 exit $exit
