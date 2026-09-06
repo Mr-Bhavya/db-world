@@ -91,7 +91,20 @@ public final class AppConstants {
             "/swagger-ui/**",
             "/ws/status",
             "/ws/application-logs",
-            "/*", "/db-world/**", "/static/**",
+            // "/db-world/**" used to sit here, permitting the SPA's client-side routes
+            // for SinglePageAppConfig's index.html fallback. It is GONE rather than
+            // rewritten: the routes are root-relative now, so the honest translation is
+            // "/**", and "/**" in a permitAll list makes every admin endpoint public.
+            //
+            // Dropping it costs nothing today. In production nginx serves the SPA and
+            // this host only ever answers /api, /sitemap.xml and the crawler routes; the
+            // Spring fallback resolves classpath:/public/index.html, which the WAR does
+            // not ship, so it already 404s. "/*" below still covers the single-segment
+            // pages either way.
+            //
+            // If the SPA is ever packaged into the WAR, add the specific section prefixes
+            // it needs — never "/**".
+            "/*", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
             "/api/admin/file-manager/download/stream",
             "/api/wallet/shared/**",

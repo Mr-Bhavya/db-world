@@ -40,6 +40,7 @@ import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import AppLockGate from '@features/auth/AppLockGate';
 import { useAppLinks } from '@shared/deeplink/useAppLinks';
 import useCanonicalUrl from '@shared/hooks/useCanonicalUrl';
+import LegacyPrefixRedirect from './LegacyPrefixRedirect';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -202,8 +203,19 @@ const CinemaPageWrapper = ({ pageType }) => <LazyCinemaPage pageType={pageType} 
 // Route configuration for better maintainability
 const routeConfig = {
   public: [
-    { path: '/', element: <Navigate to={Constants.DB_WORLD_HOME_ROUTE} />, exact: true },
+    // The hub IS the root now. There used to be a second entry here sending `/` to
+    // `/db-world` with <Navigate>, which is why Google indexed `/` — a client-side
+    // redirect it had to run JavaScript to follow — and served the empty shell as the
+    // home page. Both are the same path now, so a second entry would just shadow this.
     { path: Constants.DB_WORLD_HOME_ROUTE, element: <Home /> },
+
+    // Anything still asking for the old `/db-world/...` prefix. nginx 301s these for
+    // anyone arriving over HTTP, so this is for the cases nginx never sees: a deep
+    // link handed to the router in-process by an older Android build, and a push
+    // notification whose `data.link` is still in the old format (which is deliberate
+    // — see RequestPushLinks on the backend).
+    { path: `${Constants.LEGACY_PATH_PREFIX}/*`, element: <LegacyPrefixRedirect /> },
+    { path: Constants.LEGACY_PATH_PREFIX, element: <Navigate to={Constants.DB_WORLD_HOME_ROUTE} replace /> },
     { path: Constants.LOGIN_ROUTE, element: <Login /> },
     { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
     { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },

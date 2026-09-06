@@ -4,7 +4,7 @@
 // on mount from the :mediaFileId in the URL. Restores the saved resume position
 // (GET /api/cinema/progress/{fileId}), persists progress, and drives episode navigation.
 //
-// Route: /db-world/db-cinema/player/:mediaFileId
+// Route: /db-cinema/player/:mediaFileId
 //   fast path:    navigate(playerPath(id), { state: { media } })
 //   instant path: navigate(playerPath(id), { state: { resume: { recordId, title, type } } })
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';

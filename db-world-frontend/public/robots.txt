@@ -6,21 +6,21 @@ User-agent: *
 # in step: a path listed here but gated in the app is a crawl budget
 # spent on a login redirect.
 # ─────────────────────────────────────────────────────────────
-Allow: /db-world/db-cinema/browse
-Allow: /db-world/db-cinema/movie
-Allow: /db-world/db-cinema/tv-shows
-Allow: /db-world/db-cinema/collection
-Allow: /db-world/db-ipo
-Allow: /db-world/db-games
-Allow: /db-world/db-weather
+Allow: /db-cinema/browse
+Allow: /db-cinema/movie
+Allow: /db-cinema/tv-shows
+Allow: /db-cinema/collection
+Allow: /db-ipo
+Allow: /db-games
+Allow: /db-weather
 # The generator only — a longer path than the Disallow on the vault below, and
 # robots resolves conflicts by specificity, so this narrows it rather than
 # reopening the whole password manager.
-Allow: /db-world/db-password-manager/generate-password
-Allow: /db-world/about
-Allow: /db-world/privacy
-Allow: /db-world/terms
-Allow: /db-world/contact
+Allow: /db-password-manager/generate-password
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
 
 # ─────────────────────────────────────────────────────────────
 # RECORD PAGES: crawl, but do not index.
@@ -41,15 +41,15 @@ Allow: /db-world/contact
 # PRIVATE — acting on a record. All of these redirect to login,
 # so crawling them yields nothing.
 # ─────────────────────────────────────────────────────────────
-Disallow: /db-world/db-cinema/record/
-Disallow: /db-world/db-cinema/downloads
-Disallow: /db-world/db-cinema/download-progress
-Disallow: /db-world/player
-Disallow: /db-world/db-ipo/my
-Disallow: /db-world/my-activity
-Disallow: /db-world/wallet
-Disallow: /db-world/db-password-manager
-Disallow: /db-world/db-file-manager
+Disallow: /db-cinema/record/
+Disallow: /db-cinema/downloads
+Disallow: /db-cinema/download-progress
+Disallow: /player
+Disallow: /db-ipo/my
+Disallow: /me/activity
+Disallow: /db-wallet
+Disallow: /db-password-manager
+Disallow: /db-file-manager
 
 # ─────────────────────────────────────────────────────────────
 # PUBLICLY REACHABLE BUT MUST NOT BE INDEXED
@@ -59,32 +59,31 @@ Disallow: /db-world/db-file-manager
 # ─────────────────────────────────────────────────────────────
 # A wallet share link IS the credential: anyone holding the URL can read the
 # document. Indexed, a shared government ID becomes a search result.
-Disallow: /db-world/shared-doc/
+Disallow: /shared-doc/
 
 # Internal player harness. Real content lives on record pages.
-Disallow: /db-world/player-demo
+Disallow: /player-demo
 
 # ─────────────────────────────────────────────────────────────
 # AUTH & USER DATA
 # ─────────────────────────────────────────────────────────────
-Disallow: /db-world/login
-Disallow: /db-world/logout
-Disallow: /db-world/registration
-Disallow: /db-world/user-profile
-Disallow: /db-world/user-profile-edit
+Disallow: /login
+Disallow: /logout
+Disallow: /registration
+Disallow: /user-profile
+Disallow: /user-profile-edit
 
-# Top-level, NOT under /db-world — the rules above do not reach them. Both
-# carry a single-use token in the query string, and a crawler that fetches one
-# spends it: the user then gets "this link has already been used".
+# Both carry a single-use token in the query string, and a crawler that fetches
+# one spends it: the user then gets "this link has already been used".
 Disallow: /reset-password
 Disallow: /verify-email
 
 # ─────────────────────────────────────────────────────────────
 # ADMIN
 # ─────────────────────────────────────────────────────────────
-Disallow: /db-world/admin
-Disallow: /db-world/admin-tools
-Disallow: /db-world/db-cinema/edit-record/
+Disallow: /admin
+Disallow: /admin-tools
+Disallow: /db-cinema/edit-record/
 
 # ─────────────────────────────────────────────────────────────
 # BACKEND / INFRA

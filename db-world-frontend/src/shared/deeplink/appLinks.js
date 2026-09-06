@@ -1,7 +1,3 @@
-import Constants from '@shared/constants';
-
-const HOME = Constants.DB_WORLD_HOME_ROUTE; // /db-world
-
 /**
  * Hosts whose https links this app is allowed to claim.
  *
@@ -20,12 +16,24 @@ const ALLOWED_HOSTS = new Set([
  * Resolve a tapped App Link URL to the in-app path to navigate to.
  *
  * Returns `null` when the URL is not one this app should act on, so callers can
- * simply skip navigation. Anything not on {@link ALLOWED_HOSTS} and not under
- * `/db-world` is rejected — without the host check an intent carrying an
- * arbitrary URL could push the router to an attacker-chosen path, and without
- * the prefix check a link could land the user outside the app's own routes.
- * Only the path/query/hash is ever returned, never an absolute URL, so this
- * cannot be turned into an open redirect.
+ * simply skip navigation. Only the path/query/hash is ever returned, never an
+ * absolute URL, so this cannot be turned into an open redirect.
+ *
+ * ── THE HOST CHECK IS NOW THE WHOLE BOUNDARY ──
+ * This used to also require the path to start with `/db-world`, back when every app
+ * route sat under that prefix. The apps now live at the domain root, so there is no
+ * prefix left to check and every path on an allowed host is a candidate route — an
+ * unknown one lands on the in-app error page, which is the correct outcome for a
+ * mistyped link and was already true for `/db-world/nonsense`.
+ *
+ * Dropping it does not weaken anything that mattered: {@link ALLOWED_HOSTS} is what
+ * stops an intent carrying an arbitrary URL from steering the router, and that is
+ * unchanged. Do not "restore" the prefix check — with the root-relative routes it
+ * rejects every real link.
+ *
+ * Old prefixed links keep working: they are returned as-is and `LegacyPrefixRedirect`
+ * strips the prefix once the router sees them. That is what lets a link minted by an
+ * older build, or a push whose `data.link` still carries the prefix, resolve here.
  */
 export const pathFromAppLink = (url) => {
   if (typeof url !== 'string' || url === '') return null;
@@ -40,9 +48,8 @@ export const pathFromAppLink = (url) => {
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
   if (!ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) return null;
 
-  // Guard against `/db-worldsomething` matching the `/db-world` prefix.
-  const { pathname } = parsed;
-  if (pathname !== HOME && !pathname.startsWith(`${HOME}/`)) return null;
+  // `new URL('https://db-world.in')` yields '/', so a bare host lands on the hub.
+  const pathname = parsed.pathname === '' ? '/' : parsed.pathname;
 
   return `${pathname}${parsed.search}${parsed.hash}`;
 };

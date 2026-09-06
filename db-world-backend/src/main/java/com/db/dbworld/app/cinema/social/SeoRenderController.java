@@ -211,7 +211,7 @@ public class SeoRenderController {
 
         String name = firstNonBlank(ipo.getCompanyName(), id);
         String heading = name + " IPO";
-        String canonical = publicBaseUrl + "/db-world/db-ipo/" + urlSafe(id);
+        String canonical = publicBaseUrl + "/db-ipo/" + urlSafe(id);
 
         StringBuilder body = new StringBuilder();
         body.append("<h1>").append(esc(heading)).append("</h1>\n");
@@ -271,7 +271,7 @@ public class SeoRenderController {
         String heading = filter == RecordType.MOVIE ? "Movies"
                 : filter == RecordType.TV_SERIES ? "TV Shows"
                 : "Browse";
-        String canonical = publicBaseUrl + "/db-world/db-cinema/"
+        String canonical = publicBaseUrl + "/db-cinema/"
                 + (filter == RecordType.MOVIE ? "movie" : filter == RecordType.TV_SERIES ? "tv-shows" : "browse");
 
         List<RecordEntity> records = recordRepository.findAllWithTmdbAndTags().stream()
@@ -314,7 +314,7 @@ public class SeoRenderController {
                 .filter(i -> i.getId() != null && !i.getId().isBlank())
                 .limit(INDEX_LIMIT)
                 .forEach(i -> body.append("  <li><a href=\"")
-                        .append(esc(publicBaseUrl + "/db-world/db-ipo/" + urlSafe(i.getId())))
+                        .append(esc(publicBaseUrl + "/db-ipo/" + urlSafe(i.getId())))
                         .append("\">").append(esc(firstNonBlank(i.getCompanyName(), i.getId())))
                         .append(" IPO</a></li>\n"));
 
@@ -332,7 +332,7 @@ public class SeoRenderController {
                 content != null ? content.title() : "IPO Radar — live IPO dates, price band and GMP — DB World",
                 content != null ? content.description()
                         : "Track live mainboard and SME IPOs: open and close dates, price band, lot size, GMP and subscription status.",
-                publicBaseUrl + "/db-world/db-ipo", body.toString(), null, null));
+                publicBaseUrl + "/db-ipo", body.toString(), null, null));
     }
 
     /* ===============================
@@ -357,10 +357,10 @@ public class SeoRenderController {
      * canonical pointing at a 404.
      */
     private static final Map<String, String> EDITORIAL_PATHS = Map.of(
-            "home",    "/db-world",
-            "weather", "/db-world/db-weather",
-            "games",   "/db-world/db-games",
-            "about",   "/db-world/about");
+            "home",    "/",
+            "weather", "/db-weather",
+            "games",   "/db-games",
+            "about",   "/about");
 
     @GetMapping(value = "/page/{key}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> editorialPage(@PathVariable String key) {
@@ -401,7 +401,7 @@ public class SeoRenderController {
     private String websiteJsonLd() {
         return """
                 {"@context":"https://schema.org","@type":"WebSite","name":"DB World",\
-                "alternateName":"DB World India","url":"%s/db-world"}"""
+                "alternateName":"DB World India","url":"%s/"}"""
                 .formatted(publicBaseUrl);
     }
 
@@ -468,7 +468,7 @@ public class SeoRenderController {
                 esc(description),
                 jsonLd == null ? "" : "<script type=\"application/ld+json\">" + jsonLd + "</script>\n",
                 body,
-                esc(publicBaseUrl + "/db-world/db-cinema/browse"));
+                esc(publicBaseUrl + "/db-cinema/browse"));
     }
 
     private void li(StringBuilder sb, String label, Object value) {
@@ -480,7 +480,7 @@ public class SeoRenderController {
         String segment = record.getType() == RecordType.TV_SERIES ? "series" : "movie";
         String slug = slugify(title);
         String param = slug.isEmpty() ? String.valueOf(record.getId()) : record.getId() + "-" + slug;
-        return publicBaseUrl + "/db-world/db-cinema/" + segment + "/" + param;
+        return publicBaseUrl + "/db-cinema/" + segment + "/" + param;
     }
 
     private String image(TmdbEntity tmdb) {

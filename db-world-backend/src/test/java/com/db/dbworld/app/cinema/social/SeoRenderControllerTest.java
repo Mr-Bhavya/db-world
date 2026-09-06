@@ -103,7 +103,7 @@ class SeoRenderControllerTest {
                         tmdb("Inception", "Synopsis here."))));
 
         assertThat(controller.record("movie", 123L).getBody())
-                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-world/db-cinema/movie/123-inception\">");
+                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-cinema/movie/123-inception\">");
     }
 
     @Test
@@ -126,7 +126,7 @@ class SeoRenderControllerTest {
 
         assertThat(controller.record("series", 456L).getBody())
                 .contains("\"@type\":\"TVSeries\"")
-                .contains("/db-world/db-cinema/series/456-breaking-bad");
+                .contains("/db-cinema/series/456-breaking-bad");
     }
 
     /* ===============================
@@ -200,7 +200,7 @@ class SeoRenderControllerTest {
         assertThat(html)
                 .contains("<h1>Acme Industries IPO</h1>")
                 .contains("Lot size: 75")
-                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-world/db-ipo/acme-industries\">");
+                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-ipo/acme-industries\">");
     }
 
     @Test
@@ -217,7 +217,7 @@ class SeoRenderControllerTest {
         when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
 
         assertThat(controller.ipoIndex().getBody())
-                .contains("href=\"https://db-world.in/db-world/db-ipo/acme-industries\"")
+                .contains("href=\"https://db-world.in/db-ipo/acme-industries\"")
                 .contains("Acme Industries IPO");
     }
 

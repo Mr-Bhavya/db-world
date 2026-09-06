@@ -89,8 +89,8 @@ class SitemapControllerTest {
         // ad-eligible — SeoRenderController marks them noindex,follow — but submitting
         // them was asking to be judged on scraped metadata.
         assertThat(xml())
-                .doesNotContain("/db-world/db-cinema/movie/123")
-                .doesNotContain("/db-world/db-cinema/series/456");
+                .doesNotContain("/db-cinema/movie/123")
+                .doesNotContain("/db-cinema/series/456");
     }
 
     @Test
@@ -104,13 +104,13 @@ class SitemapControllerTest {
 
         assertThat(xml)
                 .startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
-                .contains("<loc>https://db-world.in/db-world/db-cinema/browse</loc>")
-                .contains("<loc>https://db-world.in/db-world/db-ipo</loc>")
+                .contains("<loc>https://db-world.in/db-cinema/browse</loc>")
+                .contains("<loc>https://db-world.in/db-ipo</loc>")
                 // Legal pages — AdSense needs these discoverable, not just footer-linked.
-                .contains("<loc>https://db-world.in/db-world/privacy</loc>")
-                .contains("<loc>https://db-world.in/db-world/terms</loc>")
-                .contains("<loc>https://db-world.in/db-world/contact</loc>")
-                .contains("<loc>https://db-world.in/db-world/about</loc>")
+                .contains("<loc>https://db-world.in/privacy</loc>")
+                .contains("<loc>https://db-world.in/terms</loc>")
+                .contains("<loc>https://db-world.in/contact</loc>")
+                .contains("<loc>https://db-world.in/about</loc>")
                 .endsWith("</urlset>\n");
     }
 
@@ -124,7 +124,7 @@ class SitemapControllerTest {
         // record gets one any more. What survives is that such a title still moves the
         // browse page's lastmod, because it genuinely did change that listing.
         assertThat(xml())
-                .doesNotContain("/db-world/db-cinema/movie/7")
+                .doesNotContain("/db-cinema/movie/7")
                 .contains("<lastmod>2026-04-09</lastmod>");
     }
 
@@ -135,7 +135,7 @@ class SitemapControllerTest {
         ipo.setId("acme-industries");
         when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
 
-        assertThat(xml()).contains("<loc>https://db-world.in/db-world/db-ipo/acme-industries</loc>");
+        assertThat(xml()).contains("<loc>https://db-world.in/db-ipo/acme-industries</loc>");
     }
 
     /* ===============================
@@ -180,7 +180,7 @@ class SitemapControllerTest {
         when(ipoListingRepository.findAll()).thenReturn(List.of());
 
         assertThat(xml())
-                .contains("/db-world/db-cinema/movie/genre/878-sci-fi-fantasy")
+                .contains("/db-cinema/movie/genre/878-sci-fi-fantasy")
                 .doesNotContain("&amp;amp;");
     }
 
@@ -251,11 +251,11 @@ class SitemapControllerTest {
 
         // /movie takes the newest MOVIE, /tv-shows the newest SERIES, /browse the newest of all.
         assertThat(xml).containsSubsequence(
-                "<loc>https://db-world.in/db-world/db-cinema/browse</loc>",
+                "<loc>https://db-world.in/db-cinema/browse</loc>",
                 "<lastmod>2026-06-30</lastmod>",
-                "<loc>https://db-world.in/db-world/db-cinema/movie</loc>",
+                "<loc>https://db-world.in/db-cinema/movie</loc>",
                 "<lastmod>2026-06-30</lastmod>",
-                "<loc>https://db-world.in/db-world/db-cinema/tv-shows</loc>",
+                "<loc>https://db-world.in/db-cinema/tv-shows</loc>",
                 "<lastmod>2026-04-04</lastmod>");
     }
 
@@ -280,6 +280,6 @@ class SitemapControllerTest {
         blank.setId("  ");
         when(ipoListingRepository.findAll()).thenReturn(List.of(blank));
 
-        assertThat(xml()).doesNotContain("/db-world/db-ipo/  ");
+        assertThat(xml()).doesNotContain("/db-ipo/  ");
     }
 }

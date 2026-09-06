@@ -5,7 +5,7 @@
 // audio/quality labels, scroll/slider volume, multi-range buffered bar, large-screen
 // scaling + focus rings) can be exercised without a backend or real media.
 //
-// Route: /db-world/db-cinema/player/demo  (public; the "/player" path hides app chrome).
+// Route: /db-cinema/player/demo  (public; the "/player" path hides app chrome).
 //
 // NOTE: local-only harness — NOT committed. SAMPLE points at a personal cdn.db-world.in
 // file (swap for your own). Signing is off, so this unsigned URL works as-is. Desktop

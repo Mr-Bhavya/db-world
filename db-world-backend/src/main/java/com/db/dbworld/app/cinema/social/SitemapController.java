@@ -116,26 +116,26 @@ public class SitemapController {
 
         // The hub. It was missing entirely, which meant the one page linking to every
         // app on the site was reachable only by a crawler guessing at it.
-        url(xml, publicBaseUrl + "/db-world", newestAny, "daily", "1.0");
+        url(xml, publicBaseUrl + "/", newestAny, "daily", "1.0");
 
         // Landing pages, most important first.
-        url(xml, publicBaseUrl + "/db-world/db-cinema/browse",   newestAny,    "daily",  "1.0");
-        url(xml, publicBaseUrl + "/db-world/db-cinema/movie",    newestMovie,  "daily",  "0.9");
-        url(xml, publicBaseUrl + "/db-world/db-cinema/tv-shows", newestSeries, "daily",  "0.9");
-        url(xml, publicBaseUrl + "/db-world/db-ipo",             newestIpo,    "hourly", "1.0");
+        url(xml, publicBaseUrl + "/db-cinema/browse",   newestAny,    "daily",  "1.0");
+        url(xml, publicBaseUrl + "/db-cinema/movie",    newestMovie,  "daily",  "0.9");
+        url(xml, publicBaseUrl + "/db-cinema/tv-shows", newestSeries, "daily",  "0.9");
+        url(xml, publicBaseUrl + "/db-ipo",             newestIpo,    "hourly", "1.0");
 
         // The other apps. No lastmod on any of them: they are code, not content, so the
         // only honest date would be the deploy time — and a lastmod that moves on every
         // deploy without the page changing is one Google learns to disregard.
-        url(xml, publicBaseUrl + "/db-world/db-weather", null, "daily",   "0.7");
-        url(xml, publicBaseUrl + "/db-world/db-games",   null, "monthly", "0.7");
+        url(xml, publicBaseUrl + "/db-weather", null, "daily",   "0.7");
+        url(xml, publicBaseUrl + "/db-games",   null, "monthly", "0.7");
         // The password generator, but NOT the vault it sits under. It is entirely
         // self-contained — no API call, no storage, no account — which is what makes it
         // both safe to expose and worth indexing on its own terms.
-        url(xml, publicBaseUrl + "/db-world/db-password-manager/generate-password",
+        url(xml, publicBaseUrl + "/db-password-manager/generate-password",
                 null, "monthly", "0.7");
         for (String game : GAME_SLUGS) {
-            url(xml, publicBaseUrl + "/db-world/db-games/" + game, null, "monthly", "0.6");
+            url(xml, publicBaseUrl + "/db-games/" + game, null, "monthly", "0.6");
         }
 
         // Genre landing pages, one per section per genre that actually has public titles.
@@ -147,13 +147,13 @@ public class SitemapController {
         // to be discoverable rather than orphaned behind a footer link alone. No
         // lastmod: nothing tracks when the prose was last edited, and inventing a date
         // is worse than omitting the field.
-        url(xml, publicBaseUrl + "/db-world/privacy", null, "yearly", "0.3");
-        url(xml, publicBaseUrl + "/db-world/terms",   null, "yearly", "0.3");
-        url(xml, publicBaseUrl + "/db-world/contact", null, "yearly", "0.3");
+        url(xml, publicBaseUrl + "/privacy", null, "yearly", "0.3");
+        url(xml, publicBaseUrl + "/terms",   null, "yearly", "0.3");
+        url(xml, publicBaseUrl + "/contact", null, "yearly", "0.3");
 
         // The "About" page — the only one of these with prose written for it rather
         // than assembled from a table.
-        url(xml, publicBaseUrl + "/db-world/about", null, "monthly", "0.5");
+        url(xml, publicBaseUrl + "/about", null, "monthly", "0.5");
 
         // RECORD PAGES ARE DELIBERATELY NOT LISTED.
         //
@@ -173,7 +173,7 @@ public class SitemapController {
 
         for (IpoListingEntity ipo : ipos) {
             url(xml,
-                publicBaseUrl + "/db-world/db-ipo/" + ipo.getId(),
+                publicBaseUrl + "/db-ipo/" + ipo.getId(),
                 ipo.getUpdatedAt(),
                 // An open IPO's GMP and subscription numbers move through the day; a
                 // closed one is effectively frozen.
@@ -260,7 +260,7 @@ public class SitemapController {
                 String slug = slugify(name);
                 String param = slug.isEmpty() ? String.valueOf(id) : id + "-" + slug;
                 url(xml,
-                    publicBaseUrl + "/db-world/db-cinema/" + section + "/genre/" + param,
+                    publicBaseUrl + "/db-cinema/" + section + "/genre/" + param,
                     newestByGenre.get(id),
                     "weekly",
                     // Below the section pages they filter, above an individual title.

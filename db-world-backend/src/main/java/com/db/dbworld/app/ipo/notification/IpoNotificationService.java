@@ -259,7 +259,7 @@ public class IpoNotificationService {
                 pushService.broadcast("⏳ " + ipo.getCompanyName() + " closes today",
                         "Bidding closes this evening — last chance to apply.",
                         Map.of("ipoId", ipo.getId(), "kind", "CLOSING_SOON",
-                                "link", "/db-world/db-ipo/" + ipo.getId()),
+                                "link", "/db-world/db-ipo/" + ipo.getId()),   // legacy prefix — see RequestPushLinks
                         "ipo");
                 ipo.setClosingSoonNotifiedAt(now);
                 listingRepo.save(ipo);
@@ -296,7 +296,7 @@ public class IpoNotificationService {
 
     private boolean send(IpoLifecycleChange c, String title, String body) {
         pushService.broadcast(title, body,
-                Map.of("ipoId", c.ipoId(), "kind", c.kind().name(), "link", "/db-world/db-ipo/" + c.ipoId()),
+                Map.of("ipoId", c.ipoId(), "kind", c.kind().name(), "link", "/db-world/db-ipo/" + c.ipoId()),   // legacy prefix — see RequestPushLinks
                 "ipo");
         return true;
     }

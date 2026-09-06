@@ -31,16 +31,32 @@
                  "open with" chooser. That file is served inline by nginx (10-app.conf
                  in the db-world-config repo) and must list this package + the release
                  keystore's SHA-256, or verification fails and links open in Chrome.
-                 Scoped to /db-world so only real app routes are claimed.
                  The URL is delivered to the web layer via Capacitor's appUrlOpen and
-                 routed by src/shared/deeplink/appLinks.js. -->
+                 routed by src/shared/deeplink/appLinks.js.
+
+                 PATH SCOPE: this was pathPrefix="/db-world" while every app route sat
+                 under that prefix. The apps now live at the domain root, so the whole
+                 host is the app and the prefix is "/". Anything that is not a route
+                 lands on the in-app error page, which is the same outcome
+                 /db-world/nonsense always had.
+
+                 "/" also still matches the OLD /db-world/... links — the ones already
+                 shared in chats and minted by previous builds — so those keep opening
+                 the app rather than falling out to Chrome. LegacyPrefixRedirect strips
+                 the prefix on arrival.
+
+                 Note the reverse does NOT hold: a device still running the previous
+                 APK has pathPrefix="/db-world" baked in, so a NEW root-relative link
+                 will not match its filter and opens in the browser instead. That is
+                 why the backend keeps minting prefixed push links (RequestPushLinks) —
+                 remove that only once the rollout has landed. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="db-world.in" />
                 <data android:scheme="https" android:host="www.db-world.in" />
-                <data android:pathPrefix="/db-world" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity>
 

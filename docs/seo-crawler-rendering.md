@@ -125,7 +125,7 @@ starts misbehaving:
 Fetch as a bot and confirm you get real HTML rather than the SPA shell:
 
 ```bash
-curl -s -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" https://db-world.in/db-world/db-ipo | head -40
+curl -s -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" https://db-world.in/db-ipo | head -40
 ```
 
 You should see `<h1>IPO Radar</h1>` and a list of `<a>` links. A normal `curl` with no

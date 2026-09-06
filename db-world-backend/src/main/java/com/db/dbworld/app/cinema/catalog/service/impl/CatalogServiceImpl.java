@@ -193,6 +193,7 @@ public class CatalogServiceImpl implements CatalogService {
             String slug = record.getName() == null ? ""
                     : record.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
             String kind = record.getType() == RecordType.MOVIE ? "movie" : "series";
+            // Legacy prefix on purpose — see RequestPushLinks for why.
             String link = "/db-world/db-cinema/" + kind + "/" + record.getId()
                     + (slug.isBlank() ? "" : "-" + slug);
             pushService.broadcast("New on DB World", record.getName(),

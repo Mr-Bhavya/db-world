@@ -170,7 +170,7 @@ public class SocialPreviewController {
         String segment = record.getType() == RecordType.TV_SERIES ? "series" : "movie";
         String slug = slugify(title);
         String param = slug.isEmpty() ? String.valueOf(record.getId()) : record.getId() + "-" + slug;
-        return publicBaseUrl + "/db-world/db-cinema/" + segment + "/" + param;
+        return publicBaseUrl + "/db-cinema/" + segment + "/" + param;
     }
 
     private String slugify(String raw) {

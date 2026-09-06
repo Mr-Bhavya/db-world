@@ -60,7 +60,7 @@ curl -s https://db-world.in/ads.txt && curl -sI https://db-world.in/robots.txt |
 
 `ads.txt` must return the publisher line and `robots.txt` must return `200`. Both live
 in `db-world-frontend/public/`, which Vite copies to the **root** of `dist/` — note that
-is the domain root, not under `/db-world/`.
+is the domain root, alongside index.html.
 
 ---
 
@@ -90,10 +90,10 @@ Two findings: **"Google-served ads on screens without publisher content"** and
 | URL, as Googlebot | Was | Real text |
 |---|---|---|
 | `/db-world` (hub) — **carried an ad** | 5 KB SPA shell | 0 words, title `DB World :)` |
-| `/db-world/privacy`, `/terms`, `/contact` | 5 KB SPA shell | 0 words |
-| `/db-world/db-games`, `/db-weather` | 5 KB SPA shell | 0 words |
+| `/privacy`, `/terms`, `/contact` | 5 KB SPA shell | 0 words |
+| `/db-games`, `/db-weather` | 5 KB SPA shell | 0 words |
 | `/db-cinema/browse` — **carried an ad** | prerendered | 724 words: a list of film titles |
-| `/db-world/db-ipo` — **carried an ad** | prerendered | 977 words: a list of company names |
+| `/db-ipo` — **carried an ad** | prerendered | 977 words: a list of company names |
 | `/db-cinema/movie/{id}` × **2,335** | prerendered | TMDB synopsis + genres + cast, nothing else |
 
 Three root causes, all now fixed:
@@ -126,17 +126,27 @@ Three root causes, all now fixed:
 ### Verifying it before you submit
 
 ```bash
-curl -sS -A "Mediapartners-Google" https://db-world.in/db-world | head -40
+curl -sS -A "Mediapartners-Google" https://db-world.in/ | head -40
 ```
 
 That must return the **real SPA**, not `/api/seo/...` output. And:
 
 ```bash
-curl -sS -A "Googlebot/2.1" https://db-world.in/db-world/db-weather | grep -c "<h2>"
+curl -sS -A "Googlebot/2.1" https://db-world.in/db-weather | grep -c "<h2>"
 ```
 
 That must be greater than zero. Both need the nginx reload and the backend deploy to
 have happened — the fix is in two repos.
+
+The `/db-world` prefix was removed in September 2026, so also confirm the ~300 URLs
+Google already holds still resolve rather than 404:
+
+```bash
+curl -sS -o /dev/null -w "%{http_code} -> %{redirect_url}
+"   https://db-world.in/db-world/db-cinema/browse
+```
+
+That must be `301 -> https://db-world.in/db-cinema/browse`.
 
 ---
 

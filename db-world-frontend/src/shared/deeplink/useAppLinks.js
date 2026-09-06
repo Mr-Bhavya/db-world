@@ -4,7 +4,8 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { pathFromAppLink } from './appLinks';
 
 /**
- * Routes Android App Link taps (a shared https://db-world.in/db-world/… URL)
+ * Routes Android App Link taps (a shared https://db-world.in/… URL, with or
+ * without the retired /db-world prefix)
  * into the SPA router.
  *
  * Two entry points, because they fire in different situations:
