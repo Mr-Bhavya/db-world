@@ -31,7 +31,9 @@ public class UserReviewEntity {
     @Column(length = 36)
     private String id;
 
-    @Column(name = "user_id", nullable = false)
+    // Nullable so an account purge can detach the review and keep it as an anonymous
+    // rating: deleting the row instead would silently change the record's average.
+    @Column(name = "user_id")
     private Long userId;
 
     @Column(name = "record_id", nullable = false)

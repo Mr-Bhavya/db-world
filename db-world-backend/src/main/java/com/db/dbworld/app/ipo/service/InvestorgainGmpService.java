@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -75,7 +76,10 @@ public class InvestorgainGmpService {
     // the webnodejs host can be repointed without a redeploy. Blank/unset config falls back to
     // DEFAULT_BASE_URL, reproducing the original absolute URLs exactly.
     private static final String DEFAULT_BASE_URL = "https://webnodejs.investorgain.com";
-    private static final String LIST_PATH_TEMPLATE = "/cloud/v2/report/data-read/394/%d/7/%d/%s/0/all";
+    // Segments: report-id(394) / page / MONTH / fyStartYear / fyLabel / <const 0> / tab(all). That
+    // third segment is the calendar month — confirmed by a sibling report echoing it back in its own
+    // cacheKey ("ig_report_v2:331:all:1::2026:8:2026-27:") — not the constant it was once taken for.
+    private static final String LIST_PATH_TEMPLATE = "/cloud/v2/report/data-read/394/%d/%d/%d/%s/0/all";
     private static final String GMP_PATH_TEMPLATE = "/cloud/v2/ipo/ipo-gmp-read/%s/true";
     // Day-wise category subscription (QIB/NII/S-NII/B-NII/RII/Employee/Shareholder/Other), keyed by
     // investorgain's own IPO id — persists the final numbers even after the issue closes (NSE drops
@@ -93,12 +97,16 @@ public class InvestorgainGmpService {
     private static final int MAX_GMP_FETCHES = 30;
     /** Cap on per-IPO subscription fetches per refresh — only spent on matched, tracked listings. */
     private static final int MAX_SUB_FETCHES = 30;
+    /** Recent-listing window used when {@code ipo.list.hide-listed-after-days} is 0 ("never hide"). */
+    private static final int DEFAULT_RECENT_LISTING_DAYS = 30;
 
     // ── Subscription-read fields ────────────────────────────────────────────────────────────────
     private static final String F_SUB_DATA = "data";
     private static final String F_SUB_BIDDING = "ipoBiddingData";
     private static final String F_SUB_CREATE_DATE = "create_date";       // ISO, e.g. "2026-07-27T19:05:00.000Z"
-    private static final String F_SUB_COR_DATE = "cor_date_added";       // ISO fallback for the day
+    private static final String F_SUB_COR_DATE = "cor_date_added";
+    /** Their human "as of" label for the bidding figures, e.g. {@code "27th Aug 2026 17:11"}. */
+    private static final String F_SUB_BID_DATE = "bid_date";       // ISO fallback for the day
     private static final String F_SUB_TOTAL = "total";                   // overall multiple, e.g. "72.37"
     /**
      * {@code {timesKey, offeredKey, sharesBidKey, bidAmtKey, displayLabel}} per subscription
@@ -131,6 +139,17 @@ public class InvestorgainGmpService {
     private static final String F_GMP_DATE = "gmp_date";                  // "26-07-2026"
     private static final String F_GMP = "gmp";
     private static final String F_MAX_IPO_PRICE = "max_ipo_price";
+    // Extras investorgain publishes alongside the daily GMP. All taken AS REPORTED — they already
+    // do the cap+GMP arithmetic for the estimated listing price, so we never recompute it.
+    private static final String F_EST_LISTING_PRICE = "estimated_listing_price";
+    private static final String F_SUBJECT_TO_SAUDA = "subject_to_sauda";
+    private static final String F_EST_PROFIT = "est_profit";
+    private static final String F_LAST_UPDATED = "last_updated";           // "27-Aug-2026 20:02"
+    private static final String F_GMP_PERCENT = "gmp_percent_calc";        // "<span…>(67.07%)</span>"
+
+    /** The signed percentage inside investorgain's own percent fragment. */
+    private static final java.util.regex.Pattern PERCENT =
+            java.util.regex.Pattern.compile("\\(\\s*(-?[\\d.]+)\\s*%\\s*\\)");
 
     private static final DateTimeFormatter GMP_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -139,7 +158,7 @@ public class InvestorgainGmpService {
     private final IpoListingRepository listingRepo;
     private final IpoGmpHistoryRepository gmpHistoryRepo;
     private final IpoSubscriptionHistoryRepository subHistoryRepo;
-    private final IpoNormalizer normalizer;
+    private final InvestorgainMatcher matcher;
     private final IpoSourcePollService pollService;
     private final SettingsService settingsService;
     private final Clock clock;
@@ -147,19 +166,19 @@ public class InvestorgainGmpService {
     @Autowired
     public InvestorgainGmpService(IpoHttpClient httpClient, IpoListingRepository listingRepo,
                                   IpoGmpHistoryRepository gmpHistoryRepo, IpoSubscriptionHistoryRepository subHistoryRepo,
-                                  IpoNormalizer normalizer, IpoSourcePollService pollService, SettingsService settingsService) {
-        this(httpClient, listingRepo, gmpHistoryRepo, subHistoryRepo, normalizer, pollService, settingsService, Clock.systemUTC());
+                                  InvestorgainMatcher matcher, IpoSourcePollService pollService, SettingsService settingsService) {
+        this(httpClient, listingRepo, gmpHistoryRepo, subHistoryRepo, matcher, pollService, settingsService, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for a deterministic health timestamp. */
     InvestorgainGmpService(IpoHttpClient httpClient, IpoListingRepository listingRepo,
                            IpoGmpHistoryRepository gmpHistoryRepo, IpoSubscriptionHistoryRepository subHistoryRepo,
-                           IpoNormalizer normalizer, IpoSourcePollService pollService, SettingsService settingsService, Clock clock) {
+                           InvestorgainMatcher matcher, IpoSourcePollService pollService, SettingsService settingsService, Clock clock) {
         this.httpClient = httpClient;
         this.listingRepo = listingRepo;
         this.gmpHistoryRepo = gmpHistoryRepo;
         this.subHistoryRepo = subHistoryRepo;
-        this.normalizer = normalizer;
+        this.matcher = matcher;
         this.pollService = pollService;
         this.settingsService = settingsService;
         this.clock = clock;
@@ -183,35 +202,28 @@ public class InvestorgainGmpService {
     public int refreshGmp() {
         Instant now = clock.instant();
         try {
-            List<Listing> listings = fetchListings();
-
+            List<Matched> candidates = matchTracked(fetchListings());
+            warnIfBudgetStarves("GMP", candidates, MAX_GMP_FETCHES);
             int updated = 0;
             int budget = MAX_GMP_FETCHES;
-            for (Listing listing : listings) {
-                String matchKey = normalizer.matchKey(listing.companyName(), listing.openDate());
-                if (matchKey == null) {
-                    continue;
-                }
-                IpoListingEntity entity = listingRepo.findByMatchKey(matchKey).orElse(null);
-                if (entity == null) {
-                    continue; // not an IPO we track — don't spend an HTTP call on it
-                }
+            for (Matched matched : candidates) {
                 if (budget <= 0) {
                     break;
                 }
                 budget--;
 
-                List<GmpPoint> points = fetchGmp(listing.id());
+                List<GmpPoint> points = fetchGmp(matched.listing().id());
                 if (points.isEmpty()) {
                     continue;
                 }
-                backfillHistory(entity.getId(), points);
-                applyLatest(entity, points);
+                backfillHistory(matched.entity().getId(), points);
+                applyLatest(matched.entity(), points);
                 updated++;
             }
 
             pollService.recordSuccess(SOURCE, now);
-            log.info("investorgain GMP refresh: updated {} IPO(s)", updated);
+            log.info("investorgain GMP refresh: matched={} budget={} updated={}",
+                    candidates.size(), MAX_GMP_FETCHES, updated);
             return updated;
         } catch (Exception e) {
             log.warn("investorgain GMP refresh failed: {}", e.toString());
@@ -230,18 +242,13 @@ public class InvestorgainGmpService {
     @Transactional
     public int refreshSubscription() {
         try {
-            List<Listing> listings = fetchListings();
+            List<Matched> candidates = matchTracked(fetchListings());
+            warnIfBudgetStarves("subscription", candidates, MAX_SUB_FETCHES);
             int updated = 0;
             int budget = MAX_SUB_FETCHES;
-            for (Listing listing : listings) {
-                String matchKey = normalizer.matchKey(listing.companyName(), listing.openDate());
-                if (matchKey == null) {
-                    continue;
-                }
-                IpoListingEntity entity = listingRepo.findByMatchKey(matchKey).orElse(null);
-                if (entity == null) {
-                    continue; // not an IPO we track — don't spend an HTTP call on it
-                }
+            for (Matched matched : candidates) {
+                Listing listing = matched.listing();
+                IpoListingEntity entity = matched.entity();
 
                 // Basis-of-Allotment date is in the report row (no HTTP) — investorgain is the
                 // authoritative source (NSE/Chittorgarh don't report it), so stamp it for EVERY
@@ -264,7 +271,8 @@ public class InvestorgainGmpService {
                 applyLatestSub(entity, points);
                 updated++;
             }
-            log.info("investorgain subscription refresh: updated {} IPO(s)", updated);
+            log.info("investorgain subscription refresh: matched={} budget={} updated={}",
+                    candidates.size(), MAX_SUB_FETCHES, updated);
             return updated;
         } catch (Exception e) {
             log.warn("investorgain subscription refresh failed: {}", e.toString());
@@ -275,7 +283,7 @@ public class InvestorgainGmpService {
     /** One day's subscription reading: the category → multiple map, the fuller per-category
      *  breakdown (offered/bid/amount), and the overall multiple. */
     record SubPoint(Instant capturedAt, Map<String, BigDecimal> categories,
-                    List<SubscriptionCategoryDto> detail, BigDecimal total) {}
+                    List<SubscriptionCategoryDto> detail, BigDecimal total, String bidDateLabel) {}
 
     private List<SubPoint> fetchSubscription(String investorgainId) {
         try {
@@ -324,7 +332,8 @@ public class InvestorgainGmpService {
                 if (categories.isEmpty() && total == null) {
                     continue;
                 }
-                result.add(new SubPoint(day.atStartOfDay(ZoneOffset.UTC).toInstant(), categories, detail, total));
+                result.add(new SubPoint(day.atStartOfDay(ZoneOffset.UTC).toInstant(), categories, detail, total,
+                        blankToNull(text(node, F_SUB_BID_DATE))));
             }
         } catch (Exception e) {
             log.warn("investorgain: subscription parse failed: {}", e.toString());
@@ -375,18 +384,111 @@ public class InvestorgainGmpService {
                 latest = point;
             }
         }
-        if (latest.total() != null && bigDecimalDiffers(entity.getSubTotal(), latest.total())) {
+        boolean changed = latest.total() != null && bigDecimalDiffers(entity.getSubTotal(), latest.total());
+        if (changed) {
             entity.setSubTotal(latest.total());
+        }
+        // Their own "as of" wording, stored verbatim so the UI can say exactly how fresh the
+        // subscription figures are rather than implying they're live.
+        if (latest.bidDateLabel() != null && !latest.bidDateLabel().equals(entity.getSubscriptionUpdatedLabel())) {
+            entity.setSubscriptionUpdatedLabel(latest.bidDateLabel());
+            changed = true;
+        }
+        if (changed) {
             listingRepo.save(entity);
         }
     }
 
+    /** An investorgain report row paired with the tracked listing it resolved to. */
+    record Matched(Listing listing, IpoListingEntity entity) {}
+
+    /**
+     * Resolves the report rows to the listings we actually track, MOST RECENTLY OPENING FIRST.
+     *
+     * <p>The ordering is what makes the per-refresh fetch budgets ({@link #MAX_GMP_FETCHES} /
+     * {@link #MAX_SUB_FETCHES}) land somewhere useful. The report covers the WHOLE financial year,
+     * so in a busy season the matched set is several times the budget — spending it in the report's
+     * own arbitrary row order meant the 30 calls could go entirely to issues that listed months ago
+     * while the currently-open and just-listed ones (the ones on screen) were left with no GMP and
+     * no subscription at all. Sorting by open date descending puts upcoming and just-opened issues
+     * at the front and long-settled ones last, so the budget always covers what users are looking
+     * at; rows with no open date sort last (they're the least identifiable anyway).
+     */
+    private List<Matched> matchTracked(List<Listing> listings) {
+        // Resolution (stored investorgain id → exact squashed name → name prefix) lives in
+        // InvestorgainMatcher so the live tier and this day-wise tier can never disagree about which
+        // of our IPOs a feed row is about. A name-based hit stamps the id onto the entity, which is
+        // saved below, so each IPO is name-matched at most once.
+        InvestorgainMatcher.Index index = matcher.loadIndex();
+        List<Matched> matched = new ArrayList<>();
+        for (Listing listing : listings) {
+            IpoListingEntity entity =
+                    matcher.resolve(index, listing.numericId(), listing.companyName(), listing.openDate());
+            if (entity != null && isWorthFetching(entity)) {
+                matched.add(new Matched(listing, entity));
+            }
+        }
+        matched.sort(Comparator.comparing(m -> m.listing().openDate(),
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return matched;
+    }
+
+    /**
+     * Whether an IPO is still current enough to spend a fetch on. This is the fix for the budget
+     * starving the IPOs on screen: the report covers a whole financial year, so ~155 tracked IPOs
+     * matched against a 30-fetch budget and the ones users were actually looking at got nothing.
+     * Filtering to what's still live cuts the candidate set to roughly the budget, so ordering stops
+     * being what decides who gets data.
+     *
+     * <p>"Still current" = not yet listed (upcoming/open/closed — GMP and subscription are both live
+     * for those), or listed recently enough to still be visible in the list. Reuses
+     * {@code ipo.list.hide-listed-after-days} for the latter, since an IPO the list already hides is
+     * one nobody can be looking at; its "never hide" value of 0 falls back to a fixed window so the
+     * candidate set can't grow unbounded again.
+     */
+    private boolean isWorthFetching(IpoListingEntity entity) {
+        LocalDate listingDate = entity.getListingDate();
+        if (listingDate == null) {
+            return true;
+        }
+        long hideAfterDays = settingsService.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS);
+        long windowDays = hideAfterDays > 0 ? hideAfterDays : DEFAULT_RECENT_LISTING_DAYS;
+        return !listingDate.isBefore(LocalDate.now(clock.withZone(IST)).minusDays(windowDays));
+    }
+
+    /**
+     * Warns when more tracked IPOs matched than the pass can fetch, naming the ones that lose out.
+     * They're the tail of the (newest-open-date-first) list, so they're the least topical — but this
+     * is still the reason a given IPO can show no GMP or no subscription, and the signal that the
+     * budget needs raising.
+     */
+    private static void warnIfBudgetStarves(String what, List<Matched> candidates, int budget) {
+        if (candidates.size() <= budget) {
+            return;
+        }
+        List<String> skipped = candidates.subList(budget, candidates.size()).stream()
+                .map(m -> m.listing().companyName())
+                .toList();
+        log.warn("investorgain {}: {} tracked IPOs matched but the per-pass budget is {} — no {} "
+                + "fetched this pass for: {}", what, candidates.size(), budget, what, skipped);
+    }
+
     /** One dashboard row reduced to what we need to match it to a tracked listing + enrich it
      *  ({@code boaDate} = Basis-of-Allotment date; may be null when not announced yet). */
-    record Listing(String id, String companyName, LocalDate openDate, LocalDate boaDate) {}
+    record Listing(String id, String companyName, LocalDate openDate, LocalDate boaDate) {
+        /** The feed's own numeric id, for {@link InvestorgainMatcher}. Null if it isn't numeric. */
+        Integer numericId() {
+            try {
+                return id == null ? null : Integer.valueOf(id.trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+    }
 
     /** One day's GMP reading. */
-    record GmpPoint(LocalDate date, BigDecimal gmp, BigDecimal gmpPct) {}
+    record GmpPoint(LocalDate date, BigDecimal gmp, BigDecimal gmpPct, BigDecimal estimatedListingPrice,
+                    BigDecimal subjectToSauda, BigDecimal estProfit, String updatedLabel) {}
 
     /** Walks the FY report list (bounded by {@link #MAX_PAGES}), accumulating every IPO's id/name/open date. */
     private List<Listing> fetchListings() {
@@ -413,7 +515,7 @@ public class InvestorgainGmpService {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, fyStart, fyLabel);
+        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
     }
 
     /** Extracted for unit testing without HTTP — parses a report-list body into id/name/open-date rows. */
@@ -463,7 +565,16 @@ public class InvestorgainGmpService {
                 if (date == null || gmp == null) {
                     continue;
                 }
-                result.add(new GmpPoint(date, gmp, computePct(gmp, decimal(text(node, F_MAX_IPO_PRICE)))));
+                // Prefer THEIR percentage over ours: they publish gmp_percent_calc (as an HTML
+                // fragment, e.g. <span class="pos">(67.07%)</span>), so computePct is only the
+                // fallback for a row that doesn't carry it.
+                BigDecimal reportedPct = firstPercent(text(node, F_GMP_PERCENT));
+                result.add(new GmpPoint(date, gmp,
+                        reportedPct != null ? reportedPct : computePct(gmp, decimal(text(node, F_MAX_IPO_PRICE))),
+                        decimal(text(node, F_EST_LISTING_PRICE)),
+                        decimal(text(node, F_SUBJECT_TO_SAUDA)),
+                        decimal(text(node, F_EST_PROFIT)),
+                        blankToNull(text(node, F_LAST_UPDATED))));
             }
         } catch (Exception e) {
             log.warn("investorgain: GMP parse failed: {}", e.toString());
@@ -509,11 +620,48 @@ public class InvestorgainGmpService {
                 latest = point;
             }
         }
-        if (bigDecimalDiffers(entity.getGmp(), latest.gmp()) || bigDecimalDiffers(entity.getGmpPct(), latest.gmpPct())) {
+        boolean changed = bigDecimalDiffers(entity.getGmp(), latest.gmp())
+                || bigDecimalDiffers(entity.getGmpPct(), latest.gmpPct());
+        if (changed) {
             entity.setGmp(latest.gmp());
             entity.setGmpPct(latest.gmpPct());
+        }
+        // The per-IPO endpoint is the only place these three appear, and its "last updated" label
+        // carries a year where the live report's does not — so it refines that too when present.
+        changed |= stamp(latest.estimatedListingPrice(), entity.getEstimatedListingPrice(),
+                entity::setEstimatedListingPrice);
+        changed |= stamp(latest.subjectToSauda(), entity.getSubjectToSauda(), entity::setSubjectToSauda);
+        changed |= stamp(latest.estProfit(), entity.getEstProfit(), entity::setEstProfit);
+        if (latest.updatedLabel() != null && !latest.updatedLabel().equals(entity.getGmpUpdatedLabel())) {
+            entity.setGmpUpdatedLabel(latest.updatedLabel());
+            changed = true;
+        }
+        if (changed) {
             listingRepo.save(entity);
         }
+    }
+
+    /** The percentage out of investorgain's own {@code (67.07%)} fragment, or null if absent. */
+    private static BigDecimal firstPercent(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = PERCENT.matcher(raw);
+        return m.find() ? decimal(m.group(1)) : null;
+    }
+
+    private static String blankToNull(String raw) {
+        return raw == null || raw.isBlank() ? null : raw.trim();
+    }
+
+    /** Writes {@code incoming} when it differs from what's stored; reports whether it did. */
+    private static boolean stamp(BigDecimal incoming, BigDecimal current,
+                                  java.util.function.Consumer<BigDecimal> setter) {
+        if (incoming == null || !bigDecimalDiffers(current, incoming)) {
+            return false;
+        }
+        setter.accept(incoming);
+        return true;
     }
 
     private static Map<String, String> jsonHeaders() {

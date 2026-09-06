@@ -56,46 +56,46 @@ class IpoStatusCanonicalizerTest {
 
     @Test
     void deriveStatus_beforeOpen_isUpcoming() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 30), LocalDate.of(2026, 8, 3), null, TODAY)).isEqualTo("upcoming");
     }
 
     @Test
     void deriveStatus_withinWindow_isOpen() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 23), LocalDate.of(2026, 7, 27), null, TODAY)).isEqualTo("open");
         // Boundary days (open == today, close == today) are inclusive.
-        assertThat(IpoStatusCanonicalizer.deriveStatus(TODAY, TODAY, null, TODAY)).isEqualTo("open");
+        assertThat(deriveOn(TODAY, TODAY, null, TODAY)).isEqualTo("open");
     }
 
     @Test
     void deriveStatus_pastCloseNotYetListed_isClosed() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), LocalDate.of(2026, 7, 29), TODAY)).isEqualTo("closed");
         // No listing date announced yet either → still closed.
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 24), null, TODAY)).isEqualTo("closed");
     }
 
     @Test
     void deriveStatus_listingDateReached_isListed() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 18), TODAY)).isEqualTo("listed");
         // Listing today counts as listed.
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), TODAY, TODAY)).isEqualTo("listed");
     }
 
     @Test
     void deriveStatus_onlyFutureListingDate_isUpcoming() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(
+        assertThat(deriveOn(
                 null, null, LocalDate.of(2026, 8, 5), TODAY)).isEqualTo("upcoming");
     }
 
     @Test
     void deriveStatus_noDates_returnsNull() {
-        assertThat(IpoStatusCanonicalizer.deriveStatus(null, null, null, TODAY)).isNull();
-        assertThat(IpoStatusCanonicalizer.deriveStatus(LocalDate.of(2026, 7, 20), null, null, (LocalDate) null)).isNull();
+        assertThat(deriveOn(null, null, null, TODAY)).isNull();
+        assertThat(deriveOn(LocalDate.of(2026, 7, 20), null, null, null)).isNull();
     }
 
     @Test
@@ -187,5 +187,15 @@ class IpoStatusCanonicalizerTest {
     void canonicalType_alreadyCanonical_isIdempotent() {
         assertThat(IpoStatusCanonicalizer.canonicalType("mainboard")).isEqualTo("mainboard");
         assertThat(IpoStatusCanonicalizer.canonicalType("sme")).isEqualTo("sme");
+    }
+
+    /**
+     * The date-only convenience the production class used to expose as an overload: evaluate at
+     * NOON on {@code day}, which is past the 10 AM open and before the 5 PM close, so a pure-date
+     * expectation still reads the way it did. Lives here because only these tests ever wanted it.
+     */
+    private static String deriveOn(LocalDate open, LocalDate close, LocalDate listing, LocalDate day) {
+        return IpoStatusCanonicalizer.deriveStatus(open, close, listing,
+                day == null ? null : day.atTime(12, 0));
     }
 }

@@ -20,6 +20,9 @@ export default function LegalLinks({ sx }) {
   const T = useT();
 
   const items = [
+    // About leads: it is the page that says who runs the site and how it is funded,
+    // which is the first thing both a reviewer and a first-time visitor look for.
+    { label: 'About',   to: Constants.DB_ABOUT_ROUTE },
     { label: 'Privacy', to: Constants.DB_PRIVACY_ROUTE },
     { label: 'Terms',   to: Constants.DB_TERMS_ROUTE },
     { label: 'Contact', to: Constants.DB_CONTACT_ROUTE },

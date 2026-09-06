@@ -19,7 +19,7 @@ function StatBlock({ label, align, children }) {
   return (
     <Box sx={{ textAlign: align ?? 'left', minWidth: 0 }}>
       <Typography sx={{
-        fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4,
+        fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4,
         fontWeight: 700, mb: 0.25,
       }}>
         {label}
@@ -29,16 +29,23 @@ function StatBlock({ label, align, children }) {
   );
 }
 
-/** "Latest GMP" (big ₹ figure + %, colored by sign) and "Change" (▲/▼ + ₹ delta since
- * the first recorded point, colored by sign) — the stat row that sits above the chart
- * in the reference "GMP JOURNEY" design. Null-safe throughout: a missing latest value
- * renders an em dash rather than "₹null"/"₹NaN", and `change` is null (renders "—")
- * whenever there's fewer than two points or either side of the comparison is missing. */
-function GmpJourneyHeader({ latest, sinceLabel, change }) {
+/**
+ * The stat row above the chart: the range this GMP has travelled, and the change since the first
+ * recorded point.
+ *
+ * It used to lead with "LATEST GMP", and that was the page's most visible contradiction: the
+ * figure came from the last point of the 2-hourly history series while the hero above it shows
+ * `ipo.gmp`, which the 30-minute live tier keeps fresher. The two disagreed by ₹10 within one
+ * screen. The hero now owns "what is it right now" exclusively; this card owns the JOURNEY, which
+ * is what it is called and what the chart underneath actually draws. The dated footer strip below
+ * still spells out the last recorded reading, where the date makes clear it is a recording rather
+ * than a live quote.
+ *
+ * `domain` is the same min/max the chart scales to, so the range always describes the line as
+ * drawn — including when the ₹/% toggle switches which field is plotted.
+ */
+function GmpJourneyHeader({ sinceLabel, change, domain, hasTrend, formatValue }) {
   const T = useT();
-  const latestGmp = latest?.gmp ?? null;
-  const latestPct = latest?.gmpPct ?? null;
-  const latestColor = latestGmp == null ? T.textPrimary : latestGmp >= 0 ? T.success : T.error;
   const changeColor = !change || change.direction === 'flat'
     ? T.textFaint
     : change.direction === 'up' ? T.success : T.error;
@@ -46,27 +53,32 @@ function GmpJourneyHeader({ latest, sinceLabel, change }) {
 
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5, mb: 1.75, flexWrap: 'wrap' }}>
-      <StatBlock label="Latest GMP">
+      <StatBlock label={hasTrend ? `Range${sinceLabel ? ` · since ${sinceLabel}` : ''}` : 'Recorded'}>
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontSize: 22, fontWeight: 900, color: latestColor, lineHeight: 1.1 }}>
-            {formatCurrency(latestGmp) ?? '—'}
+          <Typography sx={{
+            fontSize: 22, fontWeight: 900, color: T.textPrimary, lineHeight: 1.1,
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {domain == null
+              ? '—'
+              : hasTrend
+                ? `${formatValue(domain.min)} – ${formatValue(domain.max)}`
+                : formatValue(domain.max)}
           </Typography>
-          {latestPct != null && (
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: latestColor }}>
-              {formatPct(latestPct)}
-            </Typography>
-          )}
         </Box>
       </StatBlock>
-      <StatBlock label={sinceLabel ? `Change · since ${sinceLabel}` : 'Change'} align="right">
+      <StatBlock label="Change" align="right">
         {change == null ? (
           <Typography sx={{ fontSize: 18, fontWeight: 800, color: T.textFaint, lineHeight: 1.1 }}>—</Typography>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.3 }}>
             {ChangeIcon && <ChangeIcon sx={{ fontSize: 18, color: changeColor }} />}
-            <Typography sx={{ fontSize: 18, fontWeight: 800, color: changeColor, lineHeight: 1.1 }}>
+            <Typography sx={{
+              fontSize: 18, fontWeight: 800, color: changeColor, lineHeight: 1.1,
+              fontVariantNumeric: 'tabular-nums',
+            }}>
               {change.direction === 'up' ? '+' : change.direction === 'down' ? '−' : ''}
-              {formatCurrency(Math.abs(change.delta))}
+              {formatValue(Math.abs(change.delta))}
             </Typography>
           </Box>
         )}
@@ -90,7 +102,7 @@ function GmpJourneyFooter({ latest }) {
       display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap',
       mt: 1.5, pt: 1, borderTop: `1px solid ${T.border}`,
     }}>
-      <Typography sx={{ fontSize: 11.5, color: T.textFaint, fontWeight: 600 }}>
+      <Typography sx={{ fontSize: 11.5, color: T.textMuted, fontWeight: 600 }}>
         {formatShortDate(latest.t) ?? '—'}
       </Typography>
       <Typography sx={{ fontSize: 11.5, color: T.textMuted, fontWeight: 700 }}>
@@ -168,9 +180,8 @@ export default function GmpChart({ points = [], loading }) {
   const hasTrend = points.length > 1;
   const latest = hasHistory ? points[points.length - 1] : null;
   const first = hasHistory ? points[0] : null;
-  const change = hasTrend ? dayOverDayDelta(latest.gmp, first.gmp) : null;
-
   const field = view === 'pct' ? 'gmpPct' : 'gmp';
+  const change = hasTrend ? dayOverDayDelta(latest[field], first[field]) : null;
   // Reference-line labels read as plain axis-style figures ("₹91"/"40.0%"), not
   // gain/loss deltas — so unlike the header/footer stats they skip `formatPct`'s
   // forced "+" prefix on a positive value.
@@ -201,7 +212,7 @@ export default function GmpChart({ points = [], loading }) {
       width: '100%', minWidth: 0, boxSizing: 'border-box',
     }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: loading || !hasHistory ? 1.25 : 0 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 800, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 800, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 }}>
           GMP Journey
         </Typography>
         <ToggleButtonGroup
@@ -226,18 +237,24 @@ export default function GmpChart({ points = [], loading }) {
         <GmpChartSkeleton />
       ) : !hasHistory ? (
         <Box sx={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Typography sx={{ color: T.textFaint, fontSize: 13 }}>No GMP history yet.</Typography>
+          <Typography sx={{ color: T.textMuted, fontSize: 13 }}>No GMP history yet.</Typography>
         </Box>
       ) : (
         <>
-          <GmpJourneyHeader latest={latest} sinceLabel={sinceLabel} change={change} />
+          <GmpJourneyHeader
+            sinceLabel={sinceLabel}
+            change={change}
+            domain={domain}
+            hasTrend={hasTrend}
+            formatValue={formatRefValue}
+          />
 
           {!hasTrend ? (
             <Box sx={{
               height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: `1px dashed ${T.border}`, borderRadius: 2, px: 2,
             }}>
-              <Typography sx={{ color: T.textFaint, fontSize: 12.5, textAlign: 'center' }}>
+              <Typography sx={{ color: T.textMuted, fontSize: 12.5, textAlign: 'center' }}>
                 Not enough GMP history yet to chart a trend.
               </Typography>
             </Box>
@@ -331,9 +348,6 @@ export default function GmpChart({ points = [], loading }) {
           )}
 
           <GmpJourneyFooter latest={latest} />
-          <Typography sx={{ fontSize: 10.5, color: T.textFaint, mt: 1, lineHeight: 1.5 }}>
-            GMP is informal, indicative, and sourced from grey market channels. Not investment advice.
-          </Typography>
         </>
       )}
     </Box>

@@ -458,9 +458,32 @@ export default function RecordDetailContent({
       setMeta('name', 'twitter:title', titleStr);
       setMeta('name', 'twitter:description', description);
       setMeta('name', 'twitter:image', image);
+
+      // Keep this page out of the search index — the same directive
+      // SeoRenderController puts on the crawler-rendered copy.
+      //
+      // Belt and braces, and the belt is the important half: nginx routes known
+      // search-engine user agents to the server-rendered version, so in theory only
+      // that copy needs the tag. But dynamic rendering is a UA-matching trick that
+      // Google has been steering people away from for years, and if a crawler ever
+      // arrives with a UA the map does not recognise it lands here instead — on a page
+      // with no directive at all, which is indexable by default. That would quietly
+      // undo the single biggest fix for the "low value content" rejection.
+      //
+      // `follow` is deliberate: the links out to collection and genre pages still count.
+      setMeta('name', 'robots', 'noindex,follow');
     }
 
-    return () => { document.title = prev; };
+    return () => {
+      document.title = prev;
+
+      // Remove it on the way out. Leaving it behind would carry noindex onto whatever
+      // page the visitor navigated to next — this is a SPA, so the tag outlives the
+      // component unless it is cleaned up, and the browse pages very much want indexing.
+      if (!inModal) {
+        document.querySelector('meta[name="robots"]')?.remove();
+      }
+    };
   }, [record, inModal]);
 
   // ── Compose section list (Seasons only for TV) ─────────────────────────
@@ -675,8 +698,9 @@ export default function RecordDetailContent({
           )}
 
           {/* Last thing on the page, below every real section. Kept out of the hero
-              and away from the action row so a mis-tap can never land on an ad. */}
-          <AdSlot slot="cinemaDetail" minHeight={120} />
+              and away from the action row so a mis-tap can never land on an ad.
+              Gated on the record having loaded — see AdSlot's `ready`. */}
+          <AdSlot slot="cinemaDetail" ready={!!record} minHeight={120} />
         </Container>
       ) : (
         // Same-layout skeletons for the below-the-fold sections; they fill in when

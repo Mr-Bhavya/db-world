@@ -45,6 +45,13 @@ export const AD_SLOTS = {
   // IPO tracker
   ipoList:       import.meta.env.VITE_AD_SLOT_IPO_LIST       ?? '',
   ipoDetail:     import.meta.env.VITE_AD_SLOT_IPO_DETAIL     ?? '',
+
+  // Weather and the arcade hub. Both sit below that page's reference copy and are
+  // gated on it — the forecast widget and the game grid are not, on their own,
+  // publisher content. There is deliberately NO unit inside an individual game: a
+  // live board is a mis-click magnet and an ad there interrupts play.
+  weather:       import.meta.env.VITE_AD_SLOT_WEATHER        ?? '',
+  games:         import.meta.env.VITE_AD_SLOT_GAMES          ?? '',
 };
 
 /**

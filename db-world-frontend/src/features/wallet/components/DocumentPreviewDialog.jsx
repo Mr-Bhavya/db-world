@@ -1,35 +1,141 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button, Typography, Divider,
-  useMediaQuery, useTheme,
+  Box, Typography, IconButton, CircularProgress, useMediaQuery, useTheme,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
+import IosShareIcon from '@mui/icons-material/IosShare';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { fetchContentBlob, fetchDocument } from '../api/walletApi';
-import { downloadBlob } from '../utils/download';
+import { downloadBlob, documentFileName } from '../utils/download';
+import { useDocumentTypes } from '../hooks/useWallet';
+import { formatDocDate, expiryLabel, expiryMeta, formatFileSize } from '../utils/walletFormat';
+import { typeIcon, categoryColor } from '../utils/walletTypes';
+import { WalletFormDialog, FormSection, PrimaryButton, GhostButton } from './walletFormUi';
+import ImageViewer from './ImageViewer';
 
 const PdfViewer = lazy(() => import('@shared/components/pdf/PdfViewer'));
 
-export default function DocumentPreviewDialog({ doc, open, onClose }) {
+/** One labelled fact in the details column. */
+function Fact({ icon: Icon, label, color, children }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+      <Box sx={{
+        width: 28, height: 28, borderRadius: 2, flexShrink: 0, mt: 0.1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: color ? `${color}1a` : T.tealBg,
+      }}>
+        <Icon sx={{ fontSize: 15, color: color ?? T.teal }} />
+      </Box>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{
+          fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase',
+          letterSpacing: 0.4, fontWeight: 700, lineHeight: 1.4,
+        }}>
+          {label}
+        </Typography>
+        <Box sx={{ mt: 0.15 }}>
+          {typeof children === 'string'
+            ? <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: T.textPrimary, wordBreak: 'break-word' }}>{children}</Typography>
+            : children}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * The document number, masked until asked for.
+ *
+ * Masked by default even here: this dialog is what you open in front of whoever asked to see the
+ * document, and the full number of a government ID should be a deliberate act rather than the
+ * resting state. Copy is offered separately, because the usual reason to reveal it is to paste it
+ * into a form somewhere else.
+ */
+function NumberFact({ detail, doc }) {
+  const T = useT();
+  const [revealed, setRevealed] = useState(false);
+  const full = detail?.documentNumber;
+  const shown = revealed && full ? full : doc.maskedNumber;
+
+  const copy = async () => {
+    if (!full) return;
+    try {
+      await navigator.clipboard.writeText(full);
+      notify.success('Number copied');
+    } catch {
+      notify.error('Failed to copy number');
+    }
+  };
+
+  return (
+    <Fact icon={DescriptionOutlinedIcon} label="Document number">
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, minWidth: 0 }}>
+        <Typography sx={{
+          fontSize: 14, fontWeight: 700, color: T.textPrimary, letterSpacing: 0.5, minWidth: 0,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        }} noWrap>
+          {shown}
+        </Typography>
+        <IconButton
+          size="small"
+          aria-label={revealed ? 'Hide number' : 'Reveal number'}
+          onClick={() => setRevealed((r) => !r)}
+          disabled={!full}
+          sx={{ color: T.textMuted }}
+        >
+          {revealed ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+        </IconButton>
+        <IconButton size="small" aria-label="Copy number" disabled={!full} onClick={copy} sx={{ color: T.textMuted }}>
+          <ContentCopyIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    </Fact>
+  );
+}
+
+/**
+ * View a document.
+ *
+ * Rebuilt on the same shell as the two forms, so opening, editing and adding all feel like one
+ * feature rather than three. Two things it now does that it did not:
+ *
+ * The viewer is chosen for the FILE. An image gets zoom, rotate and drag-to-pan, because a scanned
+ * ID is something you read — the previous bare `<img>` capped at 70vh rendered a twelve-digit
+ * number a few pixels tall on a phone with no way to get closer, and sideways scans had no remedy
+ * at all. A PDF gets the shared page-stack viewer.
+ *
+ * And the actions that belong to a document — download, share, edit — are here, rather than only in
+ * the card's overflow menu. Opening something and then having to close it to act on it is a step
+ * that never needed to exist.
+ */
+export default function DocumentPreviewDialog({ doc, open, onClose, onEdit, onShare, onDownload }) {
   const T = useT();
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const [url, setUrl] = useState(null);
   const [blob, setBlob] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState(false);
   const isPdf = doc.contentType === 'application/pdf';
 
   const { data: detail } = useQuery({
     queryKey: ['wallet', 'document', doc.id],
     queryFn: () => fetchDocument(doc.id),
   });
+  const { data: types = [] } = useDocumentTypes();
+  const type = types.find((t) => t.id === doc.typeId);
+  const TypeIcon = typeIcon(type?.iconKey);
+  const tint = categoryColor(type?.category);
 
   useEffect(() => {
     let objectUrl; let cancelled = false;
@@ -46,102 +152,101 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [doc.id, isPdf]);
 
-  const onDownload = async () => {
+  const download = async () => {
+    if (onDownload) { onDownload(doc); return; }
     try {
-      const blob = await fetchContentBlob(doc.id, 'attachment');
-      await downloadBlob(blob, doc.label || 'document');
-    } catch (_e) {
+      const b = await fetchContentBlob(doc.id, 'attachment');
+      await downloadBlob(b, documentFileName(doc.label, doc.contentType));
+    } catch {
       notify.error('Failed to download document');
     }
   };
 
-  const onCopyNumber = async () => {
-    if (!detail?.documentNumber) return;
-    try {
-      await navigator.clipboard.writeText(detail.documentNumber);
-      notify.success('Number copied');
-    } catch (_e) {
-      notify.error('Failed to copy number');
-    }
-  };
-
-  const typeDisplayName = detail?.typeDisplayName ?? doc.typeDisplayName;
   const holderName = detail?.holderName ?? doc.holderName;
+  const issueDate = detail?.issueDate ?? doc.issueDate;
+  const expiryDate = detail?.expiryDate ?? doc.expiryDate;
+  const expiry = expiryMeta(expiryDate, T);
   const hasNumber = !!(doc.maskedNumber || detail?.documentNumber);
-  const numberValue = revealed && detail?.documentNumber ? detail.documentNumber : doc.maskedNumber;
+  const viewerHeight = isPhone ? '46vh' : '58vh';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={isPhone}
-      PaperProps={{ sx: { bgcolor: T.sidebar } }}>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary }}>
-        {doc.label}
-        <Box>
-          <Button startIcon={<DownloadIcon />} onClick={onDownload} sx={{ color: T.teal }}>Download</Button>
-          <IconButton onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
-        </Box>
-      </DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, minHeight: 400 }}>
-        <Box sx={{ flex: { xs: '0 0 auto', md: '1 1 60%' }, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
-          {loading ? <CircularProgress sx={{ color: T.teal }} />
-            : isPdf ? (
-              <Box sx={{ width: '100%', height: isPhone ? '50vh' : '70vh' }}>
-                <Suspense fallback={<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><CircularProgress sx={{ color: T.teal }} /></Box>}>
-                  <PdfViewer src={blob} T={T} />
-                </Suspense>
-              </Box>
-            )
-            : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: isPhone ? '50vh' : '70vh' }} />}
-        </Box>
-
-        <Box sx={{ flex: { xs: '0 0 auto', md: '0 0 260px' }, display: { xs: 'block', md: 'flex' } }}>
-          <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' }, borderColor: T.glassBorder, mr: 2 }} />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
-            {typeDisplayName && <MetaRow label="Type" T={T}>{typeDisplayName}</MetaRow>}
-            {holderName && <MetaRow label="Belongs to" T={T}>{holderName}</MetaRow>}
-
-            {hasNumber && (
-              <MetaRow label="Document number" T={T}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: 13, color: T.textPrimary, fontFamily: 'monospace' }}>
-                    {numberValue}
-                  </Typography>
-                  <IconButton size="small" aria-label="Toggle number visibility"
-                    onClick={() => setRevealed((r) => !r)} sx={{ color: T.textFaint }}>
-                    {revealed ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                  </IconButton>
-                  <IconButton size="small" aria-label="Copy number" disabled={!detail?.documentNumber}
-                    onClick={onCopyNumber} sx={{ color: T.textFaint }}>
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              </MetaRow>
-            )}
-
-            {detail?.notes && (
-              <MetaRow label="Notes" T={T}>
-                <Typography sx={{ fontSize: 13, color: T.textPrimary, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {detail.notes}
-                </Typography>
-              </MetaRow>
-            )}
-          </Box>
-        </Box>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function MetaRow({ label, T, children }) {
-  return (
-    <Box>
-      <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: T.textFaint }}>
-        {label}
-      </Typography>
-      {typeof children === 'string' || typeof children === 'number' ? (
-        <Typography sx={{ fontSize: 13, color: T.textPrimary, mt: 0.25 }}>{children}</Typography>
-      ) : (
-        <Box sx={{ mt: 0.25 }}>{children}</Box>
+    <WalletFormDialog
+      open={open}
+      onClose={onClose}
+      fullScreen={isPhone}
+      title={doc.label}
+      subtitle={[doc.typeDisplayName, formatFileSize(doc.fileSize)].filter(Boolean).join(' · ')}
+      actions={(
+        <>
+          {onShare && (
+            <GhostButton startIcon={<IosShareIcon sx={{ fontSize: 18 }} />} onClick={() => onShare(doc)}>
+              Share
+            </GhostButton>
+          )}
+          {onEdit && (
+            <GhostButton startIcon={<EditIcon sx={{ fontSize: 18 }} />} onClick={() => onEdit(doc)}>
+              Edit
+            </GhostButton>
+          )}
+          <PrimaryButton startIcon={<DownloadIcon sx={{ fontSize: 18 }} />} onClick={download}>
+            Download
+          </PrimaryButton>
+        </>
       )}
-    </Box>
+    >
+      {loading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: viewerHeight }}>
+          <CircularProgress size={26} sx={{ color: T.teal }} />
+        </Box>
+      ) : isPdf ? (
+        <Box sx={{
+          height: viewerHeight, borderRadius: 3, overflow: 'auto',
+          bgcolor: T.glassHover, border: `1px solid ${T.border}`, p: 1,
+        }}>
+          <Suspense fallback={(
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <CircularProgress size={22} sx={{ color: T.teal }} />
+            </Box>
+          )}>
+            <PdfViewer src={blob} T={T} />
+          </Suspense>
+        </Box>
+      ) : (
+        <ImageViewer src={url} alt={doc.label} maxHeight={viewerHeight} />
+      )}
+
+      <FormSection title="Details">
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 190px), 1fr))',
+          gap: 2,
+        }}>
+          {doc.typeDisplayName && <Fact icon={TypeIcon} label="Type" color={tint}>{doc.typeDisplayName}</Fact>}
+          {holderName && <Fact icon={PersonOutlineIcon} label="Belongs to">{holderName}</Fact>}
+          {hasNumber && <NumberFact detail={detail} doc={doc} />}
+          {issueDate && <Fact icon={EventOutlinedIcon} label="Issued">{formatDocDate(issueDate)}</Fact>}
+          {expiryDate && (
+            <Fact icon={EventBusyRoundedIcon} label="Validity" color={expiry.color}>
+              <Typography sx={{
+                fontSize: 13.5, fontWeight: 700, color: expiry.color ?? T.textPrimary,
+              }}>
+                {expiryLabel(expiryDate)}
+              </Typography>
+            </Fact>
+          )}
+        </Box>
+      </FormSection>
+
+      {detail?.notes && (
+        <FormSection title="Notes">
+          <Typography sx={{
+            fontSize: 13, color: T.textMuted, lineHeight: 1.7,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>
+            {detail.notes}
+          </Typography>
+        </FormSection>
+      )}
+    </WalletFormDialog>
   );
 }

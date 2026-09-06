@@ -8,6 +8,15 @@ export default [
 
   js.configs.recommended,
 
+  // Build-time Node scripts, not app code — they get Node globals rather than the browser's.
+  {
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'module',
+    },
+  },
+
   {
     files: ['src/**/*.{js,jsx}'],
     plugins: {

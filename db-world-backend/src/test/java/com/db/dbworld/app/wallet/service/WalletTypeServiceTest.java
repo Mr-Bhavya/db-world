@@ -43,9 +43,9 @@ class WalletTypeServiceTest {
 
     @Test
     void create_rejectsDuplicateCode() {
-        service.create(new UpsertDocumentTypeRequest("PAN", "PAN Card", null, null, false, null, true, 0));
+        service.create(new UpsertDocumentTypeRequest("PAN", "PAN Card", null, null, "IDENTITY", false, null, false, true, 0));
         assertThatThrownBy(() -> service.create(
-                new UpsertDocumentTypeRequest("PAN", "Another", null, null, false, null, true, 1)))
+                new UpsertDocumentTypeRequest("PAN", "Another", null, null, "IDENTITY", false, null, false, true, 1)))
                 .isInstanceOf(DbWorldException.class);
     }
 
@@ -57,7 +57,7 @@ class WalletTypeServiceTest {
     @Test
     void deleteOrDeactivate_whenInUse_deactivatesInsteadOfDeleting() {
         WalletDocumentTypeEntity t = service.create(
-                new UpsertDocumentTypeRequest("DL", "Driving Licence", null, null, true, "DL No", true, 0));
+                new UpsertDocumentTypeRequest("DL", "Driving Licence", null, null, "VEHICLE", true, "DL No", true, true, 0));
         when(docRepo.countByDocumentTypeId(t.getId())).thenReturn(2L);
 
         boolean deleted = service.deleteOrDeactivate(t.getId());

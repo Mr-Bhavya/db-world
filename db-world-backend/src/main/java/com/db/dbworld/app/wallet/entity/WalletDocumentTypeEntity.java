@@ -19,9 +19,22 @@ public class WalletDocumentTypeEntity {
     @Column(nullable = false, length = 40)  private String code;
     @Column(nullable = false, length = 100) private String displayName;
     @Column(length = 300) private String description;
+    /** Semantic icon name ("passport", "vehicle", "bank"), resolved to a component by the client.
+     *  Deliberately NOT an icon-library class name — that would couple the schema to whatever the
+     *  frontend renders with today. */
     @Column(length = 40)  private String iconKey;
+    /** Grouping for the type picker (IDENTITY, VEHICLE, FINANCIAL, ...). Nullable so an
+     *  admin-created type without one still works; the client files those under "Other". */
+    @Column(length = 40)  private String category;
 
     @Column(nullable = false) private boolean requiresNumber;
+    /**
+     * Whether documents of this type expire at all. NULLABLE on purpose, and null does NOT mean
+     * false: it means nobody has said, which is the state every admin-created type starts in. The
+     * client shows the optional expiry field unless this is explicitly false, because offering a
+     * field nobody fills costs far less than hiding one that was needed.
+     */
+    private Boolean hasExpiry;
     @Column(length = 60)      private String numberLabel;
     @Column(nullable = false) private boolean active;
     @Column(nullable = false) private int sortOrder;

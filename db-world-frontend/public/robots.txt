@@ -13,9 +13,29 @@ Allow: /db-world/db-cinema/collection
 Allow: /db-world/db-ipo
 Allow: /db-world/db-games
 Allow: /db-world/db-weather
+# The generator only — a longer path than the Disallow on the vault below, and
+# robots resolves conflicts by specificity, so this narrows it rather than
+# reopening the whole password manager.
+Allow: /db-world/db-password-manager/generate-password
+Allow: /db-world/about
 Allow: /db-world/privacy
 Allow: /db-world/terms
 Allow: /db-world/contact
+
+# ─────────────────────────────────────────────────────────────
+# RECORD PAGES: crawl, but do not index.
+#
+# They are NOT disallowed, and that is deliberate. Every word on one comes from
+# TMDB, so ~2,300 of them are scraped metadata at scale — which is what Google's
+# September 2026 AdSense review meant by "low value content", and they are gone
+# from the sitemap for that reason. But a Disallow would be the wrong tool: it
+# blocks the fetch, so Google never sees the noindex it would need to obey, and
+# it also cuts the links from a record page through to its collection and genre
+# pages. SeoRenderController sends `noindex,follow` instead, which needs the
+# crawl to happen.
+#
+# Ads still serve on them: AdSense does not require a page to be indexed.
+# ─────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────
 # PRIVATE — acting on a record. All of these redirect to login,
@@ -32,6 +52,19 @@ Disallow: /db-world/db-password-manager
 Disallow: /db-world/db-file-manager
 
 # ─────────────────────────────────────────────────────────────
+# PUBLICLY REACHABLE BUT MUST NOT BE INDEXED
+#
+# These are in App.jsx's `public` block — no login redirect will stop a
+# crawler — so robots is the only thing keeping them out of an index.
+# ─────────────────────────────────────────────────────────────
+# A wallet share link IS the credential: anyone holding the URL can read the
+# document. Indexed, a shared government ID becomes a search result.
+Disallow: /db-world/shared-doc/
+
+# Internal player harness. Real content lives on record pages.
+Disallow: /db-world/player-demo
+
+# ─────────────────────────────────────────────────────────────
 # AUTH & USER DATA
 # ─────────────────────────────────────────────────────────────
 Disallow: /db-world/login
@@ -39,6 +72,12 @@ Disallow: /db-world/logout
 Disallow: /db-world/registration
 Disallow: /db-world/user-profile
 Disallow: /db-world/user-profile-edit
+
+# Top-level, NOT under /db-world — the rules above do not reach them. Both
+# carry a single-use token in the query string, and a crawler that fetches one
+# spends it: the user then gets "this link has already been used".
+Disallow: /reset-password
+Disallow: /verify-email
 
 # ─────────────────────────────────────────────────────────────
 # ADMIN
@@ -61,5 +100,9 @@ Disallow: /logs/
 # canonical, parameterless URL is the one worth indexing. Listed AFTER the
 # Allow rules above so it narrows rather than replaces them.
 Disallow: /*?*
+
+# Crawl-delay is deliberately omitted. Google ignores it, and the site is a
+# single Raspberry Pi behind a CDN — if load ever becomes the problem, rate
+# limiting in nginx is the control that actually works.
 
 Sitemap: https://db-world.in/sitemap.xml

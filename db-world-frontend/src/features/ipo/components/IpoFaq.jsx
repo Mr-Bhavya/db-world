@@ -3,6 +3,7 @@ import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '
 import { alpha } from '@mui/material/styles';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { useT } from '@shared/theme';
+import { sectionList } from '@shared/content/siteContent';
 
 /**
  * Six common questions, answered honestly and briefly (1-3 sentences each). The last
@@ -12,32 +13,9 @@ import { useT } from '@shared/theme';
  * lives on each IPO's own Allotment tab — there's no single allotment-guide route to deep
  * link to from this list-page FAQ, so the answer points there instead of a specific anchor.
  */
-const FAQ_ITEMS = [
-  {
-    q: 'What is GMP (Grey Market Premium)?',
-    a: 'GMP is the premium at which IPO shares informally trade before listing, in an unofficial "grey market". It’s a rough gauge of listing-day demand — not an official or guaranteed price.',
-  },
-  {
-    q: 'What does "subscription" mean?',
-    a: 'Subscription is how many times the shares on offer were applied for, usually split by investor category (QIB / NII / Retail). "3.2× subscribed" means demand was 3.2 times the shares available.',
-  },
-  {
-    q: "What's the difference between Mainboard and SME IPOs?",
-    a: 'Mainboard IPOs list on the main NSE/BSE boards and suit larger, established companies. SME IPOs are for smaller companies, list on the NSE Emerge / BSE SME platforms, and typically need a higher minimum investment per lot.',
-  },
-  {
-    q: 'What is a lot size and minimum investment?',
-    a: 'A lot is the minimum number of shares you can apply for — you can only bid in whole multiples of it. Minimum investment = lot size × the upper price band.',
-  },
-  {
-    q: 'How do I check my IPO allotment?',
-    a: 'Wait for the allotment date, then use "Check allotment status" on that IPO’s Allotment tab — it opens the registrar/BSE page where you enter your PAN or application number and solve a CAPTCHA. That tab also has a step-by-step guide.',
-  },
-  {
-    q: 'Is this data official or real-time?',
-    a: 'No — it’s aggregated from public sources and refreshed periodically, not a live official feed. It’s provided for information only, not investment advice — always confirm on the official registrar/exchange site before acting.',
-  },
-];
+const FAQ_ITEMS = sectionList('ipo', 'faq')
+  // Shared file speaks {term, text}; this accordion has always spoken {q, a}.
+  .map(({ term, text }) => ({ q: term, a: text }));
 
 /** One collapsible Q&A row. Owns its own `useT()` per the project convention. */
 function FaqItem({ item, expanded, onToggle }) {

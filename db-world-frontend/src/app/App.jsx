@@ -6,6 +6,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
+import ResetPassword from '@features/auth/ResetPassword';
+import VerifyEmail from '@features/auth/VerifyEmail';
 import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
@@ -37,6 +39,7 @@ import BiometricGate from '@features/auth/BiometricGate';
 import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import AppLockGate from '@features/auth/AppLockGate';
 import { useAppLinks } from '@shared/deeplink/useAppLinks';
+import useCanonicalUrl from '@shared/hooks/useCanonicalUrl';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -83,13 +86,16 @@ import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
 const ContactPage    = lazy(() => import('@features/legal/Contact'));
+const AboutPage      = lazy(() => import('@features/legal/About'));
 
-const Weather     = lazy(() => import('@features/weather/weather'));
+const Weather     = lazy(() => import('@features/weather/WeatherPage'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
 const Snake       = lazy(() => import('@features/games/Snake'));
 const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
 const Game2048    = lazy(() => import('@features/games/Game2048'));
+const Minesweeper = lazy(() => import('@features/games/Minesweeper'));
+const ConnectFour = lazy(() => import('@features/games/ConnectFour'));
 
 
 // Error Boundary Component
@@ -174,6 +180,19 @@ const buildMuiTheme = (mode) => createTheme({
   },
   shape: { borderRadius: 8 },
   typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        // index.html paints html AND body black so the boot loader has no white flash before
+        // React mounts. CssBaseline then themes `body` but leaves `html` on that boot black, so in
+        // light mode the document element stayed #000 — visible as a black band whenever the page
+        // overscrolls (rubber-band on Android, trackpad bounce on desktop) or is shorter than the
+        // viewport. Re-theme html alongside body.
+        html: { backgroundColor: mode === 'dark' ? '#000000' : '#ffffff' },
+      },
+    },
+  },
 });
 
 /** Thin wrapper so the lazy import receives the pageType prop. */
@@ -188,17 +207,27 @@ const routeConfig = {
     { path: Constants.LOGIN_ROUTE, element: <Login /> },
     { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
     { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },
+    // Public on purpose: the visitor clicking these is by definition signed out.
+    { path: Constants.RESET_PASSWORD_ROUTE, element: <ResetPassword /> },
+    { path: Constants.VERIFY_EMAIL_ROUTE, element: <VerifyEmail /> },
     { path: Constants.DB_GAMES_ROUTE,              element: <Games /> },
     { path: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE, element: <TicTacToe /> },
     { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },
     { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
     { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
+    { path: Constants.DB_GAMES_MINESWEEPER_ROUTE,  element: <Minesweeper /> },
+    { path: Constants.DB_GAMES_CONNECT_FOUR_ROUTE, element: <ConnectFour /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
+    // Public: the generator is entirely self-contained — no API call, no storage, no auth —
+    // so gating it only stopped people using a tool that works fine signed out, and kept a
+    // genuinely useful page out of every search index.
+    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
 
     // Legal pages. Public and linked from the footer — AdSense will not approve a
     // site without them, and a reviewer must be able to reach them signed out.
+    { path: Constants.DB_ABOUT_ROUTE,   element: <AboutPage /> },
     { path: Constants.DB_PRIVACY_ROUTE, element: <PrivacyPolicy /> },
     { path: Constants.DB_TERMS_ROUTE,   element: <TermsOfService /> },
     { path: Constants.DB_CONTACT_ROUTE, element: <ContactPage /> },
@@ -230,7 +259,6 @@ const routeConfig = {
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
-    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
@@ -262,6 +290,11 @@ const ThemedApp = () => {
   // A tapped https://db-world.in/db-world/… link (Android App Links) routes into
   // the SPA instead of bouncing to the browser. No-op on web.
   useAppLinks(navigate);
+
+  // Self-referencing <link rel="canonical"> per route. App-wide rather than per page:
+  // the shell had no canonical at all, which is half of why Search Console reported
+  // www.db-world.in as a duplicate it could not resolve.
+  useCanonicalUrl();
 
   // A download-notification tap persists a one-shot route flag natively (see
   // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the
@@ -421,10 +454,22 @@ const ThemedApp = () => {
                 overflow: pageScaled && isSheetViewport ? 'hidden' : 'visible',
                 transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
                 minHeight: '100vh',
+                // Column flex + `flex: 1` on the route area below is what keeps the footer AT THE
+                // BOTTOM when a page renders little or nothing — while a lazy route chunk downloads,
+                // or on an empty/errored page. As a plain block box the children just stacked from
+                // the top, and since the Header is a `position: fixed` AppBar with no spacer in the
+                // shell (each page supplies its own top padding), a zero-height route area left the
+                // footer as the first in-flow element — rendering it at y=0, printed straight over
+                // the header. Affects every lazy route, not one page.
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!isPlayerRoute && <Header />}
+            {/* `minWidth: 0` alone is not enough here — see the width:100% note on the page shells
+                this wraps. A flex item with auto side margins does not stretch. */}
+            <Box component="main" sx={{ flex: '1 0 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -454,6 +499,7 @@ const ThemedApp = () => {
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
             </Suspense>
+            </Box>
             {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
                 fallback replaces its children, and a footer that vanishes and reappears
                 on every first navigation to a page reads as a layout glitch. */}

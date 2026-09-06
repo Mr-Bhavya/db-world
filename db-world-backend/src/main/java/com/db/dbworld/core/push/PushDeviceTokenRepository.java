@@ -14,4 +14,7 @@ public interface PushDeviceTokenRepository extends JpaRepository<PushDeviceToken
 
     /** Every device token belonging to any of the given users — for targeted (per-user) pushes. */
     List<PushDeviceTokenEntity> findByUserIdIn(Collection<Long> userIds);
+
+    /** Drops every push registration for a user — on logout-everywhere, reset or deletion. */
+    long deleteByUserId(Long userId);
 }

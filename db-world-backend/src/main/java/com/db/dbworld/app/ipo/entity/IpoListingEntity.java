@@ -154,6 +154,70 @@ public class IpoListingEntity {
     @Column(length = 300)
     private String website;
 
+    // ── Investorgain live tier ──────────────────────────────────────────────────────────────
+    // Written only by InvestorgainLiveService (report 331 + the GMP dashboard), never by
+    // ingest — investorgain wins the volatile numbers, NSE stays the exchange of record for
+    // dates/status/pricing. Every value here is STORED AS REPORTED: investorgain already
+    // publishes the percentages, the estimated listing price and the profit figure, so nothing
+    // in this block is computed by us.
+
+    /**
+     * Investorgain's own IPO id, learned once by name and then reused forever. This is what makes
+     * the live tier reliable: their report abbreviates company names ("Skyways Air" for "Skyways
+     * Air Services Limited"), so re-matching on the name every poll silently lost IPOs. Null until
+     * the first successful match.
+     */
+    @Column(name = "investorgain_id")
+    private Integer investorgainId;
+
+    /** Investorgain's 1–5 "fire" GMP rating. */
+    @Column(name = "gmp_rating")
+    private Integer gmpRating;
+
+    /** Lowest GMP seen this cycle (their "N ↓" figure). */
+    @Column(name = "gmp_min", precision = 10, scale = 2)
+    private BigDecimal gmpMin;
+
+    /** Highest GMP seen this cycle (their "N ↑" figure). */
+    @Column(name = "gmp_max", precision = 10, scale = 2)
+    private BigDecimal gmpMax;
+
+    /**
+     * Investorgain's own "last updated" label for the GMP, verbatim (e.g. {@code "27-Aug 19:59"}).
+     * Kept as text on purpose — the report's label carries no year, and inventing one to parse it
+     * would be exactly the kind of derived value this block avoids.
+     */
+    @Column(name = "gmp_updated_label", length = 60)
+    private String gmpUpdatedLabel;
+
+    /** Their estimated listing price (cap + current GMP) — their arithmetic, not ours. */
+    @Column(name = "estimated_listing_price", precision = 10, scale = 2)
+    private BigDecimal estimatedListingPrice;
+
+    /** Retail "subject to sauda" rate in ₹, as reported. Grey-market figure, attributed in the UI. */
+    @Column(name = "subject_to_sauda", precision = 12, scale = 2)
+    private BigDecimal subjectToSauda;
+
+    /** Their estimated per-lot profit in ₹, as reported. Grey-market figure, attributed in the UI. */
+    @Column(name = "est_profit", precision = 12, scale = 2)
+    private BigDecimal estProfit;
+
+    /** Price/earnings ratio as reported (their {@code ~P/E}). */
+    @Column(name = "pe_ratio", precision = 10, scale = 2)
+    private BigDecimal peRatio;
+
+    /** Whether the issue has anchor-investor participation. */
+    @Column(name = "anchor_investor")
+    private Boolean anchorInvestor;
+
+    /** Registrar's allotment-status page for this IPO, straight from the GMP dashboard. */
+    @Column(name = "allotment_link", length = 500)
+    private String allotmentLink;
+
+    /** Investorgain's "as of" label for the subscription figures, verbatim (e.g. {@code "27th Aug 2026 17:11"}). */
+    @Column(name = "subscription_updated_label", length = 60)
+    private String subscriptionUpdatedLabel;
+
     @Column(name = "first_seen_at", nullable = false)
     private Instant firstSeenAt;
 

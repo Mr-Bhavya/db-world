@@ -16,11 +16,31 @@ import React from 'react';
  *
  *   variant="full"  — full-screen wordmark loader; optional `message` status line.
  *   variant="bar"   — slim teal top bar (Suspense fallback + auth check).
+ *
+ * The two variants ship DIFFERENT stylesheets, and that split is the point. `FULL_CSS` is the
+ * byte-for-byte copy of the boot loader's sheet, including `html,body{background:#000}` — correct
+ * there, because the boot overlay IS a full-screen black intro. `bar` used to inject that same
+ * sheet, so every lazy route transition dropped a `body{background:#000}` rule into the document
+ * for as long as the chunk took to arrive. A `<style>` React renders lands in the body, after
+ * emotion's sheet in the head, so at equal specificity it won — and in light mode the whole page
+ * went black between the header and the footer until the route resolved. The bar only ever draws
+ * a 3px strip; it now only ships the rules for one.
  */
 const MARK = 'DB';
 const REST = 'WORLD';
 
-const CSS = `
+/** Slim top-bar rules — the only ones `variant="bar"` needs. Deliberately carries NO
+ * `html,body` background: the bar is an overlay on a page that already has its own theme. */
+const BAR_CSS = `
+.dbl-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1400;background:rgba(20,184,166,.10);overflow:hidden}
+.dbl-bar>span{position:absolute;top:0;height:100%;width:38%;left:-38%;background:linear-gradient(90deg,transparent,#14b8a6,#2dd4bf,transparent);animation:dbl-slide 1.5s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes dbl-slide{to{left:120%}}
+@media (prefers-reduced-motion:reduce){
+  .dbl-bar>span{animation:none!important;left:0;width:100%;opacity:.55}
+}
+`;
+
+const FULL_CSS = `
 html,body{margin:0;background:#000}
 #app-loader,.dbl-root{position:fixed;inset:0;z-index:1300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(18px,5vw,26px);background:#000;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #app-loader{transition:opacity .45s ease}
@@ -50,7 +70,7 @@ export default function AppLoader({ variant = 'full', message }) {
   if (variant === 'bar') {
     return (
       <>
-        <style>{CSS}</style>
+        <style>{BAR_CSS}</style>
         <div className="dbl-bar" role="status" aria-label={message || 'Loading'}>
           <span />
         </div>
@@ -64,7 +84,7 @@ export default function AppLoader({ variant = 'full', message }) {
 
   return (
     <>
-      <style>{CSS}</style>
+      <style>{FULL_CSS}</style>
       <div className="dbl-root" role="status" aria-live="polite" aria-label={message || 'Loading DB World'}>
         <div className="dbl-word" aria-hidden="true">
           <span className="mark">{MARK}</span>

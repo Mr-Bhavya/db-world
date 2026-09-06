@@ -232,6 +232,23 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void list_sortClosing_ordersBySoonestCloseDateWithNullsLast() {
+        // The only ASCENDING sort — "what do I have to decide about next" rather than a description
+        // of the issue, so soonest first is the whole point.
+        IpoListingEntity soon = entity("soon", "open", "mainboard", null, null, null);
+        soon.setCloseDate(LocalDate.of(2026, 8, 28));
+        IpoListingEntity later = entity("later", "open", "mainboard", null, null, null);
+        later.setCloseDate(LocalDate.of(2026, 9, 15));
+        IpoListingEntity noClose = entity("no-close", "open", "mainboard", null, null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(later, noClose, soon));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, "closing");
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("soon", "later", "no-close");
+    }
+
+    @Test
     void list_unrecognizedSort_fallsBackToDateOrder() {
         IpoListingEntity older = entity("older", "open", LocalDate.of(2026, 6, 1));
         IpoListingEntity newer = entity("newer", "open", LocalDate.of(2026, 7, 20));

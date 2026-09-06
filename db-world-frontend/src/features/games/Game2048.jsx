@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, Button, Container, Typography } from '@mui/material';
-import { ArrowBack, Refresh } from '@mui/icons-material';
+import { Box, Button, Typography } from '@mui/material';
+import { Refresh } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
+import GameShell from './GameShell';
 
 // Colour map for tiles
 const TILE_STYLE = {
@@ -96,7 +95,6 @@ const Game2048 = () => {
   usePageMeta('2048 — DB Games', { exact: true });
 
   const T        = useT();
-  const navigate = useNavigate();
   const [grid, setGrid]   = useState(INIT_GRID);
   const [score, setScore] = useState(0);
   const [best, setBest]   = useState(() => parseInt(localStorage.getItem('2048_best') || '0'));
@@ -149,54 +147,25 @@ const Game2048 = () => {
   };
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-    }}>
-      <motion.div
-        animate={{ opacity: [0.06, 0.14, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-          background: `radial-gradient(ellipse 50% 40% at 50% 30%, ${T.tealGlow ?? 'rgba(13,148,136,0.12)'} 0%, transparent 70%)`,
-        }}
-      />
-
-      <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, md: 5 } }}>
-        <Box sx={{ mb: 2 }}>
-          <Button
-            startIcon={<ArrowBack />}
-            onClick={() => navigate(Constants.DB_GAMES_ROUTE)}
-            sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
-          >
-            Games
-          </Button>
-        </Box>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, color: T.teal, letterSpacing: '-0.02em' }}>2048</Typography>
-              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 1.5, minWidth: 52 }}>
-                  <Typography sx={{ fontSize: '0.65rem', color: T.textMuted }}>SCORE</Typography>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.textPrimary }}>{score}</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 1.5, minWidth: 52 }}>
-                  <Typography sx={{ fontSize: '0.65rem', color: T.textMuted }}>BEST</Typography>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.textPrimary }}>{best}</Typography>
-                </Box>
-                <Button
-                  size="small" onClick={reset}
-                  sx={{ color: T.textMuted, border: `1px solid ${T.glassBorder}`, borderRadius: 1.5, minWidth: 'unset', px: 1,
-                    '&:hover': { color: T.teal, borderColor: T.teal } }}
-                >
-                  <Refresh sx={{ fontSize: 18 }} />
-                </Button>
-              </Box>
-            </Box>
-
+    <GameShell
+      title="2048"
+      width="xs"
+      stats={[{ label: 'Score', value: score, accent: true }, { label: 'Best', value: best }]}
+      actions={
+        <Button
+          size="small"
+          startIcon={<Refresh sx={{ fontSize: 16 }} />}
+          onClick={reset}
+          sx={{
+            fontWeight: 800, fontSize: '0.74rem', borderRadius: 2, minHeight: 34,
+            color: T.textMuted, border: `1px solid ${T.glassBorder}`,
+            '&:hover': { color: T.teal, borderColor: T.teal, bgcolor: T.tealBg },
+          }}
+        >
+          New game
+        </Button>
+      }
+    >
             {/* Win / Game over banners */}
             <AnimatePresence>
               {(won || over) && (
@@ -252,10 +221,7 @@ const Game2048 = () => {
             <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, textAlign: 'center', mt: 2 }}>
               Arrow keys to move · Swipe on mobile
             </Typography>
-          </Box>
-        </motion.div>
-      </Container>
-    </Box>
+    </GameShell>
   );
 };
 

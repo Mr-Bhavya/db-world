@@ -5,6 +5,7 @@ import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.genre.entity.GenreEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,13 @@ class SitemapControllerTest {
                 .build();
     }
 
+    private GenreEntity genre(long id, String name) {
+        GenreEntity g = new GenreEntity();
+        g.setId(id);
+        g.setName(name);
+        return g;
+    }
+
     private RecordEntity dated(long id, String name, Instant published, Instant updated, Instant created) {
         return RecordEntity.builder()
                 .id(id).name(name).type(RecordType.MOVIE).visibility(RecordVisibility.PUBLISHED)
@@ -69,7 +77,24 @@ class SitemapControllerTest {
        =============================== */
 
     @Test
-    void listsLandingPagesAndPublishedRecords() {
+    void doesNotListIndividualRecordPages() {
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
+                record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED),
+                record(456L, "Breaking Bad", RecordType.TV_SERIES, RecordVisibility.PUBLISHED)));
+        when(ipoListingRepository.findAll()).thenReturn(List.of());
+
+        // Deliberate, and the single biggest lever on the "low value content" verdict
+        // Google returned in September 2026: every word on a record page comes from
+        // TMDB, and ~2,300 of them were 89% of this file. They stay crawlable and
+        // ad-eligible — SeoRenderController marks them noindex,follow — but submitting
+        // them was asking to be judged on scraped metadata.
+        assertThat(xml())
+                .doesNotContain("/db-world/db-cinema/movie/123")
+                .doesNotContain("/db-world/db-cinema/series/456");
+    }
+
+    @Test
+    void listsLandingAndEditorialPages() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED),
                 record(456L, "Breaking Bad", RecordType.TV_SERIES, RecordVisibility.PUBLISHED)));
@@ -85,19 +110,22 @@ class SitemapControllerTest {
                 .contains("<loc>https://db-world.in/db-world/privacy</loc>")
                 .contains("<loc>https://db-world.in/db-world/terms</loc>")
                 .contains("<loc>https://db-world.in/db-world/contact</loc>")
-                // Slug mirrors recordNav.js: leading id, cosmetic title.
-                .contains("<loc>https://db-world.in/db-world/db-cinema/movie/123-inception</loc>")
-                .contains("<loc>https://db-world.in/db-world/db-cinema/series/456-breaking-bad</loc>")
+                .contains("<loc>https://db-world.in/db-world/about</loc>")
                 .endsWith("</urlset>\n");
     }
 
     @Test
-    void unlistedRecordsAreIncluded_theyAreReachableByDirectLink() {
+    void unlistedRecordsStillCountTowardsTheLandingPages() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
-                record(7L, "Deep Cut", RecordType.MOVIE, RecordVisibility.UNLISTED)));
+                dated(7L, "Deep Cut", Instant.parse("2026-04-09T10:00:00Z"), null, null)));
         when(ipoListingRepository.findAll()).thenReturn(List.of());
 
-        assertThat(xml()).contains("/db-world/db-cinema/movie/7-deep-cut");
+        // This used to assert that an UNLISTED record got its own sitemap entry. No
+        // record gets one any more. What survives is that such a title still moves the
+        // browse page's lastmod, because it genuinely did change that listing.
+        assertThat(xml())
+                .doesNotContain("/db-world/db-cinema/movie/7")
+                .contains("<lastmod>2026-04-09</lastmod>");
     }
 
     @Test
@@ -140,13 +168,19 @@ class SitemapControllerTest {
        =============================== */
 
     @Test
-    void titleWithUrlSignificantCharactersIsSlugified() {
-        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
-                record(42L, "Fast & Furious: Tokyo Drift", RecordType.MOVIE, RecordVisibility.PUBLISHED)));
+    void genreNameWithUrlSignificantCharactersIsSlugified() {
+        // This used to assert the same thing about a record title. Record URLs left the
+        // sitemap, but slugify() did not — the genre landing pages still build their
+        // paths with it, and those are now the deepest cinema URLs submitted, so this
+        // is where the escaping has to hold.
+        RecordEntity r = record(42L, "Some Film", RecordType.MOVIE, RecordVisibility.PUBLISHED);
+        r.getTmdb().setGenres(List.of(genre(878L, "Sci-Fi & Fantasy")));
+
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(r));
         when(ipoListingRepository.findAll()).thenReturn(List.of());
 
         assertThat(xml())
-                .contains("/db-world/db-cinema/movie/42-fast-furious-tokyo-drift")
+                .contains("/db-world/db-cinema/movie/genre/878-sci-fi-fantasy")
                 .doesNotContain("&amp;amp;");
     }
 
@@ -171,16 +205,23 @@ class SitemapControllerTest {
 
     @Test
     void fallsBackToUpdatedAtThenCreatedAtForRowsPredatingPublishedAt() {
+        when(ipoListingRepository.findAll()).thenReturn(List.of());
+
+        // One record per case, asserted separately. Before record URLs left the sitemap
+        // both fallbacks could be checked in a single pass, because each record carried
+        // its own <lastmod>. Now the only place a record's date surfaces is the landing
+        // pages' newest-of, so two records in one run would let the newer one hide
+        // whether the older one resolved its date at all.
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 dated(1L, "No Published Date", null,
                         Instant.parse("2026-05-20T10:00:00Z"),
-                        Instant.parse("2026-01-01T10:00:00Z")),
+                        Instant.parse("2026-01-01T10:00:00Z"))));
+        assertThat(xml()).contains("<lastmod>2026-05-20</lastmod>");
+
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 dated(2L, "Only Created", null, null,
                         Instant.parse("2026-02-02T10:00:00Z"))));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
-
-        assertThat(xml()).contains("<lastmod>2026-05-20</lastmod>")
-                         .contains("<lastmod>2026-02-02</lastmod>");
+        assertThat(xml()).contains("<lastmod>2026-02-02</lastmod>");
     }
 
     @Test

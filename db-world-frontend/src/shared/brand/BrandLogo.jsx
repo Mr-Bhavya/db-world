@@ -17,6 +17,11 @@ export { resolveLogoSrc, logoDevUrl, domainFromUrl } from './logoDev';
  *   radius      — border-radius (defaults to a circle)
  *   sx          — extra styles merged onto the avatar
  *
+ * The image is fitted with `contain`, not `cover`. For a square source the two are identical, so
+ * nothing that was already square changes — but a WIDE source (an IPO company's wordmark, which
+ * is most of them) was being cropped to a square by `cover`, cutting the name off at both ends.
+ * A small proportional inset keeps the mark off its own border rather than letting it run into it.
+ *
  * The `errored` flag flips to the initials fallback exactly once per resolved
  * src (a 404/network failure unmounts the `<img>`, so onError can't loop); the
  * effect resets it whenever the resolved src changes so a stale failure from a
@@ -62,7 +67,8 @@ export default function BrandLogo({ logoUrl, logoDomain, companyName, size = 34,
       onError={() => setErrored(true)}
       sx={{
         width: size, height: size, borderRadius: radius, flexShrink: 0,
-        objectFit: 'cover', border: `1px solid ${T.border}`, bgcolor: T.glassHover, ...sx,
+        objectFit: 'contain', padding: `${Math.max(2, Math.round(numericSize * 0.08))}px`,
+        border: `1px solid ${T.border}`, bgcolor: T.glassHover, ...sx,
       }}
     />
   );

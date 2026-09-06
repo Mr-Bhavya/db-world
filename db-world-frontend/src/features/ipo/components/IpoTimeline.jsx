@@ -45,8 +45,11 @@ function StageNode({ stage, desktop }) {
   const circleBg = isDone ? T.teal : isCurrent ? T.tealBg : T.glass;
   const circleBorderColor = isDone || isCurrent ? T.teal : T.border;
   const iconColor = isDone ? '#fff' : isCurrent ? T.teal : T.textFaint;
-  const labelColor = isDone || isCurrent ? T.textPrimary : T.textFaint;
-  const dateColor = isCurrent ? T.teal : T.textFaint;
+  // An upcoming stage is dimmed one step, not two: its own label and date stay at `textMuted`
+  // (the circle's fill and border already say "not yet"), because at 10.5-11px `textFaint` was
+  // simply unreadable — the same contrast fix the list cards' stat labels got.
+  const labelColor = isDone || isCurrent ? T.textPrimary : T.textMuted;
+  const dateColor = isCurrent ? T.teal : T.textMuted;
 
   return (
     <Box sx={{

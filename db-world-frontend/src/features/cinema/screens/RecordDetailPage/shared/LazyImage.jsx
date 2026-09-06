@@ -18,6 +18,10 @@ export default function LazyImage({ src, alt, onClick, sx }) {
           src={src}
           alt={alt}
           loading="lazy"
+          // Hands the decode to a background thread. Without it the browser decodes
+          // on the main thread as each image arrives, which is felt as scroll stutter
+          // on exactly the phones that can least afford it.
+          decoding="async"
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
           sx={{

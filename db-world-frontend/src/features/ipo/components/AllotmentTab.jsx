@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Box, Typography, Button, TextField, MenuItem, CircularProgress } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,47 +11,76 @@ import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useT, getSelectMenuProps } from '@shared/theme';
+import { useAuth } from '@features/auth/context/Authentication';
+import Constants from '@shared/constants';
 import { useMyApplication, useSaveApplication, useDeleteApplication } from '../hooks/useIpo';
 import { applicationSchema, APPLICATION_DEFAULT_VALUES, ALLOTMENT_RESULT_OPTIONS } from '../schemas/applicationSchema';
-import { formatStageDate, allotmentResultMeta } from '../utils/format';
-import SectionCard from './SectionCard';
+import { formatStageDate, allotmentResultMeta, daysUntil } from '../utils/format';
+import SectionCard, { SectionStack } from './SectionCard';
 import GuidedCheckButton from './GuidedCheckButton';
 import AllotmentGuide from './AllotmentGuide';
 
+/** One "label: value" line with a leading icon, for the status card's supporting facts. */
+function StatusLine({ icon: Icon, label, value }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.5, minWidth: 0 }}>
+      <Icon sx={{ fontSize: 13, color: T.textFaint, flexShrink: 0, mt: 0.2 }} />
+      <Typography sx={{ fontSize: 12, color: T.textMuted, lineHeight: 1.45 }}>
+        <Box component="span" sx={{ color: T.textFaint }}>{label}: </Box>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
 /**
- * Registrar-reported allotment status (Awaited/Finalized/etc, from the IPO itself — not the
- * applicant's own result) plus its date from the timeline, and the shared guided-check CTA.
- * The CTA is visually emphasized once the status reads "Finalized", since that's the moment
- * actually checking becomes useful.
+ * Registrar-reported allotment status (Awaited/Finalized/etc — from the IPO itself, not the
+ * applicant's own result) plus its date, and the shared guided-check CTA.
+ *
+ * The status headline now says WHEN as well as WHAT. "Not announced yet" on its own left the
+ * reader to go and find the date themselves; a registrar publishing on the allotment date means
+ * "not announced yet, and it's due today" and "not announced yet, in four days" are different
+ * answers to the question they're actually asking. The CTA is emphasized once the status reads
+ * "Finalized", which is the moment checking becomes worth doing.
  */
 function AllotmentStatusCard({ ipo }) {
   const T = useT();
   const finalized = /final/i.test(ipo.allotmentStatus ?? '');
   const dateInfo = formatStageDate(ipo.allotmentDate);
+  const days = daysUntil(ipo.allotmentDate);
+
+  const due = finalized || days == null
+    ? null
+    : days > 0 ? `due in ${days}d` : days === 0 ? 'due today' : 'past due';
+
   return (
     <SectionCard title="Allotment status" icon={<FactCheckOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 12, color: T.textFaint }}>Status</Typography>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, mt: 0.25 }}>
-            {ipo.allotmentStatus ?? 'Not announced yet'}
-          </Typography>
-          {dateInfo && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.5 }}>
-              <EventAvailableOutlinedIcon sx={{ fontSize: 13, color: T.textFaint, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 12, color: T.textMuted }}>
-                Allotment date: {dateInfo.dayMonth} {dateInfo.year}
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+            <Typography sx={{
+              fontSize: 18, fontWeight: 800, color: finalized ? T.success : T.textPrimary, lineHeight: 1.25,
+            }}>
+              {ipo.allotmentStatus ?? 'Not announced yet'}
+            </Typography>
+            {due && (
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: days === 0 ? T.warning : T.textMuted }}>
+                {due}
               </Typography>
-            </Box>
+            )}
+          </Box>
+          {dateInfo && (
+            <StatusLine
+              icon={EventAvailableOutlinedIcon}
+              label="Allotment date"
+              value={`${dateInfo.dayMonth} ${dateInfo.year}`}
+            />
           )}
           {ipo.registrar && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.5 }}>
-              <DomainOutlinedIcon sx={{ fontSize: 13, color: T.textFaint, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 12, color: T.textMuted }}>
-                Registrar: {ipo.registrar}
-              </Typography>
-            </Box>
+            <StatusLine icon={DomainOutlinedIcon} label="Registrar" value={ipo.registrar} />
           )}
         </Box>
         <GuidedCheckButton registrarUrl={ipo.registrarUrl} emphasize={finalized} />
@@ -82,6 +112,52 @@ function SavedSummary({ application }) {
         <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: meta.color }}>{meta.label}</Typography>
       </Box>
     </Box>
+  );
+}
+
+/**
+ * What a signed-out visitor sees in place of the form.
+ *
+ * The IPO detail page is public, but saving an application is not — the record is per-account. The
+ * form used to render for everyone, so an anonymous visitor could fill in five fields, including
+ * their PAN, and only discover on submit that it went nowhere. Asking first costs one tap and
+ * never collects anything it can't keep.
+ */
+function SignInToSave() {
+  const T = useT();
+  return (
+    <SectionCard title="My application" icon={<AssignmentIndOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
+      <Box sx={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+        gap: 1.25, py: 2.5, px: 2, borderRadius: 2.5, border: `1px dashed ${T.border}`,
+      }}>
+        <Box sx={{
+          width: 40, height: 40, borderRadius: '50%', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', bgcolor: T.tealBg,
+        }}>
+          <LockOutlinedIcon sx={{ fontSize: 20, color: T.teal }} />
+        </Box>
+        <Typography sx={{ fontSize: 14, fontWeight: 800, color: T.textPrimary }}>
+          Sign in to save your application
+        </Typography>
+        <Typography sx={{ fontSize: 12.5, color: T.textMuted, maxWidth: 380, lineHeight: 1.6 }}>
+          Keep your application number, DP/client ID and allotment result on file against this IPO.
+          Checking allotment on the registrar&rsquo;s site doesn&rsquo;t need an account.
+        </Typography>
+        <Button
+          component={RouterLink}
+          to={Constants.LOGIN_ROUTE}
+          variant="outlined"
+          size="small"
+          sx={{
+            mt: 0.5, textTransform: 'none', fontWeight: 700,
+            borderColor: T.teal, color: T.teal, '&:hover': { borderColor: T.tealHover, bgcolor: T.tealBg },
+          }}
+        >
+          Sign in
+        </Button>
+      </Box>
+    </SectionCard>
   );
 }
 
@@ -159,13 +235,11 @@ function MyApplicationForm({ ipoId }) {
   }
 
   return (
-    <SectionCard title="My application" icon={<AssignmentIndOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-      <Typography sx={{ fontSize: 12, color: T.textMuted, mb: 1.5, lineHeight: 1.6 }}>
-        Save your application details here for your records. We can&rsquo;t auto-check
-        allotment &mdash; the registrar requires a CAPTCHA &mdash; so use &ldquo;Check
-        allotment status&rdquo; to check on the official site, then record your result here.
-      </Typography>
-
+    <SectionCard
+      title="My application"
+      subtitle="For your own records — we can’t auto-check allotment, because the registrar requires a CAPTCHA."
+      icon={<AssignmentIndOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+    >
       {application && <SavedSummary application={application} />}
 
       <Box component="form" onSubmit={handleSubmit(submit)}>
@@ -243,17 +317,21 @@ function MyApplicationForm({ ipoId }) {
 }
 
 /**
- * Allotment tab — the registrar's reported status + guided allotment check, a step-by-step
- * "how to check" guide, and the applicant's own "My application" record for this IPO. Uses
- * `ipo.id` (not a separate prop) so `IpoDetailPage` never needs to change to accommodate
- * this — see the historical placeholder comment this replaced.
+ * Allotment tab — the registrar's reported status and the guided check, a collapsed step-by-step
+ * guide, and the applicant's own record for this IPO.
+ *
+ * Order matters here more than on the other tabs, because one of the three is an action and the
+ * other two are not. The check comes first, the form second, and the five-step explainer — read
+ * once, then never again — sits collapsed between them instead of pushing the form ~350px down
+ * the page on every visit.
  */
 export default function AllotmentTab({ ipo }) {
+  const { auth } = useAuth();
   return (
-    <Box>
+    <SectionStack>
       <AllotmentStatusCard ipo={ipo} />
       <AllotmentGuide />
-      <MyApplicationForm ipoId={ipo.id} />
-    </Box>
+      {auth?.isAuthenticated ? <MyApplicationForm ipoId={ipo.id} /> : <SignInToSave />}
+    </SectionStack>
   );
 }

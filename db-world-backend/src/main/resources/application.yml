@@ -71,6 +71,22 @@ spring:
       repositories:
         enabled: false
 
+  # Transactional email - verification links and password resets. Leave `host` unset and
+  # both flows still work end to end, but the link is logged at WARN instead of sent, so a
+  # dev box needs no SMTP at all. Gmail wants an App Password, not the account password.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      # Without timeouts a slow relay blocks a pool thread indefinitely.
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   cache:
     type: redis
     redis:
@@ -124,6 +140,19 @@ jwt:
   # origin over HTTPS (the Android app). The local profile relaxes this for http dev.
   refresh-cookie-secure: true
   refresh-cookie-same-site: None
+
+# Google Sign-In. The backend verifies the ID token itself against Google's JWKS, so no
+# Google SDK or client secret is involved — only the client IDs a token may be issued FOR.
+#
+# There is one ID PER PLATFORM and all of them must be listed: a token minted for the Android
+# client carries the Android ID in `aud`, and an audience the server does not know is rejected.
+# The Android ID is also bound to the signing certificate's SHA-1, so the RELEASE keystore
+# fingerprint has to be registered in Google Cloud Console or sign-in works in debug and fails
+# in release. Leaving this empty simply disables the feature; /api/auth/providers reports that
+# so the client can hide the button.
+google:
+  auth:
+    client-ids: ${GOOGLE_CLIENT_IDS:}
 
 jasypt:
   encryptor:
@@ -185,6 +214,12 @@ springdoc:
 # enable the secure_link directives in nginx and reload. Leaving the secret blank keeps
 # signing inert (URLs served unsigned) so dev/boot never breaks.
 app:
+  # From-address on verification and reset emails. Must be one the SMTP account may send as,
+  # or the relay will reject the message.
+  mail:
+    from: ${MAIL_FROM:no-reply@db-world.in}
+    from-name: ${MAIL_FROM_NAME:DB World}
+
   cdn:
     signing:
       secret: ${CDN_SIGNING_SECRET:}
@@ -201,6 +236,12 @@ app:
 # db-world feature configs
 # =========================================================
 dbworld:
+  # ── Account deletion housekeeping ─────────────────────────────────────────
+  # Both run daily, offset so they never overlap.
+  account:
+    purge-cron: ${ACCOUNT_PURGE_CRON:0 30 3 * * *}
+    session-sweep-cron: ${SESSION_SWEEP_CRON:0 45 3 * * *}
+
   # ── Filesystem ↔ DB reconciliation ────────────────────────────────────────
   # Periodic scan that keeps `media_files` in sync with the on-disk state of
   # `app.stream-path`. The dynamic knobs (enabled, interval) live in the

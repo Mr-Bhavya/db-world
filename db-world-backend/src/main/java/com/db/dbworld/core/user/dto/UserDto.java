@@ -32,6 +32,20 @@ public class UserDto {
     private boolean enabled;
     private boolean accountNonLocked;
 
+    /** Google profile picture, cached at sign-in so the avatar renders without a second call. */
+    private String avatarUrl;
+    private boolean emailVerified;
+
+    /** True when a local password exists. False means the account can only sign in with Google. */
+    private boolean hasPassword;
+    /** True when a Google identity is linked. */
+    private boolean googleLinked;
+
+    /** Set while the account sits in its deletion grace window; null otherwise. */
+    private java.time.Instant deletedAt;
+    /** When the data will actually be erased. Null unless {@link #deletedAt} is set. */
+    private java.time.Instant purgeAfter;
+
     private Date creationDate;
     private Date lastModifiedDate;
 

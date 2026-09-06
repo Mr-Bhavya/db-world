@@ -4,29 +4,23 @@ import { App as CapacitorApp } from '@capacitor/app';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
 import { isBiometricEnabled } from '@platform/android/biometric';
 import { clearAllOfflineVault } from '@features/password-manager/offline/vaultCache';
+import {
+  accessTokenExpiringSoon,
+  clearSession,
+  decodeAccessToken,
+  getAccessToken,
+  getStoredRole,
+  getStoredUser,
+  hasStoredSession,
+  loadRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  setStoredIdentity,
+  setStoredRole,
+} from '@shared/auth/tokenStore';
 import constants from '@shared/constants';
 
 const AuthContext = createContext(null);
-
-/**
- * True when the stored JWT is missing an exp, already expired, or expires
- * within `thresholdMs`. Used to decide whether returning to the foreground
- * warrants a silent token refresh. Returns false when there's no token at all
- * (nothing to keep alive — the user simply isn't logged in).
- */
-const tokenExpiringSoon = (thresholdMs = 120_000) => {
-  const token = localStorage.getItem('token');
-  if (!token) return false;
-  try {
-    const part = token.split('.')[1];
-    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
-    const { exp } = JSON.parse(json);
-    if (!exp) return true; // no expiry claim — refresh to be safe
-    return exp * 1000 - Date.now() < thresholdMs;
-  } catch {
-    return true; // unparseable — let a refresh attempt sort it out
-  }
-};
 
 const INITIAL_AUTH = {
   isAuthenticated: false,
@@ -54,10 +48,14 @@ export const AuthProvider = ({ children }) => {
 
   /* ── login ──────────────────────────────────────────────────────── */
 
-  const login = useCallback((token, user, role) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('role', role);
+  /**
+   * @param refreshToken only sent by the backend to native clients, which store it themselves.
+   *                     Web gets an httpOnly cookie instead and passes undefined here.
+   */
+  const login = useCallback((token, user, role, refreshToken) => {
+    setAccessToken(token);
+    setStoredIdentity(user, role);
+    if (refreshToken) void setRefreshToken(refreshToken);
     setAuth({ isAuthenticated: true, token, user, role, loading: false, locked: false });
   }, []);
 
@@ -76,7 +74,7 @@ export const AuthProvider = ({ children }) => {
     } catch {
       // Intentionally swallowed — client-side cleanup always runs.
     } finally {
-      localStorage.clear();
+      await clearSession();
       clearAllOfflineVault(); // wipe the encrypted offline snapshot + device keypair
       setAuth({ ...INITIAL_AUTH, loading: false });
     }
@@ -86,7 +84,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const handler = () => {
-      // The interceptor already cleared localStorage.
+      // The interceptor already cleared the session.
       clearAllOfflineVault(); // dead session → drop the encrypted offline snapshot too
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
@@ -94,19 +92,45 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('auth:force-logout', handler);
   }, []);
 
+  /**
+   * Adopts a role change that happened server-side while the user was signed in.
+   *
+   * An admin can promote or demote someone mid-session. A demotion revokes the sessions
+   * outright, so that case resolves itself as a forced logout — but a PROMOTION deliberately
+   * leaves the session alive, and without this the UI would keep rendering the old role until
+   * the user signed out by hand.
+   */
+  const syncRole = useCallback((nextRole) => {
+    if (!nextRole) return;
+    setAuth(prev => {
+      if (!prev.isAuthenticated || prev.role === nextRole) return prev;
+      setStoredRole(nextRole);
+      return { ...prev, role: nextRole };
+    });
+  }, []);
+
+  /* ── Adopt a role change picked up by a token refresh ───────────────── */
+
+  useEffect(() => {
+    const handler = () => syncRole(decodeAccessToken()?.role);
+    window.addEventListener('auth:token-refreshed', handler);
+    return () => window.removeEventListener('auth:token-refreshed', handler);
+  }, [syncRole]);
+
   /* ── Keep the session warm when returning to the foreground ──────────
      A long-running background download can outlive the short-lived access
      token. Without this, the first call after resuming (or a cold WebView
      remount) hits a 401 and — if anything about that refresh is racy — bounces
      the user to login mid-download. So on every foreground transition we
-     silently mint a fresh token from the refresh cookie if the current one is
-     expiring. Failures stay quiet here: the next real 401 still force-logs-out
-     if the refresh cookie is genuinely dead. */
+     silently mint a fresh token if the current one is expiring. Failures stay
+     quiet here: the next real 401 still force-logs-out if the refresh token is
+     genuinely dead. */
   useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return undefined;
     let listener;
     const keepAlive = async () => {
-      if (!tokenExpiringSoon()) return; // no token, or still valid → nothing to do
+      if (!hasStoredSession()) return;          // nobody signed in — nothing to keep warm
+      if (!accessTokenExpiringSoon()) return;   // still valid
       try {
         const fresh = await refreshAccessToken();
         setAuth(prev => (prev.isAuthenticated ? { ...prev, token: fresh } : prev));
@@ -131,51 +155,66 @@ export const AuthProvider = ({ children }) => {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Biometric unlock enabled → lock at launch instead of auto-authenticating from the stored
-    // token/refresh cookie. The BiometricGate prompts for fingerprint/face and exchanges the
-    // device token for a fresh session (or the user falls back to password login).
-    if (isBiometricEnabled()) {
-      setAuth({ ...INITIAL_AUTH, loading: false, locked: true });
-      return;
-    }
-
     const verify = async () => {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+      // Native holds its refresh token itself, so it has to come out of secure storage before
+      // anything can decide whether a session exists.
+      await loadRefreshToken();
 
-      // No stored credentials → immediately mark as unauthenticated.
-      if (!storedToken || !storedUser) {
+      // Biometric unlock enabled → lock at launch instead of auto-authenticating from the
+      // stored session. BiometricGate prompts for fingerprint/face and exchanges the device
+      // token for a fresh session (or the user falls back to password login).
+      if (isBiometricEnabled()) {
+        setAuth({ ...INITIAL_AUTH, loading: false, locked: true });
+        return;
+      }
+
+      const storedUser = getStoredUser();
+
+      // No established session → anonymous visitor. Browse pages still work.
+      if (!hasStoredSession() || !storedUser) {
         setAuth({ ...INITIAL_AUTH, loading: false });
         return;
       }
 
       try {
-        // verify() carries the Bearer token; if it's expired the axios interceptor
-        // silently refreshes it and retries before we ever see the response.
+        // The access token now lives in memory, so after a reload there is none — mint one
+        // from the refresh token before asking the server who we are. (Previously the token
+        // came out of localStorage and survived reloads, which is exactly the XSS exposure
+        // this change removes.)
+        if (!getAccessToken()) {
+          await refreshAccessToken();
+        }
+
         const res = await axiosInstance.get('/api/auth/verify');
         const roles = res.data?.data?.roles ?? [];
         const role = extractAppRole(roles);
 
         if (!role) {
-          localStorage.clear();
+          await clearSession();
           setAuth({ ...INITIAL_AUTH, loading: false });
           return;
         }
 
-        const freshToken = localStorage.getItem('token') ?? storedToken;
-        login(freshToken, storedUser, role);
-
+        // The role comes from the freshly-minted token, so a promotion that happened while the
+        // user was away is picked up here rather than being read back out of a stale cache.
+        login(getAccessToken(), storedUser, role);
 
       } catch {
-        // Distinguish a dead session from a transient failure. On a genuine auth
-        // failure the axios interceptor has already cleared localStorage and
-        // dispatched 'auth:force-logout'. If the token is STILL present, the failure
-        // was transient (offline / 5xx / timeout) — keep the stored session so a
-        // flaky network or a server blip doesn't bounce a still-valid login to the
+        // Distinguish a dead session from a transient failure. On a genuine auth failure the
+        // axios interceptor has already cleared the session and dispatched 'auth:force-logout'.
+        // If the marker is STILL present, the failure was transient (offline / 5xx / timeout) —
+        // keep the stored session so a flaky network doesn't bounce a still-valid login to the
         // login screen. The next protected request re-runs the real refresh flow.
-        const storedRole = localStorage.getItem('role');
-        if (localStorage.getItem('token') && storedUser && storedRole) {
-          login(storedToken, storedUser, storedRole);
+        const storedRole = getStoredRole();
+        if (hasStoredSession() && storedUser && storedRole) {
+          setAuth({
+            isAuthenticated: true,
+            token: getAccessToken(),
+            user: storedUser,
+            role: storedRole,
+            loading: false,
+            locked: false,
+          });
         } else {
           setAuth({ ...INITIAL_AUTH, loading: false });
         }
@@ -188,7 +227,7 @@ export const AuthProvider = ({ children }) => {
   /* ── Context value ───────────────────────────────────────────────── */
 
   return (
-    <AuthContext.Provider value={{ auth, login, logout, cancelBiometricLock }}>
+    <AuthContext.Provider value={{ auth, login, logout, cancelBiometricLock, syncRole }}>
       {children}
     </AuthContext.Provider>
   );

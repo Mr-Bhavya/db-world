@@ -8,6 +8,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Log4j2
 @Component
 public class UserContext {
@@ -23,6 +25,34 @@ public class UserContext {
                 jwt.getClaimAsString("email"),
                 jwt.getClaimAsString("role")
         );
+    }
+
+    /**
+     * The signed-in user, or empty when the request carries no token.
+     *
+     * <p>{@link #currentUser()} throws for anonymous callers, which is right for endpoints that
+     * require authentication. Endpoints that are public but richer when signed in — the home
+     * dashboard summary — need to ask without being thrown at.
+     */
+    public Optional<CurrentUser> optionalUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            return Optional.empty();
+        }
+
+        Object userId = jwt.getClaim("userId");
+
+        if (userId == null) {
+            log.warn("Authenticated principal has no userId claim");
+            return Optional.empty();
+        }
+
+        return Optional.of(new CurrentUser(
+                convertToLong(userId),
+                jwt.getClaimAsString("email"),
+                jwt.getClaimAsString("role")
+        ));
     }
 
     public Long userId() {

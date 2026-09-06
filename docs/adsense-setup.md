@@ -80,17 +80,63 @@ google.com, pub-8394425716692410, DIRECT, f08c47fec0942fa0
 
 ## Step 3 — Satisfy the content requirements before requesting review
 
-This is where most reviews fail. AdSense wants a site that looks like a real
-publication, not an app shell:
+This is where most reviews fail, and it is where this one did.
 
-- **Privacy Policy, Terms and Contact pages** — required. These are being added in this
-  branch at `/db-world/privacy`, `/db-world/terms` and `/db-world/contact`, linked from
-  the footer on every page.
-- **Crawlable content.** The reviewer follows Googlebot. Until the crawler-rendering
-  work lands, a bot fetching a record page still receives an empty SPA shell. **Request
-  the review after that ships, not before.**
-- **Navigation** — a visitor must be able to reach content from the home page without an
-  account. That is what the public-browse change does.
+### What the first review came back with (September 2026)
+
+Two findings: **"Google-served ads on screens without publisher content"** and
+**"Low value content"**. Both were accurate. What Google was actually served:
+
+| URL, as Googlebot | Was | Real text |
+|---|---|---|
+| `/db-world` (hub) — **carried an ad** | 5 KB SPA shell | 0 words, title `DB World :)` |
+| `/db-world/privacy`, `/terms`, `/contact` | 5 KB SPA shell | 0 words |
+| `/db-world/db-games`, `/db-weather` | 5 KB SPA shell | 0 words |
+| `/db-cinema/browse` — **carried an ad** | prerendered | 724 words: a list of film titles |
+| `/db-world/db-ipo` — **carried an ad** | prerendered | 977 words: a list of company names |
+| `/db-cinema/movie/{id}` × **2,335** | prerendered | TMDB synopsis + genres + cast, nothing else |
+
+Three root causes, all now fixed:
+
+1. **The hub carried an ad and was pure navigation** — a grid of tiles linking to
+   sub-apps. The policy names navigation screens explicitly.
+2. **`AdSlot` rendered unconditionally**, so a unit appeared over loading skeletons,
+   over failed fetches, and on the IPO page's "No IPOs found" card.
+3. **AdSense's own crawlers were being served the wrong document.**
+   `mediapartners-google` and `adsbot-google` were in nginx's `$is_search_bot` map, so
+   both were routed to `SeoRenderController` — a couple of kilobytes of metadata with
+   **no ad units in it at all**. Google was asked to approve pages it had never seen.
+
+### What has to be true before requesting a review again
+
+- **Ads only render next to content.** `AdSlot` takes a `ready` prop that defaults to
+  `false`; a call site that forgets it renders nothing. Do not remove that default.
+- **Every ad-bearing page has copy of its own.** Home, weather, games and cinema browse
+  each render an `EditorialSections` block from `site-content.json`. That file is the
+  single source of truth and `SeoRenderController` renders it for crawlers too, so the
+  two cannot drift.
+- **Google's ad crawlers see the real page.** Keep `mediapartners-google` and
+  `adsbot-google` OUT of `$is_search_bot` in `00-shared.conf`.
+- **Record pages are `noindex,follow` and out of the sitemap.** They are TMDB metadata
+  and were 89% of the submitted URLs. They still serve ads — indexing is not required
+  for that.
+- **Privacy, Terms, Contact and About** exist, are footer-linked from every page, and
+  now serve real HTML rather than an empty shell.
+
+### Verifying it before you submit
+
+```bash
+curl -sS -A "Mediapartners-Google" https://db-world.in/db-world | head -40
+```
+
+That must return the **real SPA**, not `/api/seo/...` output. And:
+
+```bash
+curl -sS -A "Googlebot/2.1" https://db-world.in/db-world/db-weather | grep -c "<h2>"
+```
+
+That must be greater than zero. Both need the nginx reload and the backend deploy to
+have happened — the fix is in two repos.
 
 ---
 
@@ -99,30 +145,50 @@ publication, not an app shell:
 **Sites → db-world.in → Request review.** Then wait; it is usually a few days but can be
 a couple of weeks. Do not resubmit while one is pending.
 
+A re-review after a violation notice is requested from the same place, via **"I confirm
+that I have fixed the issues"** on the policy notice itself. Only tick that once the
+deploy is live and the two curl checks above pass — a re-review against the unfixed site
+spends an attempt for nothing.
+
 ---
 
-## Step 5 — Create the four ad units
+## Step 5 — Create the ad units
 
 Only possible once the account is active.
 
-**Ads → By ad unit → Display ads.** Create four, and for each one copy the 10-digit
-`data-ad-slot` value from the generated snippet. Ignore the rest of the snippet — the
-code already handles it.
+**Ads → By ad unit → Display ads.** Create one per row below, and for each copy the
+10-digit `data-ad-slot` value out of the generated snippet. Ignore the rest of the
+snippet — `AdSlot` already handles the client id, the format and the `push()`.
 
 | Create a unit named | Shape | Goes into env var |
 |---|---|---|
-| `cinema-browse-bottom` | Responsive / Square | `VITE_AD_SLOT_CINEMA_BROWSE_TOP` |
-| `cinema-detail-below` | Responsive / Horizontal | `VITE_AD_SLOT_CINEMA_DETAIL_BELOW` |
-| `ipo-list-bottom` | Responsive / Horizontal | `VITE_AD_SLOT_IPO_LIST_TOP` |
-| `ipo-detail-below` | Responsive / Horizontal | `VITE_AD_SLOT_IPO_DETAIL_BELOW` |
+| `home-hub-bottom` | Responsive / Horizontal | `VITE_AD_SLOT_HOME` |
+| `cinema-browse-bottom` | Responsive / Square | `VITE_AD_SLOT_CINEMA_BROWSE` |
+| `cinema-movies-bottom` | Responsive / Square | `VITE_AD_SLOT_CINEMA_MOVIES` |
+| `cinema-series-bottom` | Responsive / Square | `VITE_AD_SLOT_CINEMA_SERIES` |
+| `cinema-detail-below` | Responsive / Horizontal | `VITE_AD_SLOT_CINEMA_DETAIL` |
+| `ipo-list-bottom` | Responsive / Horizontal | `VITE_AD_SLOT_IPO_LIST` |
+| `ipo-detail-below` | Responsive / Horizontal | `VITE_AD_SLOT_IPO_DETAIL` |
+| `weather-below-reference` | Responsive / Horizontal | `VITE_AD_SLOT_WEATHER` |
+| `games-hub-bottom` | Responsive / Horizontal | `VITE_AD_SLOT_GAMES` |
 
-Set those four variables in `runtime/.env.production`, then rebuild. Any variable left
-empty makes that slot render nothing at all, so a partial rollout is safe.
+> The env var names in this table were wrong until September 2026 — four of them carried
+> `_TOP` / `_BELOW` suffixes that `adsConfig.js` has never read, so following the old
+> table set variables that did nothing. The names above match the code.
+
+Set them in `runtime/.env.production`, then rebuild. Any variable left empty makes that
+slot render nothing at all, so a partial rollout is safe.
+
+**There is deliberately no unit on:** the admin console, any individual game, the video
+player, sign-in, or the wallet and vault. The admin console matters most — ads there
+would mean you and your admins generating impressions on your own units every session,
+which is self-serving traffic and the fastest way to lose the account permanently.
 
 **Do not enable Auto ads.** They inject units wherever Google likes, including over the
 player and between rail cards — exactly the placements that generate accidental clicks
-and invalid-traffic strikes. The four manual units above are placed deliberately below
-real content.
+and invalid-traffic strikes. Auto ads would also bypass `AdSlot`'s `ready` gate entirely
+and put units straight back onto the empty screens this site was rejected for. Every
+unit above is placed by hand, below real content.
 
 ---
 

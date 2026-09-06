@@ -181,7 +181,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
               {/* ── Personal ── */}
               <SectionLabel>Personal information</SectionLabel>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth label="First name" name="firstName"
                     value={formData.firstName} onChange={handleChange}
@@ -195,7 +195,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
                     sx={FIELD}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth label="Last name" name="lastName"
                     value={formData.lastName} onChange={handleChange}
@@ -209,7 +209,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
                     sx={FIELD}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     select fullWidth label="Gender" name="gender"
                     value={formData.gender} onChange={handleChange}
@@ -229,7 +229,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
                     <MenuItem value="other">Prefer not to say</MenuItem>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth label="Date of birth" name="dob" type="date"
                     value={formData.dob} onChange={handleChange}
@@ -249,7 +249,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
               {/* ── Contact & Security ── */}
               <SectionLabel>Contact &amp; security</SectionLabel>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth label="Mobile number" name="mobileNo"
                     value={formData.mobileNo} onChange={handleChange}
@@ -263,7 +263,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
                     sx={FIELD}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth label="Email address" name="email" type="email"
                     value={formData.email} onChange={handleChange}

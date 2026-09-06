@@ -7,7 +7,6 @@ import com.db.dbworld.app.ipo.entity.IpoFinancialEntity;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.mapper.IpoMapper;
-import com.db.dbworld.app.ipo.notification.IpoLifecycleChange;
 import com.db.dbworld.app.ipo.repository.IpoChangeEventRepository;
 import com.db.dbworld.app.ipo.repository.IpoFinancialRepository;
 import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
@@ -19,9 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -79,27 +78,31 @@ public class IpoIngestService {
     }
 
     /**
-     * Ingests the merged feed and returns the user-facing lifecycle changes detected along the way
-     * (open / listed / allotment / GMP jump) for the caller to broadcast — the poll scheduler
-     * dispatches these to {@code IpoNotificationService} AFTER this transactional method commits.
+     * Ingests the merged feed, persisting each detected change as an {@code ipo_change_event} row.
+     *
+     * <p>Nothing is returned and nothing is pushed from here: the change events themselves ARE the
+     * notification queue, which {@code IpoNotificationService.dispatchPending()} drains separately.
+     * That's deliberate — a push that couldn't be sent at ingest time (outside the IST notification
+     * window) used to be lost forever, because this method commits the new status and no later poll
+     * re-detects the transition. Persist-then-drain means delivery can be retried and can run on
+     * its own schedule.
      */
     @Transactional
-    public List<IpoLifecycleChange> ingest(List<IpoDto> merged) {
-        List<IpoLifecycleChange> notifications = new ArrayList<>();
+    public void ingest(List<IpoDto> merged) {
         for (IpoDto dto : merged) {
-            notifications.addAll(ingestOne(dto));
+            ingestOne(dto);
         }
-        return notifications;
     }
 
-    private List<IpoLifecycleChange> ingestOne(IpoDto rawDto) {
+    private void ingestOne(IpoDto rawDto) {
         // Canonicalize status and ipoType once, up front, so every downstream read of
         // dto.status()/dto.ipoType() — the change-detection compare below, mapper.toNewEntity,
         // and mapper.applyUpdatable — sees (and stores) the same canonical lowercase value
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withCloseCutoff(withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))));
+        IpoDto dto = withDerivedListingGain(withCloseCutoff(withOpenPromotion(
+                withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))))));
         Instant now = clock.instant();
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
 
@@ -111,7 +114,7 @@ public class IpoIngestService {
             changeEventRepo.save(event(saved.getId(), "NEW", null, dto.companyName(), now));
             appendHistory(saved.getId(), dto, now);
             upsertFinancials(saved.getId(), dto.financials());
-            return List.of();
+            return;
         }
 
         List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
@@ -121,33 +124,6 @@ public class IpoIngestService {
         events.forEach(changeEventRepo::save);
         appendHistory(existing.getId(), dto, now);
         upsertFinancials(existing.getId(), dto.financials());
-        return toLifecycleChanges(existing.getId(), dto.companyName(), events);
-    }
-
-    /**
-     * Maps the raw change-events for one IPO to the narrower set of user-facing lifecycle
-     * notifications — open / listed / allotment / GMP jump. A NEW listing and every other field
-     * change produce no user notification (they still land in the admin change feed).
-     */
-    private static List<IpoLifecycleChange> toLifecycleChanges(String ipoId, String company,
-                                                               List<IpoChangeEventEntity> events) {
-        List<IpoLifecycleChange> out = new ArrayList<>();
-        for (IpoChangeEventEntity e : events) {
-            switch (e.getEventType()) {
-                case "STATUS" -> {
-                    if (STATUS_OPEN.equals(e.getNewValue())) {
-                        out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.OPENED));
-                    } else if (STATUS_LISTED.equals(e.getNewValue())) {
-                        out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.LISTED));
-                    }
-                }
-                case "ALLOTMENT" -> out.add(IpoLifecycleChange.of(ipoId, company, IpoLifecycleChange.Kind.ALLOTMENT));
-                case "GMP" -> out.add(new IpoLifecycleChange(ipoId, company, IpoLifecycleChange.Kind.GMP_JUMP,
-                        e.getOldValue(), e.getNewValue()));
-                default -> { /* NEW and other field changes → no user notification */ }
-            }
-        }
-        return out;
     }
 
     /**
@@ -327,6 +303,35 @@ public class IpoIngestService {
     }
 
     /**
+     * The mirror of {@link #withOpenCutoff}: promotes a source-reported "upcoming" IPO to
+     * "open"/"closed" once the IST calendar says its subscription window has actually started.
+     *
+     * <p>Upstream feeds move an issue out of their "upcoming" bucket whenever their own batch job
+     * happens to run — NSE can still be advertising an IPO as forthcoming hours after 10&nbsp;AM
+     * IST bidding opened. Without this the stored status (and therefore the "IPO is open" push,
+     * which is driven off the {@code upcoming → open} STATUS event) lands at whatever arbitrary
+     * hour the slowest source caught up, instead of at the real open moment. It also unsticks an
+     * IPO left at "upcoming" by a feed that never updated it at all — the window having both
+     * opened AND closed yields "closed" directly.
+     *
+     * <p>Deliberately conservative: BOTH dates must be known, and it never promotes to "listed"
+     * (a listing date is a forecast until the shares actually trade, and a false "has listed"
+     * push is worse than a late one). So the calendar only ever overrides a stale "upcoming"
+     * inside the window the exchange itself published.
+     */
+    private IpoDto withOpenPromotion(IpoDto dto) {
+        if (!STATUS_UPCOMING.equals(dto.status()) || dto.openDate() == null || dto.closeDate() == null) {
+            return dto;
+        }
+        LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
+        if (!IpoStatusCanonicalizer.isPastOpen(dto.openDate(), nowIst)) {
+            return dto;
+        }
+        return withStatus(dto, IpoStatusCanonicalizer.isPastClose(dto.closeDate(), nowIst)
+                ? STATUS_CLOSED : STATUS_OPEN);
+    }
+
+    /**
      * Downgrades an "open" IPO to "closed" once the IST close moment has passed (Indian IPOs close
      * ~5&nbsp;PM IST on the last day). Both a source's reported status and the date-only
      * {@link IpoStatusCanonicalizer#deriveStatus} keep returning "open" on the close day itself, so
@@ -339,6 +344,41 @@ public class IpoIngestService {
             return dto;
         }
         return withStatus(dto, STATUS_CLOSED);
+    }
+
+    /**
+     * Computes {@code listingGainPct} from the listing price when no source reported it — the same
+     * "fill in what the feeds don't carry" role {@link #withDerivedStatus} plays for status.
+     *
+     * <p>None of the live sources actually publish a listing gain (NSE reports {@code listingPrice}
+     * but no gain, Chittorgarh's list JSON carries neither, IPO Guru doesn't document it), so
+     * without this the field was only ever non-null for seeded sample data and every real listed
+     * IPO rendered an empty gain. It's pure arithmetic off two fields we already store.
+     *
+     * <p>Measured against the TOP of the price band (falling back to a single-price issue's only
+     * value): a book-built issue is allotted at the cut-off, which is the cap in all but a rare
+     * under-subscribed issue — this is the same basis the public IPO trackers quote.
+     */
+    private static IpoDto withDerivedListingGain(IpoDto dto) {
+        if (dto.listingGainPct() != null || dto.listingPrice() == null) {
+            return dto;
+        }
+        BigDecimal issuePrice = dto.priceMax() != null ? dto.priceMax() : dto.priceMin();
+        if (issuePrice == null || issuePrice.signum() <= 0) {
+            return dto;
+        }
+        BigDecimal gainPct = dto.listingPrice().subtract(issuePrice)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(issuePrice, 2, RoundingMode.HALF_UP);
+        return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
+                dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
+                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
+                dto.listingExchange(), dto.listingPrice(), gainPct,
+                dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
+                dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), dto.about(),
+                dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
+                dto.tickerSymbol(), dto.strengths(), dto.risks(), dto.financials(),
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
     }
 
     /** A copy of {@code dto} with only its status swapped — every other field carried across verbatim. */

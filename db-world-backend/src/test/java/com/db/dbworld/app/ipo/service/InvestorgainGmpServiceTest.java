@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.ipo.dto.SubscriptionCategoryDto;
 import com.db.dbworld.app.ipo.entity.IpoGmpHistoryEntity;
@@ -12,6 +13,7 @@ import com.db.dbworld.app.ipo.source.support.IpoHttpResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
@@ -75,12 +77,26 @@ class InvestorgainGmpServiceTest {
             """;
 
     private InvestorgainGmpService newService() {
-        return new InvestorgainGmpService(httpClient, listingRepo, gmpHistoryRepo, subHistoryRepo, new IpoNormalizer(),
+        return new InvestorgainGmpService(httpClient, listingRepo, gmpHistoryRepo, subHistoryRepo, new InvestorgainMatcher(listingRepo, new IpoNormalizer()),
                 pollService, settingsService, Clock.fixed(Instant.parse("2026-07-26T13:00:00Z"), ZoneOffset.UTC));
     }
 
     private static IpoHttpResponse ok(String body) {
         return new IpoHttpResponse(body, new HttpHeaders());
+    }
+
+    /**
+     * Stub the tracked-listing set. Matching is now done in memory against every tracked listing
+     * (one query, fuzzy comparison) rather than by looking up the exact stored matchKey, because
+     * investorgain abbreviates and re-punctuates company names.
+     */
+    private void tracked(IpoListingEntity... entities) {
+        when(listingRepo.findAll()).thenReturn(List.of(entities));
+    }
+
+    /** A tracked listing that {@code isWorthFetching} accepts (no listing date = still live). */
+    private static IpoListingEntity live(String id, String companyName, LocalDate openDate) {
+        return IpoListingEntity.builder().id(id).companyName(companyName).openDate(openDate).build();
     }
 
     @Test
@@ -106,12 +122,149 @@ class InvestorgainGmpServiceTest {
         assertThat(points.get(1).gmpPct()).isEqualByComparingTo("5.91"); // 7.5 / 127 * 100
     }
 
+    // Three rows in the report's own order — the OLDEST issue first, which is the order that used
+    // to decide who got the fetch budget.
+    private static final String LIST_JSON_THREE_ROWS = """
+            {"msg":1,"reportTableData":[
+              {"~id":100,"IPO":"April Oldco","~Srt_Open":"2026-04-02"},
+              {"~id":300,"IPO":"August Newco","~Srt_Open":"2026-08-05"},
+              {"~id":200,"IPO":"July Midco","~Srt_Open":"2026-07-23"}
+            ],"totalRecords":3,"totalPages":1}
+            """;
+
+    private static String gmpUrl(String id) {
+        return "https://webnodejs.investorgain.com/cloud/v2/ipo/ipo-gmp-read/" + id + "/true";
+    }
+
+    @Test
+    void refreshGmp_spendsTheFetchBudgetNewestOpenDateFirst() {
+        // The report spans a whole financial year, so the matched set routinely exceeds the 30-fetch
+        // budget. Following the report's own row order meant the budget could be consumed entirely by
+        // issues that listed months ago, leaving the currently-open and just-listed ones — the ones
+        // actually on screen — with no GMP and no subscription at all. Newest open date first.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON_THREE_ROWS));
+        when(httpClient.get(contains("ipo-gmp-read"), any())).thenReturn(ok("""
+                {"msg":1,"ipoGmpData":[]}
+                """));
+        tracked(live("ipo-old", "April Oldco Limited", LocalDate.of(2026, 4, 2)),
+                live("ipo-new", "August Newco Limited", LocalDate.of(2026, 8, 5)),
+                live("ipo-mid", "July Midco Limited", LocalDate.of(2026, 7, 23)));
+
+        newService().refreshGmp();
+
+        InOrder inOrder = org.mockito.Mockito.inOrder(httpClient);
+        inOrder.verify(httpClient).get(eq(gmpUrl("300")), any());  // opens 05-Aug
+        inOrder.verify(httpClient).get(eq(gmpUrl("200")), any());  // opens 23-Jul
+        inOrder.verify(httpClient).get(eq(gmpUrl("100")), any());  // opens 02-Apr, last
+    }
+
+    @Test
+    void refreshGmp_feedTruncatesTheCompanyName_stillMatchesOnPrefix() {
+        // Real capture: investorgain's report says "Skyways Air" / "Gaja Alternative Asset" where we
+        // store "Skyways Air Services Limited" / "Gaja Alternative Asset Management Ltd.". The feed
+        // name is a PREFIX of ours, never equal, so an exact match left those IPOs with no GMP and no
+        // subscription at all — indistinguishable from "the feed doesn't have it".
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"Skyways Air","~Srt_Open":"2026-08-24"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
+        IpoListingEntity entity = live("ipo-1", "Skyways Air Services Limited", LocalDate.of(2026, 8, 24));
+        tracked(entity);
+        when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-1")).thenReturn(List.of());
+
+        assertThat(newService().refreshGmp()).isEqualTo(1);
+        assertThat(entity.getGmp()).isEqualByComparingTo("9");
+    }
+
+    @Test
+    void refreshGmp_namesDifferOnlyByPunctuationSpacing_stillMatches() {
+        // Real capture: "G.V. Electricals" vs our "G.V.Electricals Ltd.". Stripping only
+        // non-alphanumerics leaves "gv electricals" against "gvelectricals" — the SPACE is the entire
+        // difference, so the comparison key has to drop whitespace too.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"G.V. Electricals","~Srt_Open":"2026-07-31"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
+        IpoListingEntity entity = live("ipo-1", "G.V.Electricals Ltd.", LocalDate.of(2026, 7, 31));
+        tracked(entity);
+        when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-1")).thenReturn(List.of());
+
+        assertThat(newService().refreshGmp()).isEqualTo(1);
+    }
+
+    @Test
+    void refreshGmp_prefixHitsSeveralTrackedIpos_disambiguatedByOpenDate() {
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"Shree Balaji","~Srt_Open":"2026-07-22"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
+        IpoListingEntity wanted = live("ipo-mala", "Shree Balaji Mala Limited", LocalDate.of(2026, 7, 22));
+        tracked(live("ipo-other", "Shree Balaji Steels Limited", LocalDate.of(2026, 3, 4)), wanted);
+        when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-mala")).thenReturn(List.of());
+
+        assertThat(newService().refreshGmp()).isEqualTo(1);
+        assertThat(wanted.getGmp()).isEqualByComparingTo("9");
+    }
+
+    @Test
+    void refreshGmp_ambiguousEvenOnOpenDate_skippedRatherThanMisattributed() {
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"Shree Balaji","~Srt_Open":"2026-07-22"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        tracked(live("ipo-a", "Shree Balaji Mala Limited", LocalDate.of(2026, 7, 22)),
+                live("ipo-b", "Shree Balaji Steels Limited", LocalDate.of(2026, 7, 22)));
+
+        assertThat(newService().refreshGmp()).isZero();
+        verify(httpClient, never()).get(eq(GMP_URL_XTRANET), any());
+    }
+
+    @Test
+    void refreshGmp_ipoListedLongAgo_costsNoFetch() {
+        // The budget starvation fix: the report spans a financial year, so ~155 tracked IPOs matched
+        // against 30 fetches and the ones on screen got nothing. Anything the list already hides is
+        // not worth a call.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON));
+        when(settingsService.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
+        tracked(IpoListingEntity.builder().id("ipo-1").companyName("Xtranet Technologies Limited")
+                .openDate(LocalDate.of(2026, 7, 23))
+                .listingDate(LocalDate.of(2026, 3, 1)) // listed ~5 months before the test clock
+                .build());
+
+        assertThat(newService().refreshGmp()).isZero();
+        verify(httpClient, never()).get(eq(GMP_URL_XTRANET), any());
+    }
+
+    @Test
+    void refreshGmp_untrackedRowsCostNoHttpCall() {
+        // The match-then-order pass must still resolve tracked listings first, so an IPO we don't
+        // track never consumes a slot of the budget.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON_THREE_ROWS));
+        when(httpClient.get(contains("ipo-gmp-read"), any())).thenReturn(ok("""
+                {"msg":1,"ipoGmpData":[]}
+                """));
+        tracked(live("ipo-mid", "July Midco Limited", LocalDate.of(2026, 7, 23)));
+
+        newService().refreshGmp();
+
+        verify(httpClient).get(eq(gmpUrl("200")), any());
+        verify(httpClient, never()).get(eq(gmpUrl("100")), any());
+        verify(httpClient, never()).get(eq(gmpUrl("300")), any());
+    }
+
     @Test
     void refreshGmp_backfillsEveryDayAndStampsLatestOntoListing() {
         stubLists();
         when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
-        IpoListingEntity entity = IpoListingEntity.builder().id("ipo-1").build();
-        when(listingRepo.findByMatchKey("xtranet technologies|2026-07-23")).thenReturn(Optional.of(entity));
+        IpoListingEntity entity = live("ipo-1", "Xtranet Technologies Limited", LocalDate.of(2026, 7, 23));
+        tracked(entity);
         when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-1")).thenReturn(List.of());
 
         int updated = newService().refreshGmp();
@@ -137,8 +290,7 @@ class InvestorgainGmpServiceTest {
     void refreshGmp_skipsDaysAlreadyStored() {
         stubLists();
         when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
-        IpoListingEntity entity = IpoListingEntity.builder().id("ipo-1").build();
-        when(listingRepo.findByMatchKey("xtranet technologies|2026-07-23")).thenReturn(Optional.of(entity));
+        tracked(live("ipo-1", "Xtranet Technologies Limited", LocalDate.of(2026, 7, 23)));
         // The 26th is already stored with the same GMP → only the 25th should be inserted.
         IpoGmpHistoryEntity existing = IpoGmpHistoryEntity.builder()
                 .ipoId("ipo-1").gmp(new java.math.BigDecimal("9")).gmpPct(new java.math.BigDecimal("7.09"))
@@ -157,7 +309,7 @@ class InvestorgainGmpServiceTest {
     @Test
     void refreshGmp_untrackedIpo_spendsNoGmpFetch() {
         stubLists();
-        when(listingRepo.findByMatchKey("xtranet technologies|2026-07-23")).thenReturn(Optional.empty());
+        tracked();
 
         int updated = newService().refreshGmp();
 

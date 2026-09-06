@@ -216,6 +216,22 @@
             </exclusions>
         </dependency>
 
+        <!-- ── Mail: email verification and password reset ──────────────────────────
+             Both flows need to prove control of a mailbox, which is the only evidence
+             we have for "this address is really yours". Without it, registration lets
+             anyone claim any address — which is what makes silent Google auto-linking
+             unsafe (see GoogleAuthService). Inactive until spring.mail.host is set. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- ── Actuator ──────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

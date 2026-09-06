@@ -11,6 +11,7 @@ import RailSkeleton from '../../components/RailRow/RailSkeleton';
 import ContinueRailRow from '../../components/ContinueRailRow/ContinueRailRow';
 import AdSlot from '@shared/ads/AdSlot';
 import { cinemaSlotFor } from '@shared/ads/adsConfig';
+import EditorialSections from '@shared/content/EditorialSections';
 import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords from '../../hooks/useRailRecords';
@@ -462,10 +463,28 @@ const CinemaPage = ({ pageType = 'home' }) => {
                 )
               )}
 
+              {/* How the catalogue is organised and what the format labels mean.
+
+                  Base sections only, never a genre page: the copy is identical
+                  wherever it renders, and repeating it across ~39 genre URLs would
+                  hand Google that many near-duplicate pages — the opposite of what
+                  this is for. Genre pages earn their keep on their rails. */}
+              {!genreSlug && <EditorialSections page="cinema" sx={{ maxWidth: 1100 }} />}
+
               {/* After the last rail. Deliberately NOT between rails: the cards carry
                   hover actions and a unit in that flow invites mis-clicks, which is
-                  exactly the invalid-traffic pattern AdSense penalises. */}
-              <AdSlot slot={cinemaSlotFor(pageType)} minHeight={120} sx={{ px: { xs: 2, md: 4 } }} />
+                  exactly the invalid-traffic pattern AdSense penalises.
+
+                  Gated on rails actually having rendered: reaching this branch only
+                  means loading finished, which is also true when the catalogue came
+                  back empty or the request failed — an ad alone on that page is a
+                  screen without publisher content. */}
+              <AdSlot
+                slot={cinemaSlotFor(pageType)}
+                ready={remainingRails.length > 0}
+                minHeight={120}
+                sx={{ px: { xs: 2, md: 4 } }}
+              />
             </>
           )}
         </Box>

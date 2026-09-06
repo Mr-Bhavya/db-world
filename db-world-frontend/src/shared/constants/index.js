@@ -69,6 +69,12 @@ export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 
 // Legal / informational pages. Public, and required by AdSense before a site can
 // be approved — see docs/adsense-setup.md.
+// Reached from an emailed link, so these live at the top level rather than under
+// /db-world — a URL a mail client will linkify should be as short as possible.
+export const RESET_PASSWORD_ROUTE = "/reset-password";
+export const VERIFY_EMAIL_ROUTE   = "/verify-email";
+
+export const DB_ABOUT_ROUTE   = `${DB_WORLD_HOME_ROUTE}/about`;
 export const DB_PRIVACY_ROUTE = `${DB_WORLD_HOME_ROUTE}/privacy`;
 export const DB_TERMS_ROUTE   = `${DB_WORLD_HOME_ROUTE}/terms`;
 export const DB_CONTACT_ROUTE = `${DB_WORLD_HOME_ROUTE}/contact`;
@@ -79,6 +85,8 @@ export const DB_GAMES_TIC_TAC_TOE_ROUTE = `${DB_GAMES_ROUTE}/tic-tac-toe`;
 export const DB_GAMES_SNAKE_ROUTE = `${DB_GAMES_ROUTE}/snake`;
 export const DB_GAMES_MEMORY_MATCH_ROUTE = `${DB_GAMES_ROUTE}/memory-match`;
 export const DB_GAMES_2048_ROUTE = `${DB_GAMES_ROUTE}/2048`;
+export const DB_GAMES_MINESWEEPER_ROUTE = `${DB_GAMES_ROUTE}/minesweeper`;
+export const DB_GAMES_CONNECT_FOUR_ROUTE = `${DB_GAMES_ROUTE}/connect-four`;
 
 export const DB_PASSWORD_MANAGER_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/db-password-manager`;
@@ -232,6 +240,7 @@ export default {
   playerPath,
   DB_PLAYER_DEMO_ROUTE,
 
+  DB_ABOUT_ROUTE,
   DB_PRIVACY_ROUTE,
   DB_TERMS_ROUTE,
   DB_CONTACT_ROUTE,
@@ -241,6 +250,8 @@ export default {
   DB_GAMES_SNAKE_ROUTE,
   DB_GAMES_MEMORY_MATCH_ROUTE,
   DB_GAMES_2048_ROUTE,
+  DB_GAMES_MINESWEEPER_ROUTE,
+  DB_GAMES_CONNECT_FOUR_ROUTE,
 
   DB_PASSWORD_MANAGER_ROUTE,
   DB_GENERATE_PASSWORD_ROUTE,

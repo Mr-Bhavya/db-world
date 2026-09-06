@@ -1,15 +1,7 @@
 // Pure helpers for RecordDetailPage — formatters, quality detection, color picks.
+import { decodeAccessToken } from '@shared/auth/tokenStore';
 
-export const getUserId = () => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) return null;
-    const payload = JSON.parse(atob(token.split('.')[1] ?? 'e30='));
-    return payload?.userId ?? null;
-  } catch {
-    return null;
-  }
-};
+export const getUserId = () => decodeAccessToken()?.userId ?? null;
 
 export const formatCurrency = (val) => {
   if (!val || val === 0) return null;

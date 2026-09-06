@@ -1,4 +1,4 @@
-import { FAVORITES_KEY, RECENT_KEY } from './homeData';
+import { RECENT_KEY } from './homeData';
 
 export const safeJsonParse = (raw, fallback) => {
   try {
@@ -29,30 +29,6 @@ export const saveRecent = (appId, route) => {
   ].slice(0, 6);
 
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-};
-
-export const getFavorites = () => {
-  if (typeof window === 'undefined') return [];
-
-  return safeJsonParse(localStorage.getItem(FAVORITES_KEY), []);
-};
-
-export const toggleFavorite = (appId) => {
-  if (typeof window === 'undefined') return [];
-
-  const favorites = getFavorites();
-
-  const index = favorites.indexOf(appId);
-
-  if (index > -1) {
-    favorites.splice(index, 1);
-  } else {
-    favorites.push(appId);
-  }
-
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-
-  return favorites;
 };
 
 export const timeAgo = (ts) => {

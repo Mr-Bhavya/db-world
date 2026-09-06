@@ -18,7 +18,8 @@ public class WalletMapper {
 
     public WalletDocumentTypeDto toTypeDto(WalletDocumentTypeEntity e) {
         return new WalletDocumentTypeDto(e.getId(), e.getCode(), e.getDisplayName(), e.getDescription(),
-                e.getIconKey(), e.isRequiresNumber(), e.getNumberLabel(), e.isActive(), e.getSortOrder());
+                e.getIconKey(), e.getCategory(), e.isRequiresNumber(), e.getNumberLabel(),
+                e.getHasExpiry(), e.isActive(), e.getSortOrder());
     }
 
     public WalletDocumentSummaryDto toSummary(WalletDocumentEntity e, WalletDocumentTypeEntity type, boolean shared) {

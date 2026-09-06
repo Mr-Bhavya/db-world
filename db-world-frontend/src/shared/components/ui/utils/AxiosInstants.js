@@ -1,6 +1,16 @@
 import axios from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
+import {
+  clientPlatform,
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  hasStoredSession,
+  isNativeClient,
+  setAccessToken,
+  setRefreshToken,
+} from '@shared/auth/tokenStore';
 
 const BASE_URL = getApiBaseUrl();
 
@@ -28,11 +38,17 @@ const NO_TOKEN_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/refresh-token',
-  // Biometric exchange runs at launch before a session exists; a stale Bearer token would be
-  // rejected 401 by the JWT decoder even on this permitAll path, so it must go token-free.
+  // Google sign-in runs before a session exists; a stale Bearer token would be rejected 401
+  // by the JWT decoder even on this permitAll path.
+  '/api/auth/google',
+  '/api/auth/providers',
+  // Biometric exchange runs at launch before a session exists, same reasoning.
   '/api/auth/biometric/exchange',
   '/api/wallet/shared/',
 ];
+
+/** Header native clients use to present the refresh token they hold in secure storage. */
+const REFRESH_TOKEN_HEADER = 'X-Refresh-Token';
 
 /**
  * True only for a genuine authentication failure — the server explicitly rejected
@@ -58,10 +74,15 @@ const drainQueue = (error, token) => {
 };
 
 /**
- * Mint a fresh access token from the HttpOnly refresh cookie and persist it.
- * Concurrent callers coalesce onto the single in-flight refresh. Throws on
- * failure WITHOUT clearing the session — callers decide whether a failure is
- * fatal (the 401 interceptor force-logs-out; the resume keep-alive stays quiet).
+ * Mints a fresh access token, and — now that tokens rotate — a fresh refresh token too.
+ *
+ * Coalescing concurrent callers onto one in-flight request is no longer just an optimisation.
+ * The server spends the presented refresh token on every call, so two parallel refreshes would
+ * make the second one look like a replay of an already-used token, which the backend correctly
+ * treats as a stolen credential and responds to by revoking the entire session.
+ *
+ * Throws WITHOUT clearing the session — callers decide whether a failure is fatal (the 401
+ * interceptor force-logs-out; the resume keep-alive stays quiet).
  */
 export async function refreshAccessToken() {
   if (isRefreshing) {
@@ -69,15 +90,35 @@ export async function refreshAccessToken() {
   }
   isRefreshing = true;
   try {
+    const headers = { 'X-Client-Platform': clientPlatform() };
+
+    // Native has no usable cross-site cookie, so it presents the token it holds.
+    const stored = getRefreshToken();
+    if (stored) headers[REFRESH_TOKEN_HEADER] = stored;
+
     // Plain axios (not the instance) to avoid interceptor recursion.
     const { data } = await axios.post(
       `${BASE_URL}/api/auth/refresh-token`,
       {},
-      { withCredentials: true }
+      { withCredentials: true, headers }
     );
+
     const newToken = data?.data?.accessToken;
     if (!newToken) throw new Error('No accessToken in refresh response');
-    localStorage.setItem('token', newToken);
+    setAccessToken(newToken);
+
+    // Rotation: the old refresh token is now spent, so the successor has to replace it or the
+    // next refresh would present a dead token and trip reuse detection.
+    if (data?.data?.refreshToken) {
+      await setRefreshToken(data.data.refreshToken);
+    }
+
+    // The fresh token carries the user's CURRENT role. Announcing it lets the auth context
+    // adopt a promotion that happened while the user was signed in — a demotion revokes the
+    // sessions outright, but a promotion deliberately leaves them alive, and without this the
+    // UI would keep rendering the old role until the user signed out by hand.
+    window.dispatchEvent(new CustomEvent('auth:token-refreshed'));
+
     drainQueue(null, newToken);
     return newToken;
   } catch (err) {
@@ -92,16 +133,19 @@ export async function refreshAccessToken() {
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true,       // send HttpOnly refresh-token cookie
+  withCredentials: true,       // send HttpOnly refresh-token cookie (web)
   headers: { 'Content-Type': 'application/json' },
 });
 
 /* ─── Request interceptor: attach access token ──────────────────────── */
 
 axiosInstance.interceptors.request.use((config) => {
+  // Tells the backend which transport to use for the refresh token in its response.
+  config.headers['X-Client-Platform'] = clientPlatform();
+
   const isPublic = NO_TOKEN_PATHS.some(p => config.url?.includes(p));
   if (!isPublic) {
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -117,13 +161,16 @@ axiosInstance.interceptors.response.use(
 
     const isPublicPath = NO_TOKEN_PATHS.some(p => original?.url?.includes(p));
 
-    // A visitor who has never signed in has no access token at all. The browse pages
-    // are open to them, and the personalised calls those pages make (progress, watchlist
-    // state) answer 401 by design. Attempting a refresh here would POST to
-    // /api/auth/refresh-token with no cookie on every such call, 401 again, and then
-    // fire auth:force-logout at someone who was never logged in. An EXPIRED token is
-    // still a token, so real sessions keep refreshing normally.
-    const neverSignedIn = !localStorage.getItem('token');
+    // A visitor who has never signed in has no session at all. The browse pages are open to
+    // them, and the personalised calls those pages make (progress, watchlist state) answer 401
+    // by design. Attempting a refresh here would POST to /api/auth/refresh-token with no
+    // credential on every such call, 401 again, and then fire auth:force-logout at someone who
+    // was never logged in.
+    //
+    // This checks the persisted session marker, NOT the access token: the token now lives in
+    // memory and is legitimately absent right after a page reload, when the session is very
+    // much alive and a refresh is exactly the right move.
+    const neverSignedIn = !hasStoredSession();
 
     // Only intercept 401/403 on protected endpoints and only once per request.
     if ((status === 401 || status === 403) && !original._retry && !isPublicPath && !neverSignedIn) {
@@ -139,7 +186,7 @@ axiosInstance.interceptors.response.use(
         // is transient — keep the session so a blip doesn't bounce the user to login;
         // the next request retries the refresh once connectivity/server recovers.
         if (isAuthFailure(refreshError)) {
-          localStorage.clear();
+          await clearSession();
           window.dispatchEvent(new CustomEvent('auth:force-logout'));
         }
         return Promise.reject(refreshError);
@@ -151,3 +198,4 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
+export { isNativeClient };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { followUrl } from './logApi';
+import { getAccessToken } from '@shared/auth/tokenStore';
 
 const MAX_BACKOFF_MS = 20_000;
 const MAX_ATTEMPTS = 3;   // give up (no flood) if the server keeps closing the stream
@@ -89,7 +90,7 @@ export default function useLiveLogs({ source, type, format = 'JSON', enabled, ma
       let stable = null;
       let gotBytes = false;
       try {
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         const headers = { Accept: 'text/event-stream' };
         if (token) headers.Authorization = `Bearer ${token}`;
         const res = await fetch(followUrl(source, type, format), { headers, signal: ctrl.signal });

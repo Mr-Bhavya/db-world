@@ -80,6 +80,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+    <!-- Weather "use my location". Capacitor's Geolocation plugin reads the device's location
+         services directly (not the WebView's geolocation API), so without these declared its
+         requestPermissions() returns denied immediately and no system dialog is ever shown.
+         COARSE is what the weather page actually needs — city-level is plenty — but FINE is
+         declared alongside it because Android 12+ lets the user grant either from the one
+         dialog, and a FINE-only grant with no FINE declaration would be dropped. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Foreground service keeps downloads running when the app is backgrounded -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />

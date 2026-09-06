@@ -155,14 +155,4 @@ public final class IpoStatusCanonicalizer {
         }
         return null;
     }
-
-    /**
-     * Back-compat date-only overload — delegates at <b>noon IST</b>, so a pure-date caller keeps the
-     * old day-boundary semantics (past the 10&nbsp;AM open and before the 5&nbsp;PM close at midday).
-     * Prefer the {@link LocalDateTime} overload for live status so the open/close/listing transitions
-     * happen at the real IST times, not at midnight.
-     */
-    public static String deriveStatus(LocalDate open, LocalDate close, LocalDate listing, LocalDate today) {
-        return today == null ? null : deriveStatus(open, close, listing, today.atTime(12, 0));
-    }
 }

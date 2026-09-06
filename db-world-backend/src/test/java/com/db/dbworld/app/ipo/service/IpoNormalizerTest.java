@@ -98,25 +98,4 @@ class IpoNormalizerTest {
 
         assertThat(withPunctuation).isEqualTo(plain);
     }
-
-    @Test
-    void withMatchKey_returnsCopyWithMatchKeySetAndOtherFieldsPreserved() {
-        IpoDto dto = dtoWith("Zomato Ltd", LocalDate.of(2026, 7, 20));
-
-        IpoDto copy = normalizer.withMatchKey(dto);
-
-        assertThat(copy.matchKey()).isEqualTo(normalizer.matchKey(dto));
-        assertThat(copy.companyName()).isEqualTo(dto.companyName());
-        assertThat(copy.source()).isEqualTo(dto.source());
-        assertThat(copy.status()).isEqualTo(dto.status());
-        assertThat(copy.ipoType()).isEqualTo(dto.ipoType());
-        assertThat(copy.openDate()).isEqualTo(dto.openDate());
-    }
-
-    @Test
-    void withMatchKey_uningestableDto_hasNullMatchKey() {
-        IpoDto dto = dtoWith(null, LocalDate.of(2026, 7, 20));
-
-        assertThat(normalizer.withMatchKey(dto).matchKey()).isNull();
-    }
 }

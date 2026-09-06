@@ -7,6 +7,8 @@ import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.credits.entity.CreditEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.enums.CreditType;
+import com.db.dbworld.app.content.SiteContent;
+import com.db.dbworld.app.content.SiteContentService;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.web.util.HtmlUtils;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -72,8 +75,28 @@ public class SeoRenderController {
     private static final int INDEX_LIMIT = 200;
     private static final int CAST_LIMIT = 12;
 
+    /**
+     * Emitted on the record pages.
+     *
+     * <p>{@code follow} matters as much as {@code noindex}: the pages stay crawlable so
+     * link equity still reaches the collection and genre pages they point at — they
+     * just stop being index entries themselves.
+     *
+     * <p>Why: every word on a record page comes from TMDB — synopsis, genres, cast —
+     * and there are ~2,300 of them, which made them 89% of the sitemap. Google's
+     * September 2026 AdSense review called the site "low value content", and a
+     * catalogue of scraped metadata at that scale is the clearest reason why. They
+     * remain fully usable, shareable and ad-eligible; indexing is the only thing being
+     * given up, and ads do not require it.
+     *
+     * <p>Reverse this per record once a page carries writing of our own rather than
+     * TMDB's.
+     */
+    private static final String ROBOTS_NOINDEX = "noindex,follow";
+
     private final RecordRepository recordRepository;
     private final IpoListingRepository ipoListingRepository;
+    private final SiteContentService siteContent;
 
     @Value("${app.public-base-url:https://db-world.in}")
     private String publicBaseUrl;
@@ -167,7 +190,7 @@ public class SeoRenderController {
                         image == null ? "" : ",\"image\":\"" + jsonEsc(image) + "\"",
                         year == null ? "" : ",\"datePublished\":\"" + jsonEsc(year) + "\"");
 
-        return html(page(heading, description, canonical, body.toString(), jsonLd));
+        return html(page(heading, description, canonical, body.toString(), jsonLd, ROBOTS_NOINDEX));
     }
 
     /* ===============================
@@ -268,6 +291,11 @@ public class SeoRenderController {
         }
         body.append("</ul>\n");
 
+        // The same editorial block the SPA renders below the rails (EditorialSections
+        // page="cinema"). Without it this page is a bare list of links — which is what
+        // it was when Google assessed it as low value content.
+        body.append(siteContent.editorialHtml("cinema"));
+
         return html(page(heading + " on DB World",
                 "Browse " + heading.toLowerCase() + " available on DB World.",
                 canonical, body.toString(), null));
@@ -279,7 +307,8 @@ public class SeoRenderController {
 
         StringBuilder body = new StringBuilder();
         body.append("<h1>IPO Radar</h1>\n")
-            .append("<p>Live mainboard and SME IPOs with dates, price bands, lot sizes and GMP.</p>\n<ul>\n");
+            .append(siteContent.leadHtml("ipo"))
+            .append("<ul>\n");
 
         ipoListingRepository.findAll().stream()
                 .filter(i -> i.getId() != null && !i.getId().isBlank())
@@ -291,9 +320,71 @@ public class SeoRenderController {
 
         body.append("</ul>\n");
 
-        return html(page("IPO Radar — live IPO dates, price band and GMP",
-                "Track live mainboard and SME IPOs: open and close dates, price band, lot size, GMP and subscription status.",
-                publicBaseUrl + "/db-world/db-ipo", body.toString(), null));
+        // The FAQ and the 24-term glossary — the same copy IpoFaq and IpoLearn render
+        // in the SPA, both reading the shared content file. Until now this page's
+        // crawler version was a bare list of company names while the best-written
+        // content on the site sat one JavaScript execution away, invisible.
+        body.append(siteContent.sectionsHtml("ipo"));
+
+        SiteContent.Page content = siteContent.page("ipo").orElse(null);
+
+        return html(document(
+                content != null ? content.title() : "IPO Radar — live IPO dates, price band and GMP — DB World",
+                content != null ? content.description()
+                        : "Track live mainboard and SME IPOs: open and close dates, price band, lot size, GMP and subscription status.",
+                publicBaseUrl + "/db-world/db-ipo", body.toString(), null, null));
+    }
+
+    /* ===============================
+       EDITORIAL PAGES
+       =============================== */
+
+    /**
+     * The pages whose content is pure prose — the hub, weather, the arcade, about.
+     *
+     * <p>Every one of these used to hand a crawler the SPA shell: 5 KB of boot loader,
+     * zero words, and the same {@code <title>DB World :)</title>} on all of them. They
+     * were listed in {@code robots.txt} and in the sitemap the whole time, so Google
+     * was being invited to crawl documents with nothing in them — half of the "low
+     * value content" finding, and entirely self-inflicted.
+     *
+     * <p>Keys map to {@code site-content.json}; the SPA renders the same entries
+     * through {@code EditorialSections}. One route rather than four handlers, because
+     * there is nothing page-specific left once the copy is data.
+     *
+     * <p>Canonical URLs are declared here rather than derived from the key: the two do
+     * not match ({@code home} lives at {@code /db-world}) and guessing would emit a
+     * canonical pointing at a 404.
+     */
+    private static final Map<String, String> EDITORIAL_PATHS = Map.of(
+            "home",    "/db-world",
+            "weather", "/db-world/db-weather",
+            "games",   "/db-world/db-games",
+            "about",   "/db-world/about");
+
+    @GetMapping(value = "/page/{key}", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> editorialPage(@PathVariable String key) {
+
+        String path = EDITORIAL_PATHS.get(key);
+        SiteContent.Page content = siteContent.page(key).orElse(null);
+
+        if (path == null || content == null) {
+            return ResponseEntity.status(404)
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(page("Not found", "That page is not available.", null,
+                            "<p>That page is not available.</p>", null));
+        }
+
+        String body = "<h1>" + esc(firstNonBlank(content.h1(), content.title())) + "</h1>\n"
+                + siteContent.editorialHtml(key);
+
+        return html(document(
+                firstNonBlank(content.title(), content.h1()),
+                nullToEmpty(content.description()),
+                publicBaseUrl + path,
+                body,
+                null,
+                null));
     }
 
     /* ===============================
@@ -315,15 +406,34 @@ public class SeoRenderController {
      * be indexed. The canonical link is what points at the SPA URL instead.
      */
     private String page(String title, String description, String canonical, String body, String jsonLd) {
+        return page(title, description, canonical, body, jsonLd, null);
+    }
+
+    /** @param robots value for {@code <meta name="robots">}, or null to leave it off. */
+    private String page(String title, String description, String canonical, String body,
+                        String jsonLd, String robots) {
+        return document(title + " — DB World", description, canonical, body, jsonLd, robots);
+    }
+
+    /**
+     * Same document, but the title is used verbatim.
+     *
+     * <p>For the editorial pages, whose titles are authored whole in
+     * {@code site-content.json} and already carry the brand — appending it again would
+     * give the hub {@code <title>DB World … — DB World</title>}. Mirrors the
+     * {@code exact} flag on the SPA's {@code usePageMeta}.
+     */
+    private String document(String fullTitle, String description, String canonical, String body,
+                            String jsonLd, String robots) {
         return """
                 <!DOCTYPE html>
                 <html lang="en">
                 <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width,initial-scale=1">
-                <title>%s — DB World</title>
+                <title>%s</title>
                 <meta name="description" content="%s">
-                %s<meta property="og:title" content="%s">
+                %s%s<meta property="og:title" content="%s">
                 <meta property="og:description" content="%s">
                 <meta property="og:site_name" content="DB World">
                 %s</head>
@@ -332,10 +442,11 @@ public class SeoRenderController {
                 </body>
                 </html>
                 """.formatted(
-                esc(title),
+                esc(fullTitle),
                 esc(description),
+                robots == null ? "" : "<meta name=\"robots\" content=\"" + esc(robots) + "\">\n",
                 canonical == null ? "" : "<link rel=\"canonical\" href=\"" + esc(canonical) + "\">\n",
-                esc(title),
+                esc(fullTitle),
                 esc(description),
                 jsonLd == null ? "" : "<script type=\"application/ld+json\">" + jsonLd + "</script>\n",
                 body,
