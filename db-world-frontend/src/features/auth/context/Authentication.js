@@ -31,6 +31,49 @@ const INITIAL_AUTH = {
   locked: false,   // biometric unlock enabled and awaiting fingerprint/face at launch
 };
 
+/**
+ * What `useState` starts with, which is NOT the same thing as {@link INITIAL_AUTH}.
+ *
+ * INITIAL_AUTH is the SIGNED-OUT state, and every reset below spreads it — so it must
+ * stay signed out. This is only the first paint.
+ *
+ * The app has three auth states — unknown, signed in, signed out — but starting at
+ * `isAuthenticated: false, loading: true` collapsed "unknown" into "signed out". Every
+ * component that reads `isAuthenticated ? a : b` therefore rendered the signed-out
+ * branch until /api/auth/verify came back, so a returning user watched the hub's
+ * widgets, the admin tiles and the record page's actions flash their signed-out form
+ * on every load — worse the slower the response.
+ *
+ * The cached identity exists for exactly this and was only being read INSIDE verify.
+ * `getStoredUser`/`getStoredRole` are non-secret and documented "for first paint";
+ * `hasStoredSession` is the marker that separates "signed in, token lost to a reload"
+ * from "never signed in".
+ *
+ * This makes `isAuthenticated` OPTIMISTIC: someone whose refresh token expired while
+ * away sees signed-in chrome until verify corrects it. That is the standard trade and
+ * the correction is the rare path rather than the common one — but it means this must
+ * never be treated as an authorisation decision. The backend remains the only thing
+ * that decides access; a stale role here buys nothing but a moment of the wrong menu.
+ */
+const firstPaintAuth = () => {
+  // Biometric launch belongs to BiometricGate. Claiming authenticated here would
+  // flash the whole app behind the lock screen before verify sets `locked`.
+  if (isBiometricEnabled()) return { ...INITIAL_AUTH, loading: true };
+
+  // Never signed in: settle immediately. No spinner, and no flash either, because
+  // signed-out IS the right answer for this visitor.
+  if (!hasStoredSession()) return { ...INITIAL_AUTH, loading: false };
+
+  const user = getStoredUser();
+  const role = getStoredRole();
+  // A marker with no cached identity: we know a session existed but not who. Stay
+  // unknown and let verify answer rather than guessing at a role.
+  if (!user || !role) return { ...INITIAL_AUTH, loading: true };
+
+  // `loading` stays true — verify still runs and still has the last word.
+  return { ...INITIAL_AUTH, isAuthenticated: true, user, role, loading: true };
+};
+
 const APP_ROLES = [
   constants.OWNER_USER_ROLE,
   constants.ADMIN_USER_ROLE,
@@ -43,7 +86,7 @@ const extractAppRole = (roles = []) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [auth, setAuth] = useState(INITIAL_AUTH);
+  const [auth, setAuth] = useState(firstPaintAuth);
   const initialized = useRef(false); // guard against strict-mode double-mount
 
   /* ── login ──────────────────────────────────────────────────────── */

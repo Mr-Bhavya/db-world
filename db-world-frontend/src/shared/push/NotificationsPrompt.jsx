@@ -52,10 +52,15 @@ export default function NotificationsPrompt() {
 
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ color: T.textPrimary, fontWeight: 800, fontSize: { xs: '0.92rem', sm: '1.02rem' }, lineHeight: 1.2 }}>
-          Get IPO alerts
+          Turn on notifications
         </Typography>
+          {/* Was "Get IPO alerts", from when the IPO tracker was the only thing that
+              pushed. Four channels do now (see PUSH_CHANNELS), and this prompt shows on
+              the hub and the cinema pages where IPOs are not what the reader came for.
+              Named concretely rather than "stay updated": the reader is being asked for
+              an OS permission and deserves to know what for. */}
         <Typography sx={{ color: T.textMuted, fontSize: { xs: '0.78rem', sm: '0.85rem' }, lineHeight: 1.45, mt: 0.25 }}>
-          Open, closing soon, allotment and listing — the moment they happen.
+          New titles, IPO dates and allotments, and updates on your requests.
         </Typography>
       </Box>
 

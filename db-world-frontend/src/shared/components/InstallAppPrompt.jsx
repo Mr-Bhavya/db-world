@@ -77,7 +77,7 @@ export default function InstallAppPrompt() {
 
   const benefits = [
     { icon: <CloudOffRoundedIcon />, label: 'Offline vault — your passwords, even with no signal' },
-    { icon: <NotificationsActiveRoundedIcon />, label: 'Instant alerts for IPOs, requests & more' },
+    { icon: <NotificationsActiveRoundedIcon />, label: 'Instant alerts for new titles, IPOs and your requests' },
     { icon: <RocketLaunchRoundedIcon />, label: 'Faster & full-screen — no browser bars' },
   ];
 

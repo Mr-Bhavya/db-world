@@ -4,7 +4,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Link as RouterLink } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
@@ -226,6 +226,15 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 const TRAILER_DELAY_MS = 2600;
 
 /**
+ * How long the viewer must be still before the synopsis clears out of the trailer's way.
+ *
+ * Long enough to finish reading two clamped lines, short enough that the trailer is not
+ * playing behind text for its whole run. The same idea as a video player hiding its
+ * chrome, and the same reason: once you are watching, the copy is in the way.
+ */
+const HERO_IDLE_MS = 2600;
+
+/**
  * Pick artwork with no title text burned into it.
  *
  * TMDB tags a plate that carries text with the language of that text; textless
@@ -363,6 +372,46 @@ export default function Hero({
     setTrailerPlaying(false);
     setTrailerDismissed(true);
   };
+
+  /**
+   * Fades the synopsis away while the trailer plays and the viewer is still, and brings
+   * it straight back on any sign of activity.
+   *
+   * Only ever armed while the trailer is actually playing — with no trailer the copy is
+   * the whole point of the hero and must never disappear. Listening on the window
+   * rather than the hero so a scroll or a mouse move anywhere counts; the events are
+   * passive because none of them are cancelled.
+   *
+   * Opacity only. Collapsing the height would reflow the entire hero every few seconds,
+   * and the block already reserves a fixed two-line slot precisely to avoid that.
+   */
+  const [heroIdle, setHeroIdle] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!trailerPlaying) {
+      setHeroIdle(false);
+      return undefined;
+    }
+
+    let timer;
+    const wake = () => {
+      setHeroIdle(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => setHeroIdle(true), HERO_IDLE_MS);
+    };
+
+    wake();   // start the clock; the copy is readable until it runs out
+
+    const EVENTS = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'];
+    EVENTS.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+    return () => {
+      clearTimeout(timer);
+      EVENTS.forEach((e) => window.removeEventListener(e, wake));
+    };
+  }, [trailerPlaying]);
+
+  const synopsisHidden = trailerPlaying && heroIdle;
 
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const endYear = !isMovie && tmdb.lastAirDate ? tmdb.lastAirDate.slice(0, 4) : null;
@@ -999,7 +1048,15 @@ export default function Hero({
             {/* Same containment as the cluster above: a two-line slot that holds
                 its height whether the synopsis is present, still loading, or
                 missing altogether. */}
-            <Box sx={{
+            <Box
+              component={motion.div}
+              animate={{ opacity: synopsisHidden ? 0 : 1 }}
+              transition={{ duration: reduceMotion ? 0 : 0.45, ease: 'easeOut' }}
+              // Not unmounted and not collapsed: the slot keeps its height either way,
+              // so nothing below it moves. aria-hidden follows the visual state so a
+              // screen reader is not read text that is not on screen.
+              aria-hidden={synopsisHidden}
+              sx={{
               display: { xs: 'none', sm: 'block' },
               minHeight: { sm: 52, md: 54, lg: 56, xl: 64 },
               '@media (min-width:1920px)': { minHeight: 116 },
