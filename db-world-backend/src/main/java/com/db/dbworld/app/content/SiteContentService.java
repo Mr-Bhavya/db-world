@@ -1,10 +1,10 @@
 package com.db.dbworld.app.content;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,18 +28,40 @@ public class SiteContentService {
 
     private static final String RESOURCE = "site-content.json";
 
+    /**
+     * Self-contained mapper — the app context does not expose an {@code ObjectMapper}
+     * bean, matching {@code AppUpdateService} and the other readers in this codebase.
+     *
+     * <p>This class originally took one through the constructor and the context died on
+     * startup with "No qualifying bean of type
+     * {@code com.fasterxml.jackson.databind.ObjectMapper}". Spring Boot 4 ships Jackson
+     * 3, whose databind lives under {@code tools.jackson} — the Jackson 2 classes are
+     * still on the classpath transitively, so the wrong import compiles perfectly well
+     * and only fails when Spring goes looking for the bean.
+     *
+     * <p>Nothing caught it: the unit tests construct this class directly and passed a
+     * mapper in, and the project has no {@code @SpringBootTest} by design (the app needs
+     * MySQL, aria2 and FCM to stand up). {@code JacksonBeanWiringTest} is the guard that
+     * now would.
+     *
+     * <p>A private instance is the right call regardless of the bean question: this
+     * reads one static resource at startup and wants no application-wide
+     * serialization config applied to it.
+     */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final Map<String, SiteContent.Page> pages;
 
-    public SiteContentService(ObjectMapper objectMapper) {
-        this.pages = load(objectMapper);
+    public SiteContentService() {
+        this.pages = load();
     }
 
-    private static Map<String, SiteContent.Page> load(ObjectMapper objectMapper) {
+    private static Map<String, SiteContent.Page> load() {
         try (InputStream in = new ClassPathResource(RESOURCE).getInputStream()) {
             // Explicit UTF-8: the copy contains typographic punctuation, and the JVM
             // default charset on the deploy host is not guaranteed to be UTF-8.
             String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            SiteContent content = objectMapper.readValue(json, SiteContent.class);
+            SiteContent content = MAPPER.readValue(json, SiteContent.class);
 
             Map<String, SiteContent.Page> loaded =
                     content.pages() == null ? Map.of() : content.pages();

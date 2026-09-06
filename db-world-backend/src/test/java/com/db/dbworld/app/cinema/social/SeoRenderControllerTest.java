@@ -8,7 +8,6 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.content.SiteContentService;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +37,7 @@ class SeoRenderControllerTest {
         // off the test classpath, so these tests also prove the shipped copy parses and
         // renders. A mock would let a malformed content file through to production —
         // and the content file is the whole point of the change these tests cover.
-        var siteContent = new SiteContentService(new ObjectMapper());
+        var siteContent = new SiteContentService();
 
         controller = new SeoRenderController(recordRepository, ipoListingRepository, siteContent);
         ReflectionTestUtils.setField(controller, "publicBaseUrl", BASE);
