@@ -383,8 +383,26 @@ public class SeoRenderController {
                 nullToEmpty(content.description()),
                 publicBaseUrl + path,
                 body,
-                null,
+                "home".equals(key) ? websiteJsonLd() : null,
                 null));
+    }
+
+    /**
+     * {@code WebSite} JSON-LD, on the home page only.
+     *
+     * <p>States the site name outright instead of leaving Google to infer one. It was
+     * inferring it, and a "db world" search rendered the result under
+     * {@code db-world.in} — the hostname, because nothing on the page claimed a name
+     * a crawler would trust. {@code og:site_name} alone is a weaker signal than this.
+     *
+     * <p>Deliberately home-only: Google reads the site name from the site's root
+     * document, and repeating the declaration on every page adds nothing.
+     */
+    private String websiteJsonLd() {
+        return """
+                {"@context":"https://schema.org","@type":"WebSite","name":"DB World",\
+                "alternateName":"DB World India","url":"%s/db-world"}"""
+                .formatted(publicBaseUrl);
     }
 
     /* ===============================

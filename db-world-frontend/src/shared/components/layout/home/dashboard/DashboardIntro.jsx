@@ -8,6 +8,7 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { useT } from '@shared/theme';
+import { pageContent } from '@shared/content/siteContent';
 import { clampTextSx } from '../homeStyles';
 
 /** One height for every control in the band, so nothing reads as accidentally misaligned. */
@@ -172,9 +173,14 @@ export default function DashboardIntro({
   const digest = useMemo(() => buildDigest(summary), [summary]);
   const hello = useMemo(() => greeting(new Date().getHours()), []);
 
+  // The signed-out heading comes from the shared content file, because
+  // SeoRenderController renders that same field as this page's <h1>. It was
+  // hardcoded here and read "DB World" there, so a crawler and a visitor were served
+  // different h1s on the same URL — exactly the drift the shared file exists to stop.
+  // A crawler is never signed in, so the greeting branch has no counterpart to match.
   const heading = isAuthenticated
     ? `${hello}${firstName ? `, ${firstName}` : ''}`
-    : 'Everything you use, in one hub';
+    : pageContent('home')?.h1 ?? 'Everything you use, in one hub';
 
   const subheading = isAuthenticated
     ? null

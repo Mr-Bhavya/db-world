@@ -34,7 +34,16 @@
   "pages": {
 
     "home": {
-      "h1": "DB World",
+      "_note": [
+        "h1 MUST stay the exact string DashboardIntro shows an anonymous visitor -",
+        "it reads this field. They were 'DB World' here and 'Everything you use, in",
+        "one hub' on screen, so the crawler and the visitor saw different headings on",
+        "the same URL, which is the one thing this shared file exists to prevent.",
+        "",
+        "The brand is carried by <title> and og:site_name, plus WebSite JSON-LD on the",
+        "crawler page - not by the h1, where it would make a poor display heading."
+      ],
+      "h1": "Everything you use, in one hub",
       "title": "DB World - movies, live IPO tracking, weather and games",
       "description": "A self-hosted suite of small, focused web apps: a media library, live Indian IPO tracking, weather, six browser games and an encrypted vault.",
       "lead": "DB World is a self-hosted suite of small, focused web apps that grew out of one problem at a time. Nothing here is a wrapper around somebody else's product - each app was built because an existing tool was heavier, noisier or more expensive than the job needed.",

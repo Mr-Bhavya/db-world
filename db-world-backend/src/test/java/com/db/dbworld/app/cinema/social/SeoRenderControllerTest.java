@@ -303,6 +303,32 @@ class SeoRenderControllerTest {
     }
 
     @Test
+    void homeDeclaresTheSiteNameAndMatchesTheHeadingVisitorsSee() {
+        String html = controller.editorialPage("home").getBody();
+
+        // Without this Google inferred the site name and rendered the result under
+        // "db-world.in", the bare hostname.
+        assertThat(html)
+                .contains("\"@type\":\"WebSite\"")
+                .contains("\"name\":\"DB World\"");
+
+        // Must equal DashboardIntro's signed-out heading, which reads the same field.
+        // These were "DB World" here and "Everything you use, in one hub" on screen —
+        // two different h1s on one URL.
+        assertThat(html).contains("<h1>Everything you use, in one hub</h1>");
+    }
+
+    @Test
+    void onlyHomeCarriesTheWebSiteDeclaration() {
+        // Repeating it per page adds nothing and invites conflicting names.
+        for (String key : List.of("weather", "games", "about")) {
+            assertThat(controller.editorialPage(key).getBody())
+                    .as("site-name JSON-LD should not appear on: %s", key)
+                    .doesNotContain("\"@type\":\"WebSite\"");
+        }
+    }
+
+    @Test
     void unknownEditorialPageIs404() {
         // Rather than an empty 200, which is a soft-404 and exactly the kind of thin
         // page this whole exercise is removing.
