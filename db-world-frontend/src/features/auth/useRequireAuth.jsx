@@ -54,6 +54,34 @@ export const RequireAuthProvider = ({ children }) => {
   const close = useCallback(() => setPrompt(null), []);
 
   /**
+   * Drop focus from whatever opened the modal, before the modal mounts.
+   *
+   * MUI's ModalManager marks every sibling of the dialog `aria-hidden` — here that is
+   * `#root`, i.e. the entire app. If the button that opened it still holds focus at that
+   * moment, Chrome logs:
+   *
+   *   Blocked aria-hidden on an element because its descendant retained focus.
+   *   Element with focus: <button class="MuiBox-root css-80ea71">   (the header "Sign in")
+   *   Ancestor with aria-hidden: <div id="root">
+   *
+   * MUI's focus trap moves focus into the dialog a tick later, so the end state is fine
+   * and the warning is transient. The transient state IS the defect though: for that
+   * instant a screen-reader user's focus is genuinely inside a subtree that has been
+   * declared hidden from them, and Chrome refuses to apply the attribute because of it.
+   *
+   * The cost, and why it is acceptable here: the focus trap records
+   * `document.activeElement` when it activates and restores focus there on close, so
+   * blurring first means focus returns to `<body>` rather than to the trigger. That
+   * matters less for this dialog than for most — it exists to RESUME the action you were
+   * blocked on, so a successful sign-in carries you onward rather than returning you to
+   * the button you pressed.
+   */
+  const blurTrigger = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) active.blur();
+  }, []);
+
+  /**
    * Wrap an action so it only runs for a signed-in visitor.
    *
    * @param {Function} action  what to run — before signing in if already authenticated, straight
@@ -66,15 +94,17 @@ export const RequireAuthProvider = ({ children }) => {
     // Hold the loader case too: mid-verify we don't yet know, and prompting someone who turns
     // out to be signed in would be wrong.
     if (auth.loading) return undefined;
+    blurTrigger();
     setPrompt({ message, action: action ? () => action(...args) : null });
     return undefined;
-  }, [auth.isAuthenticated, auth.loading]);
+  }, [auth.isAuthenticated, auth.loading, blurTrigger]);
 
   /** Opens the modal with nothing to resume — the header and the hub's sign-in buttons. */
   const promptSignIn = useCallback((message) => {
     if (auth.isAuthenticated || auth.loading) return;
+    blurTrigger();
     setPrompt({ message, action: null });
-  }, [auth.isAuthenticated, auth.loading]);
+  }, [auth.isAuthenticated, auth.loading, blurTrigger]);
 
   const handleComplete = useCallback(() => {
     const resume = prompt?.action;
