@@ -133,7 +133,9 @@ jobs:
         working-directory: db-world-frontend/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          # See the note on assembleRelease in deploy.yml — a packaging failure here
+          # reports the task and not the cause unless a stack trace is asked for.
+          ./gradlew assembleDebug --stacktrace
       - uses: actions/upload-artifact@v7
         with:
           name: android-apk-debug

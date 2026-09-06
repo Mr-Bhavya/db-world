@@ -278,7 +278,13 @@ jobs:
         working-directory: db-world-frontend/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease \
+          # --stacktrace because packageRelease can fail with nothing but
+          # "A failure occurred while executing
+          #  PackageAndroidArtifact$IncrementalSplitterRunnable" — the real cause is
+          # inside the packaging worker and is only printed with a stack trace. Without
+          # it a failed release build tells you which task died and nothing about why,
+          # which is where 2026-09-06 went. Cheap: it adds nothing to a passing run.
+          ./gradlew assembleRelease --stacktrace \
             -PappVersionCode=${{ steps.ver.outputs.code }} \
             -PappVersionName=${{ steps.ver.outputs.name }}
           cp app/build/outputs/apk/release/app-release.apk \
