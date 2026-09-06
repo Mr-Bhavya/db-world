@@ -50,6 +50,7 @@ import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../api/cinemaApi';
 import { buildMobileMeta, heroArtCandidates, heroBadge } from './heroUtils';
 import CertBadge from '../CertBadge';
+import { HERO_TOP_INSET } from '../../navbar/navMetrics';
 
 /** Cards mounted at once: the one you're looking at, plus the two behind it. */
 const LAYERS = 3;
@@ -593,13 +594,13 @@ const HeroCardStack = ({
    * A motion value drives the same style with no re-render at all, so `slot` and
    * `variants` are now stable for the whole gesture.
    */
-  const leftZ = useMotionValue(0);
+  const [pullingBack, setPullingBack] = useState(false);
   const pullingBackRef = useRef(false);
   const setPullingBackActive = useCallback((active) => {
     if (pullingBackRef.current === active) return;
     pullingBackRef.current = active;
-    leftZ.set(active ? LAYERS + 1 : 0);
-  }, [leftZ]);
+    setPullingBack(active);
+  }, []);
 
   /**
    * Resting transform for the card k steps back in the deck.
@@ -618,16 +619,25 @@ const HeroCardStack = ({
     // It sits under the deck at rest, and is raised only while being pulled back in;
     // otherwise its edge would paint over the front card's corner.
     if (k === -1) {
-      // No zIndex here: it is driven by the `leftZ` motion value on the element's
-      // style, which keeps this callback — and therefore `variants` — stable while a
-      // gesture is in flight. Hardened at the same time: the raise now comes from a
-      // value that is always reset by settleFinger, so an interrupted gesture can no
-      // longer leave the turned-past card painting over the front one.
+      // NAMING zIndex BELOW IS NOT OPTIONAL — the same trap as `rotate: 0` above.
+      //
+      // Framer only writes the properties an animate target actually names. Leaving
+      // it out meant a card turning from slot 0 (which sets zIndex: LAYERS) into
+      // slot -1 KEPT the front card's z-index and carried on painting over the deck.
+      // That is why the turned-past card showed far more than its 6px sliver, and why
+      // releasing a swipe flashed the previous card before the new one settled: for
+      // the length of the turn the wrong card was on top. Android showed it plainly;
+      // desktop finished the transition fast enough to hide it.
+      //
+      // Constant, so `slot` stays free of state and `variants` — memoised on it —
+      // cannot be rebuilt mid-gesture. The pull-back raise is applied to the left
+      // card's own animate target instead.
       return {
         x: -(cardW + LEFT_GAP),
         rotate: 0,
         scale: 1,
         opacity: 1,
+        zIndex: 0,
       };
     }
     return {
@@ -858,7 +868,7 @@ const HeroCardStack = ({
         // `hidden` — it does not force the other axis to clip too, so the shadow is free
         // to fade downward across the boundary the way a shadow should.
         overflowX: 'clip',
-        pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+        pt: HERO_TOP_INSET,
         pb: 3,
         px: `${gutter}px`,
         userSelect: 'none',
@@ -923,7 +933,12 @@ const HeroCardStack = ({
                   custom={dir}
                   variants={variants}
                   initial={leftMountedForDrag ? false : 'enter'}
-                  animate={slot(k)}
+                  // The left card's raise rides on its own target rather than inside `slot`,
+                  // so `variants` stays stable through a gesture. A fresh object literal per
+                  // render is fine here: framer diffs VALUES, not identity.
+                  animate={isLeft
+                    ? { ...slot(-1), zIndex: pullingBack ? LAYERS + 1 : 0 }
+                    : slot(k)}
                   exit="exit"
                   // z-index snaps; everything else eases.
                   //
@@ -965,10 +980,6 @@ const HeroCardStack = ({
                     top: 0,
                     left: LEFT_ROOM,
                     touchAction: 'pan-y',
-                    // Only the turned-past card reads its stacking from a motion value. See
-                    // `leftZ`: this came from React state until now, which rebuilt `variants`
-                    // mid-gesture at the exact moment the finger reversed direction.
-                    ...(isLeft ? { zIndex: leftZ } : null),
                     // Scaling from the top keeps the deck's shoulders visible above and
                     // beside the top card instead of tucking them behind it.
                     transformOrigin: 'center top',

@@ -16,6 +16,7 @@ import CategoryBillboard from '../Billboard/CategoryBillboard';
 
 import { CYCLE_MS, heroArtCandidates } from './heroUtils';
 import { useHeroColor } from './useHeroColor';
+import { HERO_TOP_INSET } from '../../navbar/navMetrics';
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
     <Box sx={{
       position: 'relative',
       overflowX: 'clip',
-      pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+      pt: HERO_TOP_INSET,
       pb: 3,
       px: `${gutter}px`,
     }}>
