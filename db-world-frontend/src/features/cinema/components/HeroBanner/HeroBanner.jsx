@@ -249,6 +249,10 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv, variant = 'spotlight' }) => {
 
 // ─── HeroBanner ────────────────────────────────────────────────────────────
 
+/** Shared, frozen blank for the "no interactions yet" case — one identity forever,
+ *  so a miss never allocates and never breaks a memo downstream. */
+const EMPTY_INTERACTION = Object.freeze({});
+
 const HeroBanner = ({
   records = [],
   interactions = {},
@@ -295,7 +299,14 @@ const HeroBanner = ({
   }, [featured.length]);
 
   const record = featured[idx] ?? null;
-  const ix = interactions[record?.id] ?? {};
+  // useMemo for the `?? {}`: that literal allocated a NEW object on every render
+  // whenever the lookup missed, which is most renders for a title with no
+  // interactions yet. `ix` goes straight into HeroCardStack, so an unstable
+  // identity here defeated its React.memo no matter what the deck did.
+  const ix = useMemo(
+    () => interactions[record?.id] ?? EMPTY_INTERACTION,
+    [interactions, record?.id],
+  );
 
   const goToDetail = useCallback(() => {
     if (!record) return;

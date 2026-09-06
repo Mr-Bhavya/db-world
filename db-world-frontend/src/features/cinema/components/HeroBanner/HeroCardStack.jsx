@@ -171,21 +171,13 @@ function RoundAction({ label, onClick, children, primary = false, size }) {
 /* ── one card in the deck ───────────────────────────────────────────────────── */
 
 /**
- * MEMOISED, BUT INERT UNTIL THE CALL SITE IS FIXED — do not read this as a win yet.
+ * Memoised, and DeckSlot is what makes that stick: every prop below is either a
+ * primitive or an identity DeckSlot holds steady with its own hooks. Pass a fresh
+ * object or arrow in here from anywhere and the shallow compare fails silently — the
+ * card still renders correctly, it just renders every time, which is how this started.
  *
- * The shallow compare cannot currently succeed: the call site passes
- * `badge={heroBadge(item, {...})}`, a fresh object every render, plus three inline
- * arrows (`onOpen`, `onPlay`, `onWatchlist`). Any one of those defeats it.
- *
- * It is left in place because it is the precondition for the real win rather than the
- * win itself. `handleDragEnd` commits the turn inside `flushSync`, which is deliberate
- * (see the note there) but does mean one synchronous render of the whole deck per
- * swipe — and that render currently rebuilds three full card subtrees, each with a
- * full-bleed <img>, a badge plate, a meta line and the action row.
- *
- * To make it bite: hoist the badge into a `useMemo` keyed on the item, and give the
- * card its own handlers instead of arrows closed over `k`/`isFront`/`isLeft`. Then the
- * cards that did not change stop re-rendering and the commit gets cheap.
+ * Worth memoising because the subtree is not small: a full-bleed <img>, a badge plate,
+ * the meta line and the action row, times the three mounted cards.
  */
 const DeckCard = React.memo(function DeckCard({
   record, badge, front, inList, isXs, cardW, cardH, dim = 0,
@@ -390,6 +382,78 @@ const DeckCard = React.memo(function DeckCard({
 });
 
 /* ── the deck ───────────────────────────────────────────────────────────────── */
+
+/**
+ * One card's worth of derived props, so `DeckCard`'s memo can actually bail.
+ *
+ * WHY A COMPONENT AND NOT useMemo AT THE CALL SITE. The badge object and the three
+ * handlers are per-card values computed inside `deck.map(...)`, and hooks cannot be
+ * called in a loop — their order has to be identical on every render. So there is no
+ * way to stabilise them from the parent. Giving each card its own component instance
+ * gives each its own hooks, which is the only way to hold those identities steady.
+ *
+ * Before this, `badge={heroBadge(...)}` allocated a fresh object and the three arrows
+ * allocated fresh closures on every single render, so React.memo's shallow compare
+ * failed every time and all three mounted cards re-rendered — image, badge plate, meta
+ * line and action row — whenever anything in the deck changed.
+ *
+ * WHAT THIS DOES AND DOES NOT BUY. It does NOT save the turn itself: committing a turn
+ * shifts every mounted card's `k`, so their props genuinely change and they genuinely
+ * re-render. What it removes is the churn around the gesture — `onDragStart` sets
+ * `liftFor` and `dragFor`, `settleFinger` clears them, and each of those re-rendered
+ * all three cards for nothing. Those land at the two moments the deck can least afford
+ * dropped frames: the instant your finger goes down, and the instant it lifts.
+ *
+ * It also covers plain parent churn — HeroBanner's CYCLE_MS interval, the colour wash,
+ * rails resolving underneath.
+ *
+ * This component itself is deliberately NOT memoised: it renders no DOM of its own, and
+ * its whole job is to be cheap enough to re-run so the expensive child can be skipped.
+ */
+function DeckSlot({
+  item, k, isFront, isLeft, isXs, cardW, cardH,
+  ranked, top10, rankLabel, badgeIdx, inList,
+  dragEndedAt, go, goToDetail, goToPlay, onWatchlist,
+}) {
+  const badge = useMemo(
+    () => heroBadge(item, { ranked, top10, rankLabel, idx: badgeIdx }),
+    [item, ranked, top10, rankLabel, badgeIdx],
+  );
+
+  // A tap on a card behind brings it forward instead of navigating; committing to a
+  // title you can only half see is never what you meant.
+  const onOpen = useCallback(() => {
+    // A click still fires after a drag, so ignore taps that land in its shadow.
+    if (Date.now() - dragEndedAt.current < 220) return;
+    if (isFront) goToDetail?.();
+    else if (isLeft) go?.(-1);
+    else go?.(1);
+  }, [dragEndedAt, isFront, isLeft, go, goToDetail]);
+
+  const onPlay = useCallback(() => { if (isFront) goToPlay?.(); }, [isFront, goToPlay]);
+
+  // Always built, never conditionally — a hook cannot be skipped. The prop below is
+  // what is conditional, and `undefined` is a stable identity.
+  const handleWatchlist = useCallback(() => onWatchlist?.(item), [onWatchlist, item]);
+
+  return (
+    <DeckCard
+      record={item}
+      front={isFront}
+      isXs={isXs}
+      cardW={cardW}
+      cardH={cardH}
+      // The deck cards dim as they recede; the turned-past card (k === -1) does not,
+      // because it is the one you are about to pull back and should read as ready.
+      dim={k > 0 ? Math.min(0.72, k * DIM_STEP) : 0}
+      badge={badge}
+      inList={inList}
+      onOpen={onOpen}
+      onPlay={onPlay}
+      onWatchlist={onWatchlist ? handleWatchlist : undefined}
+    />
+  );
+}
 
 const HeroCardStack = ({
   record,
@@ -920,30 +984,25 @@ const HeroCardStack = ({
                       x: item.id === liftFor ? liftX : item.id === dragFor ? dragX : 0,
                     }}
                   >
-                  <DeckCard
-                    record={item}
-                    front={isFront}
+                  {/* One component per card, so each gets its own hooks — see DeckSlot. */}
+                  <DeckSlot
+                    item={item}
+                    k={k}
+                    isFront={isFront}
+                    isLeft={isLeft}
                     isXs={isXs}
                     cardW={cardW}
                     cardH={cardH}
-                    // The deck cards dim as they recede; the turned-past card (k === -1) does not,
-                    // because it is the one you are about to pull back and should read as ready.
-                    dim={k > 0 ? Math.min(0.72, k * DIM_STEP) : 0}
-                    badge={heroBadge(item, {
-                      ranked, top10, rankLabel,
-                      idx: (safeIdx + k + count) % count,
-                    })}
+                    ranked={ranked}
+                    top10={top10}
+                    rankLabel={rankLabel}
+                    badgeIdx={(safeIdx + k + count) % count}
                     inList={Boolean((interactions[item.id] ?? (isFront ? ix : null))?.watchlisted)}
-                    // A tap on a card behind brings it forward instead of navigating;
-                    // committing to a title you can only half see is never what you meant.
-                    onOpen={() => {
-                      if (Date.now() - dragEndedAt.current < 220) return;
-                      if (isFront) goToDetail?.();
-                      else if (isLeft) go?.(-1);
-                      else go?.(1);
-                    }}
-                    onPlay={() => { if (isFront) goToPlay?.(); }}
-                    onWatchlist={onWatchlist ? () => onWatchlist(item) : undefined}
+                    dragEndedAt={dragEndedAt}
+                    go={go}
+                    goToDetail={goToDetail}
+                    goToPlay={goToPlay}
+                    onWatchlist={onWatchlist}
                   />
                   </Box>
                 </Box>
