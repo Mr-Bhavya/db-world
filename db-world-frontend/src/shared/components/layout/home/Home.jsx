@@ -244,7 +244,9 @@ const Home = () => {
               somewhere ads may not run. The fix is not to drop the unit but to give the
               page something to read — so the editorial block goes ABOVE the ad, and the
               ad is gated on it having rendered. */}
-          <EditorialSections page="home" sx={{ px: 0, pt: { xs: 5, md: 7 } }} />
+          {/* `divider` because this follows the widget grid — without a rule it read as
+              stray text that had fallen off the bottom of the dashboard. */}
+          <EditorialSections page="home" divider />
 
           {/* Last thing on the hub, below the tiles and below the copy.
 

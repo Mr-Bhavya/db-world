@@ -329,7 +329,7 @@ export default function WeatherPage() {
               down still gets a page worth reading instead of an error card. It is also
               what makes an ad unit permissible here at all: a weather widget on its own
               is a screen without publisher content. */}
-          <EditorialSections page="weather" />
+          <EditorialSections page="weather" divider />
 
           {/* Below the reference copy, gated on it — never over the skeleton or an
               error card. */}

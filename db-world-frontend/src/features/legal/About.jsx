@@ -24,7 +24,7 @@ export default function About() {
     <LegalPage title={content?.h1 ?? 'About DB World'}>
       {/* The shell owns the h1, so the block below starts at h2 — which is what
           EditorialSections emits. */}
-      <EditorialSections page="about" sx={{ maxWidth: 'none', mx: 0, px: 0, py: 0 }} />
+      <EditorialSections page="about" />
     </LegalPage>
   );
 }

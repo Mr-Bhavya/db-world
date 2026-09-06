@@ -198,7 +198,7 @@ export default function Games() {
             page worth landing on — and the ad below is gated on it. Deliberately on the
             HUB and not inside a game: a unit beside a live board is both a mis-click
             magnet and an interruption. */}
-        <EditorialSections page="games" />
+        <EditorialSections page="games" divider />
 
         <AdSlot slot="games" ready={hasEditorial} minHeight={120} />
       </Container>

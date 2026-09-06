@@ -469,7 +469,9 @@ const CinemaPage = ({ pageType = 'home' }) => {
                   wherever it renders, and repeating it across ~39 genre URLs would
                   hand Google that many near-duplicate pages — the opposite of what
                   this is for. Genre pages earn their keep on their rails. */}
-              {!genreSlug && <EditorialSections page="cinema" sx={{ maxWidth: 1100 }} />}
+              {!genreSlug && (
+                <EditorialSections page="cinema" divider sx={{ px: { xs: 2, md: 4 } }} />
+              )}
 
               {/* After the last rail. Deliberately NOT between rails: the cards carry
                   hover actions and a unit in that flow invites mis-clicks, which is
