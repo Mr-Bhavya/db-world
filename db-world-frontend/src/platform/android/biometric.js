@@ -87,6 +87,57 @@ export async function enableBiometric() {
  * Unlock: prompt for fingerprint/face, read the stored token, exchange it for a session.
  * @returns {Promise<{accessToken: string, user: object}>}
  */
+/**
+ * What actually went wrong, from the plugin's numeric error code.
+ *
+ * Everything used to be caught into one branch that said "Not recognised", so tapping
+ * Cancel accused you of failing a scan you never attempted, and a 30-second lockout
+ * showed a retry button that could not work.
+ *
+ * Codes are @capgo/capacitor-native-biometric's BiometricAuthError enum — see
+ * node_modules/@capgo/capacitor-native-biometric/dist/esm/definitions.d.ts. Numbers
+ * rather than names because the plugin ships the enum as TypeScript and this is a .js
+ * module; keep them in step if the dependency is upgraded.
+ */
+export const BIOMETRIC_OUTCOME = {
+  CANCELLED: 'cancelled',
+  FAILED: 'failed',
+  LOCKED_OUT: 'lockedOut',
+  UNAVAILABLE: 'unavailable',
+  FALLBACK: 'fallback',
+  ERROR: 'error',
+};
+
+export function classifyBiometricError(e) {
+  switch (Number(e?.code)) {
+    // Dismissed on purpose — by the user, the app, or the system. Not a failure, and
+    // must never be reported as one.
+    case 11: case 15: case 16:
+      return BIOMETRIC_OUTCOME.CANCELLED;
+
+    // The user asked for the passcode instead. Take them there rather than looping.
+    case 17:
+      return BIOMETRIC_OUTCOME.FALLBACK;
+
+    // Too many attempts. Android will refuse for ~30s (4) or until a passcode unlock
+    // (2), so offering "try again" here is offering something that cannot work.
+    case 2: case 4:
+      return BIOMETRIC_OUTCOME.LOCKED_OUT;
+
+    // A real non-match.
+    case 10:
+      return BIOMETRIC_OUTCOME.FAILED;
+
+    // No hardware, nothing enrolled, or no device passcode — biometric is not a route
+    // on this device at all, so stop offering it.
+    case 1: case 3: case 14:
+      return BIOMETRIC_OUTCOME.UNAVAILABLE;
+
+    default:
+      return BIOMETRIC_OUTCOME.ERROR;
+  }
+}
+
 export async function biometricUnlock(reason = 'Unlock DB World') {
   await NativeBiometric.verifyIdentity({ reason, title: 'Unlock DB World', useFallback: true });
   const cred = await NativeBiometric.getCredentials({ server: SERVER });

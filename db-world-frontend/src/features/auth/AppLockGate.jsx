@@ -6,7 +6,7 @@ import { useT } from '@shared/theme';
 import { isAndroid } from '@shared/platform/platform';
 import { isBiometricEnabled, canLockApp, verifyDeviceOwner } from '@platform/android/biometric';
 import { useAuth } from '@features/auth/context/Authentication';
-import FingerprintPulse from '@features/auth/components/FingerprintPulse';
+import { BIOMETRIC_OUTCOME, classifyBiometricError } from '@platform/android/biometric';
 
 // Re-lock only after a real trip to the background, not a momentary blur.
 const LOCK_AFTER_MS = 60_000;
@@ -23,6 +23,18 @@ const LOCK_AFTER_MS = 60_000;
  *
  * Renders a full-screen blocking overlay; a no-op (null) on web/iOS and once unlocked.
  */
+/** Only what the system sheet does NOT already say. Silent otherwise. */
+const MESSAGES = {
+  [BIOMETRIC_OUTCOME.CANCELLED]: 'Unlock with your fingerprint, face, or device screen lock to continue.',
+  [BIOMETRIC_OUTCOME.FAILED]: 'That did not match. Try again, or use your device screen lock.',
+  [BIOMETRIC_OUTCOME.LOCKED_OUT]: 'Too many attempts. Unlock your device with its passcode, then reopen the app.',
+  [BIOMETRIC_OUTCOME.UNAVAILABLE]: 'Biometric unlock is not available on this device.',
+  [BIOMETRIC_OUTCOME.ERROR]: 'Could not verify it is you. Try again.',
+};
+
+/** Retrying here cannot succeed until the OS cools off, so do not offer it. */
+const NO_RETRY = new Set([BIOMETRIC_OUTCOME.LOCKED_OUT, BIOMETRIC_OUTCOME.UNAVAILABLE]);
+
 export default function AppLockGate() {
   const T = useT();
   const { auth } = useAuth();
@@ -30,7 +42,11 @@ export default function AppLockGate() {
   // Biometric-login already prompts at cold start — only cold-lock when it doesn't.
   const startLocked = isAndroid && !isBiometricEnabled();
   const [locked, setLocked] = useState(startLocked);
-  const [state, setState] = useState('idle'); // idle | scanning | success | error
+  // null while there is nothing to say — which covers both "about to prompt" and
+  // "the system sheet is open". Those are indistinguishable to the user and should be
+  // indistinguishable here: anything this screen renders during the scan sits BEHIND
+  // Android's own sheet, competing with it. Same reasoning as BiometricGate.
+  const [outcome, setOutcome] = useState(null); // null | 'cancelled' | 'failed' | 'lockedOut' | 'error'
 
   const bgAt = useRef(0);            // when we last went to background
   const canLock = useRef(true);      // device has biometric or a screen lock
@@ -38,13 +54,17 @@ export default function AppLockGate() {
   useEffect(() => { authLocked.current = auth.locked; }, [auth.locked]);
 
   const prompt = useCallback(async () => {
-    setState('scanning');
+    setOutcome(null);
     try {
       await verifyDeviceOwner('Unlock DB-World to continue');
-      setState('success');
-      setTimeout(() => { setLocked(false); setState('idle'); }, 380);
-    } catch {
-      setState('error');
+      // Straight through. There was a setTimeout(..., 380) here so a "success" state
+      // could be seen — 380ms added to every return from the background, to show a
+      // message the system sheet already confirmed with its own checkmark.
+      setLocked(false);
+    } catch (e) {
+      const kind = classifyBiometricError(e);
+      // A dismissal is not a failure and must not be reported as one.
+      setOutcome(kind === BIOMETRIC_OUTCOME.FALLBACK ? BIOMETRIC_OUTCOME.CANCELLED : kind);
     }
   }, []);
 
@@ -86,7 +106,8 @@ export default function AppLockGate() {
 
   if (!locked) return null;
 
-  const isError = state === 'error';
+  const message = MESSAGES[outcome] ?? null;
+  const canRetry = !outcome || !NO_RETRY.has(outcome);
 
   return (
     <Box
@@ -104,25 +125,30 @@ export default function AppLockGate() {
         textAlign: 'center',
       }}
     >
-      <Box aria-hidden sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(60% 40% at 50% 32%, ${T.tealGlow} 0%, transparent 70%)` }} />
-
-      <FingerprintPulse state={state === 'success' ? 'success' : isError ? 'error' : state === 'scanning' ? 'scanning' : 'idle'} size={128} />
-
-      <Box sx={{ position: 'relative', maxWidth: 320 }}>
-        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: T.textPrimary, mb: 1 }}>
-          <LockRoundedIcon sx={{ fontSize: 20, color: T.teal }} />
-          <Typography sx={{ fontWeight: 800, fontSize: '1.2rem' }}>DB-World is locked</Typography>
-        </Box>
-        <Typography sx={{ color: isError ? T.error : T.textMuted, fontSize: '0.9rem', lineHeight: 1.5 }}>
-          {isError
-            ? 'Couldn’t verify it’s you. Try again with your fingerprint, face, or screen lock.'
-            : 'Unlock with your fingerprint, face, or device screen lock to continue.'}
-        </Typography>
+      {/* The animated FingerprintPulse and the glow wash are gone. Both sat behind
+          Android's own sheet while it was open — an animation nobody can see, on the
+          one frame budget that matters. What is left is identity, and it holds still. */}
+      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: T.textPrimary }}>
+        <LockRoundedIcon sx={{ fontSize: 20, color: T.teal }} />
+        <Typography sx={{ fontWeight: 800, fontSize: '1.2rem' }}>DB-World is locked</Typography>
       </Box>
 
+      {/* Reserved either way, so nothing shifts when a message arrives as the sheet
+          closes. Silent while the sheet is up: the OS is already doing the talking. */}
+      <Box sx={{ position: 'relative', maxWidth: 320, minHeight: 44 }}>
+        {message && (
+          <Typography sx={{
+            color: outcome === BIOMETRIC_OUTCOME.FAILED ? T.error : T.textMuted,
+            fontSize: '0.9rem', lineHeight: 1.5,
+          }}>
+            {message}
+          </Typography>
+        )}
+      </Box>
+
+      {canRetry && (
       <Button
         onClick={prompt}
-        disabled={state === 'scanning'}
         variant="contained"
         disableElevation
         sx={{
@@ -139,8 +165,9 @@ export default function AppLockGate() {
           '&.Mui-disabled': { color: 'rgba(255,255,255,0.75)', background: T.tealHover, opacity: 0.85 },
         }}
       >
-        {state === 'scanning' ? 'Waiting…' : isError ? 'Try again' : 'Unlock'}
+        {outcome ? 'Try again' : 'Unlock'}
       </Button>
+      )}
     </Box>
   );
 }
