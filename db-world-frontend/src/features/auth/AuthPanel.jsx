@@ -336,8 +336,14 @@ export default function AuthPanel({
           // destination with replace:true, which beat the navigate below. The visitor landed
           // on the hub and the reset page was never reached.
           onClick={() => onForgotPassword?.()}
-          sx={{ fontSize: '0.8rem', fontWeight: 700, color: T.textMuted, minWidth: 0, p: 0.5,
-                textTransform: 'none', '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
+          // Teal and underlined, i.e. styled as the link it is. It was T.textMuted at
+          // 0.8rem tucked under the password field by a negative margin, and the
+          // feedback was simply "I can't see it" — which for the one control that
+          // recovers a locked-out account is a real failure, not a nitpick.
+          sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.teal, minWidth: 0, p: 0.5,
+                textTransform: 'none', textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                '&:hover': { color: T.tealHover, bgcolor: 'transparent', textDecoration: 'underline' } }}
         >
           Forgot password?
         </Button>

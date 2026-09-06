@@ -35,8 +35,8 @@
 
     "home": {
       "h1": "DB World",
-      "title": "DB World - movies, IPO tracking, weather, games and a password vault",
-      "description": "DB World is a self-hosted suite of small, focused web apps: a media library, a live Indian IPO tracker, a weather dashboard, six browser games and an encrypted password vault.",
+      "title": "DB World - movies, live IPO tracking, weather and games",
+      "description": "A self-hosted suite of small, focused web apps: a media library, live Indian IPO tracking, weather, six browser games and an encrypted vault.",
       "lead": "DB World is a self-hosted suite of small, focused web apps that grew out of one problem at a time. Nothing here is a wrapper around somebody else's product - each app was built because an existing tool was heavier, noisier or more expensive than the job needed.",
       "sections": [
         {
@@ -131,7 +131,7 @@
 
     "games": {
       "h1": "Games",
-      "title": "Games - 2048, Minesweeper, Connect Four, Snake, Memory Match, Tic Tac Toe",
+      "title": "Free browser games - 2048, Minesweeper, Connect Four, Snake",
       "description": "Six browser games that need no account and no download, with the rules and the strategy that actually improves your score for each one.",
       "lead": "Six games that run entirely in the browser. No account, no download, no server round trip - your best scores are saved on the device you played on. Each one is quick to learn, so what follows is the part that is harder to find: the strategy that actually moves your score.",
       "sections": [
@@ -193,7 +193,7 @@
       ],
       "h1": "IPO Radar",
       "title": "IPO Radar - live IPO dates, price band, GMP and subscription",
-      "description": "Track live mainboard and SME IPOs: open and close dates, price band, lot size, GMP, subscription status and listing performance - plus what every one of those terms means.",
+      "description": "Track live mainboard and SME IPOs: dates, price band, lot size, GMP, subscription and listing performance - plus what every term means.",
       "lead": "Live mainboard and SME IPOs with dates, price bands, lot sizes, grey market premium and subscription figures, reconciled from several public sources. The reference below covers the vocabulary, which is the part that stops most first-time applicants.",
       "sections": [
         {
