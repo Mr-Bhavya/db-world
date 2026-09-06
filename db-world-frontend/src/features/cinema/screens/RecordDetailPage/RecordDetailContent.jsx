@@ -129,7 +129,7 @@ export default function RecordDetailContent({
   // Browsing this page is open to everyone; acting on it is not. Each handler below
   // is wrapped so a signed-out visitor gets the sign-in prompt instead of a dead
   // click or a 401 toast.
-  const { requireAuth } = useRequireAuth();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const contentRef = useRef(null);
 
   // ── Record ─────────────────────────────────────────────────────────────
@@ -169,15 +169,20 @@ export default function RecordDetailContent({
   // ── Media files ────────────────────────────────────────────────────────
   // Owned here rather than inside the Watch section so the hero can advertise
   // the best available quality/HDR/audio, and so both consumers share one fetch.
+  const fetchMediaFiles = useCallback(async () => {
+    const res = await loadStreamFileInfoByRecordId(id);
+    return res?.httpStatusCode === 200
+      ? CommonServices.convertMediaInfoToCustomFormat(null, res.data)
+      : [];
+  }, [id]);
+
   const { data: mediaFiles = [] } = useQuery({
     queryKey: ['record-media-files', id],
-    queryFn: async () => {
-      const res = await loadStreamFileInfoByRecordId(id);
-      return res?.httpStatusCode === 200
-        ? CommonServices.convertMediaInfoToCustomFormat(null, res.data)
-        : [];
-    },
-    enabled: !!id,
+    queryFn: fetchMediaFiles,
+    // media-info is authenticated by design, so a signed-out visitor must not ask.
+    // The axios guard would reject it anyway; stopping here keeps the query out of
+    // an error state and off the network entirely.
+    enabled: !!id && isAuthenticated,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -287,6 +292,23 @@ export default function RecordDetailContent({
   const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
   const [downloadLabel, setDownloadLabel] = useState(null);
 
+  /**
+   * Whether the library holds anything for this title.
+   *
+   * Comes from the PUBLIC record DTO, so it is true for everyone — signed in or not.
+   * It used to be derived from `mediaFiles.length`, which is fed by
+   * /api/stream/media-info: authenticated by design, because it describes the stored
+   * FILES rather than the title. A signed-out visitor therefore always got an empty
+   * list, and the action row drew the wrong conclusion from it — Watch and Download
+   * vanished and "Request this" appeared, telling a visitor that a title sitting in
+   * the library was missing, and inviting them to request it. The same thing flashed
+   * for a signed-in user during the boot window, before the access token was minted.
+   *
+   * Undefined means the record has not loaded yet — NOT unavailable. Treating a
+   * missing answer as absence is exactly the bug above.
+   */
+  const availability = record?.availability ?? null;
+  const isAvailable = availability?.available === true;
   const hasFiles = mediaFiles.length > 0;
 
   // ── Requests ───────────────────────────────────────────────────────────
@@ -373,24 +395,44 @@ export default function RecordDetailContent({
    * always opened mediaFiles[0]: episode 1 of a show you were ten episodes into, and
    * for a movie the wrong master, which lost the saved position too.
    */
-  const playResume = useCallback(() => {
+  /**
+   * The files, fetching them first if we do not have them yet.
+   *
+   * Needed because Watch and Download are offered to signed-out visitors and go
+   * through `requireAuth`, which replays the action the moment the modal closes. At
+   * that instant the media-files query has been invalidated but not refetched, so
+   * `mediaFiles` is still the empty array a signed-out session left behind — and the
+   * replayed action would report "No playable file for this title yet" on a title
+   * that plays perfectly well a second later.
+   */
+  const ensureMediaFiles = useCallback(async () => {
+    if (mediaFiles.length) return mediaFiles;
+    try {
+      return await qc.fetchQuery({ queryKey: ['record-media-files', id], queryFn: fetchMediaFiles });
+    } catch {
+      return [];
+    }
+  }, [mediaFiles, qc, id, fetchMediaFiles]);
+
+  const playResume = useCallback(async () => {
+    const files = await ensureMediaFiles();
     const resumeFile = continueItem?.resumeFileId
-      ? mediaFiles.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
+      ? files.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
       : null;
-    if (!resumeFile) { launch(mediaFiles); return; }
+    if (!resumeFile) { launch(files); return; }
 
     const ref = episodeRefOf(resumeFile);
     // Seed the pool with the file being resumed: `launch` takes pool[0] as the file
     // whose saved position and progress key are used.
-    const siblings = variantFilesFor(mediaFiles, resumeFile, !!ref);
+    const siblings = variantFilesFor(files, resumeFile, !!ref);
     const pool = [resumeFile, ...siblings.filter((f) => f !== resumeFile)];
     launch(pool, ref ? { season: ref.season, episode: ref.episode } : null);
-  }, [launch, mediaFiles, continueItem]);
+  }, [launch, ensureMediaFiles, continueItem]);
 
-  const openDownloads = useCallback(() => {
-    setDownloadFiles(mediaFiles);
+  const openDownloads = useCallback(async () => {
+    setDownloadFiles(await ensureMediaFiles());
     setDownloadLabel(null);
-  }, [mediaFiles]);
+  }, [ensureMediaFiles]);
 
   const playEpisode = useCallback((ep) => {
     launch(ep?.files, { season: ep?.seasonNumber, episode: ep?.episodeNumber });
@@ -609,9 +651,15 @@ export default function RecordDetailContent({
         interaction={currentInteraction}
         onToggle={handleToggle}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
-        onWatchClick={hasFiles ? handlePlay : null}
-        onDownloadClick={hasFiles ? handleOpenDownloads : null}
-        onRequestClick={fullLoaded && !hasFiles ? () => handleRequest() : null}
+        // Keyed off public availability, so these render for everyone. Both handlers
+        // are already requireAuth-wrapped: a signed-out click opens the sign-in modal
+        // and resumes afterwards, which is what every other action here does.
+        onWatchClick={isAvailable ? handlePlay : null}
+        onDownloadClick={isAvailable ? handleOpenDownloads : null}
+        // Request only once the record has loaded AND says there is nothing. A partial
+        // series is NOT offered a request here — there is something to watch, so Watch
+        // keeps the hero and the missing episodes are requested from the Seasons list.
+        onRequestClick={fullLoaded && availability && !isAvailable ? () => handleRequest() : null}
         requested={!!recordRequest?.hasMyVote}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
@@ -661,6 +709,13 @@ export default function RecordDetailContent({
               <SeasonsSection
                 record={record}
                 files={mediaFiles}
+                // The public per-season rollup, and whether per-EPISODE detail is
+                // knowable at all. `files` comes from the authenticated media-info
+                // endpoint, so a signed-out visitor sees an empty list — without
+                // these the section marked every episode missing and offered to
+                // request episodes we already hold.
+                availability={availability}
+                filesKnown={isAuthenticated}
                 onPlayEpisode={handlePlayEpisode}
                 onDownloadEpisode={handleDownloadEpisode}
                 onRequest={handleRequest}

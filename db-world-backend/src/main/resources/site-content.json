@@ -282,9 +282,9 @@
           ]
         },
         {
-          "heading": "What the labels on a title mean",
+          "heading": "What the format labels on a title mean",
           "list": [
-            { "term": "Resolution", "text": "The highest resolution held for that title, not the only one. A title marked 4K may also have a 1080p copy, which is what a slower connection will actually be served." },
+            { "term": "Resolution", "text": "The highest resolution held for that title, not the only one. A title marked 4K may also have a 1080p copy, which is what a slower connection will actually be served. Format labels need an account - they describe the files themselves, which is not information the catalogue publishes to everyone." },
             { "term": "HDR", "text": "High dynamic range - a wider range between the darkest and brightest parts of the picture. It only makes a visible difference on a display that supports it; on one that does not, the same file can look flat or washed out." },
             { "term": "Audio", "text": "The audio tracks present, including surround and object-based formats. Multi-language titles list every audio track, so you can see before you start whether the language you want is actually there." },
             { "term": "Subtitles", "text": "The subtitle tracks present, listed by language." }
@@ -293,7 +293,7 @@
         {
           "heading": "What you can do without an account",
           "paragraphs": [
-            "Browsing, searching, opening a title, reading its cast and crew and seeing what formats exist are all open. Playback, downloads, watchlists, likes and requests need an account, because each one is either tied to your identity or consumes bandwidth.",
+            "Browsing, searching, opening a title and reading its cast and crew are all open. An account is needed for playback, downloads, watchlists, likes and requests - each is either tied to your identity or consumes bandwidth - and also to see the format and quality labels above, which describe the stored files rather than the title.",
             "Descriptive metadata - synopses, cast lists, artwork and ratings - comes from The Movie Database. Availability, format and quality information is specific to this library and is not sourced from anywhere else."
           ]
         }

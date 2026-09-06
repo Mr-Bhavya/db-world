@@ -1,5 +1,6 @@
 package com.db.dbworld.app.cinema.catalog.service.impl;
 
+import com.db.dbworld.app.cinema.catalog.service.RecordAvailabilityService;
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
@@ -50,6 +51,7 @@ class CatalogServiceVisibilityTest {
     @Mock RecordRepository recordRepository;
     @Mock TmdbRepository tmdbRepository;
     @Mock SeasonRepository seasonRepository;
+    @Mock RecordAvailabilityService availabilityService;
     @Mock TmdbIngestionService tmdbIngestionService;
     @Mock TmdbRecordSyncService tmdbRecordSyncService;
     @Mock ApplicationEventPublisher publisher;
@@ -63,6 +65,7 @@ class CatalogServiceVisibilityTest {
     @BeforeEach
     void setUp() {
         service = new CatalogServiceImpl(recordRepository, tmdbRepository, seasonRepository,
+                availabilityService,
                 tmdbIngestionService, tmdbRecordSyncService, publisher,
                 recordMapper, pushService, mediaFileRepository, settingsService);
         when(recordMapper.toDto(any())).thenReturn(new RecordDto());

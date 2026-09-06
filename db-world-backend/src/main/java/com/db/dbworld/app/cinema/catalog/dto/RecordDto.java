@@ -37,4 +37,13 @@ public class RecordDto {
     /** When the record first went PUBLISHED. Null for records never published. */
     private Instant publishedAt;
 
+    /**
+     * What the library holds — public, so a signed-out visitor gets an honest page.
+     *
+     * <p>Null only on the admin paths that build this DTO without asking. The record
+     * page must treat null as "unknown" rather than "unavailable": inferring absence
+     * from a missing answer is the bug this field exists to remove.
+     */
+    private RecordAvailabilityDto availability;
+
 }

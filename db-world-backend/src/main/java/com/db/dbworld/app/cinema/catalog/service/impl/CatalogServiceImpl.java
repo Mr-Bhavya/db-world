@@ -2,6 +2,7 @@ package com.db.dbworld.app.cinema.catalog.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.service.RecordAvailabilityService;
 import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
@@ -63,6 +64,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final RecordRepository recordRepository;
     private final TmdbRepository tmdbRepository;
     private final SeasonRepository seasonRepository;
+    private final RecordAvailabilityService availabilityService;
     private final TmdbIngestionService tmdbIngestionService;
     private final TmdbRecordSyncService tmdbRecordSyncService;
     private final ApplicationEventPublisher publisher;
@@ -291,6 +293,13 @@ public class CatalogServiceImpl implements CatalogService {
         if (record.getTmdb() != null && dto.getTmdb() != null) {
             dto.getTmdb().setLogoPath(selectLogoPath(record.getTmdb().getImages()));
         }
+
+        // What the library actually holds. PUBLIC, unlike the files themselves — see
+        // RecordAvailabilityDto. Attached here rather than fetched separately because
+        // this DTO is already on the record page's critical path, and because the page
+        // previously had to infer availability from an authenticated endpoint returning
+        // nothing, which told signed-out visitors that titles we hold were missing.
+        dto.setAvailability(availabilityService.of(record));
 
         return dto;
     }

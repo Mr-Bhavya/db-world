@@ -66,10 +66,11 @@ const NO_TOKEN_PATHS = [
  * that decides access; this exists to stop the app asking questions it already knows
  * the answer to. Never rely on it to protect anything.
  *
- * Deliberately absent:
- *   /api/track/events — analytics. It 401s for anonymous visitors, which means the
- *     browse surface's anonymous traffic is not being measured at all. Gating it
- *     would hide that rather than fix it; it wants making public instead.
+ * Confirmed intentional (2026-09-06): media-info and track/events are private by
+ * design, not oversights. The consequence to keep in mind is that anonymous browse
+ * traffic is therefore NOT measured by /api/track/events at all — Search Console and
+ * AdSense remain the only view of it — and signed-out visitors never see the format
+ * labels, which the catalogue copy now says outright rather than implying otherwise.
  */
 const AUTH_ONLY_PATHS = [
   '/api/cinema/reviews/mine',
@@ -77,10 +78,13 @@ const AUTH_ONLY_PATHS = [
   '/api/cinema/progress/',
   '/api/notifications/',
   '/api/push/register',
-  // Powers the hero's resolution/HDR/audio badges. Auth-only today, which is why a
-  // signed-out visitor never sees them even though the catalogue copy explains what
-  // they mean — worth making public rather than leaving gated.
+  // Powers the hero's resolution/HDR/audio badges. Private by design: it describes the
+  // stored files, not the title. Signed-out visitors do not see those badges, and the
+  // catalogue copy says so.
   '/api/stream/media-info/',
+  // Activity tracking. Private by design, so an anonymous visitor's events were only
+  // ever 401s — 5 in the sampled day, and every one of them wasted.
+  '/api/track/events',
 ];
 
 /** Marker so callers and error reporting can tell this from a real network failure. */

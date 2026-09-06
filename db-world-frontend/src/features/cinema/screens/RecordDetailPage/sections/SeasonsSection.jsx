@@ -188,13 +188,20 @@ function CoveredNote({ request }) {
    EPISODE ROW
 ═══════════════════════════════════════════════════════════ */
 
-function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progress }) {
+function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progress,
+  filesKnown = true }) {
   const T = useT();
   const meta = ep.tmdb;
   const still = tmdbImg(meta?.stillPath, 'w300');
   const rating = meta?.voteAverage > 0 ? Math.round(meta.voteAverage * 10) / 10 : null;
 
-  const quality = ep.available ? bestQuality(ep.files) : null;
+  // Signed out, media-info is not readable, so `ep.available` is false for every
+  // episode regardless of what the library holds. Treat that as UNKNOWN, not missing:
+  // the row renders neutrally and offers no request, because requesting an episode we
+  // already have is worse than saying nothing.
+  const unknown = !filesKnown;
+  const available = ep.available;
+  const quality = available ? bestQuality(ep.files) : null;
   const qMeta = quality ? (QUALITY_META[quality] ?? QUALITY_META.Unknown) : null;
   const hdr = ep.available
     ? getHdrTags(ep.files[0]?.video?.hdrDetails, ep.files[0]?.general?.fileName)
@@ -228,7 +235,7 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
         // versus none at all), and a still pinned to the top left short rows
         // looking lopsided.
         alignItems: 'center',
-        opacity: ep.available ? 1 : 0.55,
+        opacity: unknown || available ? 1 : 0.55,
       }}
     >
       {/* Still + prominent episode number */}
@@ -241,7 +248,7 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
         bgcolor: alpha(T.text, 0.06),
         border: `1px solid ${alpha(T.text, 0.08)}`,
         display: 'grid', placeItems: 'center',
-        filter: ep.available ? 'none' : 'grayscale(0.7) brightness(0.7)',
+        filter: unknown || available ? 'none' : 'grayscale(0.7) brightness(0.7)',
       }}>
         {still ? (
           <Box
@@ -328,7 +335,7 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
               Not in TMDB
             </Box>
           )}
-          {!ep.available && (
+          {!available && !unknown && (
             <Box component="span" sx={{ color: T.textFaint, fontWeight: 600 }}>
               Not in library
             </Box>
@@ -359,7 +366,16 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
         ) : null}
 
         <Box sx={{ display: 'flex', gap: 1, mt: 1.25, flexWrap: 'wrap' }}>
-          {ep.available ? (
+          {unknown ? (
+            // Signed out: we cannot tell whether this episode is held, so offer neither
+            // Play nor Request. The season chip above states what the public rollup does
+            // know, and the hero's Watch button prompts to sign in — which is the honest
+            // route to the rest. Offering "Request episode" here would invite a request
+            // for something already in the library.
+            <Typography sx={{ fontSize: '0.74rem', color: T.textFaint }}>
+              Sign in to see what is available
+            </Typography>
+          ) : ep.available ? (
             <>
               <Box
                 component={motion.button}
@@ -473,9 +489,26 @@ function SeasonGapBar({ season, requests, onRequest }) {
 
 export default function SeasonsSection({
   record, files = [], onPlayEpisode, onDownloadEpisode, onRequest, requests, progress = {},
+  availability = null, filesKnown = true,
 }) {
   const T = useT();
   const tmdb = record?.tmdb ?? {};
+
+  /**
+   * Per-season "have of total" from the PUBLIC record DTO, keyed by season number.
+   *
+   * `files` is fed by /api/stream/media-info, which is authenticated because it
+   * describes the stored files. A signed-out visitor therefore gets an empty list, and
+   * this section used to conclude from it that every episode was missing — offering to
+   * request episodes already in the library. When `filesKnown` is false the per-episode
+   * marking is suppressed and this rollup is shown instead: honest at the season level,
+   * which is as precise as a public answer can be.
+   */
+  const haveBySeason = useMemo(() => {
+    const map = new Map();
+    for (const s of availability?.seasons ?? []) map.set(s.season, s);
+    return map;
+  }, [availability]);
 
   const { seasons, loose } = useMemo(
     () => buildSeasons(tmdb.seasons ?? [], files),
@@ -606,11 +639,21 @@ export default function SeasonsSection({
               {/* What you actually have — the reason to pick this season. */}
               <Chip
                 size="small"
-                label={s.hasFiles ? `${s.fileCount} file${s.fileCount === 1 ? '' : 's'}` : 'none yet'}
+                label={(() => {
+                  // File counts come from media-info and are not readable when signed
+                  // out. The public per-season rollup is, so show that instead of
+                  // "none yet", which was simply false for a signed-out visitor.
+                  if (!filesKnown) {
+                    const roll = haveBySeason.get(s.seasonNumber);
+                    if (!roll) return 'sign in for files';
+                    return `${roll.have} of ${roll.total} available`;
+                  }
+                  return s.hasFiles ? `${s.fileCount} file${s.fileCount === 1 ? '' : 's'}` : 'none yet';
+                })()}
                 sx={{
                   height: 20, fontSize: '0.62rem', fontWeight: 800, flexShrink: 0,
-                  bgcolor: s.hasFiles ? alpha(T.teal, 0.18) : alpha(T.text, 0.06),
-                  color: s.hasFiles ? T.teal : T.textFaint,
+                  bgcolor: (!filesKnown || s.hasFiles) ? alpha(T.teal, 0.18) : alpha(T.text, 0.06),
+                  color: (!filesKnown || s.hasFiles) ? T.teal : T.textFaint,
                   border: `1px solid ${s.hasFiles ? alpha(T.teal, 0.35) : alpha(T.text, 0.1)}`,
                   '& .MuiChip-label': { px: 0.8 },
                 }}
@@ -664,6 +707,7 @@ export default function SeasonsSection({
         <Box key={selected}>
           {season.episodes.map((ep, i) => (
             <EpisodeRow
+                    filesKnown={filesKnown}
               key={`${ep.seasonNumber}-${ep.episodeNumber}`}
               ep={ep}
               index={i}
