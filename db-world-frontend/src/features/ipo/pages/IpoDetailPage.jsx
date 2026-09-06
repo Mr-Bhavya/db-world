@@ -279,8 +279,9 @@ export default function IpoDetailPage() {
           </AnimatePresence>
 
           {/* Below the tab panel — the unit sits under real content on every tab
-              rather than between the header and the data the visitor came for. */}
-          <AdSlot slot="ipoDetail" minHeight={120} />
+              rather than between the header and the data the visitor came for.
+              Gated on the listing having loaded — see AdSlot's `ready`. */}
+          <AdSlot slot="ipoDetail" ready={!!ipo} minHeight={120} />
         </Box>
       </Box>
     </motion.div>

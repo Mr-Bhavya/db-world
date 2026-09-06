@@ -31,9 +31,21 @@ import { AD_CLIENT, AD_SLOTS, adsEnabled } from './adsConfig';
  *
  * 4. **Unconfigured slots.** A placement whose env var is unset renders nothing at all,
  *    so the site is safe to ship before the units exist in AdSense.
+ *
+ * 5. **No ad without content — `ready`.** AdSense rejected this site in September 2026
+ *    for "Google-served ads on screens without publisher content", and the mechanism
+ *    was this component rendering unconditionally: a unit appeared while the page was
+ *    still loading, when the fetch returned nothing, and on the empty-state card. The
+ *    host page must now assert that it has painted real content, and the default is
+ *    `false` so a call site that forgets fails CLOSED — a missing ad costs a few
+ *    impressions, an ad on a blank screen costs the account.
+ *
+ *    "Content" means what a reader came for, not chrome: rails with titles in them, a
+ *    loaded record, a non-empty IPO list. A heading and a spinner do not count.
  */
 export default function AdSlot({
   slot,
+  ready = false,
   format = 'auto',
   responsive = true,
   minHeight = 100,
@@ -52,7 +64,7 @@ export default function AdSlot({
   }, [pathname]);
 
   useEffect(() => {
-    if (!adsEnabled() || !slotId || pushed.current) return undefined;
+    if (!ready || !adsEnabled() || !slotId || pushed.current) return undefined;
 
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -79,7 +91,10 @@ export default function AdSlot({
     const observer = new MutationObserver(read);
     observer.observe(el, { attributes: true, attributeFilter: ['data-ad-status'] });
     return () => observer.disconnect();
-  }, [pathname, slotId]);
+  }, [pathname, slotId, ready]);
+
+  // The page has not painted content worth putting an ad next to — see `ready` above.
+  if (!ready) return null;
 
   // No slot id configured yet, ads disabled, or a native build — render nothing at
   // all rather than an empty reserved gap.

@@ -9,6 +9,8 @@ import { useRequireAuth } from '@features/auth/useRequireAuth';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import AdSlot from '@shared/ads/AdSlot';
+import EditorialSections from '@shared/content/EditorialSections';
+import { pageContent, pageMeta } from '@shared/content/siteContent';
 
 import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
@@ -37,12 +39,22 @@ import { useHomeSummary } from './dashboard/homeSummaryApi';
  *     sitting there as empty shells.
  */
 const Home = () => {
-  usePageMeta(null, {
-    description:
-      'DB World — your all-in-one hub for movies and TV, live IPO tracking, a secure password vault, an encrypted document wallet, games and the weather.',
+  // Title and description come from the shared content file, so the words a crawler
+  // gets from SeoRenderController and the ones set here cannot drift apart.
+  usePageMeta(pageMeta('home').title, {
+    description: pageMeta('home').description,
+    exact: true,
   });
 
   const T = useT();
+
+  /**
+   * Whether the editorial block below the tiles has copy to render.
+   *
+   * The ad unit is gated on this rather than on the dashboard: the tiles are
+   * navigation, and navigation is not what earns a page the right to carry an ad.
+   */
+  const hasEditorial = Boolean(pageContent('home')?.sections?.length);
   const navigate = useNavigate();
   const { promptSignIn } = useRequireAuth();
 
@@ -225,12 +237,21 @@ const Home = () => {
             }}
           />
 
-          {/* Last thing on the hub, below the tiles.
+          {/* What makes this page more than a launcher.
 
-              Not between them: they are a grid of tap targets, and a unit in that flow invites the
-              mis-taps AdSense counts as invalid traffic. Renders nothing until VITE_AD_SLOT_HOME
-              is set. */}
-          <AdSlot slot="home" minHeight={120} sx={{ mt: 5 }} />
+              AdSense rejected the site partly for this route: a grid of tiles that link
+              elsewhere is a navigation screen, and the policy names those explicitly as
+              somewhere ads may not run. The fix is not to drop the unit but to give the
+              page something to read — so the editorial block goes ABOVE the ad, and the
+              ad is gated on it having rendered. */}
+          <EditorialSections page="home" sx={{ px: 0, pt: { xs: 5, md: 7 } }} />
+
+          {/* Last thing on the hub, below the tiles and below the copy.
+
+              Not between the tiles: they are a grid of tap targets, and a unit in that flow
+              invites the mis-taps AdSense counts as invalid traffic. Renders nothing until
+              VITE_AD_SLOT_HOME is set. */}
+          <AdSlot slot="home" ready={hasEditorial} minHeight={120} sx={{ mt: 5 }} />
         </Container>
       </Box>
     </Box>

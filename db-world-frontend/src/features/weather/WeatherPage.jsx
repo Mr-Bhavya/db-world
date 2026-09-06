@@ -8,6 +8,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { Aurora, GlassPanel } from '@shared/ui/surfaces';
+import AdSlot from '@shared/ads/AdSlot';
+import EditorialSections from '@shared/content/EditorialSections';
+import { pageContent, pageMeta } from '@shared/content/siteContent';
 import Map from './Map';
 import useWeatherLocation, { LocationError, LocationPermission } from './useWeatherLocation';
 import { usePlaceSearch, useWeather } from './weatherApi';
@@ -44,11 +47,14 @@ const fade = (reduce, delay = 0) => ({
 });
 
 export default function WeatherPage() {
-  usePageMeta('Weather', {
-    description: 'Live local weather, hourly and 5-day forecasts, and air quality on DB World.',
+  // From the shared content file so the crawler's copy and this one cannot drift.
+  usePageMeta(pageMeta('weather').title, {
+    description: pageMeta('weather').description,
+    exact: true,
   });
 
   const T = useT();
+  const hasEditorial = Boolean(pageContent('weather')?.sections?.length);
   const reduce = useReducedMotion();
   const geo = useWeatherLocation();
 
@@ -314,6 +320,20 @@ export default function WeatherPage() {
               </motion.div>
             </>
           )}
+
+          {/* Reference copy: what the index bands mean, what each reading on the page
+              is measuring, and why the hourly and five-day views disagree.
+
+              Outside the `data &&` block on purpose — it is true regardless of whether
+              a forecast loaded, so a reader who arrives with location denied or the API
+              down still gets a page worth reading instead of an error card. It is also
+              what makes an ad unit permissible here at all: a weather widget on its own
+              is a screen without publisher content. */}
+          <EditorialSections page="weather" />
+
+          {/* Below the reference copy, gated on it — never over the skeleton or an
+              error card. */}
+          <AdSlot slot="weather" ready={hasEditorial} minHeight={120} />
         </Box>
       </Container>
     </Box>

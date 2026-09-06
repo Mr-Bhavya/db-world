@@ -5,8 +5,10 @@ import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.content.SiteContentService;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +34,13 @@ class SeoRenderControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new SeoRenderController(recordRepository, ipoListingRepository);
+        // A REAL SiteContentService, not a mock: it reads the actual site-content.json
+        // off the test classpath, so these tests also prove the shipped copy parses and
+        // renders. A mock would let a malformed content file through to production —
+        // and the content file is the whole point of the change these tests cover.
+        var siteContent = new SiteContentService(new ObjectMapper());
+
+        controller = new SeoRenderController(recordRepository, ipoListingRepository, siteContent);
         ReflectionTestUtils.setField(controller, "publicBaseUrl", BASE);
     }
 
@@ -212,5 +220,93 @@ class SeoRenderControllerTest {
         assertThat(controller.ipoIndex().getBody())
                 .contains("href=\"https://db-world.in/db-world/db-ipo/acme-industries\"")
                 .contains("Acme Industries IPO");
+    }
+
+    /* ===============================
+       ADSENSE REMEDIATION (September 2026)
+
+       Google rejected the site for "low value content" and for serving ads on screens
+       with no publisher content. These lock in the three things that fixed it, because
+       every one of them is easy to undo by accident.
+       =============================== */
+
+    @Test
+    void recordPagesAreNoindexButStillFollowed() {
+        TmdbEntity t = tmdb("Inception", "A thief who steals corporate secrets.");
+        when(recordRepository.findByIdWithTmdb(1L))
+                .thenReturn(Optional.of(record(1L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED, t)));
+
+        // Every word on a record page comes from TMDB. ~2,300 of them were 89% of the
+        // sitemap and the clearest reason Google called the site low value.
+        // `follow` matters as much as `noindex`: the links out still have to count.
+        assertThat(controller.record("movie", 1L).getBody())
+                .contains("<meta name=\"robots\" content=\"noindex,follow\">");
+    }
+
+    @Test
+    void catalogIndexCarriesTheEditorialCopy() {
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of());
+
+        // Without this the browse page is a bare list of film titles — which is exactly
+        // what Google assessed. The copy must come through even with an empty catalogue.
+        var req = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/seo/browse");
+        assertThat(controller.catalogIndex(req).getBody())
+                .contains("How the catalogue is organised")
+                .contains("<dt>HDR</dt>");
+    }
+
+    @Test
+    void ipoIndexCarriesTheFaqAndGlossary() {
+        when(ipoListingRepository.findAll()).thenReturn(List.of());
+
+        // The FAQ and the 24-term glossary are the best-written content on the site and
+        // a crawler could not see a word of them: this page used to be company names.
+        assertThat(controller.ipoIndex().getBody())
+                .contains("Common questions about IPOs")
+                .contains("What is GMP (Grey Market Premium)?")
+                .contains("IPO terms explained")
+                .contains("<dt>ASBA</dt>");
+    }
+
+    @Test
+    void editorialPagesRenderRealContent() {
+        // These four served the crawler a 5 KB SPA shell with zero words, while sitting
+        // in robots.txt and the sitemap the whole time.
+        for (String key : List.of("home", "weather", "games", "about")) {
+            String html = controller.editorialPage(key).getBody();
+
+            assertThat(html)
+                    .as("editorial page: %s", key)
+                    .contains("<h1>")
+                    .contains("<h2>")
+                    .contains("<link rel=\"canonical\"");
+
+            // The generic shell appends " — DB World"; these titles are authored whole
+            // and already carry the brand, so it must not be appended twice.
+            assertThat(html)
+                    .as("brand is not doubled in the title of: %s", key)
+                    .doesNotContain("— DB World</title>");
+        }
+    }
+
+    @Test
+    void editorialPagesRenderEnoughToBeWorthCrawling() {
+        // A word count, not a smoke test. "Low value content" is a judgement about
+        // substance, so the guard has to be about substance — a page that renders its
+        // tags but has been hollowed out to a sentence would pass every check above.
+        for (String key : List.of("home", "weather", "games", "about")) {
+            String text = controller.editorialPage(key).getBody().replaceAll("<[^>]+>", " ");
+
+            assertThat(text.trim().split("\\s+"))
+                    .as("word count of editorial page: %s", key)
+                    .hasSizeGreaterThan(250);
+        }
+    }
+
+    @Test
+    void unknownEditorialPageIs404() {
+        // Rather than an empty 200, which is a soft-404 and exactly the kind of thin
+        // page this whole exercise is removing.
+        assertThat(controller.editorialPage("no-such-page").getStatusCode().value()).isEqualTo(404);
     }
 }

@@ -51,12 +51,28 @@ export default defineConfig(({ mode }) => {
         '@assets':   path.resolve(__dirname, './src/assets'),
         '@platform': path.resolve(__dirname, './src/platform'),
         '@styles':   path.resolve(__dirname, './src/styles'),
+
+        // The public site's editorial copy, shared with the backend.
+        //
+        // It lives in backend resources because SeoRenderController serves the same
+        // words to crawlers from the classpath, and dynamic rendering is only
+        // legitimate while both sides say the same thing — two copies would drift
+        // within a release and make it cloaking. Imported (not fetched), so it is
+        // inlined at build time and costs no request.
+        //
+        // Every CI job runs a full `actions/checkout` and only sets
+        // `working-directory`, so the sibling directory is always present.
+        '@content':  path.resolve(__dirname, '../db-world-backend/src/main/resources/site-content.json'),
       },
     },
 
     server: {
       host: true,   // bind 0.0.0.0 → reachable from other devices on the same network
       port: 3000,
+      // @content resolves outside the Vite root, which the dev server blocks by
+      // default. Allow the repo root so `npm run dev` can serve it; the production
+      // build inlines the JSON and never consults this.
+      fs: { allow: [path.resolve(__dirname, '..')] },
       proxy: {
         '/api': {
           target: env.VITE_API_BASE_URL,

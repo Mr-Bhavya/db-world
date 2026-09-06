@@ -17,9 +17,25 @@ Allow: /db-world/db-weather
 # robots resolves conflicts by specificity, so this narrows it rather than
 # reopening the whole password manager.
 Allow: /db-world/db-password-manager/generate-password
+Allow: /db-world/about
 Allow: /db-world/privacy
 Allow: /db-world/terms
 Allow: /db-world/contact
+
+# ─────────────────────────────────────────────────────────────
+# RECORD PAGES: crawl, but do not index.
+#
+# They are NOT disallowed, and that is deliberate. Every word on one comes from
+# TMDB, so ~2,300 of them are scraped metadata at scale — which is what Google's
+# September 2026 AdSense review meant by "low value content", and they are gone
+# from the sitemap for that reason. But a Disallow would be the wrong tool: it
+# blocks the fetch, so Google never sees the noindex it would need to obey, and
+# it also cuts the links from a record page through to its collection and genre
+# pages. SeoRenderController sends `noindex,follow` instead, which needs the
+# crawl to happen.
+#
+# Ads still serve on them: AdSense does not require a page to be indexed.
+# ─────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────
 # PRIVATE — acting on a record. All of these redirect to login,

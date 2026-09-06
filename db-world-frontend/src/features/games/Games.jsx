@@ -7,6 +7,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { Aurora, GlassPanel } from '@shared/ui/surfaces';
+import AdSlot from '@shared/ads/AdSlot';
+import EditorialSections from '@shared/content/EditorialSections';
+import { pageContent, pageMeta } from '@shared/content/siteContent';
 import { GAMES } from './gamesData';
 
 /**
@@ -112,12 +115,15 @@ function GameCard({ game, index, reduce }) {
 }
 
 export default function Games() {
-  usePageMeta('Games', {
-    description: 'Play Minesweeper, Connect Four, 2048, Snake, Memory Match and Tic Tac Toe on DB World.',
+  // From the shared content file so the crawler's copy and this one cannot drift.
+  usePageMeta(pageMeta('games').title, {
+    description: pageMeta('games').description,
+    exact: true,
   });
 
   const T = useT();
   const reduce = useReducedMotion();
+  const hasEditorial = Boolean(pageContent('games')?.sections?.length);
 
   return (
     <Box
@@ -159,8 +165,11 @@ export default function Games() {
               >
                 Arcade
               </Typography>
+              {/* Was "No account, no ads, no waiting" — this page now carries a display
+                  unit below the fold, so that claim would be untrue. The games
+                  themselves stay ad-free, which is the promise worth keeping. */}
               <Typography sx={{ fontSize: 'clamp(0.82rem, 2.6vw, 0.95rem)', color: T.textMuted, mt: 0.35 }}>
-                {GAMES.length} classics. No account, no ads, no waiting.
+                {GAMES.length} classics. No account, no download, no waiting.
               </Typography>
             </Box>
           </Box>
@@ -181,6 +190,17 @@ export default function Games() {
         <Typography sx={{ mt: 4, textAlign: 'center', fontSize: '0.74rem', color: T.textFaint }}>
           Scores are kept on this device only — nothing is uploaded.
         </Typography>
+
+        {/* Rules and strategy for each of the six games.
+
+            A grid of cards that link into games is a navigation screen, which is one of
+            the things AdSense rejected this site for. This is the content that makes the
+            page worth landing on — and the ad below is gated on it. Deliberately on the
+            HUB and not inside a game: a unit beside a live board is both a mis-click
+            magnet and an interruption. */}
+        <EditorialSections page="games" />
+
+        <AdSlot slot="games" ready={hasEditorial} minHeight={120} />
       </Container>
     </Box>
   );

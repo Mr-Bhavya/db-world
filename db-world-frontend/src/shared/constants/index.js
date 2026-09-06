@@ -74,6 +74,7 @@ export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 export const RESET_PASSWORD_ROUTE = "/reset-password";
 export const VERIFY_EMAIL_ROUTE   = "/verify-email";
 
+export const DB_ABOUT_ROUTE   = `${DB_WORLD_HOME_ROUTE}/about`;
 export const DB_PRIVACY_ROUTE = `${DB_WORLD_HOME_ROUTE}/privacy`;
 export const DB_TERMS_ROUTE   = `${DB_WORLD_HOME_ROUTE}/terms`;
 export const DB_CONTACT_ROUTE = `${DB_WORLD_HOME_ROUTE}/contact`;
@@ -239,6 +240,7 @@ export default {
   playerPath,
   DB_PLAYER_DEMO_ROUTE,
 
+  DB_ABOUT_ROUTE,
   DB_PRIVACY_ROUTE,
   DB_TERMS_ROUTE,
   DB_CONTACT_ROUTE,

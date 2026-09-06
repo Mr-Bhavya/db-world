@@ -151,9 +151,25 @@ public class SitemapController {
         url(xml, publicBaseUrl + "/db-world/terms",   null, "yearly", "0.3");
         url(xml, publicBaseUrl + "/db-world/contact", null, "yearly", "0.3");
 
-        for (RecordEntity record : publicRecords) {
-            url(xml, canonicalUrl(record), lastModOf(record), "weekly", "0.8");
-        }
+        // The "About" page — the only one of these with prose written for it rather
+        // than assembled from a table.
+        url(xml, publicBaseUrl + "/db-world/about", null, "monthly", "0.5");
+
+        // RECORD PAGES ARE DELIBERATELY NOT LISTED.
+        //
+        // There are ~2,300 of them and they were 89% of this file. Every word on one
+        // comes from TMDB — synopsis, genres, cast — so as a body of content they are
+        // scraped metadata at scale, which is what Google's September 2026 AdSense
+        // review meant by "low value content". Submitting them was actively asking to
+        // be judged on them.
+        //
+        // They keep working in every other respect: reachable, shareable, ad-eligible,
+        // and still crawlable through the browse and genre pages that link them —
+        // SeoRenderController marks them noindex,follow rather than blocking them. The
+        // browse and genre pages above are what should carry this section in search,
+        // because those have writing of our own on them.
+        //
+        // Put them back per record when a page has something to say that TMDB did not.
 
         for (IpoListingEntity ipo : ipos) {
             url(xml,
@@ -281,15 +297,10 @@ public class SitemapController {
            .append("  </url>\n");
     }
 
-    private String canonicalUrl(RecordEntity record) {
-        String segment = record.getType() == RecordType.TV_SERIES ? "series" : "movie";
-        String title = record.getTmdb() != null && record.getTmdb().getTitle() != null
-                ? record.getTmdb().getTitle()
-                : record.getName();
-        String slug = slugify(title);
-        String param = slug.isEmpty() ? String.valueOf(record.getId()) : record.getId() + "-" + slug;
-        return publicBaseUrl + "/db-world/db-cinema/" + segment + "/" + param;
-    }
+    // canonicalUrl(RecordEntity) lived here and built a record's public URL. It went
+    // when the record loop did — the sitemap no longer lists individual titles. The
+    // equivalent still exists in SeoRenderController#recordUrl, which needs it for the
+    // canonical link on the record page itself.
 
     private String slugify(String raw) {
         if (raw == null || raw.isBlank()) return "";

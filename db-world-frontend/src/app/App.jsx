@@ -39,6 +39,7 @@ import BiometricGate from '@features/auth/BiometricGate';
 import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import AppLockGate from '@features/auth/AppLockGate';
 import { useAppLinks } from '@shared/deeplink/useAppLinks';
+import useCanonicalUrl from '@shared/hooks/useCanonicalUrl';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -85,6 +86,7 @@ import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
 const ContactPage    = lazy(() => import('@features/legal/Contact'));
+const AboutPage      = lazy(() => import('@features/legal/About'));
 
 const Weather     = lazy(() => import('@features/weather/WeatherPage'));
 const Games       = lazy(() => import('@features/games/Games'));
@@ -225,6 +227,7 @@ const routeConfig = {
 
     // Legal pages. Public and linked from the footer — AdSense will not approve a
     // site without them, and a reviewer must be able to reach them signed out.
+    { path: Constants.DB_ABOUT_ROUTE,   element: <AboutPage /> },
     { path: Constants.DB_PRIVACY_ROUTE, element: <PrivacyPolicy /> },
     { path: Constants.DB_TERMS_ROUTE,   element: <TermsOfService /> },
     { path: Constants.DB_CONTACT_ROUTE, element: <ContactPage /> },
@@ -287,6 +290,11 @@ const ThemedApp = () => {
   // A tapped https://db-world.in/db-world/… link (Android App Links) routes into
   // the SPA instead of bouncing to the browser. No-op on web.
   useAppLinks(navigate);
+
+  // Self-referencing <link rel="canonical"> per route. App-wide rather than per page:
+  // the shell had no canonical at all, which is half of why Search Console reported
+  // www.db-world.in as a duplicate it could not resolve.
+  useCanonicalUrl();
 
   // A download-notification tap persists a one-shot route flag natively (see
   // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the

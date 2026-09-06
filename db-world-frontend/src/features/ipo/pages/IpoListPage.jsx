@@ -229,8 +229,13 @@ export default function IpoListPage() {
       )}
 
       {/* Below the grid, above the explainer blocks — in view only after the visitor
-          has actually read the list, which is where AdSense wants a display unit. */}
-      <AdSlot slot="ipoList" minHeight={120} />
+          has actually read the list, which is where AdSense wants a display unit.
+
+          `ready` is load-bearing, not decoration: this slot sits OUTSIDE the
+          conditional above, so before the gate existed it also rendered over the
+          skeleton grid and over the "No IPOs found" card. An ad on an empty-state
+          card is precisely the screen-without-content AdSense rejected the site for. */}
+      <AdSlot slot="ipoList" ready={!isLoading && ipos.length > 0} minHeight={120} />
 
       <WhyUseThis />
       <IpoLearn />
