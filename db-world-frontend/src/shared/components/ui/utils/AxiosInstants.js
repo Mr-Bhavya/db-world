@@ -47,6 +47,45 @@ const NO_TOKEN_PATHS = [
   '/api/wallet/shared/',
 ];
 
+/**
+ * Endpoints that cannot succeed without a session, so a signed-out caller is not
+ * allowed to make the request at all.
+ *
+ * Opening the browse surface to anonymous visitors left several components fetching
+ * user-scoped data regardless of whether anyone was signed in. One day of access log
+ * showed 945 × 401 — 449 on media-info, 366 on reviews/mine — every one a full round
+ * trip to the Pi that could only ever fail. Real clients accounted for 110 of them,
+ * so this is not just crawler noise.
+ *
+ * Each entry below was verified against that log as returning 200 for authenticated
+ * callers and 401 otherwise, i.e. genuinely auth-only rather than sometimes-public.
+ * Adding a PUBLIC path here would break anonymous browsing, so verify the same way
+ * before extending it.
+ *
+ * THIS IS NOT A SECURITY BOUNDARY. The backend's own matchers remain the only thing
+ * that decides access; this exists to stop the app asking questions it already knows
+ * the answer to. Never rely on it to protect anything.
+ *
+ * Deliberately absent:
+ *   /api/track/events — analytics. It 401s for anonymous visitors, which means the
+ *     browse surface's anonymous traffic is not being measured at all. Gating it
+ *     would hide that rather than fix it; it wants making public instead.
+ */
+const AUTH_ONLY_PATHS = [
+  '/api/cinema/reviews/mine',
+  '/api/cinema/catalog-requests/mine',
+  '/api/cinema/progress/',
+  '/api/notifications/',
+  '/api/push/register',
+  // Powers the hero's resolution/HDR/audio badges. Auth-only today, which is why a
+  // signed-out visitor never sees them even though the catalogue copy explains what
+  // they mean — worth making public rather than leaving gated.
+  '/api/stream/media-info/',
+];
+
+/** Marker so callers and error reporting can tell this from a real network failure. */
+export const SKIPPED_UNAUTHENTICATED = 'SKIPPED_UNAUTHENTICATED';
+
 /** Header native clients use to present the refresh token they hold in secure storage. */
 const REFRESH_TOKEN_HEADER = 'X-Refresh-Token';
 
@@ -144,10 +183,27 @@ axiosInstance.interceptors.request.use((config) => {
   config.headers['X-Client-Platform'] = clientPlatform();
 
   const isPublic = NO_TOKEN_PATHS.some(p => config.url?.includes(p));
-  if (!isPublic) {
-    const token = getAccessToken();
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = isPublic ? null : getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  // Never signed in and the endpoint needs a session: fail here rather than spending
+  // a round trip on a guaranteed 401. Callers see a rejected promise either way, so
+  // this is behaviourally the same as the 401 they already handle — just free.
+  //
+  // `hasStoredSession()` is load-bearing and NOT redundant with the token check. The
+  // access token lives in memory only, so a signed-in user who reloads the page has
+  // no token until the boot refresh completes. Skipping on `!token` alone would
+  // abandon their requests during that window — and unlike a 401, a local rejection
+  // never reaches the response interceptor that refreshes and retries. The marker is
+  // what separates "token lost to a reload" from "never signed in"; only the latter
+  // is safe to short-circuit.
+  if (!token && !hasStoredSession() && AUTH_ONLY_PATHS.some(p => config.url?.includes(p))) {
+    const skipped = new Error(`Not signed in - skipped ${config.url}`);
+    skipped.code = SKIPPED_UNAUTHENTICATED;
+    skipped.config = config;
+    return Promise.reject(skipped);
   }
+
   return config;
 }, Promise.reject);
 
