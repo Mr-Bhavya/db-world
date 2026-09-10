@@ -81,7 +81,7 @@ class SitemapControllerTest {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED),
                 record(456L, "Breaking Bad", RecordType.TV_SERIES, RecordVisibility.PUBLISHED)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // Deliberate, and the single biggest lever on the "low value content" verdict
         // Google returned in September 2026: every word on a record page comes from
@@ -98,7 +98,7 @@ class SitemapControllerTest {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED),
                 record(456L, "Breaking Bad", RecordType.TV_SERIES, RecordVisibility.PUBLISHED)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         String xml = xml();
 
@@ -118,7 +118,7 @@ class SitemapControllerTest {
     void unlistedRecordsStillCountTowardsTheLandingPages() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 dated(7L, "Deep Cut", Instant.parse("2026-04-09T10:00:00Z"), null, null)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // This used to assert that an UNLISTED record got its own sitemap entry. No
         // record gets one any more. What survives is that such a title still moves the
@@ -133,7 +133,7 @@ class SitemapControllerTest {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of());
         IpoListingEntity ipo = new IpoListingEntity();
         ipo.setId("acme-industries");
-        when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of(ipo));
 
         assertThat(xml()).contains("<loc>https://db-world.in/db-ipo/acme-industries</loc>");
     }
@@ -146,7 +146,7 @@ class SitemapControllerTest {
     void draftRecordsAreNeverListed() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(999L, "Unreleased Thing", RecordType.MOVIE, RecordVisibility.DRAFT)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         String xml = xml();
 
@@ -158,7 +158,7 @@ class SitemapControllerTest {
     void recordWithNullVisibilityIsSkippedRatherThanThrowing() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(5L, "Legacy Row", RecordType.MOVIE, null)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         assertThat(xml()).doesNotContain("legacy-row");
     }
@@ -177,7 +177,7 @@ class SitemapControllerTest {
         r.getTmdb().setGenres(List.of(genre(878L, "Sci-Fi & Fantasy")));
 
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(r));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         assertThat(xml())
                 .contains("/db-cinema/movie/genre/878-sci-fi-fantasy")
@@ -195,7 +195,7 @@ class SitemapControllerTest {
                         Instant.parse("2026-03-15T10:00:00Z"),
                         Instant.parse("2026-08-01T10:00:00Z"),
                         Instant.parse("2026-01-01T10:00:00Z"))));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // publishedAt wins over updatedAt on purpose: updatedAt is touched by every
         // TMDB re-sync even when the page has not changed.
@@ -205,7 +205,7 @@ class SitemapControllerTest {
 
     @Test
     void fallsBackToUpdatedAtThenCreatedAtForRowsPredatingPublishedAt() {
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // One record per case, asserted separately. Before record URLs left the sitemap
         // both fallbacks could be checked in a single pass, because each record carried
@@ -228,7 +228,7 @@ class SitemapControllerTest {
     void omitsLastModEntirelyWhenNoDateIsKnown() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 dated(1L, "Undated", null, null, null)));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // An invented date is worse than an absent one - Google stops trusting the
         // field if it moves without the page changing.
@@ -245,7 +245,7 @@ class SitemapControllerTest {
                         .visibility(RecordVisibility.PUBLISHED).tmdb(tmdb("A Series"))
                         .publishedAt(Instant.parse("2026-04-04T10:00:00Z"))
                         .build()));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         String xml = xml();
 
@@ -268,7 +268,7 @@ class SitemapControllerTest {
                         .visibility(RecordVisibility.DRAFT).tmdb(tmdb("Draft"))
                         .publishedAt(Instant.parse("2026-09-09T10:00:00Z"))
                         .build()));
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         assertThat(xml()).doesNotContain("2026-09-09");
     }
@@ -278,7 +278,7 @@ class SitemapControllerTest {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of());
         IpoListingEntity blank = new IpoListingEntity();
         blank.setId("  ");
-        when(ipoListingRepository.findAll()).thenReturn(List.of(blank));
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of(blank));
 
         assertThat(xml()).doesNotContain("/db-ipo/  ");
     }

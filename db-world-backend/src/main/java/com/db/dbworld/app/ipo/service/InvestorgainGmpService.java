@@ -93,10 +93,23 @@ public class InvestorgainGmpService {
 
     /** Cap on list pages walked per refresh (the report returns 500/page, so realistically one). */
     private static final int MAX_PAGES = 10;
-    /** Cap on per-IPO GMP fetches per refresh — only spent on IPOs that matched a tracked listing. */
-    private static final int MAX_GMP_FETCHES = 30;
-    /** Cap on per-IPO subscription fetches per refresh — only spent on matched, tracked listings. */
-    private static final int MAX_SUB_FETCHES = 30;
+    /**
+     * Fallback cap on per-IPO fetches per refresh, used when {@code ipo.investorgain.fetch-budget}
+     * is unset. Only ever spent on IPOs that matched a tracked listing. The budget is no longer the
+     * thing that decides WHO gets data — {@link #matchTracked} rotates by staleness so every
+     * tracked IPO comes round — it now only decides how fast the rotation turns.
+     */
+    private static final int DEFAULT_FETCH_BUDGET = 30;
+    /** Rotation depth (in passes) past which the budget is warned about rather than just reported. */
+    private static final int ROTATION_LAG_WARN_PASSES = 4;
+
+    // Refresh priority tiers, spent in this order. GMP moves fastest while an issue is live and is
+    // settled once it has listed, so freshness is worth the most at the top of this list.
+    private static final int TIER_BIDDING = 0;            // open <= today <= close
+    private static final int TIER_UPCOMING = 1;           // announced, opens later
+    private static final int TIER_UNSCHEDULED = 2;        // no usable dates yet
+    private static final int TIER_AWAITING_LISTING = 3;   // closed, not yet listed
+    private static final int TIER_LISTED = 4;             // listed - numbers no longer move
     /** Recent-listing window used when {@code ipo.list.hide-listed-after-days} is 0 ("never hide"). */
     private static final int DEFAULT_RECENT_LISTING_DAYS = 30;
 
@@ -202,15 +215,23 @@ public class InvestorgainGmpService {
     public int refreshGmp() {
         Instant now = clock.instant();
         try {
+            int fetchBudget = fetchBudget();
             List<Matched> candidates = matchTracked(fetchListings());
-            warnIfBudgetStarves("GMP", candidates, MAX_GMP_FETCHES);
+            logRotation("GMP", candidates, fetchBudget);
             int updated = 0;
-            int budget = MAX_GMP_FETCHES;
+            int budget = fetchBudget;
             for (Matched matched : candidates) {
                 if (budget <= 0) {
                     break;
                 }
                 budget--;
+
+                // Stamp the rotation cursor on the ATTEMPT, not on success. An IPO whose detail
+                // fetch keeps coming back empty would otherwise stay permanently stale, sit at the
+                // head of the queue every pass, and spend the budget that the IPOs behind it are
+                // waiting for — reintroducing the starvation this ordering exists to fix.
+                matched.entity().setGmpRefreshedAt(now);
+                listingRepo.save(matched.entity());
 
                 List<GmpPoint> points = fetchGmp(matched.listing().id());
                 if (points.isEmpty()) {
@@ -223,7 +244,7 @@ public class InvestorgainGmpService {
 
             pollService.recordSuccess(SOURCE, now);
             log.info("investorgain GMP refresh: matched={} budget={} updated={}",
-                    candidates.size(), MAX_GMP_FETCHES, updated);
+                    candidates.size(), fetchBudget, updated);
             return updated;
         } catch (Exception e) {
             log.warn("investorgain GMP refresh failed: {}", e.toString());
@@ -242,10 +263,11 @@ public class InvestorgainGmpService {
     @Transactional
     public int refreshSubscription() {
         try {
+            int fetchBudget = fetchBudget();
             List<Matched> candidates = matchTracked(fetchListings());
-            warnIfBudgetStarves("subscription", candidates, MAX_SUB_FETCHES);
+            logRotation("subscription", candidates, fetchBudget);
             int updated = 0;
-            int budget = MAX_SUB_FETCHES;
+            int budget = fetchBudget;
             for (Matched matched : candidates) {
                 Listing listing = matched.listing();
                 IpoListingEntity entity = matched.entity();
@@ -272,7 +294,7 @@ public class InvestorgainGmpService {
                 updated++;
             }
             log.info("investorgain subscription refresh: matched={} budget={} updated={}",
-                    candidates.size(), MAX_SUB_FETCHES, updated);
+                    candidates.size(), fetchBudget, updated);
             return updated;
         } catch (Exception e) {
             log.warn("investorgain subscription refresh failed: {}", e.toString());
@@ -403,16 +425,27 @@ public class InvestorgainGmpService {
     record Matched(Listing listing, IpoListingEntity entity) {}
 
     /**
-     * Resolves the report rows to the listings we actually track, MOST RECENTLY OPENING FIRST.
+     * Resolves the report rows to the listings we actually track and orders them so the per-pass
+     * fetch budget ROTATES instead of repeatedly buying the same rows.
      *
-     * <p>The ordering is what makes the per-refresh fetch budgets ({@link #MAX_GMP_FETCHES} /
-     * {@link #MAX_SUB_FETCHES}) land somewhere useful. The report covers the WHOLE financial year,
-     * so in a busy season the matched set is several times the budget — spending it in the report's
-     * own arbitrary row order meant the 30 calls could go entirely to issues that listed months ago
-     * while the currently-open and just-listed ones (the ones on screen) were left with no GMP and
-     * no subscription at all. Sorting by open date descending puts upcoming and just-opened issues
-     * at the front and long-settled ones last, so the budget always covers what users are looking
-     * at; rows with no open date sort last (they're the least identifiable anyway).
+     * <p>This ordering used to be "most recently opening first", and the budget took a fixed prefix
+     * of it. Because both the ordering and the candidate set are stable from pass to pass, that
+     * meant the same 30 IPOs won every single time and the ~50 behind them were refreshed NEVER,
+     * not merely late — four consecutive polls in production produced a byte-identical starved list.
+     * Worse, an IPO with no announced open date sorted last permanently, so exactly the big
+     * upcoming names people search for could never acquire a GMP at all.
+     *
+     * <p>The replacement is two-level:
+     * <ol>
+     *   <li><b>Priority tier</b> ({@link #priorityTier}) — how much anyone is likely to be looking
+     *       at this IPO right now. Open issues first, then upcoming, then awaiting listing, then
+     *       recently listed. This preserves the original intent: the on-screen set is never starved
+     *       by the archive.</li>
+     *   <li><b>Staleness within the tier</b> — least-recently-fetched first, never fetched first of
+     *       all. This is what makes it a rotation: a row that loses this pass has moved to the front
+     *       of its tier by the next one, so the wait for any tracked IPO is bounded by
+     *       {@code ceil(tierSize / budget)} passes rather than being unbounded.</li>
+     * </ol>
      */
     private List<Matched> matchTracked(List<Listing> listings) {
         // Resolution (stored investorgain id → exact squashed name → name prefix) lives in
@@ -428,9 +461,44 @@ public class InvestorgainGmpService {
                 matched.add(new Matched(listing, entity));
             }
         }
-        matched.sort(Comparator.comparing(m -> m.listing().openDate(),
-                Comparator.nullsLast(Comparator.reverseOrder())));
+        matched.sort(Comparator
+                .<Matched>comparingInt(m -> priorityTier(m.entity()))
+                .thenComparing(m -> m.entity().getGmpRefreshedAt(),
+                        Comparator.nullsFirst(Comparator.naturalOrder()))
+                // Final tie-break so the order is total and therefore reproducible: two rows that
+                // have never been fetched are otherwise equal, and an unstable order between them
+                // would let the same one lose the budget race repeatedly.
+                .thenComparing(m -> m.entity().getId(), Comparator.nullsLast(Comparator.naturalOrder())));
         return matched;
+    }
+
+    /**
+     * How urgently this IPO needs fresh numbers, lower first. Judged from its own dates rather than
+     * its stored status, so a row whose status has not been re-derived yet is still tiered
+     * correctly.
+     */
+    private int priorityTier(IpoListingEntity entity) {
+        LocalDate today = LocalDate.now(clock.withZone(IST));
+        LocalDate open = entity.getOpenDate();
+        LocalDate close = entity.getCloseDate();
+        LocalDate listing = entity.getListingDate();
+
+        if (open != null && !open.isAfter(today) && close != null && !close.isBefore(today)) {
+            return TIER_BIDDING;
+        }
+        if (open != null && open.isAfter(today)) {
+            return TIER_UPCOMING;
+        }
+        if (listing != null && listing.isBefore(today)) {
+            return TIER_LISTED;
+        }
+        if (close != null && close.isBefore(today)) {
+            return TIER_AWAITING_LISTING;
+        }
+        // Anything left has no usable schedule: no dates at all, or an open date with no close
+        // date, which cannot be read as "still bidding" — an issue that opened in April is not
+        // open in July just because nobody told us when it closed.
+        return TIER_UNSCHEDULED;
     }
 
     /**
@@ -457,20 +525,38 @@ public class InvestorgainGmpService {
     }
 
     /**
-     * Warns when more tracked IPOs matched than the pass can fetch, naming the ones that lose out.
-     * They're the tail of the (newest-open-date-first) list, so they're the least topical — but this
-     * is still the reason a given IPO can show no GMP or no subscription, and the signal that the
-     * budget needs raising.
+     * Reports how far round the rotation this pass gets. Deliberately no longer a WARN listing
+     * every skipped company: under the old fixed-prefix ordering that list was a genuine alarm
+     * (those IPOs were never coming back), but with staleness ordering a deferred row is simply
+     * next in line, so naming all fifty of them every pass was pure log noise. What is worth
+     * knowing is the rotation depth — how many passes it now takes to come round — and that is one
+     * number.
+     *
+     * <p>It stays a WARN past {@link #ROTATION_LAG_WARN_PASSES} because a rotation that slow means
+     * on-screen numbers can be most of a day old, which is the point at which the budget genuinely
+     * does need raising.
      */
-    private static void warnIfBudgetStarves(String what, List<Matched> candidates, int budget) {
+    private static void logRotation(String what, List<Matched> candidates, int budget) {
         if (candidates.size() <= budget) {
+            log.debug("investorgain {}: {} tracked IPOs matched, all within the {}-fetch budget",
+                    what, candidates.size(), budget);
             return;
         }
-        List<String> skipped = candidates.subList(budget, candidates.size()).stream()
-                .map(m -> m.listing().companyName())
-                .toList();
-        log.warn("investorgain {}: {} tracked IPOs matched but the per-pass budget is {} — no {} "
-                + "fetched this pass for: {}", what, candidates.size(), budget, what, skipped);
+        int passesToComeRound = (int) Math.ceil((double) candidates.size() / Math.max(1, budget));
+        String message = "investorgain {}: {} tracked IPOs matched against a {}-fetch budget — "
+                + "rotating least-recently-refreshed first, so every IPO comes round within ~{} passes";
+        if (passesToComeRound > ROTATION_LAG_WARN_PASSES) {
+            log.warn(message + " (slow — consider raising ipo.investorgain.fetch-budget)",
+                    what, candidates.size(), budget, passesToComeRound);
+        } else {
+            log.info(message, what, candidates.size(), budget, passesToComeRound);
+        }
+    }
+
+    /** Per-pass per-IPO fetch cap, live-configurable so the rotation can be sped up without a deploy. */
+    private int fetchBudget() {
+        long configured = settingsService.getLong(ConfigKeys.IPO_INVESTORGAIN_FETCH_BUDGET);
+        return configured > 0 ? (int) configured : DEFAULT_FETCH_BUDGET;
     }
 
     /** One dashboard row reduced to what we need to match it to a tracked listing + enrich it

@@ -202,6 +202,14 @@ public class SeoRenderController {
     public ResponseEntity<String> ipo(@PathVariable String id) {
 
         IpoListingEntity ipo = ipoListingRepository.findById(id).orElse(null);
+        // Follow a duplicate-merge tombstone to the row that survived. Links already shared and
+        // pushes already delivered carry whatever id existed at the time, so cleaning up duplicates
+        // must not 404 them. One hop is enough by construction (a survivor is only ever chosen from
+        // live rows), and the canonical below is rewritten to the survivor so search engines
+        // consolidate the two URLs rather than indexing both.
+        if (ipo != null && ipo.getMergedIntoId() != null) {
+            ipo = ipoListingRepository.findById(ipo.getMergedIntoId()).orElse(null);
+        }
         if (ipo == null) {
             return ResponseEntity.status(404)
                     .contentType(MediaType.TEXT_HTML)
@@ -211,7 +219,7 @@ public class SeoRenderController {
 
         String name = firstNonBlank(ipo.getCompanyName(), id);
         String heading = name + " IPO";
-        String canonical = publicBaseUrl + "/db-ipo/" + urlSafe(id);
+        String canonical = publicBaseUrl + "/db-ipo/" + urlSafe(ipo.getId());
 
         StringBuilder body = new StringBuilder();
         body.append("<h1>").append(esc(heading)).append("</h1>\n");
@@ -310,7 +318,8 @@ public class SeoRenderController {
             .append(siteContent.leadHtml("ipo"))
             .append("<ul>\n");
 
-        ipoListingRepository.findAll().stream()
+        // Live rows only -- a merged-away duplicate would list the same company twice.
+        ipoListingRepository.findAllLive().stream()
                 .filter(i -> i.getId() != null && !i.getId().isBlank())
                 .limit(INDEX_LIMIT)
                 .forEach(i -> body.append("  <li><a href=\"")

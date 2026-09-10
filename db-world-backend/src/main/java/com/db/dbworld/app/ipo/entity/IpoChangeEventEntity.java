@@ -8,7 +8,10 @@ import java.time.Instant;
 /** Audit trail of notable field changes detected during ingestion (e.g. GMP jump, status change). */
 @Entity
 @Table(schema = "db_world", name = "ipo_change_event",
-        indexes = @Index(name = "idx_ipo_change_event_ipo", columnList = "ipo_id"))
+        indexes = {
+                @Index(name = "idx_ipo_change_event_ipo", columnList = "ipo_id"),
+                @Index(name = "idx_ipo_change_event_pushed", columnList = "pushed_at")
+        })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class IpoChangeEventEntity {
 
@@ -42,4 +45,16 @@ public class IpoChangeEventEntity {
      */
     @Column(name = "notified_at")
     private Instant notifiedAt;
+
+    /**
+     * When a push for this event actually went out — null if it was handled but suppressed.
+     *
+     * <p>Distinct from {@code notifiedAt}, which only means "the queue is done with this row" and
+     * is stamped just as eagerly on a suppressed event as on a delivered one. That conflation is
+     * why volume control needs its own column: the per-IPO cooldown, the daily cap and the
+     * "compare against the last GMP we actually announced" test all have to count SENDS, and
+     * counting {@code notifiedAt} would count every silent drop as if it had buzzed a phone.
+     */
+    @Column(name = "pushed_at")
+    private Instant pushedAt;
 }

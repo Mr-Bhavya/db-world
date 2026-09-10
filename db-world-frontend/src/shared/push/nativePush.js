@@ -21,6 +21,11 @@ const mapPermission = (receive) => {
  */
 export const PUSH_CHANNELS = [
   { id: 'ipo',             name: 'IPO Tracker',     description: 'IPO open, closing, allotment & listing alerts', importance: 4 },
+  // Split out of 'ipo' on purpose. Grey-market premium moves all day, so it is the noisiest thing
+  // the app can send and the thing a user is most likely to want silenced — but on one shared
+  // channel, muting it also cost them allotment and listing alerts, which are the ones that matter.
+  // DEFAULT importance rather than HIGH: informational, never worth a heads-up interruption.
+  { id: 'ipo-gmp',         name: 'IPO grey-market premium', description: 'GMP movement alerts (off by default)',  importance: 3 },
   { id: 'cinema',          name: 'New content',     description: 'New movies & series added to the catalog',      importance: 3 },
   { id: 'admin',           name: 'Admin',           description: 'New requests & media ingestion status',         importance: 4 },
   { id: 'request-updates', name: 'Request updates', description: 'When your requests are fulfilled or dismissed', importance: 3 },

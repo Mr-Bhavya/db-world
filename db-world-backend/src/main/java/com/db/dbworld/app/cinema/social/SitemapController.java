@@ -100,7 +100,10 @@ public class SitemapController {
         Instant newestSeries = newestOf(publicRecords, RecordType.TV_SERIES);
         Instant newestAny    = latest(newestMovie, newestSeries);
 
-        List<IpoListingEntity> ipos = ipoListingRepository.findAll().stream()
+        // findAllLive, not findAll: a listing merged away as a duplicate is a tombstone whose id
+        // still resolves (the detail read follows it to the survivor), so emitting it here would
+        // publish two sitemap URLs for one company -- duplicate content pointing at one page.
+        List<IpoListingEntity> ipos = ipoListingRepository.findAllLive().stream()
                 .filter(i -> i.getId() != null && !i.getId().isBlank())
                 .toList();
 

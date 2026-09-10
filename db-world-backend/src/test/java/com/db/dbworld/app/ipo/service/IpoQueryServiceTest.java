@@ -325,6 +325,33 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void detail_idWasMergedAwayAsADuplicate_servesTheSurvivor() {
+        // Every push already delivered, every shared link and every "My IPOs" bookmark carries
+        // whatever id existed when it was created, and a duplicate merge retires one of those ids.
+        // Without this hop, tidying duplicates would 404 links that used to work.
+        IpoListingEntity tombstone = entity("1", "open", LocalDate.of(2026, 7, 20));
+        tombstone.setMergedIntoId("2");
+        IpoListingEntity survivor = entity("2", "open", LocalDate.of(2026, 7, 20));
+        when(listingRepository.findById("1")).thenReturn(Optional.of(tombstone));
+        when(listingRepository.findById("2")).thenReturn(Optional.of(survivor));
+
+        assertThat(service.detail("1").id()).isEqualTo("2");
+    }
+
+    @Test
+    void list_omitsRowsMergedAwayAsDuplicates() {
+        // The tombstone is always the emptier half of the pair, so leaving it in is precisely the
+        // "second card with no GMP" symptom the merge exists to remove.
+        IpoListingEntity live = entity("1", "open", LocalDate.of(2026, 7, 20));
+        IpoListingEntity merged = entity("2", "open", LocalDate.of(2026, 7, 20));
+        merged.setMergedIntoId("1");
+        when(listingRepository.findAll()).thenReturn(List.of(live, merged));
+
+        assertThat(service.list(null, null, null).ipos())
+                .extracting(IpoSummaryDto::id).containsExactly("1");
+    }
+
+    @Test
     void detail_aboutFieldsSurviveTheTimelineDateDerivationRebuild() {
         // detail() rebuilds a new IpoDetailDto by hand (withDerivedTimelineDates) whenever
         // refund/demat dates need deriving; that rebuild must carry every field forward,

@@ -21,8 +21,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -49,31 +51,42 @@ public class IpoIngestService {
     /** Indian IPO calendar zone — status boundaries (open/close/listing) flip at IST midnight. */
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
+    /**
+     * How far two open dates may drift and still be read as the SAME issue by the alias fallback.
+     * Wide enough for a real-world schedule revision (issuers routinely push an issue by a few
+     * days, and the feeds pick that up at different times), narrow enough that a company's SME
+     * issue and its later mainboard issue — identical name, months apart — stay two rows.
+     */
+    private static final int ALIAS_DATE_TOLERANCE_DAYS = 21;
+
     private final IpoListingRepository listingRepo;
     private final IpoGmpHistoryRepository gmpHistoryRepo;
     private final IpoSubscriptionHistoryRepository subHistoryRepo;
     private final IpoChangeEventRepository changeEventRepo;
     private final IpoFinancialRepository financialRepo;
     private final IpoMapper mapper;
+    private final IpoNormalizer normalizer;
     private final Clock clock;
 
     @Autowired
     public IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                              IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                             IpoFinancialRepository financialRepo, IpoMapper mapper) {
-        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, financialRepo, mapper, Clock.systemUTC());
+                             IpoFinancialRepository financialRepo, IpoMapper mapper, IpoNormalizer normalizer) {
+        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, financialRepo, mapper, normalizer,
+                Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                       IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                      IpoFinancialRepository financialRepo, IpoMapper mapper, Clock clock) {
+                      IpoFinancialRepository financialRepo, IpoMapper mapper, IpoNormalizer normalizer, Clock clock) {
         this.listingRepo = listingRepo;
         this.gmpHistoryRepo = gmpHistoryRepo;
         this.subHistoryRepo = subHistoryRepo;
         this.changeEventRepo = changeEventRepo;
         this.financialRepo = financialRepo;
         this.mapper = mapper;
+        this.normalizer = normalizer;
         this.clock = clock;
     }
 
@@ -104,10 +117,13 @@ public class IpoIngestService {
         IpoDto dto = withDerivedListingGain(withCloseCutoff(withOpenPromotion(
                 withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))))));
         Instant now = clock.instant();
-        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
+        String aliasKey = normalizer.aliasKey(dto.companyName());
+        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey())
+                .orElseGet(() -> resolveByAlias(aliasKey, dto));
 
         if (existing == null) {
             IpoListingEntity entity = mapper.toNewEntity(dto);
+            entity.setAliasKey(aliasKey);
             entity.setFirstSeenAt(now);
             entity.setLastSeenAt(now);
             IpoListingEntity saved = listingRepo.save(entity);
@@ -119,11 +135,76 @@ public class IpoIngestService {
 
         List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
         mapper.applyUpdatable(dto, existing);
+        // Keep the identity and the resolution key in step with the name/date we just accepted:
+        // when the alias fallback rescued this row from a revised open date, its stored matchKey
+        // still encodes the OLD date, and leaving it there would let the next poll miss on
+        // matchKey again and re-enter this same fallback forever.
+        existing.setMatchKey(dto.matchKey());
+        existing.setAliasKey(aliasKey);
         existing.setLastSeenAt(now);
         listingRepo.save(existing);
         events.forEach(changeEventRepo::save);
         appendHistory(existing.getId(), dto, now);
         upsertFinancials(existing.getId(), dto.financials());
+    }
+
+    /**
+     * The row this dto is an update to, found by resolution key rather than identity — the fallback
+     * that stops one company becoming several rows.
+     *
+     * <p>{@code matchKey} is {@code normalize(name)|openDate}, so it changes whenever a feed
+     * revises the open date or writes the name in a different house style ({@code "Co."} against
+     * {@code "Company"}, {@code "&"} against {@code "and"}). Each variant used to mint a fresh row
+     * that nothing connected to the original, which is what put two cards for one IPO on the list
+     * and — because a duplicate pair looks ambiguous to {@code InvestorgainMatcher} — left BOTH of
+     * them without a GMP.
+     *
+     * <p>The alias key is deliberately lossy, so a hit is only a CANDIDATE. Two guards keep it from
+     * fusing genuinely different issues by the same company (an SME issue and a later mainboard
+     * one share a byte-identical name):
+     * <ul>
+     *   <li>exactly one live candidate — anything ambiguous is left alone for the duplicate report
+     *       to resolve under review, never merged silently on the ingest path;</li>
+     *   <li>the candidate's dates must plausibly be the same issue: no open date on either side
+     *       (nothing to contradict), or open dates within {@link #ALIAS_DATE_TOLERANCE_DAYS}.</li>
+     * </ul>
+     * A rejected candidate simply falls through to "insert a new row" — the previous behaviour.
+     */
+    private IpoListingEntity resolveByAlias(String aliasKey, IpoDto dto) {
+        if (aliasKey == null) {
+            return null;
+        }
+        List<IpoListingEntity> candidates = listingRepo.findLiveByAliasKey(aliasKey);
+        if (candidates.size() != 1) {
+            if (candidates.size() > 1) {
+                log.debug("IPO alias fallback: '{}' (alias={}) matches {} live rows - ambiguous, "
+                        + "left for the duplicate report", dto.companyName(), aliasKey, candidates.size());
+            }
+            return null;
+        }
+        IpoListingEntity candidate = candidates.get(0);
+        if (!plausiblySameIssue(candidate.getOpenDate(), dto.openDate())) {
+            log.debug("IPO alias fallback: '{}' (alias={}) matched row {} but open dates are {} vs {} "
+                            + "- treating as a separate issue", dto.companyName(), aliasKey,
+                    candidate.getId(), candidate.getOpenDate(), dto.openDate());
+            return null;
+        }
+        log.info("IPO alias fallback: '{}' resolved to existing row {} ('{}') - open date {} -> {}, "
+                        + "no duplicate created", dto.companyName(), candidate.getId(),
+                candidate.getCompanyName(), candidate.getOpenDate(), dto.openDate());
+        return candidate;
+    }
+
+    /**
+     * Whether two open dates can be the same issue. A missing date on either side cannot
+     * contradict anything (a feed routinely carries the name before the schedule), so it passes;
+     * two known dates must be close enough to read as a revision rather than a separate issue.
+     */
+    private static boolean plausiblySameIssue(LocalDate existingOpen, LocalDate incomingOpen) {
+        if (existingOpen == null || incomingOpen == null) {
+            return true;
+        }
+        return Math.abs(ChronoUnit.DAYS.between(existingOpen, incomingOpen)) <= ALIAS_DATE_TOLERANCE_DAYS;
     }
 
     /**
