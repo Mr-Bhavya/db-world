@@ -2,6 +2,7 @@ package com.db.dbworld.app.ipo.scheduler;
 
 import com.db.dbworld.app.ipo.notification.IpoNotificationService;
 import com.db.dbworld.app.ipo.service.InvestorgainLiveService;
+import com.db.dbworld.app.ipo.service.IpoStatusSweepService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -35,19 +36,30 @@ public class IpoLiveScheduler {
     public static final String JOB_ID = "ipo-live";
 
     private final InvestorgainLiveService liveService;
+    private final IpoStatusSweepService statusSweepService;
     private final IpoNotificationService notificationService;
 
-    public IpoLiveScheduler(InvestorgainLiveService liveService, IpoNotificationService notificationService) {
+    public IpoLiveScheduler(InvestorgainLiveService liveService, IpoStatusSweepService statusSweepService,
+                            IpoNotificationService notificationService) {
         this.liveService = liveService;
+        this.statusSweepService = statusSweepService;
         this.notificationService = notificationService;
     }
 
     /**
-     * One live cycle. Both halves are self-guarded and never throw, so a bad upstream response can
-     * neither fail the job nor stop the other half from running.
+     * One live cycle: refresh the numbers, advance any status the calendar has moved past, then
+     * deliver whatever those two produced. Every part is self-guarded and never throws, so a bad
+     * upstream response can neither fail the job nor stop the others from running.
+     *
+     * <p>The status sweep sits HERE rather than in the poll because an IPO opening is a clock
+     * event, not a network one: bidding starts at 10&nbsp;AM IST whether or not an expensive poll
+     * cycle happens to run then. Leaving it to the poll is why the list kept an IPO at "Upcoming"
+     * until early afternoon on its own open day. It runs before delivery so a status that flips on
+     * this tick is pushed on this tick.
      */
     public void refreshOnce() {
         liveService.refresh();
+        statusSweepService.sweepQuietly();
         notificationService.deliverPending();
     }
 }

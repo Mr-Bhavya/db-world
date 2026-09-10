@@ -114,8 +114,8 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withDerivedListingGain(withCloseCutoff(withOpenPromotion(
-                withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))))));
+        IpoDto dto = withDerivedListingGain(withCalendarStatus(
+                withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))));
         Instant now = clock.instant();
         String aliasKey = normalizer.aliasKey(dto.companyName());
         IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey())
@@ -368,63 +368,20 @@ public class IpoIngestService {
     }
 
     /**
-     * Holds a source-reported "open" IPO at "upcoming" until the IST open moment (Indian IPO bidding
-     * opens ~10&nbsp;AM IST on day one). A source (e.g. NSE) can flag an issue "Active" at the very
-     * start of the open day; without this clamp a midnight/early-morning poll would flip it to "open"
-     * and fire the "IPO is open" push at 12&nbsp;AM. The date-only {@link IpoStatusCanonicalizer#deriveStatus}
-     * already respects this cutoff — this applies the same rule to a source-reported status. Guarded on a
-     * known {@code openDate}: with none we can't reason about timing, so the status is left untouched.
-     */
-    private IpoDto withOpenCutoff(IpoDto dto) {
-        if (!STATUS_OPEN.equals(dto.status()) || dto.openDate() == null
-                || IpoStatusCanonicalizer.isPastOpen(dto.openDate(), LocalDateTime.now(clock.withZone(IST)))) {
-            return dto;
-        }
-        return withStatus(dto, STATUS_UPCOMING);
-    }
-
-    /**
-     * The mirror of {@link #withOpenCutoff}: promotes a source-reported "upcoming" IPO to
-     * "open"/"closed" once the IST calendar says its subscription window has actually started.
+     * Applies the Indian IPO calendar to whatever status this row currently carries.
      *
-     * <p>Upstream feeds move an issue out of their "upcoming" bucket whenever their own batch job
-     * happens to run — NSE can still be advertising an IPO as forthcoming hours after 10&nbsp;AM
-     * IST bidding opened. Without this the stored status (and therefore the "IPO is open" push,
-     * which is driven off the {@code upcoming → open} STATUS event) lands at whatever arbitrary
-     * hour the slowest source caught up, instead of at the real open moment. It also unsticks an
-     * IPO left at "upcoming" by a feed that never updated it at all — the window having both
-     * opened AND closed yields "closed" directly.
-     *
-     * <p>Deliberately conservative: BOTH dates must be known, and it never promotes to "listed"
-     * (a listing date is a forecast until the shares actually trade, and a false "has listed"
-     * push is worse than a late one). So the calendar only ever overrides a stale "upcoming"
-     * inside the window the exchange itself published.
+     * <p>This used to be three separate methods (hold a premature "open", promote a stale
+     * "upcoming", downgrade a closed-but-still-"open") and they drifted apart: the promotion
+     * refused to act without a close date while the date-only derivation was happy to call the
+     * same issue open. The rule now lives once, in
+     * {@link IpoStatusCanonicalizer#calendarCorrected}, and {@code IpoStatusSweepService} applies
+     * the identical rule to stored rows between polls — because a transition driven purely by the
+     * clock must not wait for the next poll to be noticed.
      */
-    private IpoDto withOpenPromotion(IpoDto dto) {
-        if (!STATUS_UPCOMING.equals(dto.status()) || dto.openDate() == null || dto.closeDate() == null) {
-            return dto;
-        }
-        LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
-        if (!IpoStatusCanonicalizer.isPastOpen(dto.openDate(), nowIst)) {
-            return dto;
-        }
-        return withStatus(dto, IpoStatusCanonicalizer.isPastClose(dto.closeDate(), nowIst)
-                ? STATUS_CLOSED : STATUS_OPEN);
-    }
-
-    /**
-     * Downgrades an "open" IPO to "closed" once the IST close moment has passed (Indian IPOs close
-     * ~5&nbsp;PM IST on the last day). Both a source's reported status and the date-only
-     * {@link IpoStatusCanonicalizer#deriveStatus} keep returning "open" on the close day itself, so
-     * without this an IPO stayed Open all evening. Applied to the INCOMING dto (before the
-     * change-compare), so once persisted it stays "closed" and never flip-flops back to "open".
-     */
-    private IpoDto withCloseCutoff(IpoDto dto) {
-        if (!STATUS_OPEN.equals(dto.status())
-                || !IpoStatusCanonicalizer.isPastClose(dto.closeDate(), LocalDateTime.now(clock.withZone(IST)))) {
-            return dto;
-        }
-        return withStatus(dto, STATUS_CLOSED);
+    private IpoDto withCalendarStatus(IpoDto dto) {
+        String corrected = IpoStatusCanonicalizer.calendarCorrected(
+                dto.status(), dto.openDate(), dto.closeDate(), LocalDateTime.now(clock.withZone(IST)));
+        return Objects.equals(corrected, dto.status()) ? dto : withStatus(dto, corrected);
     }
 
     /**
