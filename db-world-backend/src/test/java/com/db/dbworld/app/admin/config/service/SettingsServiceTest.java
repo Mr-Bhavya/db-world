@@ -45,7 +45,9 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(44); // 40 (base+IPO+push+cinema) + 4 media-ingestion (track-review enabled/timeout + processing-threads + storyboard-enabled)
+        // 44 as before + 6 IPO notification-hygiene knobs (gmp-notify-enabled, gmp-min-absolute,
+        // cooldown-hours, max-per-day, digest-threshold, investorgain-fetch-budget).
+        assertThat(after1).isEqualTo(50);
     }
 
     @Test

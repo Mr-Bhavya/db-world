@@ -78,7 +78,7 @@ class SocialPreviewControllerTest {
                 .contains("https://image.tmdb.org/t/p/w1280/backdrop.jpg")
                 .contains("""
                         <meta property="og:type"        content="video.movie" />""")
-                .contains(BASE + "/db-world/db-cinema/movie/123-inception")
+                .contains(BASE + "/db-cinema/movie/123-inception")
                 .contains("summary_large_image");
 
         // The generic site card must NOT leak through on a successful lookup.
@@ -96,7 +96,7 @@ class SocialPreviewControllerTest {
 
         assertThat(html)
                 .contains("video.tv_show")
-                .contains(BASE + "/db-world/db-cinema/series/45-loki")
+                .contains(BASE + "/db-cinema/series/45-loki")
                 .contains("Loki (2021)");
     }
 
@@ -156,7 +156,7 @@ class SocialPreviewControllerTest {
         assertThat(bodyFor(11L, "movie"))
                 .contains("Raw Import")
                 .contains(BASE + "/icons/icon-192.png")
-                .contains(BASE + "/db-world/db-cinema/movie/11-raw-import");
+                .contains(BASE + "/db-cinema/movie/11-raw-import");
     }
 
     @Test
@@ -218,7 +218,7 @@ class SocialPreviewControllerTest {
                                 "Desc.", "/b.jpg", null, "2023-07-12"))));
 
         assertThat(bodyFor(77L, "movie"))
-                .contains("/db-world/db-cinema/movie/77-mission-impossible-dead-reckoning-pt-1");
+                .contains("/db-cinema/movie/77-mission-impossible-dead-reckoning-pt-1");
     }
 
     @Test
@@ -227,7 +227,7 @@ class SocialPreviewControllerTest {
                 record(88L, "x", RecordType.MOVIE, RecordVisibility.PUBLISHED,
                         tmdb("!!!", "Desc.", "/b.jpg", null, "2020-01-01"))));
 
-        assertThat(bodyFor(88L, "movie")).contains("/db-world/db-cinema/movie/88\"");
+        assertThat(bodyFor(88L, "movie")).contains("/db-cinema/movie/88\"");
     }
 
     /* ===============================

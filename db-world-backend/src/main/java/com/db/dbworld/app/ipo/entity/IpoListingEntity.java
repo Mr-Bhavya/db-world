@@ -16,7 +16,11 @@ import java.time.LocalDate;
 @Entity
 @Table(schema = "db_world", name = "ipo_listing",
         uniqueConstraints = @UniqueConstraint(name = "uk_ipo_listing_match_key", columnNames = "match_key"),
-        indexes = @Index(name = "idx_ipo_listing_status", columnList = "status"))
+        indexes = {
+                @Index(name = "idx_ipo_listing_status", columnList = "status"),
+                @Index(name = "idx_ipo_listing_alias_key", columnList = "alias_key"),
+                @Index(name = "idx_ipo_listing_merged_into", columnList = "merged_into_id")
+        })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class IpoListingEntity {
 
@@ -27,6 +31,25 @@ public class IpoListingEntity {
 
     @Column(name = "match_key", nullable = false, length = 200)
     private String matchKey;
+
+    /**
+     * The lossy, date-free resolution key from {@link com.db.dbworld.app.ipo.service.IpoNormalizer
+     * #aliasKey(String)} — NOT unique, and not an identity. It is how a second row for a company we
+     * already track is recognised as such: {@code matchKey} bakes in both the open date and the
+     * feed's exact spelling, so a revised date or a house-style difference ("Co." against
+     * "Company") mints a fresh row that nothing would otherwise connect to the original.
+     */
+    @Column(name = "alias_key", length = 200)
+    private String aliasKey;
+
+    /**
+     * Set to the SURVIVING row's id when this row has been merged away as a duplicate. A merged row
+     * is a tombstone: it keeps its own history so the merge stays reversible, but it is excluded
+     * from the list, from GMP refresh candidates and from investorgain matching. Null for every
+     * live row.
+     */
+    @Column(name = "merged_into_id", length = 36)
+    private String mergedIntoId;
 
     @Column(name = "company_name", length = 300)
     private String companyName;
@@ -153,6 +176,80 @@ public class IpoListingEntity {
 
     @Column(length = 300)
     private String website;
+
+    // ── Investorgain live tier ──────────────────────────────────────────────────────────────
+    // Written only by InvestorgainLiveService (report 331 + the GMP dashboard), never by
+    // ingest — investorgain wins the volatile numbers, NSE stays the exchange of record for
+    // dates/status/pricing. Every value here is STORED AS REPORTED: investorgain already
+    // publishes the percentages, the estimated listing price and the profit figure, so nothing
+    // in this block is computed by us.
+
+    /**
+     * Investorgain's own IPO id, learned once by name and then reused forever. This is what makes
+     * the live tier reliable: their report abbreviates company names ("Skyways Air" for "Skyways
+     * Air Services Limited"), so re-matching on the name every poll silently lost IPOs. Null until
+     * the first successful match.
+     */
+    @Column(name = "investorgain_id")
+    private Integer investorgainId;
+
+    /** Investorgain's 1–5 "fire" GMP rating. */
+    @Column(name = "gmp_rating")
+    private Integer gmpRating;
+
+    /** Lowest GMP seen this cycle (their "N ↓" figure). */
+    @Column(name = "gmp_min", precision = 10, scale = 2)
+    private BigDecimal gmpMin;
+
+    /** Highest GMP seen this cycle (their "N ↑" figure). */
+    @Column(name = "gmp_max", precision = 10, scale = 2)
+    private BigDecimal gmpMax;
+
+    /**
+     * Investorgain's own "last updated" label for the GMP, verbatim (e.g. {@code "27-Aug 19:59"}).
+     * Kept as text on purpose — the report's label carries no year, and inventing one to parse it
+     * would be exactly the kind of derived value this block avoids.
+     */
+    @Column(name = "gmp_updated_label", length = 60)
+    private String gmpUpdatedLabel;
+
+    /** Their estimated listing price (cap + current GMP) — their arithmetic, not ours. */
+    @Column(name = "estimated_listing_price", precision = 10, scale = 2)
+    private BigDecimal estimatedListingPrice;
+
+    /** Retail "subject to sauda" rate in ₹, as reported. Grey-market figure, attributed in the UI. */
+    @Column(name = "subject_to_sauda", precision = 12, scale = 2)
+    private BigDecimal subjectToSauda;
+
+    /** Their estimated per-lot profit in ₹, as reported. Grey-market figure, attributed in the UI. */
+    @Column(name = "est_profit", precision = 12, scale = 2)
+    private BigDecimal estProfit;
+
+    /** Price/earnings ratio as reported (their {@code ~P/E}). */
+    @Column(name = "pe_ratio", precision = 10, scale = 2)
+    private BigDecimal peRatio;
+
+    /** Whether the issue has anchor-investor participation. */
+    @Column(name = "anchor_investor")
+    private Boolean anchorInvestor;
+
+    /** Registrar's allotment-status page for this IPO, straight from the GMP dashboard. */
+    @Column(name = "allotment_link", length = 500)
+    private String allotmentLink;
+
+    /** Investorgain's "as of" label for the subscription figures, verbatim (e.g. {@code "27th Aug 2026 17:11"}). */
+    @Column(name = "subscription_updated_label", length = 60)
+    private String subscriptionUpdatedLabel;
+
+    /**
+     * When a per-IPO investorgain GMP fetch last succeeded for this row. This is the rotation
+     * cursor for {@code InvestorgainGmpService}: its per-pass budget used to take a fixed prefix of
+     * a stable ordering, so the same 30 IPOs won every pass and the ~50 behind them were refreshed
+     * NEVER, not merely late. Ordering by staleness instead bounds the wait for every tracked IPO.
+     * Null means never fetched, which sorts first.
+     */
+    @Column(name = "gmp_refreshed_at")
+    private Instant gmpRefreshedAt;
 
     @Column(name = "first_seen_at", nullable = false)
     private Instant firstSeenAt;

@@ -1,5 +1,6 @@
 /* global CryptoJS */
 import Constants from "./Constants";
+import { getAccessToken, setAccessToken } from '@shared/auth/tokenStore';
 
 const getTimeDateFromTimeStamp = (timestamp, _timezone) => {
 
@@ -131,14 +132,15 @@ const removeUserFromLocal = () => {
     // Local Storage
     localStorage.setItem('login', false);
     localStorage.setItem('user', null);
-    localStorage.setItem('token', null);
+    // The access token is no longer persisted — it lives in memory only (see tokenStore).
+    setAccessToken(null);
 }
 
 const setUserInLocal = (user, token) => {
     // Local Storage
     localStorage.setItem('login', true);
     localStorage.setItem('user', user);
-    localStorage.setItem('token', token);
+    setAccessToken(token);
 }
 
 const JSONToHTMLTable = (props) => {
@@ -190,7 +192,7 @@ const convertMediaInfoToCustomFormat = (data) => {
         }
         mediaDetails.id = mediaFile.id
 
-        let tempUrl = window.location.origin + "/api/stream/watch/uuid/" + mediaFile.id + "?t=" + localStorage.getItem("token");
+        let tempUrl = window.location.origin + "/api/stream/watch/uuid/" + mediaFile.id + "?t=" + (getAccessToken() ?? "");
         if (window.location.port === "3000") {
             tempUrl = tempUrl.replace("3000", "9000")
         }

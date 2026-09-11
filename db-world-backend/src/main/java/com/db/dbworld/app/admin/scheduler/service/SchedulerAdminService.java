@@ -8,6 +8,7 @@ import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryReposito
 import com.db.dbworld.app.cinema.catalog.tags.scheduler.TagScheduler;
 import com.db.dbworld.app.cinema.tmdb.people.scheduler.PersonSyncScheduler;
 import com.db.dbworld.app.cinema.tmdb.sync.scheduler.TmdbSyncScheduler;
+import com.db.dbworld.app.ipo.scheduler.IpoLiveScheduler;
 import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler;
 import com.db.dbworld.app.media.sync.MediaSyncService;
 import jakarta.annotation.PostConstruct;
@@ -38,6 +39,7 @@ public class SchedulerAdminService {
     private final PersonSyncScheduler           personSyncScheduler;
     private final MediaSyncService              mediaSyncService;
     private final IpoPollScheduler              ipoPollScheduler;
+    private final IpoLiveScheduler              ipoLiveScheduler;
     private final JdbcTemplate                  jdbcTemplate;
 
     private static final List<SchedulerJobConfigEntity> DEFAULTS = List.of(
@@ -71,8 +73,30 @@ public class SchedulerAdminService {
             // page; this default only applies to a fresh seed.)
             SchedulerJobConfigEntity.builder().jobId(IpoPollScheduler.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 0 10-20/2 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(5).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(5).build(),
+            // IPO LIVE tier — refreshes GMP / subscription / lot / listing price AND delivers the
+            // notifications that produces, every 30 min. Two HTTP calls per run plus a handful of
+            // conditional ones (investorgain's live report + GMP dashboard cover every current IPO
+            // at once), versus dozens for the source poll above — which is exactly why it's a
+            // separate job: the numbers users stare at refresh on a short cycle without dragging
+            // NSE's bootstrap dance and Chittorgarh's per-IPO detail pages along with them.
+            // Offset to :15 and :45 so it never starts in lockstep with the poll on the hour.
+            SchedulerJobConfigEntity.builder().jobId(IpoLiveScheduler.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 15/30 10-20 * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(6).build()
     );
+
+    /**
+     * Job ids that once existed and have since been folded into another job. Their stored config
+     * rows have to be DELETED on boot, not just ignored: {@code scheduleAll()} schedules every row
+     * it finds, and a row whose id the {@code runJob} switch no longer knows would fire and throw
+     * {@code Unknown job} on every trigger. Per-job history rows are left alone as a record.
+     */
+    private static final List<String> RETIRED_JOB_IDS = List.of(
+            // "ipo-notify" — its 30-minute delivery pass now runs inside ipo-live, right after the
+            // refresh that detects the changes it delivers. Two crons for one pipeline meant an
+            // alert could wait a tick for no reason.
+            "ipo-notify");
 
     private final Map<String, String>            jobStatus = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> futures  = new ConcurrentHashMap<>();
@@ -80,8 +104,20 @@ public class SchedulerAdminService {
     @PostConstruct
     public void init() {
         relaxLegacyConstraints();
+        retireRemovedJobs();
         seedDefaults();
         scheduleAll();
+    }
+
+    /** Deletes the config rows of jobs that have been folded into another job (see {@link #RETIRED_JOB_IDS}). */
+    @Transactional
+    public void retireRemovedJobs() {
+        for (String jobId : RETIRED_JOB_IDS) {
+            if (configRepo.existsById(jobId)) {
+                configRepo.deleteById(jobId);
+                log.info("Retired scheduler config for {} — its work now runs inside another job", jobId);
+            }
+        }
     }
 
     /**
@@ -177,6 +213,7 @@ public class SchedulerAdminService {
                 case "PersonSyncScheduler" -> personSyncScheduler.runPersonSync();
                 case "MediaSync"           -> mediaSyncService.scan();
                 case IpoPollScheduler.JOB_ID -> ipoPollScheduler.pollOnce();
+                case IpoLiveScheduler.JOB_ID -> ipoLiveScheduler.refreshOnce();
                 default -> throw new IllegalArgumentException("Unknown job: " + jobId);
             }
         } catch (Exception e) {
@@ -375,6 +412,7 @@ public class SchedulerAdminService {
             case "PersonSyncScheduler" -> "Person Detail Sync";
             case "MediaSync"           -> "Media File Sync";
             case IpoPollScheduler.JOB_ID -> "IPO Tracker Poll";
+            case IpoLiveScheduler.JOB_ID -> "IPO Live GMP, Subscription & Alerts";
             default -> jobId;
         };
     }
@@ -387,6 +425,7 @@ public class SchedulerAdminService {
             case "PersonSyncScheduler" -> "Fetches full biography and images for unsynced cast/crew (" + unsyncedPersons + " pending)";
             case "MediaSync"           -> "Reconciles media_files against the stream directory — picks up SSH/SMB/file-manager adds, deletes, renames";
             case IpoPollScheduler.JOB_ID -> "Polls enabled IPO sources (IPO Guru, NSE, Chittorgarh), merges and ingests listing/GMP/subscription updates";
+            case IpoLiveScheduler.JOB_ID -> "Refreshes live GMP, subscription, rating, market lot, P/E and listing price from investorgain, then sends any IPO push still pending \u2014 every 30 min inside the IST market window";
             default -> "";
         };
     }

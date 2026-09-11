@@ -7,15 +7,14 @@ import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import HowToRegOutlinedIcon from '@mui/icons-material/HowToRegOutlined';
 import AnchorOutlinedIcon from '@mui/icons-material/AnchorOutlined';
-import EqualizerOutlinedIcon from '@mui/icons-material/EqualizerOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import { useT } from '@shared/theme';
 import {
-  formatShortDate, formatMultiplier, subscriptionMeta, averageSubscription,
-  orderSubscriptionCategories,
+  formatShortDate, formatMultiplier, subscriptionMeta, orderSubscriptionCategories,
+  subTrancheParentOf, totalSharesOffered,
 } from '../utils/format';
-import SectionCard from './SectionCard';
+import SectionCard, { SectionStack } from './SectionCard';
 import DayWiseTable from './DayWiseTable';
 
 /** Icon per well-known category (case-insensitive); anything unrecognized falls back to the
@@ -43,53 +42,50 @@ const categoryLabel = (key) => CATEGORY_LABEL_OVERRIDES[String(key).toLowerCase(
 const INT_FMT = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const CR_FMT = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
 const fmtShares = (n) => (n == null ? '—' : INT_FMT.format(Math.round(Number(n))));
-const fmtLots = (offered, lot) => (offered == null || !lot ? null : `${INT_FMT.format(Math.round(Number(offered) / lot))} lots`);
 const fmtCr = (n) => (n == null ? '—' : `₹${CR_FMT.format(Number(n))} Cr`);
-const fmtPctOfTotal = (part, whole) => (part == null || !whole ? null : `${((Number(part) / whole) * 100).toFixed(1)}% of total`);
-
-/** One labelled subscription figure (Total/Average) — icon + multiplier, null-safe. */
-function BreakdownTile({ icon: Icon, label, value, highlight }) {
-  const T = useT();
-  return (
-    <Box sx={{
-      p: 1.25, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1,
-      bgcolor: highlight ? T.tealBg : 'transparent',
-      border: highlight ? `1px solid ${T.teal}33` : 'none',
-    }}>
-      <Icon sx={{ fontSize: 18, color: highlight ? T.teal : T.textFaint, flexShrink: 0 }} />
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, mt: 0.1 }} noWrap>
-          {value ?? '—'}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
 
 /**
- * Investorgain-style per-category card: the multiple (big, colour-tiered), a fill-capped bar, and a
- * meta line with shares offered · lots · % of total (lots = offered ÷ lot size; % = offered ÷ the
- * summed offered across categories). Falls back gracefully when a figure is missing.
+ * Per-category demand card: the multiple (big, colour-tiered), a fill-capped bar, and — for a
+ * category that is a slice of another — a note saying so.
+ *
+ * The card no longer repeats shares offered / lots. Those are exact figures meant to be compared
+ * down a column, which is what the "Shares offered, bid & amount" table below is for; printing
+ * them here as well meant the same five rows of numbers appeared twice on one tab. The card's job
+ * is the scan — how hot is each tranche — so it keeps the multiple, the bar and the share of the
+ * offer, and hands the precise arithmetic to the table.
  */
-function CategoryDetailCard({ row, lotSize, totalOffered }) {
+function CategoryDetailCard({ row, parentLabel, sharePct }) {
   const T = useT();
   const meta = subscriptionMeta(row.times, T);
   const Icon = categoryIcon(row.category);
-  const metaParts = [
-    row.sharesOffered != null ? `${fmtShares(row.sharesOffered)} shares` : null,
-    fmtLots(row.sharesOffered, lotSize),
-    fmtPctOfTotal(row.sharesOffered, totalOffered),
-  ].filter(Boolean);
   return (
     <Box sx={{ p: 1.5, borderRadius: 2.5, border: `1px solid ${T.glassBorder}`, bgcolor: T.glass, minWidth: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-        <Icon sx={{ fontSize: 16, color: meta?.color ?? T.textFaint, flexShrink: 0 }} />
-        <Typography sx={{ fontSize: 12, fontWeight: 700, color: T.textMuted }} noWrap>{categoryLabel(row.category)}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+        <Icon sx={{ fontSize: 16, color: meta?.color ?? T.textMuted, flexShrink: 0 }} />
+        <Typography sx={{ fontSize: 12, fontWeight: 700, color: T.textMuted, minWidth: 0 }} noWrap>
+          {categoryLabel(row.category)}
+        </Typography>
+        {sharePct != null && (
+          <Typography sx={{
+            ml: 'auto', flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: T.textMuted,
+            px: 0.65, py: 0.1, borderRadius: 999, bgcolor: T.glassHover,
+          }}>
+            {sharePct}
+          </Typography>
+        )}
       </Box>
-      <Typography sx={{ fontSize: 22, fontWeight: 800, color: meta?.color ?? T.textPrimary, lineHeight: 1 }}>
+      {/* A tranche that is part of another one says so, rather than sitting beside its own parent
+          looking like a peer — S-NII and B-NII are the two halves of NII, and reading all three as
+          siblings makes the issue look bigger than it is. */}
+      {parentLabel && (
+        <Typography sx={{ fontSize: 10.5, color: T.textFaint, mt: 0.15 }} noWrap>
+          within {parentLabel}
+        </Typography>
+      )}
+      <Typography sx={{
+        fontSize: 22, fontWeight: 800, color: meta?.color ?? T.textPrimary, lineHeight: 1.1, mt: 0.5,
+        fontVariantNumeric: 'tabular-nums',
+      }}>
         {formatMultiplier(row.times) ?? '—'}
       </Typography>
       {meta && (
@@ -100,17 +96,12 @@ function CategoryDetailCard({ row, lotSize, totalOffered }) {
           }} />
         </Box>
       )}
-      {metaParts.length > 0 && (
-        <Typography sx={{ fontSize: 10.5, color: T.textFaint, mt: 0.7, lineHeight: 1.5 }}>
-          {metaParts.join(' · ')}
-        </Typography>
-      )}
     </Box>
   );
 }
 
-/** Fallback per-category progress bar (multiples only) — used when the fuller breakdown isn't
- * available yet (e.g. an older history row captured before the detail was stored). */
+/** Fallback per-category bar (multiples only) — used when the fuller breakdown isn't available
+ * yet, e.g. an older history row captured before the detail was stored. */
 function CategoryBar({ icon: Icon, label, value }) {
   const T = useT();
   const meta = subscriptionMeta(value, T);
@@ -139,20 +130,30 @@ function CategoryBar({ icon: Icon, label, value }) {
 function Cell({ children, bold, align }) {
   const T = useT();
   return (
-    <Typography sx={{ fontSize: 13, fontWeight: bold ? 700 : 400, textAlign: align ?? 'left', color: T.textPrimary }}>
+    <Typography sx={{
+      fontSize: 13, fontWeight: bold ? 700 : 400, textAlign: align ?? 'left', color: T.textPrimary,
+      fontVariantNumeric: align === 'right' ? 'tabular-nums' : undefined,
+    }}>
       {children}
     </Typography>
   );
 }
 
 /**
- * Subscription tab — laid out like investorgain: a Total/Average headline, per-category cards
- * (multiple + shares offered + lots + % of total, from the latest point's `categoryDetail`), a
- * shares-offered/bid/amount table, and the day-wise multiples table. Fully dynamic on whatever
- * categories a source reports (QIB / NII / S-NII / B-NII / RII / Employee / Shareholder / Other),
- * ordered by `orderSubscriptionCategories`. Falls back to simple multiple bars when the fuller
- * breakdown isn't present. No time-series chart — the day-wise table communicates it more clearly
- * for a 3-4 day window (and investorgain shows none either).
+ * Subscription tab — who is bidding, how hard, and against how many shares.
+ *
+ * Two things it deliberately no longer shows.
+ *
+ * The "Total" and "Average" headline pair is gone. Total restated the figure the hero already
+ * leads with two hundred pixels above — and, because the hero reads `ipo.subTotal` from the
+ * 30-minute live tier while this tab reads the latest history point from the 2-hourly poll, the
+ * two could print different multiples on one screen. Average was worse than redundant: it is the
+ * unweighted mean of the category multiples, which is not the same quantity as the registrar's
+ * share-weighted total and has no meaning of its own. The per-category cards are the tab's lead
+ * now, which is what it is for.
+ *
+ * Shares offered / lots are gone from the cards, because the table underneath is where exact
+ * figures belong and it already carried every one of them.
  */
 export default function SubscriptionTab({ ipo, points, loading }) {
   const T = useT();
@@ -166,11 +167,12 @@ export default function SubscriptionTab({ ipo, points, loading }) {
     const order = orderSubscriptionCategories(latestDetail.map((d) => d.category));
     return order.map((c) => latestDetail.find((d) => d.category === c)).filter(Boolean);
   }, [latestDetail]);
-  const totalOffered = useMemo(
-    () => detailRows.reduce((sum, d) => sum + (Number(d.sharesOffered) || 0), 0),
-    [detailRows],
-  );
   const hasDetail = detailRows.length > 0;
+
+  // Counts each share once — see `totalSharesOffered`. Summing every reported category counted
+  // the NII tranche twice (whole, then as its S-NII/B-NII halves) and skewed every percentage.
+  const totalOffered = useMemo(() => totalSharesOffered(detailRows), [detailRows]);
+  const detailKeys = useMemo(() => detailRows.map((d) => d.category), [detailRows]);
 
   // Fallback: category → multiple bars when there's no fuller breakdown yet.
   const latestKeys = useMemo(
@@ -178,13 +180,6 @@ export default function SubscriptionTab({ ipo, points, loading }) {
     [latestCategories],
   );
   const hasAnyCategory = latestKeys.length > 0;
-
-  const totalValue = latest?.total ?? ipo.subTotal ?? null;
-  // Mean of the known category multiples — not the same as `total` (registrar-reported, share-weighted).
-  const avgValue = useMemo(
-    () => averageSubscription(hasDetail ? detailRows.map((d) => d.times) : latestKeys.map((k) => latestCategories[k])),
-    [hasDetail, detailRows, latestKeys, latestCategories],
-  );
 
   // Day-wise multiples table — union of category keys across every point so columns stay stable.
   const allCategoryKeys = useMemo(() => {
@@ -212,49 +207,75 @@ export default function SubscriptionTab({ ipo, points, loading }) {
 
   // Shares offered / bid / amount table (current), matching investorgain's detail table.
   const breakdownColumns = useMemo(() => [
-    { key: 'cat', label: 'Category', render: (r) => <Cell bold>{categoryLabel(r.category)}</Cell> },
+    { key: 'cat', label: 'Category', minWidth: 108, render: (r) => <Cell bold>{categoryLabel(r.category)}</Cell> },
     { key: 'off', label: 'Shares offered', align: 'right', render: (r) => <Cell align="right">{fmtShares(r.sharesOffered)}</Cell> },
     { key: 'bid', label: 'Shares bid', align: 'right', render: (r) => <Cell align="right">{fmtShares(r.sharesBid)}</Cell> },
     { key: 'amt', label: 'Bid amount (₹Cr)', align: 'right', render: (r) => <Cell align="right">{fmtCr(r.bidAmountCr)}</Cell> },
   ], []);
   const breakdownRows = useMemo(() => detailRows.map((d) => ({ key: d.category, ...d })), [detailRows]);
 
+  const asOf = ipo.subscriptionUpdatedLabel ? `As of ${ipo.subscriptionUpdatedLabel}.` : null;
+
   return (
-    <Box sx={{ width: '100%', minWidth: 0 }}>
-      <SectionCard title="Current subscription" icon={<PeopleAltOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 1.5, mb: (hasDetail || hasAnyCategory) ? 2 : 0 }}>
-          <BreakdownTile icon={PeopleAltOutlinedIcon} label="Total" value={formatMultiplier(totalValue)} highlight />
-          <BreakdownTile icon={EqualizerOutlinedIcon} label="Average" value={formatMultiplier(avgValue)} />
-        </Box>
-
-        {hasDetail ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(auto-fit, minmax(150px, 1fr))' }, gap: 1.5 }}>
-            {detailRows.map((row) => (
-              <CategoryDetailCard key={row.category} row={row} lotSize={ipo.lotSize} totalOffered={totalOffered} />
-            ))}
-          </Box>
-        ) : hasAnyCategory ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(150px, 1fr))' }, gap: 2 }}>
-            {latestKeys.map((key) => (
-              <CategoryBar key={key} icon={categoryIcon(key)} label={categoryLabel(key)} value={latestCategories[key]} />
-            ))}
-          </Box>
-        ) : null}
-      </SectionCard>
-
-      {hasDetail && (
-        <Box sx={{ mt: 2 }}>
-          <SectionCard title="Shares offered, bid & amount" icon={<TableChartOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-            <DayWiseTable columns={breakdownColumns} rows={breakdownRows} loading={loading} emptyLabel="No subscription data yet." />
-          </SectionCard>
-        </Box>
+    <SectionStack>
+      {(hasDetail || hasAnyCategory) && (
+        <SectionCard
+          title="Demand by category"
+          subtitle={[asOf, totalOffered != null ? `${INT_FMT.format(totalOffered)} shares on offer.` : null]
+            .filter(Boolean).join(' ') || undefined}
+          icon={<PeopleAltOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+        >
+          {hasDetail ? (
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 150px), 1fr))',
+              gap: 1.5,
+            }}>
+              {detailRows.map((row) => {
+                const parent = subTrancheParentOf(row.category, detailKeys);
+                const share = totalOffered != null && row.sharesOffered != null && !parent
+                  ? `${((Number(row.sharesOffered) / totalOffered) * 100).toFixed(0)}%`
+                  : null;
+                return (
+                  <CategoryDetailCard
+                    key={row.category}
+                    row={row}
+                    parentLabel={parent ? categoryLabel(parent) : null}
+                    sharePct={share}
+                  />
+                );
+              })}
+            </Box>
+          ) : (
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 180px), 1fr))',
+              gap: 2,
+            }}>
+              {latestKeys.map((key) => (
+                <CategoryBar key={key} icon={categoryIcon(key)} label={categoryLabel(key)} value={latestCategories[key]} />
+              ))}
+            </Box>
+          )}
+        </SectionCard>
       )}
 
-      <Box sx={{ mt: 2 }}>
-        <SectionCard title="Day-wise subscription" icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}>
-          <DayWiseTable columns={dayColumns} rows={dayRows} loading={loading} emptyLabel="No subscription data yet." />
+      {hasDetail && (
+        <SectionCard
+          title="Shares offered, bid & amount"
+          icon={<TableChartOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+        >
+          <DayWiseTable columns={breakdownColumns} rows={breakdownRows} loading={loading} emptyLabel="No subscription data yet." />
         </SectionCard>
-      </Box>
-    </Box>
+      )}
+
+      <SectionCard
+        title="Day-wise subscription"
+        subtitle="Each row is a reading recorded on that date, most recent first."
+        icon={<HistoryOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
+      >
+        <DayWiseTable columns={dayColumns} rows={dayRows} loading={loading} emptyLabel="No subscription data yet." />
+      </SectionCard>
+    </SectionStack>
   );
 }

@@ -12,4 +12,7 @@ public interface PasswordManagerRepository extends JpaRepository<PasswordManager
     Optional<PasswordManagerEntity> findByIdAndUserEntityUserIdAndCredentialsId(String pmId, Long UserId, String credentialId);
     void deleteByIdAndUserEntityUserId(String pmId, Long userId);
     void deleteByCredentialsIdAndUserEntityUserId(String credentialId, Long userId);
+
+    /** Count only, for the home hub's Vault tile — never the credentials themselves. */
+    long countByUserEntityUserId(Long userId);
 }

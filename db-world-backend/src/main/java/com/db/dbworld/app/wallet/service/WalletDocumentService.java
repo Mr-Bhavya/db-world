@@ -78,7 +78,7 @@ public class WalletDocumentService {
         WalletDocumentEntity e = new WalletDocumentEntity();
         e.setUserId(userId);
         e.setDocumentTypeId(type.getId());
-        e.setLabel(label == null || label.isBlank() ? type.getDisplayName() : label.trim());
+        e.setLabel(defaultLabel(label, type));
         e.setDocumentNumber(blankToNull(number));
         e.setIssueDate(issueDate);
         e.setExpiryDate(expiryDate);
@@ -171,6 +171,20 @@ public class WalletDocumentService {
         e.setHolderName(blankToNull(req.holderName()));
         WalletDocumentEntity saved = docRepo.save(e);
         return mapper.toDetail(saved, typeService.byId().get(saved.getDocumentTypeId()));
+    }
+
+    /**
+     * The label shown everywhere the document appears.
+     *
+     * Just the type's display name when none is given. An earlier version appended the holder here
+     * — "Aadhaar Card - Mother" — to stop a family's three Aadhaar cards being indistinguishable,
+     * but the card already shows the holder on its own line AND groups the grid by person, so the
+     * composed label made every card say the same two things three times over. The disambiguation
+     * belongs in the view, which has the context to know what it has already told you; the stored
+     * label should be the plain name of the thing.
+     */
+    private static String defaultLabel(String label, WalletDocumentTypeEntity type) {
+        return (label != null && !label.isBlank()) ? label.trim() : type.getDisplayName();
     }
 
     @Transactional

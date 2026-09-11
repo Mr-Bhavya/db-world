@@ -98,7 +98,7 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
           notify.info('Notifications stayed off — you can enable them in device settings.');
           return;
         }
-        notify.success('Notifications on — you’ll get IPO alerts.');
+        notify.success('Notifications on.');
         return;
       }
 
@@ -118,7 +118,7 @@ export function usePushNotifications({ autoSyncWhenGranted = true } = {}) {
       // misleading "Notifications on".
       try {
         await registerPushToken(token, 'web');
-        notify.success('Notifications on — you’ll get IPO alerts.');
+        notify.success('Notifications on.');
       } catch {
         notify.error('Please sign in to turn on notifications, then try again.');
       }

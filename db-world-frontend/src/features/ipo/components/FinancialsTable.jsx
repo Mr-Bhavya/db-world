@@ -42,7 +42,7 @@ function YoyBadge({ current, previous }) {
 
 function HeaderRow() {
   const T = useT();
-  const labelSx = { fontSize: 10.5, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 };
+  const labelSx = { fontSize: 10.5, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 };
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: 1, pb: 0.75, mb: 0.25, borderBottom: `1px solid ${T.border}` }}>
       <Typography sx={{ ...labelSx, ...stickyColumnSx(T, GAP_PX) }}>Period</Typography>
@@ -116,7 +116,7 @@ export default function FinancialsTable({ id }) {
         <FinancialsSkeleton />
       ) : isError || rows.length === 0 ? (
         <Box sx={{ py: 1.5, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 12.5, color: T.textFaint }}>
+          <Typography sx={{ fontSize: 12.5, color: T.textMuted }}>
             {isError ? 'Unable to load financials right now.' : 'Financials not available.'}
           </Typography>
         </Box>

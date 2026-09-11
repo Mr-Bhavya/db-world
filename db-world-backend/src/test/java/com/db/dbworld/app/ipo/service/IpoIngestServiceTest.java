@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -56,7 +57,7 @@ class IpoIngestServiceTest {
         financialRepo = mock(IpoFinancialRepository.class);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service = new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
-                financialRepo, new IpoMapper(), clock);
+                financialRepo, new IpoMapper(), new IpoNormalizer(), clock);
 
         when(listingRepo.save(any())).thenAnswer(inv -> {
             IpoListingEntity e = inv.getArgument(0);
@@ -76,7 +77,7 @@ class IpoIngestServiceTest {
     /** An ingest service pinned to a specific instant — for the IST open-cutoff clamp tests. */
     private IpoIngestService serviceAt(Instant now) {
         return new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
-                financialRepo, new IpoMapper(), Clock.fixed(now, ZoneOffset.UTC));
+                financialRepo, new IpoMapper(), new IpoNormalizer(), Clock.fixed(now, ZoneOffset.UTC));
     }
 
     /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
@@ -100,7 +101,7 @@ class IpoIngestServiceTest {
                 null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    /** Returns a copy of {@code dto} with {@code financials} swapped in — mirrors {@code IpoNormalizer.withMatchKey}. */
+    /** Returns a copy of {@code dto} with {@code financials} swapped in. */
     private static IpoDto withFinancials(IpoDto dto, List<IpoFinancialRowDto> financials) {
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
@@ -403,6 +404,99 @@ class IpoIngestServiceTest {
     }
 
     @Test
+    void ingest_staleUpcomingPastIstOpenCutoff_promotedToOpenAndNotifies() {
+        // The mirror of the open-cutoff clamp above: a feed still advertising the issue as
+        // forthcoming hours after 10 AM IST bidding opened. 2026-07-20T07:00Z = 12:30 PM IST on the
+        // open day. The IST calendar wins, so the "IPO is open" push fires at the first poll after
+        // the real open moment instead of whenever the slowest source happens to catch up.
+        IpoListingEntity existing = existingEntity("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                null, null, null, null, null);
+        stubExisting(existing);
+        IpoDto dto = dto("upcoming", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T07:00:00Z")).ingest(List.of(dto));
+
+        assertThat(existing.getStatus()).isEqualTo("open");
+        // The persisted STATUS event IS the notification queue — this row is what
+        // IpoNotificationService.dispatchPending() turns into the "IPO is open" push.
+        ArgumentCaptor<IpoChangeEventEntity> eventCaptor = ArgumentCaptor.forClass(IpoChangeEventEntity.class);
+        verify(changeEventRepo).save(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("STATUS");
+        assertThat(eventCaptor.getValue().getOldValue()).isEqualTo("upcoming");
+        assertThat(eventCaptor.getValue().getNewValue()).isEqualTo("open");
+        assertThat(eventCaptor.getValue().getNotifiedAt()).isNull();
+    }
+
+    @Test
+    void ingest_staleUpcomingPastIstCloseCutoff_promotedStraightToClosed() {
+        stubNoExisting();
+        // A feed that never updated the issue at all: 2026-07-25T07:00Z is a day past the 07-24
+        // close, so it must land on "closed" rather than staying stuck at "upcoming" forever.
+        IpoDto dto = dto("upcoming", null, null, null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-25T07:00:00Z")).ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("closed");
+    }
+
+    @Test
+    void ingest_upcomingBeforeIstOpenCutoff_notPromoted() {
+        stubNoExisting();
+        // 2026-07-20T03:00Z = 08:30 IST on the open day — before bidding opens, so a legitimately
+        // "upcoming" issue must be left alone (the promotion must not run ahead of the calendar).
+        IpoDto dto = dto("upcoming", null, null, null, null, null, null, null);
+
+        serviceAt(Instant.parse("2026-07-20T03:00:00Z")).ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getStatus()).isEqualTo("upcoming");
+    }
+
+    @Test
+    void ingest_listingPriceWithNoReportedGain_derivesGainPctFromPriceBandTop() {
+        stubNoExisting();
+        // No live source publishes a listing gain, so it has to be computed: listed at 132.00
+        // against the 110.00 band cap = +20.00%.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", null, new BigDecimal("132.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    void ingest_listedBelowIssuePrice_derivesNegativeGainPct() {
+        stubNoExisting();
+        // 99.00 against the 110.00 cap = -10.00% — a discount listing must stay signed, not absolute.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", null, new BigDecimal("99.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("-10.00");
+    }
+
+    @Test
+    void ingest_sourceReportedGain_isNotOverwrittenByDerivation() {
+        stubNoExisting();
+        // A source that DOES carry a gain stays authoritative — derivation only fills a gap.
+        IpoDto dto = dto("listed", null, null, null, null, "NSE", new BigDecimal("7.77"), new BigDecimal("132.00"));
+
+        service.ingest(List.of(dto));
+
+        ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo, times(1)).save(listingCaptor.capture());
+        assertThat(listingCaptor.getValue().getListingGainPct()).isEqualByComparingTo("7.77");
+    }
+
+    @Test
     void ingest_sourceReportsListedRawCasing_canonicalizesAndTriggersListingTransition() {
         IpoListingEntity existing = existingEntity("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
                 new BigDecimal("1.50"), "finalized", null, null, null);
@@ -579,5 +673,79 @@ class IpoIngestServiceTest {
         ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
         verify(listingRepo, times(1)).save(listingCaptor.capture());
         assertThat(listingCaptor.getValue().getIpoType()).isEqualTo("sme");
+    }
+
+    // ── Alias fallback: the guard against one company becoming several rows ─────────────────────
+
+    /** An already-tracked row, as the alias lookup would return it. */
+    private static IpoListingEntity tracked(String id, String companyName, String matchKey, LocalDate openDate) {
+        return IpoListingEntity.builder()
+                .id(id).companyName(companyName).matchKey(matchKey).aliasKey("acmecorporation").openDate(openDate)
+                .firstSeenAt(NOW).lastSeenAt(NOW).build();
+    }
+
+    @Test
+    void ingest_openDateRevised_updatesTheExistingRowInsteadOfCreatingASecond() {
+        // matchKey is normalize(name)|openDate, so a revised schedule misses on the stored key. That
+        // used to mint a brand-new row and orphan the original along with all of its GMP history --
+        // one of the three ways a single company ended up as two cards on the list.
+        IpoListingEntity existing = tracked("ipo-1", "Acme Corp", "acme corp|2026-07-18",
+                LocalDate.of(2026, 7, 18));
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(existing));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        // Updated in place, and the identity key is re-stamped to the new date so the NEXT poll
+        // hits findByMatchKey directly rather than re-entering this fallback forever.
+        verify(listingRepo).save(existing);
+        assertThat(existing.getMatchKey()).isEqualTo(MATCH_KEY);
+        assertThat(existing.getOpenDate()).isEqualTo(LocalDate.of(2026, 7, 20));
+        verify(changeEventRepo, never()).save(argThat(e -> "NEW".equals(e.getEventType())));
+    }
+
+    @Test
+    void ingest_aliasMatchesButDatesAreMonthsApart_treatedAsASeparateIssue() {
+        // A company's SME issue and its later mainboard issue have a byte-identical name. Merging
+        // those would be a false positive that moves real users' applications onto the wrong issue,
+        // so the alias hit is only accepted when the dates read as a revision, not a new issue.
+        IpoListingEntity lastYearsIssue = tracked("ipo-old", "Acme Corp", "acme corp|2026-01-05",
+                LocalDate.of(2026, 1, 5));
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(lastYearsIssue));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        // A new row, and the old one is left untouched.
+        verify(changeEventRepo).save(argThat(e -> "NEW".equals(e.getEventType())));
+        assertThat(lastYearsIssue.getMatchKey()).isEqualTo("acme corp|2026-01-05");
+    }
+
+    @Test
+    void ingest_aliasIsAmbiguous_leavesItForTheDuplicateReportRatherThanGuessing() {
+        // Two live rows already share this alias, so there is no single right answer. Picking one
+        // silently on the ingest path would be a merge with no review; the duplicate report handles it.
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(
+                tracked("ipo-a", "Acme Corp Ltd", "acme corp|2026-07-18", LocalDate.of(2026, 7, 18)),
+                tracked("ipo-b", "AcmeCorp Limited", "acmecorp|2026-07-19", LocalDate.of(2026, 7, 19))));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        verify(changeEventRepo).save(argThat(e -> "NEW".equals(e.getEventType())));
+    }
+
+    @Test
+    void ingest_newListing_stampsTheAliasKey() {
+        stubNoExisting();
+
+        service.ingest(List.of(dtoWithType("mainboard")));
+
+        ArgumentCaptor<IpoListingEntity> saved = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo).save(saved.capture());
+        assertThat(saved.getValue().getAliasKey()).isEqualTo("acmecorporation");
     }
 }

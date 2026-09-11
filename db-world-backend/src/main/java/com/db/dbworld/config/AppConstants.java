@@ -91,13 +91,75 @@ public final class AppConstants {
             "/swagger-ui/**",
             "/ws/status",
             "/ws/application-logs",
-            "/*", "/db-world/**", "/static/**",
+            // "/db-world/**" used to sit here, permitting the SPA's client-side routes
+            // for SinglePageAppConfig's index.html fallback. It is GONE rather than
+            // rewritten: the routes are root-relative now, so the honest translation is
+            // "/**", and "/**" in a permitAll list makes every admin endpoint public.
+            //
+            // Dropping it costs nothing today. In production nginx serves the SPA and
+            // this host only ever answers /api, /sitemap.xml and the crawler routes; the
+            // Spring fallback resolves classpath:/public/index.html, which the WAR does
+            // not ship, so it already 404s. "/*" below still covers the single-segment
+            // pages either way.
+            //
+            // If the SPA is ever packaged into the WAR, add the specific section prefixes
+            // it needs — never "/**".
+            "/*", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
             "/api/admin/file-manager/download/stream",
             "/api/wallet/shared/**",
             // Server-rendered OG cards for shared links — nginx proxies social crawlers here.
             "/api/social/**",
+            // Server-rendered HTML for SEARCH crawlers; nginx routes bot User-Agents here.
+            "/api/seo/**",
+            // Crawler-facing, proxied onto this host by nginx from db-world.in.
+            "/sitemap.xml",
             "/storyboard/**"
+    };
+
+    /**
+     * Read-only browse surface, open to anonymous visitors so the catalog and the IPO
+     * tracker are indexable and shareable. Permitted for {@code GET} ONLY — several of
+     * these base paths also carry admin or user writes:
+     * <ul>
+     *   <li>{@code /api/cinema/rails/**} — GET browses, POST/PUT/PATCH/DELETE are admin rail management</li>
+     *   <li>{@code /api/cinema/reviews/record/*} — GET reads, POST/DELETE on the parent path write</li>
+     * </ul>
+     * Anything user-scoped stays authenticated and is deliberately NOT listed: playback,
+     * downloads, interactions (watchlist/like/love/watched), watch progress, media and
+     * catalog requests, {@code /api/cinema/reviews/mine}, {@code /api/ipo/*&#47;application}
+     * and {@code /api/ipo/my/applications}.
+     * <p>
+     * Personalised rails degrade rather than fail for anonymous callers — every
+     * {@code userContext.userId()} on the rail read path is guarded, so those rails
+     * simply report no content instead of throwing.
+     */
+    public static final String[] PUBLIC_GET_APIS = {
+            // Home hub summary. Answers signed out, and gains the user-scoped
+            // sections when a token happens to be present.
+            "/api/home/summary",
+            // Weather. The page is a public route, so gating its only data source behind a
+            // token gave anonymous visitors a page that rendered and then 401'd. Nothing here
+            // is user-scoped — the OpenWeather key stays server-side either way, which is the
+            // reason this is a proxy at all.
+            "/api/weather", "/api/weather/search",
+            // Cinema browse — category strips and rail pages
+            "/api/cinema/home", "/api/cinema/home/categories",
+            "/api/cinema/movies", "/api/cinema/movies/categories",
+            "/api/cinema/series", "/api/cinema/series/categories",
+            "/api/cinema/rails", "/api/cinema/rails/*", "/api/cinema/rails/*/records",
+            // Record detail, search and the TMDB-backed detail panels
+            "/api/cinema/catalog/**",
+            "/api/cinema/collections/**",
+            "/api/cinema/persons/**",
+            "/api/cinema/tmdb/search",
+            "/api/cinema/reviews/record/*",
+            // IPO tracker — list and detail. Single-segment "*" cannot swallow the
+            // two-segment user-scoped paths (/{id}/application, /my/applications).
+            "/api/ipo", "/api/ipo/*",
+            "/api/ipo/*/financials",
+            "/api/ipo/*/gmp-history",
+            "/api/ipo/*/subscription-history"
     };
 
     // ── TMDB API URLs ─────────────────────────────────────────────────────────

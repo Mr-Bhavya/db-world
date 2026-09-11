@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   fetchBatchInteractions,
   addWatchlist, removeWatchlist,
@@ -6,15 +6,22 @@ import {
   addWatched,   removeWatched,
   addLove,      removeLove,
 } from '../api/cinemaApi';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 
 /**
  * Manages interaction state (watchlist / like / watched) for a set of records.
  * - `loadForRecords(userId, recordIds)` → batch-fetches and caches
  * - `toggle*(userId, recordId)` → optimistic update + API call
+ *
+ * The rails are browsable signed-out, so every toggle is gated: a visitor without an
+ * account gets the sign-in prompt rather than an optimistic tick that silently rolls
+ * back when the write 401s. `loadForRecords` already no-ops without a userId, so
+ * anonymous pages never fire the batch read either.
  */
 export default function useInteractions() {
   // Map of recordId → InteractionDto
   const [interactions, setInteractions] = useState({});
+  const { requireAuth } = useRequireAuth();
 
   const loadForRecords = useCallback(async (userId, recordIds) => {
     if (!userId || !recordIds?.length) return;
@@ -76,5 +83,12 @@ export default function useInteractions() {
 
   const get = useCallback((recordId) => interactions[recordId] ?? {}, [interactions]);
 
-  return { interactions, get, loadForRecords, toggleWatchlist, toggleLike, toggleWatched, toggleLove };
+  const gated = useMemo(() => ({
+    toggleWatchlist: requireAuth(toggleWatchlist, 'Sign in to use your watchlist'),
+    toggleLike:      requireAuth(toggleLike,      'Sign in to like this'),
+    toggleWatched:   requireAuth(toggleWatched,   'Sign in to track what you have watched'),
+    toggleLove:      requireAuth(toggleLove,      'Sign in to save this'),
+  }), [requireAuth, toggleWatchlist, toggleLike, toggleWatched, toggleLove]);
+
+  return { interactions, get, loadForRecords, ...gated };
 }

@@ -1,0 +1,341 @@
+{
+  "_comment": [
+    "EDITORIAL COPY FOR THE PUBLIC SITE - SINGLE SOURCE OF TRUTH.",
+    "",
+    "Read by BOTH sides, on purpose:",
+    "  - the SPA, via the Vite alias @content (src/shared/content/siteContent.js), so",
+    "    visitors read it;",
+    "  - SeoRenderController, from the classpath, so crawlers read the same words.",
+    "",
+    "That equivalence is the whole point. Dynamic rendering is only legitimate while",
+    "the crawler is shown the SAME content as the visitor, just earlier. Two copies of",
+    "this prose would drift within a release and turn the setup into cloaking, so there",
+    "is one copy and both renderers walk it.",
+    "",
+    "Why it lives in backend resources: Spring Boot's parent POM filters only",
+    "application*.yml|properties, so anything else here is copied verbatim into the WAR",
+    "with no @placeholder@ risk, and needs no <resources> block (adding one would",
+    "override Boot's defaults and break application.yml filtering). Vite reaches it",
+    "through an alias; nothing is duplicated.",
+    "",
+    "Schema: pages.<key> = { h1, title, description, lead, sections[] }, where a",
+    "section is { heading, paragraphs[] } or { heading, list[{term,text}] }. Both",
+    "renderers handle exactly those two shapes - add a third and you must teach both.",
+    "",
+    "A section may also carry an `id`. That is for code that reaches for one specific",
+    "section (IpoFaq, IpoLearn) - looking it up by heading would break the moment",
+    "somebody improves the wording. Sections without an `id` are display-only.",
+    "",
+    "Written September 2026 in response to the AdSense review, which rejected the site",
+    "for 'low value content' and for ads on screens with no publisher content. Keep it",
+    "substantive and honest: filler written at a crawler is what got the site rejected."
+  ],
+
+  "pages": {
+
+    "home": {
+      "_note": [
+        "h1 MUST stay the exact string DashboardIntro shows an anonymous visitor -",
+        "it reads this field. They were 'DB World' here and 'Everything you use, in",
+        "one hub' on screen, so the crawler and the visitor saw different headings on",
+        "the same URL, which is the one thing this shared file exists to prevent.",
+        "",
+        "The brand is carried by <title> and og:site_name, plus WebSite JSON-LD on the",
+        "crawler page - not by the h1, where it would make a poor display heading."
+      ],
+      "h1": "Everything you use, in one hub",
+      "title": "DB World - movies, live IPO tracking, weather and games",
+      "description": "A self-hosted suite of small, focused web apps: a media library, live Indian IPO tracking, weather, six browser games and an encrypted vault.",
+      "lead": "DB World is a self-hosted suite of small, focused web apps that grew out of one problem at a time. Nothing here is a wrapper around somebody else's product - each app was built because an existing tool was heavier, noisier or more expensive than the job needed.",
+      "sections": [
+        {
+          "heading": "What is inside",
+          "list": [
+            {
+              "term": "DB Cinema",
+              "text": "A personal media library with a browsable catalogue, rails organised by genre and collection, cast and crew, trailers and per-title availability. Browsing is open to anyone; playback and downloads need an account."
+            },
+            {
+              "term": "IPO Radar",
+              "text": "Live mainboard and SME IPO tracking for the Indian market - open and close dates, price bands, lot sizes, grey market premium, subscription figures and listing performance, pulled from several sources and reconciled into one view."
+            },
+            {
+              "term": "Weather",
+              "text": "Current conditions, an hourly strip, a five-day outlook and an air-quality panel with the pollutant breakdown, for any place you search or your current location."
+            },
+            {
+              "term": "Games",
+              "text": "Six browser games - 2048, Minesweeper, Connect Four, Snake, Memory Match and Tic Tac Toe. No account, no ads between moves, no server round trip; best scores stay on your device."
+            },
+            {
+              "term": "Password vault",
+              "text": "An encrypted password manager, plus a generator that runs entirely in your browser and is free to use without signing in."
+            },
+            {
+              "term": "Document wallet",
+              "text": "An encrypted store for government documents, with expiry tracking and revocable share links."
+            }
+          ]
+        },
+        {
+          "heading": "How it is built",
+          "paragraphs": [
+            "DB World is one React application over a Spring Boot API, self-hosted rather than run on a cloud platform. That constraint shapes most of the design decisions: there is a single deployment, one database, and a strict budget on how many external API calls any page is allowed to make.",
+            "The IPO tracker is the clearest example. Three public sources publish overlapping and frequently contradictory figures for the same issue, so the tracker stores which source each field came from, prefers the one that is actually live for that stage of the IPO, and refuses to overwrite a confirmed figure with a scraped guess. Most of the work in that app is reconciliation, not display.",
+            "The apps share one account system, one notification pipeline and one theme, so a preference set in one place holds everywhere. They are otherwise independent - each can be used on its own without the others."
+          ]
+        },
+        {
+          "heading": "What needs an account",
+          "paragraphs": [
+            "Reading is open. You can browse the film and TV catalogue, track IPOs, check the weather, play every game and use the password generator without signing in or handing over an email address.",
+            "An account is only required to act on something: to play or download a title, to save an IPO to a watchlist, to store a password or a document, or to keep preferences across devices. Accounts can be deleted from the profile page, and deletion removes the stored data rather than flagging it."
+          ]
+        }
+      ]
+    },
+
+    "weather": {
+      "h1": "Weather",
+      "title": "Weather - live conditions, five-day forecast and air quality",
+      "description": "Current conditions, an hourly strip, a five-day outlook and air quality with the full pollutant breakdown - plus what each reading actually means.",
+      "lead": "Search any place or use your current location for current conditions, an hourly strip, a five-day outlook and an air-quality reading. The reference below explains what each number on the page actually means, because most weather apps show them without saying.",
+      "sections": [
+        {
+          "heading": "Reading the air quality index",
+          "paragraphs": [
+            "The air-quality panel uses a five-band index rather than the 0-500 number used by India's CPCB or the US EPA. The bands are not interchangeable with those scales - a 3 here is not an AQI of 3 - so the label matters more than the digit.",
+            "The pollutant breakdown underneath is the more useful reading. The index collapses everything into one figure, but the pollutant driving it changes what you should do: PM2.5 is the one that reaches deep into the lungs and the one a cloth mask does least about, ozone peaks in the afternoon sun rather than in traffic, and NO2 tracks vehicle exhaust and so follows the rush hour."
+          ]
+        },
+        {
+          "heading": "What each band means",
+          "list": [
+            { "term": "Good", "text": "Air quality is ideal. No reason to change what you had planned." },
+            { "term": "Fair", "text": "Acceptable for almost everyone. Unusually sensitive people may notice it on a long run or a long walk." },
+            { "term": "Moderate", "text": "Sensitive groups - asthma, heart or lung conditions, young children, older adults - should shorten long spells outdoors. Everyone else is fine." },
+            { "term": "Poor", "text": "Cut back on strenuous activity outdoors. Exercise indoors if you have the option, and keep windows shut on the traffic side." },
+            { "term": "Very Poor", "text": "Avoid outdoor exertion. Keep windows closed, run a purifier if you have one, and treat a mask as worthwhile rather than optional." }
+          ]
+        },
+        {
+          "heading": "What the other readings mean",
+          "list": [
+            { "term": "Feels like", "text": "Temperature adjusted for humidity and wind. Above about 27C humidity dominates, because sweat stops evaporating and your body loses its main way of shedding heat; in the cold, wind dominates, because moving air strips the warm layer off your skin. When the gap between actual and feels-like is large, the feels-like figure is the one to dress for." },
+            { "term": "Humidity", "text": "How much water the air holds as a percentage of the most it could hold at that temperature. Because that ceiling rises with temperature, 60% on a hot afternoon carries far more water than 60% at dawn - which is why the same reading feels very different at different times of day." },
+            { "term": "Pressure", "text": "Atmospheric pressure in hectopascals. The absolute value matters less than the direction of travel: falling pressure generally means unsettled weather moving in, rising pressure means it is clearing. Around 1013 hPa is the global average at sea level." },
+            { "term": "Visibility", "text": "How far you can see, capped at 10 km by the observation method. It drops with fog, heavy rain and particulate haze, so on a bad-air day it often falls in step with the PM2.5 reading." },
+            { "term": "Wind", "text": "Speed plus the compass direction the wind is blowing FROM - a northerly blows from the north. That convention is universal in meteorology and catches people out constantly." }
+          ]
+        },
+        {
+          "heading": "Why the hourly and five-day forecasts disagree",
+          "paragraphs": [
+            "The hourly strip and the five-day outlook come from the same model but summarise it differently, so they can look contradictory. A day showing no rain in the outlook can still contain a wet hour: the daily row reports the dominant condition, not every condition.",
+            "Accuracy also falls off faster than most people expect. The first 24 hours are reliable, days two and three are good for the general shape of the weather, and days four and five are best read as a trend rather than a plan. Precipitation timing degrades first; temperature holds up longest."
+          ]
+        }
+      ]
+    },
+
+    "games": {
+      "h1": "Games",
+      "title": "Free browser games - 2048, Minesweeper, Connect Four, Snake",
+      "description": "Six browser games that need no account and no download, with the rules and the strategy that actually improves your score for each one.",
+      "lead": "Six games that run entirely in the browser. No account, no download, no server round trip - your best scores are saved on the device you played on. Each one is quick to learn, so what follows is the part that is harder to find: the strategy that actually moves your score.",
+      "sections": [
+        {
+          "heading": "2048",
+          "paragraphs": [
+            "Slide numbered tiles in any direction; two tiles of the same value merge into their sum. Every move spawns a new 2 or 4 in a free cell, so the board fills whether or not your move achieved anything. You win at 2048 and lose when no move is legal.",
+            "The strategy that matters is corner discipline. Pick one corner, keep your largest tile there, and only ever use the two directions that cannot move it. Most losses come from a single upward swipe that dislodges the big tile and leaves it stranded mid-board with nothing to merge into. Build your second-largest tile in the cell beside it so the two can combine, and keep the whole edge in descending order - that turns a merge into a chain reaction instead of a single pop."
+          ]
+        },
+        {
+          "heading": "Minesweeper",
+          "paragraphs": [
+            "Clear every safe cell without uncovering a mine. Each number tells you how many mines touch that cell, counting diagonals - eight neighbours, not four.",
+            "Past the opening, almost every move is one of two patterns. If a number already touches exactly that many flags, every other neighbour is safe and can be opened. If a number has exactly that many unopened neighbours left, all of them are mines. Alternating between those two rules solves most boards without a guess. When it stops working, look at pairs of adjacent numbers rather than one at a time: a 1 next to a 2 sharing two cells often forces the answer that neither number settles alone. Genuine 50/50 guesses do occur - recognising one quickly is better than staring at it."
+          ]
+        },
+        {
+          "heading": "Connect Four",
+          "paragraphs": [
+            "Drop discs into columns and line up four in a row - horizontally, vertically or diagonally. Gravity means you choose a column, not a cell, which is the entire game.",
+            "The centre column is worth more than any other because it participates in more possible fours than any other, so take it first if you move first. The habit that separates a decent player from a beginner is checking what your move builds ON TOP OF: filling a cell hands your opponent the one directly above it. Playing under an opponent's winning square loses games that were otherwise won. The strongest threat is the double - a move creating two winning squares at once, since your opponent can only block one. Connect Four is solved, and the first player wins with perfect play by starting in the centre."
+          ]
+        },
+        {
+          "heading": "Snake",
+          "paragraphs": [
+            "Steer the snake into food to grow. Hitting a wall or your own body ends the run, and the snake never stops moving, so not deciding is itself a decision.",
+            "Early on, take the direct route. Once the snake is long, stop chasing food and start managing space: before you commit to a piece of food, check that you can still get out afterwards. The reliable pattern is to travel the perimeter and use the interior in tight rows, keeping the tail adjacent to the head's escape route - a snake coiled along the edges always has somewhere to go, while one looped through the middle traps itself. Deaths at high scores are nearly always self-collision in space you closed off several moves earlier."
+          ]
+        },
+        {
+          "heading": "Memory Match",
+          "paragraphs": [
+            "Flip two cards at a time to find matching pairs; the board clears when every pair is found. Scored on time, so speed and recall both count.",
+            "The mistake is flipping at random once you already hold information. When a flip reveals a card you have seen before, go straight to its partner rather than continuing to explore - a known pair banked now is one less thing to remember later. When you have no information, turn over cards in a fixed reading order rather than jumping around: position is far easier to remember when it maps to a sequence, and the first pass through the board is where most of your recall is built."
+          ]
+        },
+        {
+          "heading": "Tic Tac Toe",
+          "paragraphs": [
+            "Three in a row on a three-by-three grid. Simple enough to solve completely, which is what makes it interesting.",
+            "Played perfectly by both sides, every game is a draw - there is no opening that wins against correct defence. As the first player, the centre gives the most winning lines and a corner sets the most traps. The one rule that avoids nearly every loss: if you can win this move, take it; otherwise, if your opponent can win next move, block it. Against an opponent who opens in the centre, reply in a corner - replying on an edge is the mistake that loses."
+          ]
+        }
+      ]
+    },
+
+    "ipo": {
+      "_note": [
+        "UNLIKE THE OTHER PAGES, the SPA does NOT render this through EditorialSections.",
+        "IpoFaq and IpoLearn read the two lists below and present them as an accordion",
+        "and a searchable grid, which is better on a screen than a flat wall of text.",
+        "SeoRenderController emits them flat for crawlers. Same words, two presentations",
+        "- which is what equivalence asks for. Editing the copy here changes both.",
+        "",
+        "Adding an EditorialSections block to the IPO page would render all of this a",
+        "second time underneath the components that already show it."
+      ],
+      "h1": "IPO Radar",
+      "title": "IPO Radar - live IPO dates, price band, GMP and subscription",
+      "description": "Track live mainboard and SME IPOs: dates, price band, lot size, GMP, subscription and listing performance - plus what every term means.",
+      "lead": "Live mainboard and SME IPOs with dates, price bands, lot sizes, grey market premium and subscription figures, reconciled from several public sources. The reference below covers the vocabulary, which is the part that stops most first-time applicants.",
+      "sections": [
+        {
+          "id": "faq",
+          "heading": "Common questions about IPOs",
+          "list": [
+            {
+              "term": "What is GMP (Grey Market Premium)?",
+              "text": "GMP is the premium at which IPO shares informally trade before listing, in an unofficial \"grey market\". It is a rough gauge of listing-day demand - not an official or guaranteed price."
+            },
+            {
+              "term": "What does \"subscription\" mean?",
+              "text": "Subscription is how many times the shares on offer were applied for, usually split by investor category (QIB / NII / Retail). \"3.2x subscribed\" means demand was 3.2 times the shares available."
+            },
+            {
+              "term": "What is the difference between Mainboard and SME IPOs?",
+              "text": "Mainboard IPOs list on the main NSE/BSE boards and suit larger, established companies. SME IPOs are for smaller companies, list on the NSE Emerge / BSE SME platforms, and typically need a higher minimum investment per lot."
+            },
+            {
+              "term": "What is a lot size and minimum investment?",
+              "text": "A lot is the minimum number of shares you can apply for - you can only bid in whole multiples of it. Minimum investment = lot size x the upper price band."
+            },
+            {
+              "term": "How do I check my IPO allotment?",
+              "text": "Wait for the allotment date, then use \"Check allotment status\" on that IPO's Allotment tab - it opens the registrar/BSE page where you enter your PAN or application number and solve a CAPTCHA. That tab also has a step-by-step guide."
+            },
+            {
+              "term": "Is this data official or real-time?",
+              "text": "No - it is aggregated from public sources and refreshed periodically, not a live official feed. It is provided for information only, not investment advice - always confirm on the official registrar or exchange site before acting."
+            }
+          ]
+        },
+        {
+          "id": "glossary",
+          "heading": "IPO terms explained",
+          "list": [
+            { "term": "GMP", "text": "Grey Market Premium - the unofficial premium IPO shares trade at before listing; a rough gauge of listing-day demand, not guaranteed." },
+            { "term": "IPO", "text": "Initial Public Offering - the first time a company sells shares to the public and lists on a stock exchange." },
+            { "term": "Mainboard", "text": "The main NSE/BSE listing board, for larger/established companies with the full regulatory requirements." },
+            { "term": "SME", "text": "Small & Medium Enterprises - a separate listing platform (NSE Emerge / BSE SME) for smaller companies, usually with a higher minimum investment per lot." },
+            { "term": "Lot size", "text": "The minimum number of shares you can bid for - you can only apply in whole multiples of one lot." },
+            { "term": "Price band", "text": "The price range (lower to upper) within which you can bid for shares; the final price is fixed within this band." },
+            { "term": "Cut-off price", "text": "Agreeing to pay whatever final price is decided within the band, instead of naming a specific price - the usual choice for retail investors." },
+            { "term": "QIB", "text": "Qualified Institutional Buyers - the reserved category for banks, mutual funds and other large institutional investors." },
+            { "term": "NII / HNI", "text": "Non-Institutional Investors / High Net-worth Individuals - the category for applications above Rs 2 lakh, below the QIB threshold." },
+            { "term": "RII (Retail)", "text": "Retail Individual Investor - the category for individual applications up to Rs 2 lakh; most first-time applicants fall here." },
+            { "term": "Anchor investor", "text": "A large institutional investor allotted shares a day before the IPO opens, at a fixed price - meant to signal confidence to other investors." },
+            { "term": "Subscription (x times)", "text": "How many times over the shares on offer were applied for - e.g. \"3.2x\" means demand was 3.2 times the shares available." },
+            { "term": "DRHP", "text": "Draft Red Herring Prospectus - the preliminary offer document filed with SEBI before an IPO is approved." },
+            { "term": "RHP", "text": "Red Herring Prospectus - the final offer document filed just before the IPO opens, with the price band and full details." },
+            { "term": "OFS (Offer for Sale)", "text": "Existing shareholders (promoters/investors) selling their own shares in the IPO - the company itself does not receive this money." },
+            { "term": "Fresh issue", "text": "Brand-new shares issued by the company in the IPO - this money goes to the company itself." },
+            { "term": "Face value", "text": "The nominal/par value of a share set by the company (e.g. Rs 10), distinct from the (usually much higher) issue/market price." },
+            { "term": "PAT", "text": "Profit After Tax - a company's net profit, used to gauge financial health in the Financials section." },
+            { "term": "Listing gain", "text": "The percentage gain (or loss) between the issue price and the price the stock actually lists at on the exchange." },
+            { "term": "Allotment", "text": "The process of assigning shares to applicants - oversubscribed IPOs allot via a lottery/proportionate process, not to everyone who applied." },
+            { "term": "Refund", "text": "The blocked application amount released back to you for shares you did not get allotted." },
+            { "term": "Demat", "text": "Dematerialized account - where your allotted shares are credited electronically; required to apply for any IPO." },
+            { "term": "ASBA", "text": "Applications Supported by Blocked Amount - your bank blocks (does not debit) the application money until allotment is finalized." },
+            { "term": "UPI mandate", "text": "The payment-approval request sent to your UPI app when you apply - approving it blocks the funds via ASBA." }
+          ]
+        }
+      ]
+    },
+
+    "cinema": {
+      "h1": "DB Cinema",
+      "title": "DB Cinema - browse the film and TV catalogue",
+      "description": "Browse the DB Cinema catalogue by genre, collection and format, with cast, crew and per-title availability. Browsing is open to everyone.",
+      "lead": "The catalogue is open to browse without an account. What follows explains how it is organised and what the labels on a title mean, which is the part that is not obvious from the artwork alone.",
+      "sections": [
+        {
+          "heading": "How the catalogue is organised",
+          "paragraphs": [
+            "Titles are grouped into rails rather than one long alphabetical list. Some rails are editorial and hand-ordered; others are rules that re-evaluate themselves - recently added, trending, and genre rails that a title joins automatically when its metadata matches.",
+            "Films that belong to a series are also grouped into collections, numbered in story order rather than release order, with the entries not currently in the library marked as such rather than hidden. That way a collection page shows you the whole set and where the gaps are, instead of quietly presenting a partial series as if it were complete."
+          ]
+        },
+        {
+          "heading": "What the format labels on a title mean",
+          "list": [
+            { "term": "Resolution", "text": "The highest resolution held for that title, not the only one. A title marked 4K may also have a 1080p copy, which is what a slower connection will actually be served. Format labels need an account - they describe the files themselves, which is not information the catalogue publishes to everyone." },
+            { "term": "HDR", "text": "High dynamic range - a wider range between the darkest and brightest parts of the picture. It only makes a visible difference on a display that supports it; on one that does not, the same file can look flat or washed out." },
+            { "term": "Audio", "text": "The audio tracks present, including surround and object-based formats. Multi-language titles list every audio track, so you can see before you start whether the language you want is actually there." },
+            { "term": "Subtitles", "text": "The subtitle tracks present, listed by language." }
+          ]
+        },
+        {
+          "heading": "What you can do without an account",
+          "paragraphs": [
+            "Browsing, searching, opening a title and reading its cast and crew are all open. An account is needed for playback, downloads, watchlists, likes and requests - each is either tied to your identity or consumes bandwidth - and also to see the format and quality labels above, which describe the stored files rather than the title.",
+            "Descriptive metadata - synopses, cast lists, artwork and ratings - comes from The Movie Database. Availability, format and quality information is specific to this library and is not sourced from anywhere else."
+          ]
+        }
+      ]
+    },
+
+    "about": {
+      "h1": "About DB World",
+      "title": "About DB World",
+      "description": "What DB World is, who runs it, and how it handles your data.",
+      "lead": "DB World is an independent, self-hosted project rather than a company product. It is built and maintained by one developer, and it exists because each of its apps replaced something that was heavier or more expensive than the job needed.",
+      "sections": [
+        {
+          "heading": "Why it exists",
+          "paragraphs": [
+            "Every app here started as a specific irritation. The IPO tracker exists because following an Indian IPO means opening four sites that disagree with each other, and none of them tells you which figure is confirmed and which is somebody's estimate. The password generator exists because most of the ones online are pages of advertising wrapped around ten lines of JavaScript, and there is no reason to send a generated password over a network at all. The weather app exists because the readings every forecast shows you are rarely explained anywhere near where they appear.",
+            "That origin shows in the design. None of these apps tries to be a platform. Each does one thing, works signed out wherever it reasonably can, and is allowed to be small."
+          ]
+        },
+        {
+          "heading": "How it is funded",
+          "paragraphs": [
+            "Running costs are covered by advertising on the public pages and by the developer. There is no subscription, no paid tier and no upsell, and no feature is withheld from a free account.",
+            "Advertising is confined to pages that carry actual content. There are no ads inside the video player, none inside a game while it is being played, none on a sign-in screen, and none placed where a mis-tap would be likely — a unit sits below what you came to read, never between you and it. The number of units on a page is deliberately low; the site would rather earn less than become unpleasant to use."
+          ]
+        },
+        {
+          "heading": "How your data is handled",
+          "paragraphs": [
+            "Passwords stored in the vault and documents stored in the wallet are encrypted, and the encryption keys are not readable from the web application. Account deletion removes the underlying records rather than flagging them as hidden.",
+            "The site sets no advertising or analytics cookies of its own, and there is no third-party analytics script. Google's ad serving on the public pages is subject to Google's own policies, which the privacy policy links to in full, along with the opt-out for personalised advertising.",
+            "Reading does not require an account, and the parts of the site that do require one ask for an email address and nothing else. The full detail is in the privacy policy."
+          ]
+        },
+        {
+          "heading": "What it is not",
+          "paragraphs": [
+            "It is not a company, and there is no team behind it. Nothing here carries a support commitment or an uptime guarantee: it is one person's self-hosted infrastructure, and it occasionally goes down.",
+            "The IPO figures are aggregated from public sources and are not an official feed. They are published for information and are not investment advice — confirm anything that matters on the registrar's or the exchange's own site before acting on it. Film and television metadata comes from The Movie Database."
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -14,26 +14,42 @@ import { computeQuickStats, formatPct } from '../utils/format';
 
 /** One quick-stat pill — icon-in-a-tinted-circle + value/label, matching the
  * icon-badge motif used across the feature (`OverviewTab`'s FactTile, `StrengthsRisks`). */
-function StatChip({ icon, color, value, label }) {
+function StatChip({ icon, color, value, valueColor, label, caption }) {
   const T = useT();
   return (
     <Box sx={{
-      display: 'flex', alignItems: 'center', gap: 0.9, minWidth: 0,
-      px: { xs: 1, sm: 1.25 }, py: { xs: 0.6, sm: 0.75 }, borderRadius: 2.5, bgcolor: T.glass, border: `1px solid ${T.border}`,
+      display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: { xs: '1 1 auto', sm: '0 1 auto' },
+      px: { xs: 1.1, sm: 1.4 }, py: { xs: 0.7, sm: 0.85 }, borderRadius: 2.5,
+      bgcolor: T.glass, border: `1px solid ${T.border}`,
+      transition: 'border-color 0.2s ease',
+      '&:hover': { borderColor: T.borderHover },
     }}>
       <Box sx={{
-        width: { xs: 26, sm: 30 }, height: { xs: 26, sm: 30 }, borderRadius: '50%', flexShrink: 0,
+        width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}1f`,
       }}>
         {icon}
       </Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, lineHeight: 1.2 }} noWrap>
+        <Typography sx={{
+          fontSize: { xs: 16, sm: 18 }, fontWeight: 800, color: valueColor ?? T.textPrimary,
+          lineHeight: 1.15, fontVariantNumeric: 'tabular-nums',
+        }} noWrap>
           {value}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }} noWrap>
+        <Typography sx={{
+          fontSize: 10, color: T.textMuted, textTransform: 'uppercase',
+          letterSpacing: 0.5, fontWeight: 700, lineHeight: 1.4,
+        }} noWrap>
           {label}
         </Typography>
+        {/* The company behind a "Top GMP" figure goes on its own line in sentence case. Crammed
+            into the uppercase label it pushed a chip past half the row's width and still clipped. */}
+        {caption && (
+          <Typography sx={{ fontSize: 11, color: T.textFaint, lineHeight: 1.35, maxWidth: 190 }} noWrap>
+            {caption}
+          </Typography>
+        )}
       </Box>
     </Box>
   );
@@ -46,7 +62,7 @@ function QuickStatsSkeleton() {
   return (
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
       {[0, 1, 2].map((i) => (
-        <Skeleton key={i} variant="rounded" width={148} height={50} sx={{ borderRadius: 2.5, bgcolor: T.glassHover }} />
+        <Skeleton key={i} variant="rounded" width={156} height={56} sx={{ borderRadius: 2.5, bgcolor: T.glassHover }} />
       ))}
     </Box>
   );
@@ -137,23 +153,25 @@ export default function IpoHero({ lastUpdated }) {
       ) : hasStats && (
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <StatChip
-            icon={<RadioButtonCheckedRoundedIcon sx={{ fontSize: 15, color: T.success }} />}
+            icon={<RadioButtonCheckedRoundedIcon sx={{ fontSize: 16, color: T.success }} />}
             color={T.success}
             value={stats.openCount}
             label="Open now"
           />
           <StatChip
-            icon={<UpcomingRoundedIcon sx={{ fontSize: 15, color: T.info }} />}
+            icon={<UpcomingRoundedIcon sx={{ fontSize: 16, color: T.info }} />}
             color={T.info}
             value={stats.upcomingCount}
             label="Upcoming"
           />
           {stats.topGmp && (
             <StatChip
-              icon={<GmpIcon sx={{ fontSize: 15, color: gmpColor }} />}
+              icon={<GmpIcon sx={{ fontSize: 16, color: gmpColor }} />}
               color={gmpColor}
               value={formatPct(stats.topGmp.gmpPct)}
-              label={stats.topGmp.companyName ? `Top GMP · ${stats.topGmp.companyName}` : 'Top GMP'}
+              valueColor={gmpColor}
+              label="Top GMP"
+              caption={stats.topGmp.companyName}
             />
           )}
         </Box>

@@ -1,62 +1,83 @@
 import { Box, Skeleton } from '@mui/material';
 import { useT } from '@shared/theme';
 
-/** Loading placeholder matching IpoCard's shape 1:1 (same shell, accent strip, grid,
- * bottom row) so the list doesn't "jump" once real data lands. */
+/**
+ * Loading placeholder for `IpoCard`, matching its shape row for row so the grid doesn't reflow when
+ * real data lands: top accent edge, 42px logo beside a two-line name and type chip with the status
+ * badge opposite, the hero's label+badge row over its 26px figure row, a row of evenly-divided
+ * stats, then the divided footer with its countdown pill.
+ *
+ * The stat row mirrors the card's three even columns and its edge-spread alignment (first flush
+ * left, last flush right, middle centred) — on live data upcoming, open and closed all settle on
+ * three, so that is the shape to reserve. Cards that can only fill one or two columns end up
+ * shorter than the placeholder rather than taller, which the grid absorbs without reflowing.
+ */
 export default function IpoCardSkeleton() {
   const T = useT();
+  const bar = { bgcolor: T.glassHover };
   return (
     <Box
       sx={{
+        position: 'relative',
         bgcolor: T.glass,
         border: `1px solid ${T.border}`,
-        borderLeft: `3px solid ${T.border}`,
-        borderRadius: 3,
+        borderRadius: 3.5,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1,
-        p: 1.75,
+        gap: 1.5,
+        p: { xs: 1.75, sm: 2 },
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: T.border,
+        },
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0, flex: 1 }}>
-          <Skeleton variant="circular" width={34} height={34} sx={{ bgcolor: T.glassHover, flexShrink: 0 }} />
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Skeleton variant="text" width="72%" height={20} sx={{ bgcolor: T.glassHover }} />
-            <Skeleton variant="rounded" width={58} height={16} sx={{ mt: 0.5, borderRadius: 999, bgcolor: T.glassHover }} />
-          </Box>
+      {/* Header — logo, name over type chip, status badge. */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+        <Skeleton variant="rounded" width={42} height={42} sx={{ borderRadius: 2, ...bar, flexShrink: 0 }} />
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Skeleton variant="text" width="88%" height={20} sx={bar} />
+          <Skeleton variant="rounded" width={62} height={17} sx={{ mt: 0.5, borderRadius: 1, ...bar }} />
         </Box>
-        <Skeleton variant="rounded" width={54} height={19} sx={{ borderRadius: 999, bgcolor: T.glassHover, flexShrink: 0 }} />
+        <Skeleton variant="rounded" width={64} height={22} sx={{ borderRadius: 999, ...bar, flexShrink: 0 }} />
       </Box>
 
-      {/* Mirrors IpoCard's 2-column stat grid 1:1: row 1 = price band/lot size, row 2 =
-          GMP/subscription (the subscription cell's mini-bar+multiple placeholder is a
-          single rounded block, matching that cell's fixed-width bar + "×" value shape). */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
-        <Box>
-          <Skeleton variant="text" width={56} height={12} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="text" width={70} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
+      {/* Hero — label row (with the rating badge opposite) over the 26px figure row (with its
+          companion figure opposite). */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Skeleton variant="text" width={124} height={13} sx={bar} />
+          <Skeleton variant="rounded" width={54} height={12} sx={{ borderRadius: 999, ...bar }} />
         </Box>
-        <Box>
-          <Skeleton variant="text" width={44} height={12} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="text" width={32} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
-        </Box>
-        <Box>
-          <Skeleton variant="text" width={32} height={12} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="text" width={64} height={18} sx={{ mt: 0.25, bgcolor: T.glassHover }} />
-        </Box>
-        <Box>
-          <Skeleton variant="text" width={70} height={12} sx={{ bgcolor: T.glassHover }} />
-          <Skeleton variant="rounded" width={64} height={18} sx={{ mt: 0.25, borderRadius: 1, bgcolor: T.glassHover }} />
+        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.25 }}>
+          <Skeleton variant="text" width={112} height={34} sx={bar} />
+          <Skeleton variant="text" width={86} height={16} sx={bar} />
         </Box>
       </Box>
 
+      {/* Stats — three even columns, aligned exactly as the card aligns them. */}
       <Box sx={{
-        display: 'flex', alignItems: 'center', gap: 1,
-        mt: 'auto', pt: 1, borderTop: `1px solid ${T.border}`,
+        display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', columnGap: 1.5,
+        '& > *:last-child': { justifyItems: 'end' },
+        '& > *:not(:first-of-type):not(:last-child)': { justifyItems: 'center' },
       }}>
-        <Skeleton variant="text" width={112} height={14} sx={{ bgcolor: T.glassHover }} />
+        {[{ l: 74, v: 62 }, { l: 52, v: 44 }, { l: 62, v: 50 }].map((w, i) => (
+          <Box key={i} sx={{ display: 'grid', justifyItems: 'start' }}>
+            <Skeleton variant="text" width={w.l} height={13} sx={bar} />
+            <Skeleton variant="text" width={w.v} height={18} sx={{ mt: 0.35, ...bar }} />
+          </Box>
+        ))}
+      </Box>
+
+      {/* Footer — date range and countdown pill, above the same divider the card uses. */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+        mt: 'auto', pt: 1.25, borderTop: `1px solid ${T.border}`,
+      }}>
+        <Skeleton variant="text" width={148} height={15} sx={bar} />
+        <Skeleton variant="rounded" width={68} height={20} sx={{ borderRadius: 999, ...bar }} />
       </Box>
     </Box>
   );

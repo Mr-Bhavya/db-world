@@ -265,15 +265,7 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                     call site, so the list is positional by construction and never reorders.
                     Arbitrary children carry no identity of their own to key on. */}
                 {React.Children.map(children, (child, index) => (
-                    <Grid
-                        item
-                        xs={gridConfig.xs}
-                        sm={gridConfig.sm}
-                        md={gridConfig.md}
-                        lg={gridConfig.lg}
-                        xl={gridConfig.xl}
-                        key={index}
-                    >
+                    <Grid size={gridConfig} key={index}>
                         {child}
                     </Grid>
                 ))}
@@ -443,7 +435,7 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                             {/* Same as the audio list above: duplicate subtitle tracks are
                                 normal, so index beats a colliding composite key. */}
                             {mediaInfo.subtitle.slice(0, isMobile ? 6 : 4).map((sub, i) => (
-                                <Grid item xs={12} sm={6} key={i}>
+                                <Grid size={{ xs: 12, sm: 6 }} key={i}>
                                     <Box
                                         sx={{
                                             p: 1,

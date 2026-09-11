@@ -232,6 +232,23 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void list_sortClosing_ordersBySoonestCloseDateWithNullsLast() {
+        // The only ASCENDING sort — "what do I have to decide about next" rather than a description
+        // of the issue, so soonest first is the whole point.
+        IpoListingEntity soon = entity("soon", "open", "mainboard", null, null, null);
+        soon.setCloseDate(LocalDate.of(2026, 8, 28));
+        IpoListingEntity later = entity("later", "open", "mainboard", null, null, null);
+        later.setCloseDate(LocalDate.of(2026, 9, 15));
+        IpoListingEntity noClose = entity("no-close", "open", "mainboard", null, null, null);
+        when(listingRepository.findAll()).thenReturn(List.of(later, noClose, soon));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        IpoListResponse response = service.list(null, null, "closing");
+
+        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("soon", "later", "no-close");
+    }
+
+    @Test
     void list_unrecognizedSort_fallsBackToDateOrder() {
         IpoListingEntity older = entity("older", "open", LocalDate.of(2026, 6, 1));
         IpoListingEntity newer = entity("newer", "open", LocalDate.of(2026, 7, 20));
@@ -305,6 +322,33 @@ class IpoQueryServiceTest {
 
         assertThat(dto.id()).isEqualTo("1");
         assertThat(dto.companyName()).isEqualTo("Company 1");
+    }
+
+    @Test
+    void detail_idWasMergedAwayAsADuplicate_servesTheSurvivor() {
+        // Every push already delivered, every shared link and every "My IPOs" bookmark carries
+        // whatever id existed when it was created, and a duplicate merge retires one of those ids.
+        // Without this hop, tidying duplicates would 404 links that used to work.
+        IpoListingEntity tombstone = entity("1", "open", LocalDate.of(2026, 7, 20));
+        tombstone.setMergedIntoId("2");
+        IpoListingEntity survivor = entity("2", "open", LocalDate.of(2026, 7, 20));
+        when(listingRepository.findById("1")).thenReturn(Optional.of(tombstone));
+        when(listingRepository.findById("2")).thenReturn(Optional.of(survivor));
+
+        assertThat(service.detail("1").id()).isEqualTo("2");
+    }
+
+    @Test
+    void list_omitsRowsMergedAwayAsDuplicates() {
+        // The tombstone is always the emptier half of the pair, so leaving it in is precisely the
+        // "second card with no GMP" symptom the merge exists to remove.
+        IpoListingEntity live = entity("1", "open", LocalDate.of(2026, 7, 20));
+        IpoListingEntity merged = entity("2", "open", LocalDate.of(2026, 7, 20));
+        merged.setMergedIntoId("1");
+        when(listingRepository.findAll()).thenReturn(List.of(live, merged));
+
+        assertThat(service.list(null, null, null).ipos())
+                .extracting(IpoSummaryDto::id).containsExactly("1");
     }
 
     @Test

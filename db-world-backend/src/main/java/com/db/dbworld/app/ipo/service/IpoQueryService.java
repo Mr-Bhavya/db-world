@@ -38,8 +38,13 @@ public class IpoQueryService {
 
     private static final String TYPE_ALL = "all";
     private static final String STATUS_LISTED = "listed";
+
+    /** Merge tombstones to follow before giving up — a defence against a hand-edited cycle, not a
+     *  case this code can create (survivors are always picked from live rows). */
+    private static final int MAX_MERGE_HOPS = 5;
     private static final String SORT_GMP = "gmp";
     private static final String SORT_SUBSCRIPTION = "subscription";
+    private static final String SORT_CLOSING = "closing";
 
     /** Indian IPO calendar zone — "listed long ago" is measured against today in IST. */
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
@@ -55,6 +60,14 @@ public class IpoQueryService {
     /** Highest subscription total first; IPOs with no subscription reading yet sort to the end. */
     private static final Comparator<IpoListingEntity> SORT_SUBSCRIPTION_DESC =
             Comparator.comparing(IpoListingEntity::getSubTotal, Comparator.nullsLast(Comparator.reverseOrder()));
+
+    /**
+     * Soonest close date first — the only ASCENDING sort here, and the only actionable one: the
+     * other three describe an IPO ("newest", "hottest GMP", "most subscribed") whereas this one
+     * answers "what do I have to decide about next". IPOs with no close date sort to the end.
+     */
+    private static final Comparator<IpoListingEntity> SORT_CLOSING_ASC =
+            Comparator.comparing(IpoListingEntity::getCloseDate, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final IpoListingRepository listingRepository;
     private final IpoGmpHistoryRepository gmpHistoryRepository;
@@ -104,7 +117,8 @@ public class IpoQueryService {
      * All IPOs, optionally filtered by {@code status} (canonicalized so any of a source's raw
      * wordings still matches) and {@code type} ({@code mainboard}|{@code sme}; blank/{@code all}
      * = no filter), sorted per {@code sort} ({@code date} default, {@code gmp}, or
-     * {@code subscription} — each descending, nulls last).
+     * {@code subscription} — each descending — plus {@code closing}, which is ascending; all
+     * nulls last).
      */
     public IpoListResponse list(String status, String type, String sort) {
         String canonicalStatus = IpoStatusCanonicalizer.canonical(status);
@@ -114,6 +128,10 @@ public class IpoQueryService {
 
         LocalDate staleListedCutoff = staleListedCutoff();
         List<IpoSummaryDto> ipos = entities.stream()
+                // A row merged away as a duplicate is a tombstone, not a listing. Leaving it in is
+                // exactly the two-cards-for-one-IPO symptom the merge exists to remove — and it is
+                // always the emptier of the two, so it shows as a card with no GMP.
+                .filter(e -> e.getMergedIntoId() == null)
                 .filter(e -> matchesType(e, type))
                 .filter(e -> !isStaleListed(e, staleListedCutoff))
                 .sorted(sortComparator(sort))
@@ -144,9 +162,24 @@ public class IpoQueryService {
                 && entity.getListingDate().isBefore(cutoff);
     }
 
+    /**
+     * One IPO by id, following the merge tombstone if that id has since been merged away.
+     *
+     * <p>Following it is not optional. Every push already delivered, every shared link and every
+     * "My IPOs" bookmark carries whatever id existed when it was created, and a duplicate merge
+     * retires one of those ids — so without this hop, cleaning up duplicates would 404 links that
+     * used to work. One hop is enough by construction: a survivor is chosen from LIVE rows only, so
+     * a tombstone can never point at another tombstone. The loop guard is there for a hand-edited
+     * database rather than anything this code can produce.
+     */
     public IpoDetailDto detail(String id) {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
+        for (int hops = 0; entity.getMergedIntoId() != null && hops < MAX_MERGE_HOPS; hops++) {
+            String survivorId = entity.getMergedIntoId();
+            entity = listingRepository.findById(survivorId)
+                    .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
+        }
         return withDerivedTimelineDates(mapper.toDetail(entity));
     }
 
@@ -208,7 +241,10 @@ public class IpoQueryService {
                 dto.strengths(), dto.risks(),
                 dto.foundedYear(), dto.managingDirector(), dto.parentCompany(),
                 dto.sector(), dto.headquarters(), dto.website(),
-                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails());
+                dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails(),
+                dto.gmpRating(), dto.gmpMin(), dto.gmpMax(), dto.gmpUpdatedLabel(),
+                dto.estimatedListingPrice(), dto.subjectToSauda(), dto.estProfit(), dto.peRatio(),
+                dto.anchorInvestor(), dto.allotmentLink(), dto.subscriptionUpdatedLabel());
     }
 
     /** The given date, rolled forward to the next trading day — skips weekends AND configured NSE holidays. */
@@ -231,6 +267,9 @@ public class IpoQueryService {
     private static Comparator<IpoListingEntity> sortComparator(String sort) {
         if (SORT_GMP.equalsIgnoreCase(sort)) {
             return SORT_GMP_DESC;
+        }
+        if (SORT_CLOSING.equalsIgnoreCase(sort)) {
+            return SORT_CLOSING_ASC;
         }
         if (SORT_SUBSCRIPTION.equalsIgnoreCase(sort)) {
             return SORT_SUBSCRIPTION_DESC;

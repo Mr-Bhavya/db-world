@@ -33,6 +33,16 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
         String storedPassword = user.getPassword();
 
+        // A Google-only account has no password at all. This has to be checked before the
+        // legacy-plaintext branch below, which would otherwise call equals() on null and turn
+        // a routine wrong-method login into a 500.
+        if (storedPassword == null || storedPassword.isBlank()) {
+            log.warn("Login attempt rejected: account [{}] has no password credential", email);
+            throw new BadCredentialsException(user.hasGoogleLinked()
+                    ? "This account uses Google Sign-In. Continue with Google instead."
+                    : "Invalid email or password");
+        }
+
         if (!isEncoded(storedPassword)) {
             // 🔥 OLD plaintext password
 
@@ -58,7 +68,14 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
         // Gate on account state — the custom provider bypasses Spring's default
         // DaoAuthenticationProvider checks, so enforce them explicitly here.
-        if (!user.isEnabled()) {
+        //
+        // Deleting an account clears `enabled` so that every other enabled-check in the
+        // codebase (notification broadcasts, active-user queries) excludes it for free. That
+        // makes THIS the one place that must look past the flag: signing back in during the
+        // grace window is exactly how a deletion is undone, so a pending deletion is allowed
+        // through here and restored by AuthenticationService. A lock is still enforced —
+        // being locked is an independent decision from being deleted.
+        if (!user.isEnabled() && !user.isPendingDeletion()) {
             log.warn("Login rejected: account disabled for email={}", email);
             throw new DisabledException("Your account has been disabled");
         }

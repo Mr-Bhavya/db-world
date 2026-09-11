@@ -50,6 +50,7 @@ import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../api/cinemaApi';
 import { buildMobileMeta, heroArtCandidates, heroBadge } from './heroUtils';
 import CertBadge from '../CertBadge';
+import { HERO_TOP_INSET } from '../../navbar/navMetrics';
 
 /** Cards mounted at once: the one you're looking at, plus the two behind it. */
 const LAYERS = 3;
@@ -69,8 +70,10 @@ export const PEEK_ROOM = 38;
 
 /** Clear air between the turned-past card and the top card. */
 export const LEFT_GAP = 8;
-/** How much of the turned-past card shows past that gap. */
-export const LEFT_PEEK = 14;
+/** How much of the turned-past card shows past that gap.
+ *  6, not 14: at 14 the sliver read as a whole second card sitting half off-screen
+ *  rather than as the edge of the one you just turned. */
+export const LEFT_PEEK = 6;
 /** Total reserved on the left. The top card is inset by this much. */
 export const LEFT_ROOM = LEFT_GAP + LEFT_PEEK;
 
@@ -168,8 +171,17 @@ function RoundAction({ label, onClick, children, primary = false, size }) {
 
 /* ── one card in the deck ───────────────────────────────────────────────────── */
 
-function DeckCard({
-  record, badge, front, inList, isXs, cardW, cardH,
+/**
+ * Memoised, and DeckSlot is what makes that stick: every prop below is either a
+ * primitive or an identity DeckSlot holds steady with its own hooks. Pass a fresh
+ * object or arrow in here from anywhere and the shallow compare fails silently — the
+ * card still renders correctly, it just renders every time, which is how this started.
+ *
+ * Worth memoising because the subtree is not small: a full-bleed <img>, a badge plate,
+ * the meta line and the action row, times the three mounted cards.
+ */
+const DeckCard = React.memo(function DeckCard({
+  record, badge, front, inList, isXs, cardW, cardH, dim = 0,
   onOpen, onPlay, onWatchlist,
 }) {
   const T = useT();
@@ -221,10 +233,29 @@ function DeckCard({
         cursor: 'pointer',
         bgcolor: T.bg === '#000000' ? '#141414' : alpha(T.text, 0.06),
         border: `1px solid ${alpha('#fff', 0.08)}`,
-        boxShadow: front ? '0 22px 48px rgba(0,0,0,0.55)' : '0 12px 28px rgba(0,0,0,0.45)',
+        // ONE shadow for every card, front or back, and a smaller blur than the
+        // front card used to carry. Two reasons, both about paint cost:
+        //   - a 48px blur on an element that is being scaled and translated is
+        //     re-rasterised every frame of the turn;
+        //   - it CHANGED on promotion, and box-shadow cannot be composited, so a card
+        //     coming forward forced a fresh rasterisation and popped.
+        // Constant means the layer can be cached for the whole gesture.
+        boxShadow: '0 14px 30px rgba(0,0,0,0.5)',
         '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 3 },
       }}
     >
+      {/* "Further back" dimming, as one blended rect rather than element opacity on
+          the whole card. Sits above the artwork and the chrome so a back card dims
+          evenly, and is pointer-transparent so it never eats a tap. A CSS transition
+          rather than a motion value: it only changes when a card is promoted, and it
+          should ride the same curve as the turn. */}
+      {dim > 0 && (
+        <Box aria-hidden sx={{
+          position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none',
+          bgcolor: '#000', opacity: dim,
+          transition: 'opacity .34s cubic-bezier(.22,1,.36,1)',
+        }} />
+      )}
       {src ? (
         <Box
           component="img"
@@ -349,9 +380,81 @@ function DeckCard({
       )}
     </Box>
   );
-}
+});
 
 /* ── the deck ───────────────────────────────────────────────────────────────── */
+
+/**
+ * One card's worth of derived props, so `DeckCard`'s memo can actually bail.
+ *
+ * WHY A COMPONENT AND NOT useMemo AT THE CALL SITE. The badge object and the three
+ * handlers are per-card values computed inside `deck.map(...)`, and hooks cannot be
+ * called in a loop — their order has to be identical on every render. So there is no
+ * way to stabilise them from the parent. Giving each card its own component instance
+ * gives each its own hooks, which is the only way to hold those identities steady.
+ *
+ * Before this, `badge={heroBadge(...)}` allocated a fresh object and the three arrows
+ * allocated fresh closures on every single render, so React.memo's shallow compare
+ * failed every time and all three mounted cards re-rendered — image, badge plate, meta
+ * line and action row — whenever anything in the deck changed.
+ *
+ * WHAT THIS DOES AND DOES NOT BUY. It does NOT save the turn itself: committing a turn
+ * shifts every mounted card's `k`, so their props genuinely change and they genuinely
+ * re-render. What it removes is the churn around the gesture — `onDragStart` sets
+ * `liftFor` and `dragFor`, `settleFinger` clears them, and each of those re-rendered
+ * all three cards for nothing. Those land at the two moments the deck can least afford
+ * dropped frames: the instant your finger goes down, and the instant it lifts.
+ *
+ * It also covers plain parent churn — HeroBanner's CYCLE_MS interval, the colour wash,
+ * rails resolving underneath.
+ *
+ * This component itself is deliberately NOT memoised: it renders no DOM of its own, and
+ * its whole job is to be cheap enough to re-run so the expensive child can be skipped.
+ */
+function DeckSlot({
+  item, k, isFront, isLeft, isXs, cardW, cardH,
+  ranked, top10, rankLabel, badgeIdx, inList,
+  dragEndedAt, go, goToDetail, goToPlay, onWatchlist,
+}) {
+  const badge = useMemo(
+    () => heroBadge(item, { ranked, top10, rankLabel, idx: badgeIdx }),
+    [item, ranked, top10, rankLabel, badgeIdx],
+  );
+
+  // A tap on a card behind brings it forward instead of navigating; committing to a
+  // title you can only half see is never what you meant.
+  const onOpen = useCallback(() => {
+    // A click still fires after a drag, so ignore taps that land in its shadow.
+    if (Date.now() - dragEndedAt.current < 220) return;
+    if (isFront) goToDetail?.();
+    else if (isLeft) go?.(-1);
+    else go?.(1);
+  }, [dragEndedAt, isFront, isLeft, go, goToDetail]);
+
+  const onPlay = useCallback(() => { if (isFront) goToPlay?.(); }, [isFront, goToPlay]);
+
+  // Always built, never conditionally — a hook cannot be skipped. The prop below is
+  // what is conditional, and `undefined` is a stable identity.
+  const handleWatchlist = useCallback(() => onWatchlist?.(item), [onWatchlist, item]);
+
+  return (
+    <DeckCard
+      record={item}
+      front={isFront}
+      isXs={isXs}
+      cardW={cardW}
+      cardH={cardH}
+      // The deck cards dim as they recede; the turned-past card (k === -1) does not,
+      // because it is the one you are about to pull back and should read as ready.
+      dim={k > 0 ? Math.min(0.72, k * DIM_STEP) : 0}
+      badge={badge}
+      inList={inList}
+      onOpen={onOpen}
+      onPlay={onPlay}
+      onWatchlist={onWatchlist ? handleWatchlist : undefined}
+    />
+  );
+}
 
 const HeroCardStack = ({
   record,
@@ -377,7 +480,7 @@ const HeroCardStack = ({
   onInteractEnd,
 }) => {
   const T = useT();
-  const frameRef = useRef(null);
+  const outerRef = useRef(null);
   const dragEndedAt = useRef(0);
   const [frameW, setFrameW] = useState(0);
 
@@ -418,12 +521,21 @@ const HeroCardStack = ({
   const gutter = isXs ? 14 : 20;
   const offset = isXs ? OFFSET_XS : OFFSET_SM;
 
+  // Observes the OUTER container, not the frame. It used to observe the frame — the
+  // same element whose width is derived from `cardW` — which is a feedback loop: the
+  // frame rendered at 100%, the observer read the full width, `cardW` came out of it,
+  // and the frame then snapped to `cardW + PEEK_ROOM + LEFT_ROOM`, firing the observer
+  // again. It converged rather than oscillating, but it cost a visible reflow: the deck
+  // jumped narrower on load and on rotation, which is what read as the padding being
+  // wrong. The outer container is padded by the gutter and never sized from the card,
+  // so one measurement settles it and the first painted frame is already correct.
+  
   // useLayoutEffect, not useEffect: this runs before the browser paints, so the very
   // first frame already has real pixel sizes instead of a collapsed deck.
   useLayoutEffect(() => {
-    const el = frameRef.current;
+    const el = outerRef.current;
     if (!el) return undefined;
-    setFrameW(el.getBoundingClientRect().width);
+    setFrameW(el.clientWidth);
     if (typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(([entry]) => setFrameW(entry.contentRect.width));
     ro.observe(el);
@@ -470,6 +582,18 @@ const HeroCardStack = ({
   // Raises the left card above the deck while it is being pulled in. Declared here
   // rather than with the rest of the lift state below because slot() names it in its
   // dependency array, and a dep array is evaluated the moment useCallback is called.
+  /**
+   * Whether the turned-past card is being pulled back in — as a MOTION VALUE, not state.
+   *
+   * This was `useState`, and it was the flicker. `slot` had it in its dependency list
+   * (only to raise the k === -1 card above the deck), `variants` is memoised on `slot`,
+   * and `handleDrag` toggles it the moment the finger crosses x = 0. So mid-gesture, at
+   * exactly the point the direction changes, AnimatePresence was handed a brand-new
+   * variants object and re-evaluated every mounted card's animation.
+   *
+   * A motion value drives the same style with no re-render at all, so `slot` and
+   * `variants` are now stable for the whole gesture.
+   */
   const [pullingBack, setPullingBack] = useState(false);
   const pullingBackRef = useRef(false);
   const setPullingBackActive = useCallback((active) => {
@@ -495,22 +619,42 @@ const HeroCardStack = ({
     // It sits under the deck at rest, and is raised only while being pulled back in;
     // otherwise its edge would paint over the front card's corner.
     if (k === -1) {
+      // NAMING zIndex BELOW IS NOT OPTIONAL — the same trap as `rotate: 0` above.
+      //
+      // Framer only writes the properties an animate target actually names. Leaving
+      // it out meant a card turning from slot 0 (which sets zIndex: LAYERS) into
+      // slot -1 KEPT the front card's z-index and carried on painting over the deck.
+      // That is why the turned-past card showed far more than its 6px sliver, and why
+      // releasing a swipe flashed the previous card before the new one settled: for
+      // the length of the turn the wrong card was on top. Android showed it plainly;
+      // desktop finished the transition fast enough to hide it.
+      //
+      // Constant, so `slot` stays free of state and `variants` — memoised on it —
+      // cannot be rebuilt mid-gesture. The pull-back raise is applied to the left
+      // card's own animate target instead.
       return {
         x: -(cardW + LEFT_GAP),
         rotate: 0,
         scale: 1,
         opacity: 1,
-        zIndex: pullingBack ? LAYERS + 1 : 0,
+        zIndex: 0,
       };
     }
     return {
       x: k * offset,
       rotate: 0,
       scale: 1 - k * SCALE_STEP,
-      opacity: Math.max(0, 1 - k * DIM_STEP),
+      // Stays 1. The "further back" dimming is an overlay INSIDE the card now — see
+      // DeckCard's `dim`. Element opacity below 1 forces the browser to composite the
+      // whole card subtree (a full-bleed image, the badge plate, the meta line) into an
+      // offscreen buffer, and two of the three mounted cards were sitting under it.
+      // A black overlay blends one rect instead. Kept named here because framer only
+      // animates properties the target mentions, and the enter/exit variants fade
+      // opacity — drop it and a card that entered at 0 would never come back.
+      opacity: 1,
       zIndex: LAYERS - k,
     };
-  }, [offset, cardW, pullingBack]);
+  }, [offset, cardW]);
 
   /**
    * Enter and exit, direction-aware. Forward, the top card leaves to the left like a
@@ -648,6 +792,25 @@ const HeroCardStack = ({
     if (count < 2) { settleFinger(); return; }
     const { offset: o, velocity: v } = info;
 
+    /**
+     * The synchronous commit is DELIBERATE. Reviewed and kept.
+     *
+     * It looks like the obvious thing to delete when chasing swipe jank, and it is not.
+     * `go()` is a parent state update; `settleFinger()` animates the finger's motion
+     * values back to zero. Both have to start on the SAME frame, because the card's
+     * position is their sum: the deck animates the outer element from slot -1 to slot 0
+     * (+cardW) while the lift animates the inner one back to 0 (-liftX), and those
+     * cancel to a smooth settle. Let the re-render land a frame late and the lift starts
+     * unwinding while the outer is still parked left — the card jumps, then slides. That
+     * is the "doubled back and swept out again" bug this shape was built to fix.
+     *
+     * Pre-compensating the motion values instead does not help: the compensation is only
+     * correct if it is applied atomically WITH the slot change, which is the same
+     * ordering guarantee flushSync already provides.
+     *
+     * Its cost is one render per gesture, not per frame. The way to make it cheap is to
+     * make that render cheap — see the note on DeckCard's memo.
+     */
     const commitTurn = (direction) => {
       flushSync(() => go?.(direction));
       settleFinger();
@@ -690,6 +853,7 @@ const HeroCardStack = ({
 
   return (
     <Box
+      ref={outerRef}
       sx={{
         position: 'relative',
         // `overflow-x: clip`, NOT `overflow: hidden`.
@@ -704,7 +868,7 @@ const HeroCardStack = ({
         // `hidden` — it does not force the other axis to clip too, so the shadow is free
         // to fade downward across the boundary the way a shadow should.
         overflowX: 'clip',
-        pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+        pt: HERO_TOP_INSET,
         pb: 3,
         px: `${gutter}px`,
         userSelect: 'none',
@@ -742,7 +906,6 @@ const HeroCardStack = ({
       )}
 
       <Box
-        ref={frameRef}
         sx={{
           position: 'relative', zIndex: 1,
           // Sized to the card once measured and centred, so a wide tablet doesn't leave
@@ -770,7 +933,12 @@ const HeroCardStack = ({
                   custom={dir}
                   variants={variants}
                   initial={leftMountedForDrag ? false : 'enter'}
-                  animate={slot(k)}
+                  // The left card's raise rides on its own target rather than inside `slot`,
+                  // so `variants` stays stable through a gesture. A fresh object literal per
+                  // render is fine here: framer diffs VALUES, not identity.
+                  animate={isLeft
+                    ? { ...slot(-1), zIndex: pullingBack ? LAYERS + 1 : 0 }
+                    : slot(k)}
                   exit="exit"
                   // z-index snaps; everything else eases.
                   //
@@ -827,27 +995,25 @@ const HeroCardStack = ({
                       x: item.id === liftFor ? liftX : item.id === dragFor ? dragX : 0,
                     }}
                   >
-                  <DeckCard
-                    record={item}
-                    front={isFront}
+                  {/* One component per card, so each gets its own hooks — see DeckSlot. */}
+                  <DeckSlot
+                    item={item}
+                    k={k}
+                    isFront={isFront}
+                    isLeft={isLeft}
                     isXs={isXs}
                     cardW={cardW}
                     cardH={cardH}
-                    badge={heroBadge(item, {
-                      ranked, top10, rankLabel,
-                      idx: (safeIdx + k + count) % count,
-                    })}
+                    ranked={ranked}
+                    top10={top10}
+                    rankLabel={rankLabel}
+                    badgeIdx={(safeIdx + k + count) % count}
                     inList={Boolean((interactions[item.id] ?? (isFront ? ix : null))?.watchlisted)}
-                    // A tap on a card behind brings it forward instead of navigating;
-                    // committing to a title you can only half see is never what you meant.
-                    onOpen={() => {
-                      if (Date.now() - dragEndedAt.current < 220) return;
-                      if (isFront) goToDetail?.();
-                      else if (isLeft) go?.(-1);
-                      else go?.(1);
-                    }}
-                    onPlay={() => { if (isFront) goToPlay?.(); }}
-                    onWatchlist={onWatchlist ? () => onWatchlist(item) : undefined}
+                    dragEndedAt={dragEndedAt}
+                    go={go}
+                    goToDetail={goToDetail}
+                    goToPlay={goToPlay}
+                    onWatchlist={onWatchlist}
                   />
                   </Box>
                 </Box>
@@ -862,4 +1028,12 @@ const HeroCardStack = ({
   );
 };
 
-export default HeroCardStack;
+/**
+ * Memoised because HeroBanner runs a CYCLE_MS interval that calls setIdx, and
+ * CinemaPage re-renders around it (rails resolving, the colour wash animating). Without
+ * this, each of those re-rendered three mounted cards and their images for nothing.
+ *
+ * It is also what keeps the one synchronous commit in handleDragEnd cheap — see the
+ * note there on why that flushSync is deliberate rather than an oversight.
+ */
+export default React.memo(HeroCardStack);

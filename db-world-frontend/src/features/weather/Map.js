@@ -43,9 +43,11 @@ export default function Map(props) {
     });
 
     // Add marker
+    // Just the place. The old "Your current location" was a lie for the common case — the marker
+    // sits wherever the reader searched, which is usually somewhere they are not.
     markerRef.current = L.marker([props.lat, props.lon], { icon: customIcon })
       .addTo(mapInstance.current)
-      .bindPopup(`<b>${props.name}</b><br>Your current location`)
+      .bindPopup(`<b>${props.name}</b>`)
       .openPopup();
 
     // Cleanup function
@@ -73,7 +75,8 @@ export default function Map(props) {
     >
       <Box
         sx={{
-          height: 400,
+          // 400px of map is most of a phone screen, and the panel above it is what people came for.
+          height: { xs: 240, sm: 320, md: 380 },
           width: "100%",
           borderRadius: 3,
           overflow: "hidden",

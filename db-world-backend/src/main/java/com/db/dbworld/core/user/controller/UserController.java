@@ -21,6 +21,7 @@ import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/user")
@@ -125,7 +126,14 @@ public class UserController {
         return ApiResponse.success(userService.updateUser(request, userId));
     }
 
-    @AnyRole
+    /**
+     * Changing a role is an administrative act, so it takes @AdminAccess.
+     *
+     * <p>It was previously @AnyRole, which let any signed-in user PATCH any account's role —
+     * including their own to ADMIN. That is a straight privilege escalation, so it is fixed
+     * here rather than left for the role-downgrade work to inherit.
+     */
+    @AdminAccess
     @PatchMapping("/{userId}/role")
     public ApiResponse<UserDto> updateUserRole(
             @PathVariable Long userId,
@@ -137,13 +145,35 @@ public class UserController {
     // ==============================
     // âœ… Delete USER
     // ==============================
+    /** Soft-deletes: the account is locked out now and erased after the grace window. */
     @AdminAccess
     @DeleteMapping("/{userId}")
     public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
 
         userService.deleteUserById(userId);
 
-        return ApiResponse.success("User deleted successfully");
+        return ApiResponse.success("User scheduled for deletion");
+    }
+
+    /**
+     * Erases the account and its data immediately, skipping the grace window.
+     *
+     * <p>Separate verb from DELETE on purpose — this one is unrecoverable, so it should not be
+     * reachable by the same request an admin might fire off by habit.
+     */
+    @AdminAccess
+    @DeleteMapping("/{userId}/purge")
+    public ApiResponse<Void> purgeUser(@PathVariable Long userId) {
+        userService.purgeUserById(userId);
+        return ApiResponse.success("User purged permanently");
+    }
+
+    /** Cancels a pending deletion before the grace window elapses. */
+    @AdminAccess
+    @PostMapping("/{userId}/restore")
+    public ApiResponse<Void> restoreUser(@PathVariable Long userId) {
+        userService.restoreDeletedAccount(userId);
+        return ApiResponse.success("Account restored");
     }
 
     // ==============================
@@ -184,7 +214,54 @@ public class UserController {
     @DeleteMapping("/{userId}/sessions")
     public ApiResponse<Void> revokeUserSessions(@PathVariable Long userId) {
         int removed = userService.revokeUserSessions(userId);
-        return ApiResponse.success("Revoked " + removed + " session(s)");
+        return ApiResponse.success("Revoked " + removed + " sessions");
+    }
+
+    /** Ends one device's session. The id is the rotation family, not a single token. */
+    @AdminAccess
+    @DeleteMapping("/{userId}/sessions/{familyId}")
+    public ApiResponse<Void> revokeUserSession(@PathVariable Long userId,
+                                               @PathVariable UUID familyId) {
+        boolean revoked = userService.revokeUserSession(userId, familyId);
+        return revoked
+                ? ApiResponse.success("Session revoked")
+                : ApiResponse.success("No active session matched");
+    }
+
+    // ==============================
+    // 🔐 CREDENTIAL CONTROL
+    // ==============================
+
+    /** Detaches the Google identity. Refused when Google is the only way into the account. */
+    @AdminAccess
+    @DeleteMapping("/{userId}/google")
+    public ApiResponse<UserDto> unlinkGoogle(@PathVariable Long userId) {
+        return ApiResponse.success("Google account unlinked", userService.unlinkGoogle(userId));
+    }
+
+    @AdminAccess
+    @DeleteMapping("/{userId}/biometric-devices")
+    public ApiResponse<Void> revokeBiometricDevices(@PathVariable Long userId) {
+        long removed = userService.revokeBiometricDevices(userId);
+        return ApiResponse.success("Revoked " + removed + " biometric devices");
+    }
+
+    @AdminAccess
+    @DeleteMapping("/{userId}/push-tokens")
+    public ApiResponse<Void> revokePushTokens(@PathVariable Long userId) {
+        long removed = userService.revokePushTokens(userId);
+        return ApiResponse.success("Revoked " + removed + " push registrations");
+    }
+
+    // ==============================
+    // 🔐 LOCK / UNLOCK
+    // ==============================
+    @AdminAccess
+    @PatchMapping("/{userId}/lock")
+    public ApiResponse<UserDto> setUserLocked(@PathVariable Long userId,
+                                              @RequestParam boolean locked) {
+        return ApiResponse.success(locked ? "User locked" : "User unlocked",
+                userService.setUserLocked(userId, locked));
     }
 
     // ==============================

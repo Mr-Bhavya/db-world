@@ -16,6 +16,7 @@ import CategoryBillboard from '../Billboard/CategoryBillboard';
 
 import { CYCLE_MS, heroArtCandidates } from './heroUtils';
 import { useHeroColor } from './useHeroColor';
+import { HERO_TOP_INSET } from '../../navbar/navMetrics';
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
     <Box sx={{
       position: 'relative',
       overflowX: 'clip',
-      pt: 'calc(56px + env(safe-area-inset-top, 0px))',
+      pt: HERO_TOP_INSET,
       pb: 3,
       px: `${gutter}px`,
     }}>
@@ -249,6 +250,10 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv, variant = 'spotlight' }) => {
 
 // ─── HeroBanner ────────────────────────────────────────────────────────────
 
+/** Shared, frozen blank for the "no interactions yet" case — one identity forever,
+ *  so a miss never allocates and never breaks a memo downstream. */
+const EMPTY_INTERACTION = Object.freeze({});
+
 const HeroBanner = ({
   records = [],
   interactions = {},
@@ -295,7 +300,14 @@ const HeroBanner = ({
   }, [featured.length]);
 
   const record = featured[idx] ?? null;
-  const ix = interactions[record?.id] ?? {};
+  // useMemo for the `?? {}`: that literal allocated a NEW object on every render
+  // whenever the lookup missed, which is most renders for a title with no
+  // interactions yet. `ix` goes straight into HeroCardStack, so an unstable
+  // identity here defeated its React.memo no matter what the deck did.
+  const ix = useMemo(
+    () => interactions[record?.id] ?? EMPTY_INTERACTION,
+    [interactions, record?.id],
+  );
 
   const goToDetail = useCallback(() => {
     if (!record) return;

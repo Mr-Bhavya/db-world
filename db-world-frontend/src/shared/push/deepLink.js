@@ -1,7 +1,7 @@
 import Constants from '@shared/constants';
 
-const HOME  = Constants.DB_WORLD_HOME_ROUTE;   // /db-world
-const ADMIN = Constants.DB_ADMIN_BASE_ROUTE;   // /db-world/admin
+const HOME  = Constants.DB_WORLD_HOME_ROUTE;   // /
+const ADMIN = Constants.DB_ADMIN_BASE_ROUTE;   // /admin
 
 /**
  * Route-key → in-app path map for pushes that carry a `data.route` (the admin

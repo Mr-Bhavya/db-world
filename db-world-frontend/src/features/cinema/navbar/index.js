@@ -37,9 +37,10 @@ import { useQuery } from '@tanstack/react-query';
 import GenreMenu from './GenreMenu';
 import { genrePath, pagePath } from '../utils/genreNav';
 import { useCategory } from './CategoryContext';
-import NotificationPanel from '../components/notifications/NotificationPanel';
+import NotificationPanel from '@shared/notifications/NotificationPanel';
 import { useActiveDownloadCount } from '../download-queue/useActiveDownloadCount';
 import useDeviceTier from '../hooks/useDeviceTier';
+import { MOBILE_TOOLBAR_H } from './navMetrics';
 
 // Download nav icon with a live badge showing how many downloads are running/queued.
 function DownloadNavIcon() {
@@ -571,7 +572,7 @@ function Navbar({ coverColor, bleedUnderTop = false }) {
         scrolled={isScrolled}
         coverColor={isMobile ? (coverColor ?? null) : null}
       >
-        <Toolbar sx={{ minHeight: { xs: '52px', md: '68px' }, px: { xs: 1.5, md: 4 } }}>
+        <Toolbar sx={{ minHeight: { xs: `${MOBILE_TOOLBAR_H}px`, md: '68px' }, px: { xs: 1.5, md: 4 } }}>
 
           {/* LEFT */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0 }}>
@@ -694,7 +695,9 @@ function Navbar({ coverColor, bleedUnderTop = false }) {
                       itself and runs its artwork underneath, Hotstar-style),
                       otherwise the toolbar height so content clears the bar.
       ── */}
-      <Box sx={{ height: { xs: bleedUnderTop ? '0px' : '52px', md: '0px' } }} />
+      {/* Skipped when a hero is present: it reserves this band itself, with the same
+          constant. See navMetrics. */}
+      <Box sx={{ height: { xs: bleedUnderTop ? '0px' : `${MOBILE_TOOLBAR_H}px`, md: '0px' } }} />
 
       {/* ── Floating pill bottom navigation (mobile only) ── */}
       {isMobile && (

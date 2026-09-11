@@ -113,7 +113,7 @@ export default function FinancialsChart({ rows = [] }) {
             <ToggleButton key={t.value} value={t.value}>{t.label}</ToggleButton>
           ))}
         </ToggleButtonGroup>
-        <Typography sx={{ fontSize: 10.5, color: T.textFaint, fontWeight: 600 }}>
+        <Typography sx={{ fontSize: 10.5, color: T.textMuted, fontWeight: 600 }}>
           All values in ₹ Cr
         </Typography>
       </Box>

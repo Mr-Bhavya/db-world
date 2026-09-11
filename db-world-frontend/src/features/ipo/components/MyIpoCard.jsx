@@ -66,7 +66,13 @@ export default function MyIpoCard({ row, index = 0 }) {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
-            <CompanyLogo logoUrl={ipo.logoUrl} logoDomain={ipo.logoDomain} companyName={ipo.companyName} />
+            <CompanyLogo
+              logoUrl={ipo.logoUrl}
+              logoDomain={ipo.logoDomain}
+              companyName={ipo.companyName}
+              size={42}
+              radius={2}
+            />
             <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary, lineHeight: 1.3 }} noWrap>
                 {ipo.companyName}

@@ -30,10 +30,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,7 +46,8 @@ import static com.db.dbworld.app.ipo.source.support.IpoJsonUtil.text;
 /**
  * Fallback / gap-fill source: reads Chittorgarh's IPO list from its (undocumented but confirmed)
  * JSON API, then (best-effort) a BOUNDED subset of listed IPOs' own HTML detail pages for
- * About/Strengths/Risks/Financials.
+ * About/Strengths/Risks/Financials plus the two fields no source's list carries at all — the market
+ * lot and the listing-day open price.
  *
  * <p><b>List = JSON API</b>. The public HTML report page renders its table client-side via AJAX,
  * so a server-side Jsoup scrape of it returns nothing ("no {@code <table>}"). The page's own XHR
@@ -58,8 +63,8 @@ import static com.db.dbworld.app.ipo.source.support.IpoJsonUtil.text;
  *
  * <p><b>Detail = HTML</b> (unchanged). Each row's {@code "Company"} cell is an HTML anchor whose
  * {@code href} is that IPO's Chittorgarh detail-page URL. Those detail pages are server-rendered
- * HTML (not JSON), so About/Strengths/Risks/Financials are still scraped with Jsoup — but that
- * host blocks server-side requests from some environments, so this half remains
+ * HTML (not JSON), so About/Strengths/Risks/Financials/lot size/listing price are still scraped
+ * with Jsoup — but that host blocks server-side requests from some environments, so this half remains
  * {@code TODO(verify)} against a live page and is entirely best-effort: any failure leaves the
  * IPO's core list-row data intact and never propagates out of {@link #fetchAll()}. Given the
  * year list can carry many rows, {@link #fetchAll()} only fetches the detail page for a bounded,
@@ -77,9 +82,12 @@ public class ChittorgarhSource implements IpoSource {
     // A configurable base URL (admin: ipo.chittorgarh.base-url) + this in-code path template, so the
     // webnodejs host can be repointed without a redeploy. Blank/unset config falls back to
     // DEFAULT_BASE_URL, reproducing the original absolute URL exactly.
-    // Path segments: report-id(82) / page / <const 7> / fyStartYear / fyLabel / <const 0> / tab(all)
+    // Path segments: report-id(82) / page / MONTH / fyStartYear / fyLabel / <const 0> / tab(all).
+    // That third segment is the calendar month, not the constant it was once taken for — a sibling
+    // webnodejs report echoes it straight back in its own cacheKey
+    // ("ig_report_v2:331:all:1::2026:8:2026-27:"), so pinning it to 7 asked for July all year.
     private static final String DEFAULT_BASE_URL = "https://webnodejs.chittorgarh.com";
-    private static final String LIST_PATH_TEMPLATE = "/cloud/report/data-read/82/%d/7/%d/%s/0/all";
+    private static final String LIST_PATH_TEMPLATE = "/cloud/report/data-read/82/%d/%d/%d/%s/0/all";
 
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -147,6 +155,9 @@ public class ChittorgarhSource implements IpoSource {
     /** Bails out of the heading→content sibling walk after this many hops so a shape mismatch can't loop indefinitely. */
     private static final int MAX_SIBLING_HOPS = 6;
 
+    /** First run of digits — used for the market-lot reads (commas stripped by the caller). */
+    private static final Pattern INTEGER = Pattern.compile("\\d+");
+
     private static final Pattern FY_RANGE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\s*[-/]\\s*(\\d{2,4})", Pattern.CASE_INSENSITIVE);
     private static final Pattern FY_SINGLE = Pattern.compile("FY\\s*-?\\s*(\\d{2,4})\\b", Pattern.CASE_INSENSITIVE);
     private static final DateTimeFormatter DAY_MONTH_YEAR = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
@@ -196,7 +207,7 @@ public class ChittorgarhSource implements IpoSource {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, fyStart, fyLabel);
+        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
     }
 
     @Override
@@ -209,16 +220,70 @@ public class ChittorgarhSource implements IpoSource {
             return List.of();
         }
 
+        // Which rows get the (limited) detail fetches is a real decision, not first-come-first-served:
+        // the year list runs to ~200 rows against a budget of MAX_DETAIL_FETCHES, and the report's own
+        // order is arbitrary. Newest open date first, so the budget lands on the issues that are
+        // active or just listed — the ones whose lot size and listing price are actually being looked
+        // at — rather than on whatever happened to be at the top of the response.
+        // Identity set: two rows could be value-equal records, and only the specific instances picked
+        // here should be enriched.
+        Set<RowWithDetailUrl> enrichSet = Collections.newSetFromMap(new IdentityHashMap<>());
+        rows.stream()
+                .filter(r -> r.detailUrl() != null && isEligibleForDetailFetch(r.dto()))
+                .sorted(Comparator.comparing((RowWithDetailUrl r) -> r.dto().openDate(),
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(MAX_DETAIL_FETCHES)
+                .forEach(enrichSet::add);
+
         List<IpoDto> result = new ArrayList<>(rows.size());
-        int detailFetchesRemaining = MAX_DETAIL_FETCHES;
+        // Counters purely for the health line below — the detail half of this source is best-effort
+        // and can be blocked by the host, and there was no way to tell that apart from "the pages
+        // simply don't carry these fields". Comparing each dto before/after enrichment needs no
+        // signature changes and reports exactly which extractions are landing.
+        int attempted = 0;
+        int parsed = 0;
+        int lotSizeFilled = 0;
+        int alreadyListed = 0;
+        int listingPriceFilled = 0;
+        LocalDate today = LocalDate.now(clock.withZone(IST));
         for (RowWithDetailUrl row : rows) {
             IpoDto dto = row.dto();
-            if (detailFetchesRemaining > 0 && row.detailUrl() != null && isEligibleForDetailFetch(dto)) {
+            if (enrichSet.contains(row)) {
+                IpoDto before = dto;
                 dto = enrichFromDetailPage(dto, row.detailUrl());
-                detailFetchesRemaining--;
+                attempted++;
+                if (dto.about() != null) {
+                    parsed++;
+                }
+                if (before.lotSize() == null && dto.lotSize() != null) {
+                    lotSizeFilled++;
+                }
+                // Only a page for an IPO that has ALREADY listed can carry a listing-day table, so
+                // count those separately: alreadyListed=0 means we simply didn't fetch any such page,
+                // whereas alreadyListed>0 with listingPriceFilled=0 means the extraction itself is
+                // failing to find the table. Without this the two are indistinguishable in the log.
+                if (dto.listingDate() != null && !dto.listingDate().isAfter(today)) {
+                    alreadyListed++;
+                    if (before.listingPrice() == null && dto.listingPrice() != null) {
+                        listingPriceFilled++;
+                    }
+                }
             }
             result.add(dto);
         }
+        if (attempted > 0 && parsed == 0) {
+            log.warn("Chittorgarh: {} detail page(s) fetched but NONE parsed — the host is most likely "
+                    + "blocking server-side requests, so lot size and listing price will stay empty. "
+                    + "Look for the per-page 'detail page fetch/parse failed' warnings above.", attempted);
+        }
+        if (alreadyListed > 0 && listingPriceFilled == 0) {
+            log.warn("Chittorgarh: {} already-listed detail page(s) parsed but no listing price found in "
+                    + "any of them — the listing-day table's markup has most likely changed, so listing "
+                    + "price and the derived listing gain will stay empty.", alreadyListed);
+        }
+        log.info("Chittorgarh: rows={} detailFetchesAttempted={} pagesParsed={} lotSizeFilled={} "
+                + "alreadyListedPages={} listingPriceFilled={}",
+                rows.size(), attempted, parsed, lotSizeFilled, alreadyListed, listingPriceFilled);
         return result;
     }
 
@@ -425,12 +490,14 @@ public class ChittorgarhSource implements IpoSource {
     DetailEnrichment parseDetail(Document doc) {
         AboutAndStrengths as = extractAboutAndStrengths(doc);
         return new DetailEnrichment(as.about(), as.strengths(), null,
-                extractFinancials(doc), extractKpis(doc), extractIssueObjects(doc), extractLeadManagers(doc));
+                extractFinancials(doc), extractKpis(doc), extractIssueObjects(doc), extractLeadManagers(doc),
+                extractLotSize(doc), extractListingPrice(doc));
     }
 
     /** One detail page's scraped enrichment fields, merged onto the list-row dto by {@link #withDetailEnrichment}. */
     record DetailEnrichment(String about, String strengths, String risks, List<IpoFinancialRowDto> financials,
-                            List<IpoKpiDto> kpis, List<IpoIssueObjectDto> issueObjects, String leadManagers) {}
+                            List<IpoKpiDto> kpis, List<IpoIssueObjectDto> issueObjects, String leadManagers,
+                            Integer lotSize, BigDecimal listingPrice) {}
 
     /** The company "About" narrative and the competitive-strengths bullets, split out of {@code #ipoSummary}. */
     private record AboutAndStrengths(String about, String strengths) {}
@@ -438,8 +505,10 @@ public class ChittorgarhSource implements IpoSource {
     private static IpoDto withDetailEnrichment(IpoDto dto, DetailEnrichment enrichment) {
         return new IpoDto(dto.source(), dto.matchKey(), dto.companyName(), dto.ipoType(), dto.status(),
                 dto.openDate(), dto.closeDate(), dto.allotmentDate(), dto.listingDate(),
-                dto.priceMin(), dto.priceMax(), dto.lotSize(), dto.issueSize(),
-                dto.listingExchange(), dto.listingPrice(), dto.listingGainPct(),
+                dto.priceMin(), dto.priceMax(),
+                dto.lotSize() != null ? dto.lotSize() : enrichment.lotSize(), dto.issueSize(),
+                dto.listingExchange(),
+                dto.listingPrice() != null ? dto.listingPrice() : enrichment.listingPrice(), dto.listingGainPct(),
                 dto.gmp(), dto.gmpPct(), dto.subscriptionCategories(), dto.subTotal(),
                 dto.allotmentStatus(), dto.registrar(), dto.registrarUrl(), dto.logoUrl(), enrichment.about(),
                 dto.refundDate(), dto.dematDate(), dto.faceValue(), dto.freshIssue(), dto.offerForSale(),
@@ -601,6 +670,140 @@ public class ChittorgarhSource implements IpoSource {
     }
 
     // ── KPIs (Key Performance Indicator tables) + Objects of the Issue ─────────────────────────
+
+    /**
+     * Scrapes the market lot (shares per application lot) off the detail page — the ONLY place
+     * Chittorgarh reports it, since the list JSON has no lot column at all. Without this an IPO
+     * that NSE doesn't cover (a BSE-SME issue, or anything not currently open — NSE only reports
+     * "bid lot" on its per-open-issue detail endpoint) rendered an empty Lot size on the card.
+     *
+     * <p>Two page shapes are read, in order of specificity:
+     * <ol>
+     *   <li>the "IPO Lot Size" table ({@code Application | Lots | Shares | Amount}) — the
+     *       {@code Retail (Min)} row at 1 lot, whose Shares cell IS the lot size. Present on every
+     *       IPO page, mainboard and SME alike, so this is the primary read.</li>
+     *   <li>a plain label/value row in the "IPO Details" table whose label is "Lot Size" or
+     *       "Market Lot" (e.g. {@code 1,200 Shares}) — the fallback, since that table's exact
+     *       wording varies more between page templates.</li>
+     * </ol>
+     * {@code null} when neither shape yields a positive integer, so the merge can still take
+     * another source's value rather than storing a bogus one.
+     */
+    private static Integer extractLotSize(Document doc) {
+        Integer fromLotTable = extractLotSizeFromLotTable(doc);
+        return fromLotTable != null ? fromLotTable : extractLotSizeFromLabelledRow(doc);
+    }
+
+    /** The {@code Retail (Min)} / 1-lot row of the "IPO Lot Size" table → its Shares cell. */
+    private static Integer extractLotSizeFromLotTable(Document doc) {
+        for (Element table : doc.select("table")) {
+            List<String> headers = resolveHeaders(table);
+            int sharesIndex = indexOfHeader(headers, "shares");
+            int lotsIndex = indexOfHeader(headers, "lots");
+            if (sharesIndex < 0 || lotsIndex < 0) {
+                continue;
+            }
+            for (Element row : table.select("tbody tr")) {
+                Elements cells = row.select("td");
+                if (cells.size() <= Math.max(sharesIndex, lotsIndex)) {
+                    continue;
+                }
+                String application = cells.first().text().toLowerCase(Locale.ROOT);
+                Integer lots = groupedInteger(cells.get(lotsIndex).text());
+                // Retail's minimum application is one lot by definition, so its share count is the
+                // lot size. Guarding on `lots == 1` also rejects the HNI rows (2+ lots), whose share
+                // count is a multiple of it.
+                if (application.contains("retail") && application.contains("min")
+                        && lots != null && lots == 1) {
+                    return groupedInteger(cells.get(sharesIndex).text());
+                }
+            }
+        }
+        return null;
+    }
+
+    /** A "Lot Size"/"Market Lot" label/value row anywhere on the page → the value's integer. */
+    private static Integer extractLotSizeFromLabelledRow(Document doc) {
+        for (Element row : doc.select("table tr")) {
+            Elements cells = row.select("td");
+            if (cells.size() < 2) {
+                continue;
+            }
+            String label = cells.first().text().toLowerCase(Locale.ROOT).trim();
+            if (label.startsWith("lot size") || label.startsWith("market lot")) {
+                Integer lotSize = groupedInteger(cells.last().text());
+                if (lotSize != null) {
+                    return lotSize;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Scrapes the listing-day OPEN price out of the "Listing Day Trading Information" table — the
+     * only place any of our sources reports it, and therefore the input the derived listing gain
+     * needs. NSE's two IPO endpoints only cover open and upcoming issues, so by the time an IPO has
+     * actually listed it appears in neither, and Chittorgarh's list JSON has no listing-price column
+     * — which is why a listed IPO showed neither a listing price nor a gain.
+     *
+     * <p>The "Open" column is only trusted inside a table that ALSO carries a "Final issue price" or
+     * "Last trade" header, so a random table with an "Open"-ish header can't be mistaken for it. The
+     * first data row wins (the table has one row per exchange, BSE/NSE, with the same open price).
+     * Bounded for free by {@link #isEligibleForDetailFetch(IpoDto)}, which only spends a detail
+     * fetch on IPOs listed within the last {@value #RECENT_LISTING_WINDOW_DAYS} days.
+     */
+    private static BigDecimal extractListingPrice(Document doc) {
+        for (Element table : doc.select("table")) {
+            List<String> headers = resolveHeaders(table);
+            int openIndex = indexOfHeader(headers, "open");
+            if (openIndex < 0
+                    || (indexOfHeader(headers, "final issue price") < 0 && indexOfHeader(headers, "last trade") < 0)) {
+                continue;
+            }
+            for (Element row : table.select("tbody tr")) {
+                Elements cells = row.select("td");
+                if (cells.size() <= openIndex) {
+                    continue;
+                }
+                BigDecimal open = toDecimal(cells.get(openIndex).text());
+                if (open != null && open.signum() > 0) {
+                    return open;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Index of the first header containing {@code needle} (case-insensitive), or -1. */
+    private static int indexOfHeader(List<String> headers, String needle) {
+        for (int i = 0; i < headers.size(); i++) {
+            if (headers.get(i).toLowerCase(Locale.ROOT).contains(needle)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * First positive integer in {@code raw}, tolerating Indian digit grouping — the commas MUST be
+     * stripped before matching, or "1,200 Shares" reads as 1.
+     */
+    private static Integer groupedInteger(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        Matcher matcher = INTEGER.matcher(raw.replace(",", ""));
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(matcher.group());
+            return value > 0 ? value : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     /**
      * Scrapes the "Key Performance Indicator" section into label/value rows. Both KPI tables — the

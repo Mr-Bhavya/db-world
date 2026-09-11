@@ -25,6 +25,11 @@ public final class RequestPushLinks {
         }
         String kind = "TV_SERIES".equalsIgnoreCase(recordType) ? "series" : "movie";
         String slug = slugify(recordTitle);
+        // LEGACY PREFIX ON PURPOSE. A push `data.link` is handed straight to the
+        // router in-process, so nginx's 301 never sees it. A device still running
+        // the previous APK only knows /db-world/... routes, while the current build
+        // strips the prefix via LegacyPrefixRedirect — so the prefixed form is the
+        // one that resolves on BOTH. Drop it once the APK rollout has landed.
         String link = "/db-world/db-cinema/" + kind + "/" + recordId + (slug.isBlank() ? "" : "-" + slug);
         return Map.of("route", "record", "recordId", String.valueOf(recordId), "link", link);
     }

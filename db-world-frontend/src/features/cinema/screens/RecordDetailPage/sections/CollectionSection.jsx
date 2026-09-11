@@ -10,6 +10,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 
 import { useT } from '@shared/theme/ThemeContext';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 import {
@@ -193,6 +194,7 @@ function PartCard({ part, index, isCurrent, isMobile, requested, onRequest, busy
 
 export default function CollectionSection({ collectionId, currentTmdbId, isMobile }) {
   const T = useT();
+  const { requireAuth } = useRequireAuth();
   const [busyId, setBusyId] = useState(null);
   const [localRequests, setLocalRequests] = useState(() => new Set());
 
@@ -220,7 +222,7 @@ export default function CollectionSection({ collectionId, currentTmdbId, isMobil
     return ids;
   }, [myRequests, localRequests]);
 
-  const handleRequest = useCallback(async (part) => {
+  const requestPart = useCallback(async (part) => {
     if (busyId) return;
     setBusyId(part.tmdbId);
     try {
@@ -245,6 +247,13 @@ export default function CollectionSection({ collectionId, currentTmdbId, isMobil
       setBusyId(null);
     }
   }, [busyId]);
+
+  // Collections are browsable signed-out — the missing-part Request buttons prompt
+  // rather than failing the vote with a 401.
+  const handleRequest = useMemo(
+    () => requireAuth(requestPart, 'Sign in to request this title'),
+    [requireAuth, requestPart],
+  );
 
   if (isLoading) {
     return (

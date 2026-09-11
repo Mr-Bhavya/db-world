@@ -1,55 +1,133 @@
+# ─────────────────────────────────────────────────────────────
+# AI TRAINING CRAWLERS — BLOCKED
+#
+# meta-externalagent renders the SPA, so it does not just fetch pages: it
+# executes the JavaScript and fires every XHR each page makes. One record page
+# is ~7 API calls (catalog, similar, reviews, reviews/mine, media-info, …), and
+# it was walking the catalogue — thousands of requests an hour against a single
+# Raspberry Pi, for content Google is not even indexing.
+#
+# These groups are listed BEFORE `User-agent: *` by convention only. A crawler
+# obeys the single most specific group that matches its token and ignores the
+# rest, so each of these sees "Disallow: /" and never reads the Allow rules.
+#
+# DELIBERATELY NOT BLOCKED:
+#   facebookexternalhit, facebot  — the WhatsApp/Facebook LINK PREVIEW crawlers.
+#     Different bots from meta-externalagent, and SocialPreviewController exists
+#     to serve them. Blocking these would break every shared record card.
+#   Applebot                      — feeds Siri and Spotlight search.
+#   ChatGPT-User, OAI-SearchBot   — user-initiated fetches and ChatGPT search.
+#     These send referral traffic rather than take it; blocking them costs
+#     visitors. Add them here if that stops being true.
+#
+# Google-Extended and Applebot-Extended are not crawlers at all — they are
+# robots tokens that control whether Google and Apple may use already-crawled
+# content for AI training. Disallowing them has NO effect on Search ranking.
+# ─────────────────────────────────────────────────────────────
+User-agent: meta-externalagent
+User-agent: meta-externalfetcher
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: PerplexityBot
+User-agent: Amazonbot
+User-agent: Diffbot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+Disallow: /
+
 User-agent: *
 
-# =========================
-# ✅ ALLOW PUBLIC CONTENT (SEO TARGET)
-# =========================
-Allow: /db-world/db-cinema
-Allow: /db-world/db-cinema/browse
-Allow: /db-world/db-cinema/movie
-Allow: /db-world/db-cinema/tv-shows
-Allow: /db-world/db-cinema/movie/
-Allow: /db-world/db-cinema/series/
+# ─────────────────────────────────────────────────────────────
+# PUBLIC — browsable without an account, so crawlable.
+# These mirror routeConfig.public in src/app/App.jsx. Keep the two
+# in step: a path listed here but gated in the app is a crawl budget
+# spent on a login redirect.
+# ─────────────────────────────────────────────────────────────
+Allow: /db-cinema/browse
+Allow: /db-cinema/movie
+Allow: /db-cinema/tv-shows
+Allow: /db-cinema/collection
+Allow: /db-ipo
+Allow: /db-games
+Allow: /db-weather
+# The generator only — a longer path than the Disallow on the vault below, and
+# robots resolves conflicts by specificity, so this narrows it rather than
+# reopening the whole password manager.
+Allow: /db-password-manager/generate-password
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
 
-# =========================
-# ❌ BLOCK DYNAMIC / NON-SEO ROUTES
-# =========================
+# ─────────────────────────────────────────────────────────────
+# RECORD PAGES: crawl, but do not index.
+#
+# They are NOT disallowed, and that is deliberate. Every word on one comes from
+# TMDB, so ~2,300 of them are scraped metadata at scale — which is what Google's
+# September 2026 AdSense review meant by "low value content", and they are gone
+# from the sitemap for that reason. But a Disallow would be the wrong tool: it
+# blocks the fetch, so Google never sees the noindex it would need to obey, and
+# it also cuts the links from a record page through to its collection and genre
+# pages. SeoRenderController sends `noindex,follow` instead, which needs the
+# crawl to happen.
+#
+# Ads still serve on them: AdSense does not require a page to be indexed.
+# ─────────────────────────────────────────────────────────────
 
-# Download & tracking (very important)
-Disallow: /db-world/db-cinema/download-progress
-Disallow: /db-world/db-cinema/downloads
-Disallow: /db-world/db-cinema/record/
+# ─────────────────────────────────────────────────────────────
+# PRIVATE — acting on a record. All of these redirect to login,
+# so crawling them yields nothing.
+# ─────────────────────────────────────────────────────────────
+Disallow: /db-cinema/record/
+Disallow: /db-cinema/downloads
+Disallow: /db-cinema/download-progress
+Disallow: /player
+Disallow: /db-ipo/my
+Disallow: /me/activity
+Disallow: /db-wallet
+Disallow: /db-password-manager
+Disallow: /db-file-manager
 
-# Prevent indexing dynamic params like :title / :recordId duplicates
-Disallow: /*?*
+# ─────────────────────────────────────────────────────────────
+# PUBLICLY REACHABLE BUT MUST NOT BE INDEXED
+#
+# These are in App.jsx's `public` block — no login redirect will stop a
+# crawler — so robots is the only thing keeping them out of an index.
+# ─────────────────────────────────────────────────────────────
+# A wallet share link IS the credential: anyone holding the URL can read the
+# document. Indexed, a shared government ID becomes a search result.
+Disallow: /shared-doc/
 
-# =========================
-# ❌ BLOCK AUTH & USER DATA
-# =========================
-Disallow: /db-world/login
-Disallow: /db-world/logout
-Disallow: /db-world/registration
-Disallow: /db-world/user-profile
-Disallow: /db-world/user-profile-edit
+# Internal player harness. Real content lives on record pages.
+Disallow: /player-demo
 
-# =========================
-# ❌ BLOCK ADMIN (CRITICAL)
-# =========================
-Disallow: /db-world/admin
-Disallow: /db-world/admin-tools
-Disallow: /db-world/admin/records
-Disallow: /db-world/db-cinema/edit-record/
+# ─────────────────────────────────────────────────────────────
+# AUTH & USER DATA
+# ─────────────────────────────────────────────────────────────
+Disallow: /login
+Disallow: /logout
+Disallow: /registration
+Disallow: /user-profile
+Disallow: /user-profile-edit
 
-# =========================
-# ❌ BLOCK NON-SEO APPS (OPTIONAL BUT RECOMMENDED)
-# =========================
-Disallow: /db-world/db-games
-Disallow: /db-world/db-weather
-Disallow: /db-world/db-password-manager
-Disallow: /db-world/db-file-manager
+# Both carry a single-use token in the query string, and a crawler that fetches
+# one spends it: the user then gets "this link has already been used".
+Disallow: /reset-password
+Disallow: /verify-email
 
-# =========================
-# ❌ BACKEND / INFRA (from your system)
-# =========================
+# ─────────────────────────────────────────────────────────────
+# ADMIN
+# ─────────────────────────────────────────────────────────────
+Disallow: /admin
+Disallow: /admin-tools
+Disallow: /db-cinema/edit-record/
+
+# ─────────────────────────────────────────────────────────────
+# BACKEND / INFRA
+# ─────────────────────────────────────────────────────────────
 Disallow: /api/
 Disallow: /ws/
 Disallow: /actuator/
@@ -57,7 +135,13 @@ Disallow: /cdn/
 Disallow: /stream/
 Disallow: /logs/
 
-# =========================
-# ✅ SITEMAP
-# =========================
+# Query strings produce endless duplicates of the same rail page. The
+# canonical, parameterless URL is the one worth indexing. Listed AFTER the
+# Allow rules above so it narrows rather than replaces them.
+Disallow: /*?*
+
+# Crawl-delay is deliberately omitted. Google ignores it, and the site is a
+# single Raspberry Pi behind a CDN — if load ever becomes the problem, rate
+# limiting in nginx is the control that actually works.
+
 Sitemap: https://db-world.in/sitemap.xml

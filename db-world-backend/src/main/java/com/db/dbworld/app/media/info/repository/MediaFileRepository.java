@@ -21,6 +21,22 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     /** Whether a record has any media file yet — gates the "new title" publish push. */
     boolean existsByRecord_Id(Long recordId);
 
+    /**
+     * The (season, episode) pairs held for a record, and nothing else.
+     *
+     * <p>Backs the public availability rollup on {@link com.db.dbworld.app.cinema.catalog.dto.RecordAvailabilityDto}.
+     * Deliberately a projection rather than {@link #findByRecord_Id}: that returns full
+     * entities including {@code raw_media_info_json}, and a long-running series would
+     * mean pulling hundreds of JSON blobs out of the database to count to fourteen.
+     *
+     * <p>Both columns are null for a movie's files, and for a series file the ingestion
+     * pipeline never mapped to an episode — callers must treat null as "not an episode"
+     * rather than season 0.
+     */
+    @Query("select mf.tmdbSeasonNumber, mf.tmdbEpisodeNumber from MediaFileEntity mf "
+            + "where mf.record.id = :recordId")
+    List<Object[]> findSeasonEpisodePairsByRecordId(@Param("recordId") Long recordId);
+
     // ── file_path lookups ─────────────────────────────────────────────────────
     // file_path is VARCHAR(1000) and can't be indexed directly, so every lookup goes
     // through the indexed CRC32 hash (file_path_hash) AND a full file_path equality check

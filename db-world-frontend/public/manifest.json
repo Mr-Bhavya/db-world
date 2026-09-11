@@ -3,8 +3,8 @@
   "name": "DB World – Stream, Download & Manage Media",
   "short_name": "DB World",
   "description": "DB World is a modern media platform to stream, download, and manage movies and TV shows.",
-  "start_url": "/db-world/?source=pwa",
-  "scope": "/db-world/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#0f172a",
@@ -24,9 +24,9 @@
     { "src": "/screenshots/db-cinema-mobile.webp", "sizes": "691x848",  "type": "image/webp", "form_factor": "narrow", "label": "Mobile experience" }
   ],
   "shortcuts": [
-    { "name": "Browse Cinema",    "url": "/db-world/db-cinema",                         "icons": [{ "src": "/shortcuts/db-cinema.png",        "sizes": "96x96" }] },
-    { "name": "Add Credential",   "url": "/db-world/db-password-manager/add-password",  "icons": [{ "src": "/shortcuts/add-credential.png",   "sizes": "96x96" }] },
-    { "name": "View Credentials", "url": "/db-world/db-password-manager/view-password", "icons": [{ "src": "/shortcuts/view-credentials.png", "sizes": "96x96" }] },
-    { "name": "Downloads",        "url": "/db-world/db-cinema/downloads",               "icons": [{ "src": "/shortcuts/download.png",         "sizes": "96x96" }] }
+    { "name": "Browse Cinema",    "url": "/db-cinema",                         "icons": [{ "src": "/shortcuts/db-cinema.png",        "sizes": "96x96" }] },
+    { "name": "Add Credential",   "url": "/db-password-manager/add-password",  "icons": [{ "src": "/shortcuts/add-credential.png",   "sizes": "96x96" }] },
+    { "name": "View Credentials", "url": "/db-password-manager/view-password", "icons": [{ "src": "/shortcuts/view-credentials.png", "sizes": "96x96" }] },
+    { "name": "Downloads",        "url": "/db-cinema/downloads",               "icons": [{ "src": "/shortcuts/download.png",         "sizes": "96x96" }] }
   ]
 }

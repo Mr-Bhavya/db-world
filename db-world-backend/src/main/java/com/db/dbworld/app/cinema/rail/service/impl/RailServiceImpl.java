@@ -278,9 +278,22 @@ public class RailServiceImpl implements RailService {
                 ? Math.min(size, MAX_PAGE_SIZE)
                 : rail.getLimitSize();
 
-        // Watchlist rails are user-specific — bypass the resolver entirely
+        // Watchlist rails are user-specific — bypass the resolver entirely. Now that
+        // rail pages are reachable anonymously, an unauthenticated caller asking for a
+        // watchlist rail by id gets an empty page rather than an "Unauthenticated
+        // request" 500 out of UserContext.
         if (rail.getRule() != null && "watchlist".equals(rail.getRule().getType())) {
-            return getWatchlistRecords(userContext.userId(), page, pageSize);
+            Long userId;
+            try {
+                userId = userContext.userId();
+            } catch (Exception e) {
+                log.debug("watchlist rail requested anonymously railId={}; returning empty", railId);
+                return RailPageDto.builder()
+                        .railId(railId).page(page).size(pageSize)
+                        .hasNext(false).records(List.of())
+                        .build();
+            }
+            return getWatchlistRecords(userId, page, pageSize);
         }
 
         // Continue Watching and Because You Watched are user-specific — skip the shared

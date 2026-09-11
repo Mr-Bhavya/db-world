@@ -41,9 +41,34 @@ export const DB_WORLD_TEAL_SVG_ICON = "@assets/images/db-circle-icon.webp";
 /* =========================
  * ROUTES
  * ========================= */
-export const DB_WORLD_HOME_ROUTE = "/db-world";
 
-export const DB_CINEMA_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-cinema`;
+/**
+ * Path prefix every app route hangs off. EMPTY on purpose.
+ *
+ * Everything used to sit under `/db-world`, which repeated the brand already in the
+ * hostname — `db-world.in/db-world/db-cinema/browse`. A prefix like that earns its
+ * keep when one domain hosts several apps under different paths; here it only ever
+ * made every URL longer and split the home page across two of them (`/` was a
+ * client-side redirect to `/db-world`, and Google indexed the redirect rather than
+ * the page).
+ *
+ * Kept as a named constant rather than inlined so the derived routes below stay one
+ * edit away from moving again, and so the intent is visible instead of looking like
+ * somebody forgot the prefix.
+ *
+ * Old URLs are NOT abandoned: nginx 301s `/db-world/*` to the same path without it,
+ * and `LegacyPrefixRedirect` in App.jsx does the same client-side for deep links
+ * arriving from an older Android build.
+ */
+const APP_BASE = "";
+
+/** The hub. `/`, not `APP_BASE` — an empty string is not a usable route or link target. */
+export const DB_WORLD_HOME_ROUTE = "/";
+
+/** The old prefix, retained ONLY so the legacy redirect and its tests can name it. */
+export const LEGACY_PATH_PREFIX = "/db-world";
+
+export const DB_CINEMA_ROUTE = `${APP_BASE}/db-cinema`;
 export const DB_CINEMA_BROWSE_ROUTE = `${DB_CINEMA_ROUTE}/browse`;
 export const DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE =
   `${DB_CINEMA_ROUTE}/download-progress`;
@@ -67,15 +92,29 @@ export const DB_PLAYER_ROUTE_PATTERN = `${DB_PLAYER_ROUTE}/:mediaFileId`;
 export const playerPath = (mediaFileId) => `${DB_PLAYER_ROUTE}/${encodeURIComponent(mediaFileId ?? '')}`;
 export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 
-export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
-export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
+// Legal / informational pages. Public, and required by AdSense before a site can
+// be approved — see docs/adsense-setup.md.
+// Reached from an emailed link, so these live at the top level rather than under
+// /db-world — a URL a mail client will linkify should be as short as possible.
+export const RESET_PASSWORD_ROUTE = "/reset-password";
+export const VERIFY_EMAIL_ROUTE   = "/verify-email";
+
+export const DB_ABOUT_ROUTE   = `${APP_BASE}/about`;
+export const DB_PRIVACY_ROUTE = `${APP_BASE}/privacy`;
+export const DB_TERMS_ROUTE   = `${APP_BASE}/terms`;
+export const DB_CONTACT_ROUTE = `${APP_BASE}/contact`;
+
+export const DB_WEATHER_ROUTE = `${APP_BASE}/db-weather`;
+export const DB_GAMES_ROUTE = `${APP_BASE}/db-games`;
 export const DB_GAMES_TIC_TAC_TOE_ROUTE = `${DB_GAMES_ROUTE}/tic-tac-toe`;
 export const DB_GAMES_SNAKE_ROUTE = `${DB_GAMES_ROUTE}/snake`;
 export const DB_GAMES_MEMORY_MATCH_ROUTE = `${DB_GAMES_ROUTE}/memory-match`;
 export const DB_GAMES_2048_ROUTE = `${DB_GAMES_ROUTE}/2048`;
+export const DB_GAMES_MINESWEEPER_ROUTE = `${DB_GAMES_ROUTE}/minesweeper`;
+export const DB_GAMES_CONNECT_FOUR_ROUTE = `${DB_GAMES_ROUTE}/connect-four`;
 
 export const DB_PASSWORD_MANAGER_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/db-password-manager`;
+  `${APP_BASE}/db-password-manager`;
 export const DB_GENERATE_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/generate-password`;
 export const DB_ADD_PASSWORD_ROUTE =
@@ -83,23 +122,23 @@ export const DB_ADD_PASSWORD_ROUTE =
 export const DB_VIEW_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/view-password`;
 
-export const LOGIN_ROUTE = `${DB_WORLD_HOME_ROUTE}/login`;
-export const LOGOUT_ROUTE = `${DB_WORLD_HOME_ROUTE}/logout`;
-export const REGISTRATION_ROUTE = `${DB_WORLD_HOME_ROUTE}/registration`;
+export const LOGIN_ROUTE = `${APP_BASE}/login`;
+export const LOGOUT_ROUTE = `${APP_BASE}/logout`;
+export const REGISTRATION_ROUTE = `${APP_BASE}/registration`;
 
 export const USER_PROFILE_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/user-profile`;
+  `${APP_BASE}/user-profile`;
 export const EDIT_USER_PROFILE_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/user-profile-edit`;
+  `${APP_BASE}/user-profile-edit`;
 
 export const DB_MY_ACTIVITY_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/me/activity`;
+  `${APP_BASE}/me/activity`;
 
 export const DB_ADMIN_TOOLS_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/admin-tools`;
+  `${APP_BASE}/admin-tools`;
 
 export const DB_ADMIN_BASE_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/admin`;
+  `${APP_BASE}/admin`;
 
 // Cadence for the ipo-poll job is edited on the Scheduler page, not the IPO
 // admin page — this constant backs that cross-link.
@@ -111,15 +150,15 @@ export const ADD_RECORD_ROUTE =
 export const EDIT_RECORD_ROUTE =
   `${DB_CINEMA_ROUTE}/edit-record/:title`;
 
-export const DB_WALLET_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-wallet`;
-export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
+export const DB_WALLET_ROUTE = `${APP_BASE}/db-wallet`;
+export const DB_WALLET_SHARE_ROUTE = `${APP_BASE}/shared-doc/:token`;
 
-export const DB_IPO_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo`;
+export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
 export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
 // "My IPOs" — applicant-level saved-application list. Declared before DB_IPO_DETAIL_ROUTE's
 // `:id` param in the route table (see App.jsx) so `/my` never gets swallowed as an :id.
-export const DB_IPO_MY_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-ipo/my`;
+export const DB_IPO_MY_ROUTE = `${APP_BASE}/db-ipo/my`;
 
 /* =========================
  * USER ROLES
@@ -208,6 +247,7 @@ export default {
   DB_WORLD_TEAL_SVG_ICON,
 
   DB_WORLD_HOME_ROUTE,
+  LEGACY_PATH_PREFIX,
   DB_CINEMA_ROUTE,
   DB_CINEMA_BROWSE_ROUTE,
   DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE,
@@ -226,12 +266,26 @@ export default {
   playerPath,
   DB_PLAYER_DEMO_ROUTE,
 
+  // Both were named exports only, so `Constants.RESET_PASSWORD_ROUTE` was undefined
+  // everywhere it was read. App.jsx registered both routes with `path: undefined`,
+  // and the "Forgot password?" handler called `navigate(undefined)`, which React
+  // Router resolves to the CURRENT location — so the link fired and nothing moved.
+  // That is the bug behind "I click forgot password and nothing happens"; the
+  // handler itself was already correct. routes.test.js now asserts both resolve.
+  RESET_PASSWORD_ROUTE,
+  VERIFY_EMAIL_ROUTE,
+  DB_ABOUT_ROUTE,
+  DB_PRIVACY_ROUTE,
+  DB_TERMS_ROUTE,
+  DB_CONTACT_ROUTE,
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,
   DB_GAMES_TIC_TAC_TOE_ROUTE,
   DB_GAMES_SNAKE_ROUTE,
   DB_GAMES_MEMORY_MATCH_ROUTE,
   DB_GAMES_2048_ROUTE,
+  DB_GAMES_MINESWEEPER_ROUTE,
+  DB_GAMES_CONNECT_FOUR_ROUTE,
 
   DB_PASSWORD_MANAGER_ROUTE,
   DB_GENERATE_PASSWORD_ROUTE,

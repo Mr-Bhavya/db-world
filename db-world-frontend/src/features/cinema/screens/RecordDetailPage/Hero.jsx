@@ -4,7 +4,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Link as RouterLink } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
@@ -226,6 +226,15 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 const TRAILER_DELAY_MS = 2600;
 
 /**
+ * How long the viewer must be still before the synopsis clears out of the trailer's way.
+ *
+ * Long enough to finish reading two clamped lines, short enough that the trailer is not
+ * playing behind text for its whole run. The same idea as a video player hiding its
+ * chrome, and the same reason: once you are watching, the copy is in the way.
+ */
+const HERO_IDLE_MS = 2600;
+
+/**
  * Pick artwork with no title text burned into it.
  *
  * TMDB tags a plate that carries text with the language of that text; textless
@@ -363,6 +372,46 @@ export default function Hero({
     setTrailerPlaying(false);
     setTrailerDismissed(true);
   };
+
+  /**
+   * Fades the synopsis away while the trailer plays and the viewer is still, and brings
+   * it straight back on any sign of activity.
+   *
+   * Only ever armed while the trailer is actually playing — with no trailer the copy is
+   * the whole point of the hero and must never disappear. Listening on the window
+   * rather than the hero so a scroll or a mouse move anywhere counts; the events are
+   * passive because none of them are cancelled.
+   *
+   * Opacity only. Collapsing the height would reflow the entire hero every few seconds,
+   * and the block already reserves a fixed two-line slot precisely to avoid that.
+   */
+  const [heroIdle, setHeroIdle] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!trailerPlaying) {
+      setHeroIdle(false);
+      return undefined;
+    }
+
+    let timer;
+    const wake = () => {
+      setHeroIdle(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => setHeroIdle(true), HERO_IDLE_MS);
+    };
+
+    wake();   // start the clock; the copy is readable until it runs out
+
+    const EVENTS = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'];
+    EVENTS.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+    return () => {
+      clearTimeout(timer);
+      EVENTS.forEach((e) => window.removeEventListener(e, wake));
+    };
+  }, [trailerPlaying]);
+
+  const synopsisHidden = trailerPlaying && heroIdle;
 
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const endYear = !isMovie && tmdb.lastAirDate ? tmdb.lastAirDate.slice(0, 4) : null;
@@ -999,7 +1048,15 @@ export default function Hero({
             {/* Same containment as the cluster above: a two-line slot that holds
                 its height whether the synopsis is present, still loading, or
                 missing altogether. */}
-            <Box sx={{
+            <Box
+              component={motion.div}
+              animate={{ opacity: synopsisHidden ? 0 : 1 }}
+              transition={{ duration: reduceMotion ? 0 : 0.45, ease: 'easeOut' }}
+              // Not unmounted and not collapsed: the slot keeps its height either way,
+              // so nothing below it moves. aria-hidden follows the visual state so a
+              // screen reader is not read text that is not on screen.
+              aria-hidden={synopsisHidden}
+              sx={{
               display: { xs: 'none', sm: 'block' },
               minHeight: { sm: 52, md: 54, lg: 56, xl: 64 },
               '@media (min-width:1920px)': { minHeight: 116 },
@@ -1040,54 +1097,18 @@ export default function Hero({
               alignItems: 'center',
             }}>
               {onWatchClick && (
-                <Box sx={{
-                  display: 'flex', flexDirection: 'column', minWidth: 0,
-                  width: { xs: '100%', sm: 'auto' },
-                  alignItems: { xs: 'stretch', sm: 'flex-start' },
-                }}>
-                  <Button
-                    component={motion.button}
-                    whileTap={{ scale: 0.97 }}
-                    variant="contained"
-                    startIcon={resumable
-                      ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
-                      : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
-                    onClick={onWatchClick}
-                    sx={{
-                      ...CTA_SHAPE,
-                      ...ctaPrimary(accentColor),
-                      width: { xs: '100%', sm: 'auto' },
-                      ...(resumable && {
-                        position: 'relative', overflow: 'hidden',
-                        pb: { xs: 1.45, xl: 1.6 },
-                      }),
-                    }}
-                  >
-                    {resumable ? 'Resume' : 'Watch Now'}
-                    {resumable && (
-                      <Box aria-hidden sx={{
-                        position: 'absolute', left: { xs: 14, sm: 18, xl: 24 }, right: { xs: 14, sm: 18, xl: 24 },
-                        bottom: { xs: 7, xl: 8 }, height: 3,
-                        borderRadius: 999, overflow: 'hidden',
-                        bgcolor: alpha('#fff', 0.26), pointerEvents: 'none',
-                      }}>
-                        <Box sx={{
-                          height: '100%', width: `${resumePercent}%`,
-                          bgcolor: '#fff', borderRadius: 999,
-                        }} />
-                      </Box>
-                    )}
-                  </Button>
-                  {resumable && progress.remainingLabel && (
-                    <Typography sx={{
-                      mt: 0.55, pl: { xs: 0.25, sm: 1.25 },
-                      fontSize: { xs: '0.68rem', xl: '0.78rem' },
-                      fontWeight: 700, color: alpha('#fff', 0.62),
-                    }}>
-                      {progress.remainingLabel} left
-                    </Typography>
-                  )}
-                </Box>
+                <Button
+                  component={motion.button}
+                  whileTap={{ scale: 0.97 }}
+                  variant="contained"
+                  startIcon={resumable
+                    ? <PlayArrowIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />
+                    : <OndemandVideoIcon sx={{ fontSize: { xl: '1.3rem !important' } }} />}
+                  onClick={onWatchClick}
+                  sx={{ ...CTA_SHAPE, ...ctaPrimary(accentColor) }}
+                >
+                  {resumable ? 'Resume' : 'Watch Now'}
+                </Button>
               )}
 
               {/* Request takes the primary slot when there's nothing to play —
@@ -1189,6 +1210,64 @@ export default function Hero({
                 </Box>
               </Box>
             </Box>
+
+            {/* Continue-watching progress.
+
+                Sits BELOW the action row rather than inside the Resume button. A bar
+                drawn inside a button reads as a loading state ("working..."), and it
+                forced extra bottom padding that made Resume taller than the CTAs beside
+                it. Netflix, Prime and Hotstar all place it the same way: a thin bar
+                adjacent to the primary action, with the time remaining next to it.
+
+                Only rendered mid-title, so a finished or never-started record keeps the
+                plain Watch Now affordance with nothing extra under it. */}
+            {resumable && (
+              <Box
+                component={motion.div}
+                variants={RISE}
+                sx={{
+                  mt: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.25,
+                  // Capped so it tracks the CTA row instead of stretching the full
+                  // width of a wide hero, where it would read as a page-level loader.
+                  width: '100%',
+                  maxWidth: { xs: '100%', sm: 360, xl: 420 },
+                }}
+              >
+                <Box
+                  role="progressbar"
+                  aria-label="Watch progress"
+                  aria-valuenow={Math.round(resumePercent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  sx={{
+                    flex: 1, minWidth: 0,
+                    height: 4, borderRadius: 999, overflow: 'hidden',
+                    bgcolor: alpha('#fff', 0.24),
+                  }}
+                >
+                  <Box sx={{
+                    height: '100%', width: `${resumePercent}%`,
+                    bgcolor: accentColor, borderRadius: 999,
+                    transition: 'width 0.3s ease',
+                  }} />
+                </Box>
+
+                {progress.remainingLabel && (
+                  <Typography sx={{
+                    flexShrink: 0,
+                    fontSize: { xs: '0.72rem', xl: '0.82rem' },
+                    fontWeight: 700,
+                    color: alpha('#fff', 0.72),
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {progress.remainingLabel} left
+                  </Typography>
+                )}
+              </Box>
+            )}
 
             {/* Phones: a labelled rail below the CTAs.
 

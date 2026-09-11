@@ -219,10 +219,24 @@ export default function RecordDetailSheet() {
   useEffect(() => {
     const el = scrollEl;
     if (!el) return undefined;
-    const onScroll = () => setScrolledPastHero(el.scrollTop > 24);
+    let frameId = null;
+      // Coalesced to one read per frame. A scroll listener that calls setState fires far
+      // more often than the screen refreshes, and each call runs React's bail-out path
+      // even when the boolean has not changed — on a low-end phone that is work competing
+      // with the scroll it is measuring. Same shape as the global header's handler.
+    const onScroll = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(() => {
+        setScrolledPastHero(el.scrollTop > 24);
+        frameId = null;
+      });
+    };
     onScroll();
     el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
   }, [scrollEl]);
 
   return (

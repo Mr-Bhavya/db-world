@@ -10,6 +10,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme/ThemeContext';
+import { useRequireAuth } from '@features/auth/useRequireAuth';
 import {
   fetchUserReviews, fetchMyReview, upsertReview, deleteReview,
 } from '../../../api/cinemaApi';
@@ -92,6 +93,7 @@ function TmdbReviewCard({ review, T }) {
 
 export default function ReviewsSection({ record, recordId }) {
   const T = useT();
+  const { isAuthenticated } = useRequireAuth();
   const qc = useQueryClient();
 
   const [reviewRating, setReviewRating] = useState(0);
@@ -104,9 +106,14 @@ export default function ReviewsSection({ record, recordId }) {
     staleTime: 2 * 60 * 1000,
   });
 
+  // `enabled` on the auth state, not just the id. /reviews/mine is authenticated, so
+  // for a signed-out visitor this fired a request that could only ever come back 401
+  // — one guaranteed failure per record page view, on the browse surface that is now
+  // open to everyone. Surfaced by Meta's crawler filling the access log with them.
   const { data: myReview } = useQuery({
     queryKey: ['myReview', recordId],
     queryFn: () => fetchMyReview(recordId),
+    enabled: Boolean(recordId) && isAuthenticated,
     staleTime: 2 * 60 * 1000,
   });
 

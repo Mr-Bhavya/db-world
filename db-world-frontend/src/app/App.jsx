@@ -1,10 +1,13 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
+import Footer from '@shared/components/layout/Footer';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
+import ResetPassword from '@features/auth/ResetPassword';
+import VerifyEmail from '@features/auth/VerifyEmail';
 import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
@@ -26,6 +29,7 @@ import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import NotifyProvider from '@shared/notify/NotifyProvider';
+import { RequireAuthProvider } from '@features/auth/useRequireAuth';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
@@ -35,6 +39,8 @@ import BiometricGate from '@features/auth/BiometricGate';
 import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import AppLockGate from '@features/auth/AppLockGate';
 import { useAppLinks } from '@shared/deeplink/useAppLinks';
+import useCanonicalUrl from '@shared/hooks/useCanonicalUrl';
+import LegacyPrefixRedirect from './LegacyPrefixRedirect';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -77,12 +83,20 @@ import IpoDetailSkeleton from '@features/ipo/components/IpoDetailSkeleton.jsx';
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
-const Weather     = lazy(() => import('@features/weather/weather'));
+// Legal pages — tiny, but split out so they never sit in the initial bundle.
+const PrivacyPolicy  = lazy(() => import('@features/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('@features/legal/TermsOfService'));
+const ContactPage    = lazy(() => import('@features/legal/Contact'));
+const AboutPage      = lazy(() => import('@features/legal/About'));
+
+const Weather     = lazy(() => import('@features/weather/WeatherPage'));
 const Games       = lazy(() => import('@features/games/Games'));
 const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
 const Snake       = lazy(() => import('@features/games/Snake'));
 const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
 const Game2048    = lazy(() => import('@features/games/Game2048'));
+const Minesweeper = lazy(() => import('@features/games/Minesweeper'));
+const ConnectFour = lazy(() => import('@features/games/ConnectFour'));
 
 
 // Error Boundary Component
@@ -167,6 +181,19 @@ const buildMuiTheme = (mode) => createTheme({
   },
   shape: { borderRadius: 8 },
   typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        // index.html paints html AND body black so the boot loader has no white flash before
+        // React mounts. CssBaseline then themes `body` but leaves `html` on that boot black, so in
+        // light mode the document element stayed #000 — visible as a black band whenever the page
+        // overscrolls (rubber-band on Android, trackpad bounce on desktop) or is shorter than the
+        // viewport. Re-theme html alongside body.
+        html: { backgroundColor: mode === 'dark' ? '#000000' : '#ffffff' },
+      },
+    },
+  },
 });
 
 /** Thin wrapper so the lazy import receives the pageType prop. */
@@ -176,21 +203,53 @@ const CinemaPageWrapper = ({ pageType }) => <LazyCinemaPage pageType={pageType} 
 // Route configuration for better maintainability
 const routeConfig = {
   public: [
-    { path: '/', element: <Navigate to={Constants.DB_WORLD_HOME_ROUTE} />, exact: true },
+    // The hub IS the root now. There used to be a second entry here sending `/` to
+    // `/db-world` with <Navigate>, which is why Google indexed `/` — a client-side
+    // redirect it had to run JavaScript to follow — and served the empty shell as the
+    // home page. Both are the same path now, so a second entry would just shadow this.
     { path: Constants.DB_WORLD_HOME_ROUTE, element: <Home /> },
+
+    // Anything still asking for the old `/db-world/...` prefix. nginx 301s these for
+    // anyone arriving over HTTP, so this is for the cases nginx never sees: a deep
+    // link handed to the router in-process by an older Android build, and a push
+    // notification whose `data.link` is still in the old format (which is deliberate
+    // — see RequestPushLinks on the backend).
+    { path: `${Constants.LEGACY_PATH_PREFIX}/*`, element: <LegacyPrefixRedirect /> },
+    { path: Constants.LEGACY_PATH_PREFIX, element: <Navigate to={Constants.DB_WORLD_HOME_ROUTE} replace /> },
     { path: Constants.LOGIN_ROUTE, element: <Login /> },
     { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
     { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },
+    // Public on purpose: the visitor clicking these is by definition signed out.
+    { path: Constants.RESET_PASSWORD_ROUTE, element: <ResetPassword /> },
+    { path: Constants.VERIFY_EMAIL_ROUTE, element: <VerifyEmail /> },
     { path: Constants.DB_GAMES_ROUTE,              element: <Games /> },
     { path: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE, element: <TicTacToe /> },
     { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },
     { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
     { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
+    { path: Constants.DB_GAMES_MINESWEEPER_ROUTE,  element: <Minesweeper /> },
+    { path: Constants.DB_GAMES_CONNECT_FOUR_ROUTE, element: <ConnectFour /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
+    // Public: the generator is entirely self-contained — no API call, no storage, no auth —
+    // so gating it only stopped people using a tool that works fine signed out, and kept a
+    // genuinely useful page out of every search index.
+    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
     { path: Constants.DB_WALLET_SHARE_ROUTE, element: <LazySharedDocument /> },
-  ],
-  protected: [
+
+    // Legal pages. Public and linked from the footer — AdSense will not approve a
+    // site without them, and a reviewer must be able to reach them signed out.
+    { path: Constants.DB_ABOUT_ROUTE,   element: <AboutPage /> },
+    { path: Constants.DB_PRIVACY_ROUTE, element: <PrivacyPolicy /> },
+    { path: Constants.DB_TERMS_ROUTE,   element: <TermsOfService /> },
+    { path: Constants.DB_CONTACT_ROUTE, element: <ContactPage /> },
+
+    // ── Open browse surface ───────────────────────────────────────────────────
+    // Reading the catalog and the IPO tracker needs no account, so links are
+    // shareable and search engines can index them. The line is drawn at ACTING on
+    // a record: playback, downloads, requests, votes, watchlist/like and anything
+    // user-scoped stays behind PrivateRoute below, and the in-page controls for
+    // those go through useRequireAuth() to prompt for sign-in.
     { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },
     { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
     { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
@@ -199,22 +258,25 @@ const routeConfig = {
     { path: Constants.DB_CINEMA_BROWSE_GENRE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home-genre"   /> },
     { path: Constants.DB_CINEMA_MOVIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies-genre" /> },
     { path: Constants.DB_CINEMA_SERIES_GENRE_ROUTE, element: <CinemaPageWrapper pageType="series" key="series-genre" /> },
-    { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
-    { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
-    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
-    { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
-    { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
-    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
+    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
+    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
+  ],
+  protected: [
+    // Acting on a record — the files list is the download surface, the player is
+    // the stream surface.
+    { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
+    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
+    { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
+    { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
+    { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
-    { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
-    { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []
@@ -240,6 +302,11 @@ const ThemedApp = () => {
   // A tapped https://db-world.in/db-world/… link (Android App Links) routes into
   // the SPA instead of bouncing to the browser. No-op on web.
   useAppLinks(navigate);
+
+  // Self-referencing <link rel="canonical"> per route. App-wide rather than per page:
+  // the shell had no canonical at all, which is half of why Search Console reported
+  // www.db-world.in as a duplicate it could not resolve.
+  useCanonicalUrl();
 
   // A download-notification tap persists a one-shot route flag natively (see
   // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the
@@ -276,6 +343,14 @@ const ThemedApp = () => {
   // "card stack" depth cue. The mobile sheet covers most of the screen so the page
   // can recede a long way; the desktop modal leaves a visible frame of page around
   // itself, where the same cue only works if it is slight.
+  // Site chrome rules. The player is full-screen by design, and the admin console
+  // brings its own layout — a public-site footer in either would be wrong. Everywhere
+  // else gets it, which is also what keeps the legal links reachable from every page
+  // AdSense might land on.
+  const isPlayerRoute = location.pathname.includes('/player');
+  const isAdminRoute  = location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE);
+  const showFooter    = !isPlayerRoute && !isAdminRoute;
+
   const overlayOpen = !!background;
   const pageScaled = overlayOpen;
   const pageScale = isSheetViewport ? 0.94 : 0.985;
@@ -355,6 +430,7 @@ const ThemedApp = () => {
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <NotifyProvider>
+        <RequireAuthProvider>
         <CategoryProvider>
           {/* Transparent by default so the hybrid player's native video layer
               (behind the transparent WebView) shows through. Painted dark only while a
@@ -390,10 +466,22 @@ const ThemedApp = () => {
                 overflow: pageScaled && isSheetViewport ? 'hidden' : 'visible',
                 transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
                 minHeight: '100vh',
+                // Column flex + `flex: 1` on the route area below is what keeps the footer AT THE
+                // BOTTOM when a page renders little or nothing — while a lazy route chunk downloads,
+                // or on an empty/errored page. As a plain block box the children just stacked from
+                // the top, and since the Header is a `position: fixed` AppBar with no spacer in the
+                // shell (each page supplies its own top padding), a zero-height route area left the
+                // footer as the first in-flow element — rendering it at y=0, printed straight over
+                // the header. Affects every lazy route, not one page.
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
-            {!location.pathname.includes('/player') && <Header />}
+            {!isPlayerRoute && <Header />}
+            {/* `minWidth: 0` alone is not enough here — see the width:100% note on the page shells
+                this wraps. A flex item with auto side margins does not stretch. */}
+            <Box component="main" sx={{ flex: '1 0 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
@@ -422,8 +510,12 @@ const ThemedApp = () => {
                 </Route>
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
-
             </Suspense>
+            </Box>
+            {/* Outside the Suspense on purpose: while a lazy route chunk downloads the
+                fallback replaces its children, and a footer that vanishes and reappears
+                on every first navigation to a page reads as a layout glitch. */}
+            {showFooter && <Footer />}
             </Box>
 
             {/* Detail overlay — only mounted when a record was opened IN-APP
@@ -439,15 +531,17 @@ const ThemedApp = () => {
             {background && (
               <Suspense fallback={null}>
                 <Routes>
-                  <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
-                  </Route>
+                  {/* Public, matching the detail pages they overlay — a signed-out
+                      visitor clicking a card opens the sheet/modal instead of being
+                      bounced to login. The actions inside it still prompt. */}
+                  <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
+                  <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
                 </Routes>
               </Suspense>
             )}
           </div>
         </CategoryProvider>
+        </RequireAuthProvider>
       </NotifyProvider>
     </ThemeProvider>
   );

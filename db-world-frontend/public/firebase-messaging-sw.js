@@ -35,11 +35,14 @@ messaging.onBackgroundMessage((payload) => {
 function resolveTarget(data) {
   if (data && typeof data.link === 'string' && data.link.charAt(0) === '/') return data.link;
   const ROUTE_MAP = {
-    'admin/requests': '/db-world/admin/requests',
-    'admin/ingestion': '/db-world/admin/ingestion',
+    'admin/requests': '/admin/requests',
+    'admin/ingestion': '/admin/ingestion',
   };
   if (data && ROUTE_MAP[data.route]) return ROUTE_MAP[data.route];
-  return '/db-world';
+  // The hub is the root now; it used to be '/db-world'. A `data.link` still arriving
+  // with that prefix is fine either way — it is returned above untouched and the app's
+  // LegacyPrefixRedirect strips it.
+  return '/';
 }
 
 // Tapping a notification deep-links per its data payload (full `data.link` or a known
