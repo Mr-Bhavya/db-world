@@ -106,10 +106,14 @@ public class RailSortBuilder {
     /**
      * Back-compat for sort values stored before the combined date field existed.
      *
-     * <p>RETIRABLE: run {@code db/migration/rails_normalize_legacy_sort.sql}, confirm its step-3
-     * verification query returns zero rows on the live database, then delete this map and the two
-     * lookups that use it. Don't delete it first — an unrecognised sort field now falls back to
-     * unsorted, so a row this map still covers would silently lose its ordering rather than erroring.
+     * <p>RETIRABLE: run {@code rails_normalize_legacy_sort.sql}, confirm its step-3 verification
+     * query returns zero rows on the live database, then delete this map and the two lookups that
+     * use it. Don't delete it first — an unrecognised sort field now falls back to unsorted, so a
+     * row this map still covers would silently lose its ordering rather than erroring.
+     *
+     * <p>The applied migrations were removed from {@code src/main/resources/db/migration} once they
+     * had all been run. Recover this one from git:
+     * {@code git show c387249f:db-world-backend/src/main/resources/db/migration/rails_normalize_legacy_sort.sql}
      */
     private static final Map<String, String> LEGACY_ALIASES = Map.ofEntries(
             Map.entry("releaseDate",  "releaseAirDate"),
