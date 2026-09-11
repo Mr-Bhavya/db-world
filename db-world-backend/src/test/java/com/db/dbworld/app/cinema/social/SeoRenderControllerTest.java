@@ -214,7 +214,7 @@ class SeoRenderControllerTest {
         IpoListingEntity ipo = new IpoListingEntity();
         ipo.setId("acme-industries");
         ipo.setCompanyName("Acme Industries");
-        when(ipoListingRepository.findAll()).thenReturn(List.of(ipo));
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of(ipo));
 
         assertThat(controller.ipoIndex().getBody())
                 .contains("href=\"https://db-world.in/db-ipo/acme-industries\"")
@@ -256,7 +256,7 @@ class SeoRenderControllerTest {
 
     @Test
     void ipoIndexCarriesTheFaqAndGlossary() {
-        when(ipoListingRepository.findAll()).thenReturn(List.of());
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
 
         // The FAQ and the 24-term glossary are the best-written content on the site and
         // a crawler could not see a word of them: this page used to be company names.

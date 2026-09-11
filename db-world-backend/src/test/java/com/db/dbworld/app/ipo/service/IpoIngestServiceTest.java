@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -56,7 +57,7 @@ class IpoIngestServiceTest {
         financialRepo = mock(IpoFinancialRepository.class);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service = new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
-                financialRepo, new IpoMapper(), clock);
+                financialRepo, new IpoMapper(), new IpoNormalizer(), clock);
 
         when(listingRepo.save(any())).thenAnswer(inv -> {
             IpoListingEntity e = inv.getArgument(0);
@@ -76,7 +77,7 @@ class IpoIngestServiceTest {
     /** An ingest service pinned to a specific instant — for the IST open-cutoff clamp tests. */
     private IpoIngestService serviceAt(Instant now) {
         return new IpoIngestService(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo,
-                financialRepo, new IpoMapper(), Clock.fixed(now, ZoneOffset.UTC));
+                financialRepo, new IpoMapper(), new IpoNormalizer(), Clock.fixed(now, ZoneOffset.UTC));
     }
 
     /** Fixed category map reused by the dto builders below (order-preserving, matches the real shape a source reports). */
@@ -672,5 +673,79 @@ class IpoIngestServiceTest {
         ArgumentCaptor<IpoListingEntity> listingCaptor = ArgumentCaptor.forClass(IpoListingEntity.class);
         verify(listingRepo, times(1)).save(listingCaptor.capture());
         assertThat(listingCaptor.getValue().getIpoType()).isEqualTo("sme");
+    }
+
+    // ── Alias fallback: the guard against one company becoming several rows ─────────────────────
+
+    /** An already-tracked row, as the alias lookup would return it. */
+    private static IpoListingEntity tracked(String id, String companyName, String matchKey, LocalDate openDate) {
+        return IpoListingEntity.builder()
+                .id(id).companyName(companyName).matchKey(matchKey).aliasKey("acmecorporation").openDate(openDate)
+                .firstSeenAt(NOW).lastSeenAt(NOW).build();
+    }
+
+    @Test
+    void ingest_openDateRevised_updatesTheExistingRowInsteadOfCreatingASecond() {
+        // matchKey is normalize(name)|openDate, so a revised schedule misses on the stored key. That
+        // used to mint a brand-new row and orphan the original along with all of its GMP history --
+        // one of the three ways a single company ended up as two cards on the list.
+        IpoListingEntity existing = tracked("ipo-1", "Acme Corp", "acme corp|2026-07-18",
+                LocalDate.of(2026, 7, 18));
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(existing));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        // Updated in place, and the identity key is re-stamped to the new date so the NEXT poll
+        // hits findByMatchKey directly rather than re-entering this fallback forever.
+        verify(listingRepo).save(existing);
+        assertThat(existing.getMatchKey()).isEqualTo(MATCH_KEY);
+        assertThat(existing.getOpenDate()).isEqualTo(LocalDate.of(2026, 7, 20));
+        verify(changeEventRepo, never()).save(argThat(e -> "NEW".equals(e.getEventType())));
+    }
+
+    @Test
+    void ingest_aliasMatchesButDatesAreMonthsApart_treatedAsASeparateIssue() {
+        // A company's SME issue and its later mainboard issue have a byte-identical name. Merging
+        // those would be a false positive that moves real users' applications onto the wrong issue,
+        // so the alias hit is only accepted when the dates read as a revision, not a new issue.
+        IpoListingEntity lastYearsIssue = tracked("ipo-old", "Acme Corp", "acme corp|2026-01-05",
+                LocalDate.of(2026, 1, 5));
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(lastYearsIssue));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        // A new row, and the old one is left untouched.
+        verify(changeEventRepo).save(argThat(e -> "NEW".equals(e.getEventType())));
+        assertThat(lastYearsIssue.getMatchKey()).isEqualTo("acme corp|2026-01-05");
+    }
+
+    @Test
+    void ingest_aliasIsAmbiguous_leavesItForTheDuplicateReportRatherThanGuessing() {
+        // Two live rows already share this alias, so there is no single right answer. Picking one
+        // silently on the ingest path would be a merge with no review; the duplicate report handles it.
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.empty());
+        when(listingRepo.findLiveByAliasKey("acmecorporation")).thenReturn(List.of(
+                tracked("ipo-a", "Acme Corp Ltd", "acme corp|2026-07-18", LocalDate.of(2026, 7, 18)),
+                tracked("ipo-b", "AcmeCorp Limited", "acmecorp|2026-07-19", LocalDate.of(2026, 7, 19))));
+
+        service.ingest(List.of(dto("open", new BigDecimal("20.00"), new BigDecimal("18.00"),
+                new BigDecimal("1.50"), "awaited", null, null, null)));
+
+        verify(changeEventRepo).save(argThat(e -> "NEW".equals(e.getEventType())));
+    }
+
+    @Test
+    void ingest_newListing_stampsTheAliasKey() {
+        stubNoExisting();
+
+        service.ingest(List.of(dtoWithType("mainboard")));
+
+        ArgumentCaptor<IpoListingEntity> saved = ArgumentCaptor.forClass(IpoListingEntity.class);
+        verify(listingRepo).save(saved.capture());
+        assertThat(saved.getValue().getAliasKey()).isEqualTo("acmecorporation");
     }
 }

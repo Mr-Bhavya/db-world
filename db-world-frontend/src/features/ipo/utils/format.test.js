@@ -5,6 +5,7 @@ import {
   computeQuickStats, shortFinancialLabel, websiteDomain,
   orderSubscriptionCategories, computeLotBreakdown,
   formatAmount, minInvestment, biddingProgressPct, detailFigures, detailTabsFor,
+  isOpeningToday, isClosingToday, groupIposByStage,
 } from './format';
 
 /** Fixed "today" so day-math is deterministic regardless of when the suite runs. */
@@ -680,5 +681,78 @@ describe('detailTabsFor', () => {
     expect(detailTabsFor(null)).toEqual(['overview']);
     expect(detailTabsFor(undefined)).toEqual(['overview']);
     expect(detailTabsFor({ status: 'closed' }, {})).toEqual(['overview', 'allotment']);
+  });
+});
+
+describe('opening/closing-today sections', () => {
+  // Fixed "today" so the day-math is deterministic regardless of when the suite runs.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(TODAY));   // 2026-07-24 09:00 local
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ipo = (id, status, openDate, closeDate) => ({ id, status, openDate, closeDate });
+
+  describe('isOpeningToday', () => {
+    it('matches an upcoming IPO whose open date is today', () => {
+      // Bidding starts at 10 AM IST, so between midnight and then the stored status is still
+      // "upcoming" -- correctly, since nobody can bid yet. This is what stops the issue being
+      // buried under IPOs that do not open for another week on the one day it matters most.
+      expect(isOpeningToday(ipo('a', 'upcoming', '2026-07-24', '2026-07-28'))).toBe(true);
+    });
+
+    it('does not match once the status has actually flipped to open', () => {
+      // After 10 AM it belongs in "Open now"; the section empties itself rather than competing.
+      expect(isOpeningToday(ipo('a', 'open', '2026-07-24', '2026-07-28'))).toBe(false);
+    });
+
+    it('does not match an IPO opening on a later day', () => {
+      expect(isOpeningToday(ipo('a', 'upcoming', '2026-07-25', '2026-07-29'))).toBe(false);
+    });
+
+    it('is null-safe', () => {
+      expect(isOpeningToday(null)).toBe(false);
+      expect(isOpeningToday({})).toBe(false);
+      expect(isOpeningToday(ipo('a', 'upcoming', null, null))).toBe(false);
+    });
+  });
+
+  describe('groupIposByStage', () => {
+    it('puts an IPO opening today in its own section, above Open now', () => {
+      const sections = groupIposByStage([
+        ipo('open-now', 'open', '2026-07-20', '2026-07-30'),
+        ipo('opens-today', 'upcoming', '2026-07-24', '2026-07-28'),
+        ipo('later', 'upcoming', '2026-08-01', '2026-08-05'),
+      ]);
+
+      expect(sections.map((s) => s.label)).toEqual(['Opening today', 'Open now', 'Upcoming']);
+      expect(sections[0].ipos.map((i) => i.id)).toEqual(['opens-today']);
+      expect(sections[2].ipos.map((i) => i.id)).toEqual(['later']);
+    });
+
+    it('ranks a same-day deadline above a same-day arrival', () => {
+      // A single-day issue that opens AND closes today is a deadline before it is an arrival,
+      // and first match wins, so "Closing today" has to stay at the top of IPO_GROUPS.
+      const sections = groupIposByStage([
+        ipo('opens-today', 'upcoming', '2026-07-24', '2026-07-28'),
+        ipo('closes-today', 'open', '2026-07-22', '2026-07-24'),
+      ]);
+
+      expect(sections.map((s) => s.label)).toEqual(['Closing today', 'Opening today']);
+    });
+
+    it('drops the section entirely when nothing opens today', () => {
+      const sections = groupIposByStage([ipo('later', 'upcoming', '2026-08-01', '2026-08-05')]);
+
+      expect(sections.map((s) => s.label)).toEqual(['Upcoming']);
+    });
+  });
+
+  it('isClosingToday still only matches an OPEN issue closing today', () => {
+    expect(isClosingToday(ipo('a', 'open', '2026-07-22', '2026-07-24'))).toBe(true);
+    expect(isClosingToday(ipo('a', 'upcoming', '2026-07-24', '2026-07-24'))).toBe(false);
   });
 });

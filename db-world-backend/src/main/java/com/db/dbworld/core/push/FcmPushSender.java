@@ -44,6 +44,8 @@ public class FcmPushSender implements PushSender {
     private static final String SEND_URL = "https://fcm.googleapis.com/v1/projects/%s/messages:send";
     private static final String IID_BATCH_ADD_URL = "https://iid.googleapis.com/iid/v1:batchAdd";
     private static final String IID_BATCH_REMOVE_URL = "https://iid.googleapis.com/iid/v1:batchRemove";
+    /** APNs rejects an {@code apns-collapse-id} longer than this, so the shared key is capped to it. */
+    private static final int APNS_COLLAPSE_ID_MAX_BYTES = 64;
 
     private final GoogleCredentials credentials; // null ⇒ inactive
     private final String projectId;
@@ -153,11 +155,22 @@ public class FcmPushSender implements PushSender {
             message.add("data", dataObj);
         }
 
-        // Android block carries the channel id and/or the ttl — only attached when non-empty.
+        String collapseKey = collapseKey(data);
+
+        // Android block carries the channel id, the ttl and/or the collapse key — only attached
+        // when non-empty.
         JsonObject android = new JsonObject();
+        JsonObject androidNotification = new JsonObject();
         if (channelId != null && !channelId.isBlank()) {
-            JsonObject androidNotification = new JsonObject();
             androidNotification.addProperty("channel_id", channelId.trim());
+        }
+        if (collapseKey != null) {
+            // tag REPLACES an already-shown notification with the same tag in the tray; collapse_key
+            // additionally lets FCM drop an undelivered predecessor while the device is offline.
+            androidNotification.addProperty("tag", collapseKey);
+            android.addProperty("collapse_key", collapseKey);
+        }
+        if (!androidNotification.entrySet().isEmpty()) {
             android.add("notification", androidNotification);
         }
         if (ttlSeconds > 0) {
@@ -168,20 +181,53 @@ public class FcmPushSender implements PushSender {
         }
 
         // Same expiry for iOS (APNs, absolute epoch second) and browser/PWA (WebPush, relative seconds).
+        JsonObject apnsHeaders = new JsonObject();
+        JsonObject webpushHeaders = new JsonObject();
         if (ttlSeconds > 0) {
-            JsonObject apnsHeaders = new JsonObject();
             apnsHeaders.addProperty("apns-expiration", String.valueOf(nowEpochSeconds + ttlSeconds));
+            webpushHeaders.addProperty("TTL", String.valueOf(ttlSeconds));
+        }
+        if (collapseKey != null) {
+            apnsHeaders.addProperty("apns-collapse-id", collapseKey);
+        }
+        if (!apnsHeaders.entrySet().isEmpty()) {
             JsonObject apns = new JsonObject();
             apns.add("headers", apnsHeaders);
             message.add("apns", apns);
-
-            JsonObject webpushHeaders = new JsonObject();
-            webpushHeaders.addProperty("TTL", String.valueOf(ttlSeconds));
+        }
+        if (!webpushHeaders.entrySet().isEmpty()) {
             JsonObject webpush = new JsonObject();
             webpush.add("headers", webpushHeaders);
             message.add("webpush", webpush);
         }
         return message;
+    }
+
+    /**
+     * The identity a notification REPLACES rather than stacks on, derived from the payload's own
+     * {@code kind} (+ {@code ipoId} when the alert is about one entity).
+     *
+     * <p>Without this, every send is a fresh row in the tray: seven "GMP moved" pushes half a
+     * second apart became seven separate heads-up notifications, and a second alert about the same
+     * IPO piled on top of the first rather than superseding it. Keying on kind+entity means the
+     * newest state of a given story is the only one on screen, and a per-kind digest replaces the
+     * previous digest of that kind.
+     *
+     * <p>{@code null} when the payload carries no kind — the caller then gets FCM's default
+     * (never collapse), which is the right behaviour for a one-off message with no successor.
+     * Length is bounded for APNs, whose {@code apns-collapse-id} is capped at 64 bytes.
+     */
+    static String collapseKey(Map<String, String> data) {
+        if (data == null) {
+            return null;
+        }
+        String kind = data.get("kind");
+        if (kind == null || kind.isBlank()) {
+            return null;
+        }
+        String entityId = data.get("ipoId");
+        String key = entityId == null || entityId.isBlank() ? kind : kind + ":" + entityId;
+        return key.length() <= APNS_COLLAPSE_ID_MAX_BYTES ? key : key.substring(0, APNS_COLLAPSE_ID_MAX_BYTES);
     }
 
     @Override

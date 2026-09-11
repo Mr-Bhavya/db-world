@@ -91,7 +91,7 @@ class InvestorgainGmpServiceTest {
      * investorgain abbreviates and re-punctuates company names.
      */
     private void tracked(IpoListingEntity... entities) {
-        when(listingRepo.findAll()).thenReturn(List.of(entities));
+        when(listingRepo.findAllLive()).thenReturn(List.of(entities));
     }
 
     /** A tracked listing that {@code isWorthFetching} accepts (no listing date = still live). */
@@ -137,11 +137,12 @@ class InvestorgainGmpServiceTest {
     }
 
     @Test
-    void refreshGmp_spendsTheFetchBudgetNewestOpenDateFirst() {
-        // The report spans a whole financial year, so the matched set routinely exceeds the 30-fetch
+    void refreshGmp_spendsTheFetchBudgetOnTheMostTopicalTierFirst() {
+        // The report spans a whole financial year, so the matched set routinely exceeds the fetch
         // budget. Following the report's own row order meant the budget could be consumed entirely by
         // issues that listed months ago, leaving the currently-open and just-listed ones — the ones
-        // actually on screen — with no GMP and no subscription at all. Newest open date first.
+        // actually on screen — with no GMP and no subscription at all. Announced-and-upcoming
+        // outranks "opened months ago and never told us when it closed".
         when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON_THREE_ROWS));
         when(httpClient.get(contains("ipo-gmp-read"), any())).thenReturn(ok("""
                 {"msg":1,"ipoGmpData":[]}
@@ -153,9 +154,77 @@ class InvestorgainGmpServiceTest {
         newService().refreshGmp();
 
         InOrder inOrder = org.mockito.Mockito.inOrder(httpClient);
-        inOrder.verify(httpClient).get(eq(gmpUrl("300")), any());  // opens 05-Aug
-        inOrder.verify(httpClient).get(eq(gmpUrl("200")), any());  // opens 23-Jul
-        inOrder.verify(httpClient).get(eq(gmpUrl("100")), any());  // opens 02-Apr, last
+        inOrder.verify(httpClient).get(eq(gmpUrl("300")), any());  // upcoming (opens 05-Aug)
+        inOrder.verify(httpClient).get(eq(gmpUrl("200")), any());  // unscheduled, id tie-break
+        inOrder.verify(httpClient).get(eq(gmpUrl("100")), any());
+    }
+
+    @Test
+    void refreshGmp_budgetIsExhausted_leastRecentlyRefreshedGoesFirstNextPass() {
+        // THE starvation bug. The budget used to take a fixed prefix of a stable ordering, so the
+        // same rows won every pass and the tail was refreshed NEVER — four consecutive production
+        // polls produced a byte-identical starved list of ~50 IPOs. Within a tier the order is now
+        // staleness, so whoever lost the last pass is first in the next one.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON_THREE_ROWS));
+        when(httpClient.get(contains("ipo-gmp-read"), any())).thenReturn(ok("""
+                {"msg":1,"ipoGmpData":[]}
+                """));
+        when(settingsService.getLong(ConfigKeys.IPO_INVESTORGAIN_FETCH_BUDGET)).thenReturn(3L);
+        // All three are upcoming, so the tier is identical and staleness alone decides. Newco was
+        // refreshed most recently and must therefore come last despite its newest open date.
+        IpoListingEntity oldest = live("ipo-old", "April Oldco Limited", LocalDate.of(2026, 8, 2));
+        IpoListingEntity middle = live("ipo-mid", "July Midco Limited", LocalDate.of(2026, 8, 3));
+        IpoListingEntity newest = live("ipo-new", "August Newco Limited", LocalDate.of(2026, 8, 5));
+        oldest.setGmpRefreshedAt(Instant.parse("2026-07-26T01:00:00Z"));
+        middle.setGmpRefreshedAt(Instant.parse("2026-07-26T05:00:00Z"));
+        newest.setGmpRefreshedAt(Instant.parse("2026-07-26T09:00:00Z"));
+        tracked(oldest, middle, newest);
+
+        newService().refreshGmp();
+
+        InOrder inOrder = org.mockito.Mockito.inOrder(httpClient);
+        inOrder.verify(httpClient).get(eq(gmpUrl("100")), any());  // stalest
+        inOrder.verify(httpClient).get(eq(gmpUrl("200")), any());
+        inOrder.verify(httpClient).get(eq(gmpUrl("300")), any());  // freshest, last
+    }
+
+    @Test
+    void refreshGmp_neverFetchedBeatsEverythingElseInItsTier() {
+        // Null means "never refreshed", which has to sort FIRST or a newly-tracked IPO could sit
+        // behind rows that already have data and never acquire any of its own.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok(LIST_JSON_THREE_ROWS));
+        when(httpClient.get(contains("ipo-gmp-read"), any())).thenReturn(ok("""
+                {"msg":1,"ipoGmpData":[]}
+                """));
+        IpoListingEntity refreshedRecently = live("ipo-old", "April Oldco Limited", LocalDate.of(2026, 8, 2));
+        IpoListingEntity refreshedLongAgo = live("ipo-mid", "July Midco Limited", LocalDate.of(2026, 8, 3));
+        IpoListingEntity neverRefreshed = live("ipo-new", "August Newco Limited", LocalDate.of(2026, 8, 5));
+        refreshedRecently.setGmpRefreshedAt(Instant.parse("2026-07-26T09:00:00Z"));
+        refreshedLongAgo.setGmpRefreshedAt(Instant.parse("2026-07-20T09:00:00Z"));
+        tracked(refreshedRecently, refreshedLongAgo, neverRefreshed);
+
+        newService().refreshGmp();
+
+        InOrder inOrder = org.mockito.Mockito.inOrder(httpClient);
+        inOrder.verify(httpClient).get(eq(gmpUrl("300")), any());  // never refreshed
+        inOrder.verify(httpClient).get(eq(gmpUrl("200")), any());  // stalest of the rest
+        inOrder.verify(httpClient).get(eq(gmpUrl("100")), any());
+    }
+
+    @Test
+    void refreshGmp_detailFetchComesBackEmpty_rotationCursorStillAdvances() {
+        // Stamping only on SUCCESS would leave a permanently-empty IPO at the head of the queue
+        // forever, spending the budget the rows behind it are waiting for — which is the very
+        // starvation this ordering exists to remove.
+        stubLists();
+        when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok("""
+                {"msg":1,"ipoGmpData":[]}
+                """));
+        IpoListingEntity entity = live("ipo-1", "Xtranet Technologies Limited", LocalDate.of(2026, 7, 23));
+        tracked(entity);
+
+        assertThat(newService().refreshGmp()).isZero();
+        assertThat(entity.getGmpRefreshedAt()).isEqualTo(Instant.parse("2026-07-26T13:00:00Z"));
     }
 
     @Test
@@ -194,6 +263,58 @@ class InvestorgainGmpServiceTest {
         when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-1")).thenReturn(List.of());
 
         assertThat(newService().refreshGmp()).isEqualTo(1);
+    }
+
+    @Test
+    void refreshGmp_feedNameIsLongerThanOurs_stillMatchesOnTheReversePrefix() {
+        // From the production log: `no tracked IPO for 'Complete Sports and'`. Their short name
+        // carries a token our stored name doesn't, making it LONGER than ours — so a one-directional
+        // "their name prefixes ours" test simply lost the IPO, and lost its GMP with it.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"Complete Sports and","~Srt_Open":"2026-07-31"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        when(httpClient.get(eq(GMP_URL_XTRANET), any())).thenReturn(ok(GMP_JSON));
+        IpoListingEntity entity = live("ipo-1", "Complete Sports Limited", LocalDate.of(2026, 7, 31));
+        tracked(entity);
+        when(gmpHistoryRepo.findByIpoIdOrderByCapturedAtAsc("ipo-1")).thenReturn(List.of());
+
+        assertThat(newService().refreshGmp()).isEqualTo(1);
+        assertThat(entity.getGmp()).isEqualByComparingTo("9");
+    }
+
+    @Test
+    void refreshGmp_feedNameTooShortToBeSafe_neverPrefixMatches() {
+        // Their feed carries junk rows named things like "NSE". A three-character prefix would
+        // happily attach one to any company whose name starts the same way.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"NSE","~Srt_Open":"2026-07-31"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        tracked(live("ipo-1", "NSE Emerge Holdings Limited", LocalDate.of(2026, 7, 31)));
+
+        assertThat(newService().refreshGmp()).isZero();
+        verify(httpClient, never()).get(eq(GMP_URL_XTRANET), any());
+    }
+
+    @Test
+    void refreshGmp_duplicateRowsCollapseToOneName_neitherHalfIsGuessedAt() {
+        // The GMP-is-missing bug in its purest form. Two rows for one company (an open date that
+        // was revised, or "Co." against "Company") reduce to a single alias, so the matcher sees an
+        // ambiguous pair and attributes GMP to NEITHER — which is why both cards showed no GMP.
+        // Fixing that is the duplicate MERGE's job; the matcher's job is to refuse to guess.
+        when(httpClient.get(eq(LIST_URL), any())).thenReturn(ok("""
+                {"msg":1,"reportTableData":[
+                  {"~id":1951,"IPO":"Anawil Wire","~Srt_Open":"2026-07-31"}
+                ],"totalRecords":1,"totalPages":1}
+                """));
+        tracked(live("ipo-a", "AnawilWire Limited", LocalDate.of(2026, 7, 31)),
+                live("ipo-b", "Anawil Wire Ltd.", LocalDate.of(2026, 7, 31)));
+
+        assertThat(newService().refreshGmp()).isZero();
+        verify(httpClient, never()).get(eq(GMP_URL_XTRANET), any());
     }
 
     @Test
@@ -282,7 +403,9 @@ class InvestorgainGmpServiceTest {
         // Latest day (26th) stamped onto the listing.
         assertThat(entity.getGmp()).isEqualByComparingTo("9");
         assertThat(entity.getGmpPct()).isEqualByComparingTo("7.09");
-        verify(listingRepo).save(entity);
+        // Saved twice now: once to stamp the rotation cursor before the fetch, once by applyLatest.
+        verify(listingRepo, org.mockito.Mockito.atLeastOnce()).save(entity);
+        assertThat(entity.getGmpRefreshedAt()).isEqualTo(Instant.parse("2026-07-26T13:00:00Z"));
         verify(pollService).recordSuccess(eq("investorgain"), any());
     }
 

@@ -38,6 +38,10 @@ public class IpoQueryService {
 
     private static final String TYPE_ALL = "all";
     private static final String STATUS_LISTED = "listed";
+
+    /** Merge tombstones to follow before giving up — a defence against a hand-edited cycle, not a
+     *  case this code can create (survivors are always picked from live rows). */
+    private static final int MAX_MERGE_HOPS = 5;
     private static final String SORT_GMP = "gmp";
     private static final String SORT_SUBSCRIPTION = "subscription";
     private static final String SORT_CLOSING = "closing";
@@ -124,6 +128,10 @@ public class IpoQueryService {
 
         LocalDate staleListedCutoff = staleListedCutoff();
         List<IpoSummaryDto> ipos = entities.stream()
+                // A row merged away as a duplicate is a tombstone, not a listing. Leaving it in is
+                // exactly the two-cards-for-one-IPO symptom the merge exists to remove — and it is
+                // always the emptier of the two, so it shows as a card with no GMP.
+                .filter(e -> e.getMergedIntoId() == null)
                 .filter(e -> matchesType(e, type))
                 .filter(e -> !isStaleListed(e, staleListedCutoff))
                 .sorted(sortComparator(sort))
@@ -154,9 +162,24 @@ public class IpoQueryService {
                 && entity.getListingDate().isBefore(cutoff);
     }
 
+    /**
+     * One IPO by id, following the merge tombstone if that id has since been merged away.
+     *
+     * <p>Following it is not optional. Every push already delivered, every shared link and every
+     * "My IPOs" bookmark carries whatever id existed when it was created, and a duplicate merge
+     * retires one of those ids — so without this hop, cleaning up duplicates would 404 links that
+     * used to work. One hop is enough by construction: a survivor is chosen from LIVE rows only, so
+     * a tombstone can never point at another tombstone. The loop guard is there for a hand-edited
+     * database rather than anything this code can produce.
+     */
     public IpoDetailDto detail(String id) {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
+        for (int hops = 0; entity.getMergedIntoId() != null && hops < MAX_MERGE_HOPS; hops++) {
+            String survivorId = entity.getMergedIntoId();
+            entity = listingRepository.findById(survivorId)
+                    .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
+        }
         return withDerivedTimelineDates(mapper.toDetail(entity));
     }
 

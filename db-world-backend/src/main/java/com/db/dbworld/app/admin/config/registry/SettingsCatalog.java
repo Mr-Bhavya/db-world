@@ -134,32 +134,67 @@ public final class SettingsCatalog {
             "Base URL for the Investorgain GMP report + gmp-read JSON API (the webnodejs host). "
                 + "Blank restores the built-in default.",
             "https://webnodejs.investorgain.com", false, 4),
+        lng(IPO_INVESTORGAIN_FETCH_BUDGET, C_IPO, "Investorgain fetches per pass",
+            "How many per-IPO GMP/subscription detail calls one refresh pass may make. Candidates are "
+                + "rotated least-recently-refreshed first within a priority tier (open, then upcoming, "
+                + "then awaiting listing, then listed), so this controls how FAST every tracked IPO "
+                + "comes round - not which ones ever do. Raise it if the logs report a rotation deeper "
+                + "than about 4 passes; each fetch costs roughly half a second.",
+            30L, 5L, 200L, 5),
+        bool(IPO_GMP_NOTIFY_ENABLED, C_IPO, "Push GMP moves",
+            "Send a push when an IPO's grey-market premium moves. OFF by default and best left off: "
+                + "GMP is an unofficial number that moves all day, and pushing every move produced 28 "
+                + "notifications in five hours - the same IPO alerting five times. GMP is still "
+                + "collected, charted and shown in the app either way; this only controls the push.",
+            false, 6),
         lng(IPO_GMP_NOTIFY_THRESHOLD_PCT, C_IPO, "GMP notify threshold (%)",
-            "Minimum GMP% change that triggers a notification.", 10L, 0L, 100L, 5),
+            "Minimum GMP% change that triggers a notification, measured against the last value we "
+                + "actually notified about (not the last one polled - that is what let a drifting GMP "
+                + "re-alert every single pass). Only applies when GMP pushes are enabled above.",
+            25L, 0L, 100L, 7),
+        lng(IPO_GMP_NOTIFY_MIN_ABSOLUTE, C_IPO, "GMP notify floor (Rs)",
+            "A GMP move must ALSO be at least this many rupees to notify. Without a floor, the "
+                + "percentage test alone fires on noise: a Rs 1 move on a Rs 3 GMP is a 33% jump and "
+                + "worth nobody's attention. Only applies when GMP pushes are enabled above.",
+            5L, 0L, 1000L, 8),
+        lng(IPO_NOTIFY_COOLDOWN_HOURS, C_IPO, "Per-IPO alert cooldown (h)",
+            "Minimum gap between two pushes about the SAME IPO and the same kind of event. Stops one "
+                + "volatile IPO from dominating the day. 0 disables the cooldown.",
+            6L, 0L, 168L, 9),
+        lng(IPO_NOTIFY_MAX_PER_DAY, C_IPO, "Max IPO pushes per day",
+            "Ceiling on IPO pushes sent in one IST day, across all IPOs. Once it is reached the rest "
+                + "of the day's alerts are dropped rather than queued, so a feed glitch cannot empty a "
+                + "backlog onto every device at once. 0 = no cap.",
+            6L, 0L, 100L, 10),
+        lng(IPO_NOTIFY_DIGEST_THRESHOLD, C_IPO, "Digest from N alerts",
+            "When a single delivery pass has this many or more alerts of the same kind, they are sent "
+                + "as ONE summary push (\"5 IPOs opened today\") instead of one push each. 2 bundles "
+                + "aggressively; a high value effectively disables bundling.",
+            2L, 2L, 50L, 11),
         lng(IPO_LIST_HIDE_LISTED_AFTER_DAYS, C_IPO, "Hide listed after (days)",
             "Hide an IPO from the list once it listed more than this many days ago, so the list stays "
                 + "current. 0 = never hide. Only affects already-listed IPOs with a known listing date.",
-            30L, 0L, 3650L, 6),
+            30L, 0L, 3650L, 12),
         lng(IPO_NOTIFY_WINDOW_START_HOUR, C_IPO, "Notify window start (IST hour)",
             "Earliest IST hour (0–23) an IPO push may be sent. IPO bidding + listing trading both open "
                 + "at 10 AM IST, so 10 is the natural default; earlier hours are suppressed.",
-            10L, 0L, 23L, 7),
+            10L, 0L, 23L, 13),
         lng(IPO_NOTIFY_WINDOW_END_HOUR, C_IPO, "Notify window end (IST hour)",
             "Latest IST hour (exclusive, 1–24) an IPO push may be sent; later hours are suppressed so no "
                 + "notifications go out overnight. Must be greater than the start hour.",
-            21L, 1L, 24L, 8),
+            21L, 1L, 24L, 14),
         str(IPO_MARKET_HOLIDAYS, C_IPO, "NSE market holidays",
             "Non-trading days when IPO pushes are suppressed. Each comma-separated entry is either "
                 + "YYYY-MM-DD (a one-off date) or MM-DD (recurs every year — fixed holidays like "
                 + "01-26/08-15/12-25 never need updating). Seeded with NSE 2026 holidays; the lunar ones "
                 + "are also auto-refreshed yearly from NSE (see below), and this list overrides/augments "
                 + "that. Weekends are always skipped automatically.",
-            DEFAULT_MARKET_HOLIDAYS, false, 9),
+            DEFAULT_MARKET_HOLIDAYS, false, 15),
         str(IPO_MARKET_HOLIDAYS_AUTO, C_IPO, "NSE market holidays (auto-fetched)",
             "System-managed — auto-populated once a year from NSE's official trading-holiday feed and "
                 + "unioned with the manual list above (which takes precedence). Normally leave this alone; "
                 + "it repopulates on the next poll if cleared.",
-            "", false, 10),
+            "", false, 16),
 
         // ── Push Notifications ────────────────────────────────────────────
         bool(PUSH_ENABLED, C_PUSH, "Push enabled",

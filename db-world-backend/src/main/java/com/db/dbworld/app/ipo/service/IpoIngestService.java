@@ -21,8 +21,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -49,31 +51,42 @@ public class IpoIngestService {
     /** Indian IPO calendar zone — status boundaries (open/close/listing) flip at IST midnight. */
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
+    /**
+     * How far two open dates may drift and still be read as the SAME issue by the alias fallback.
+     * Wide enough for a real-world schedule revision (issuers routinely push an issue by a few
+     * days, and the feeds pick that up at different times), narrow enough that a company's SME
+     * issue and its later mainboard issue — identical name, months apart — stay two rows.
+     */
+    private static final int ALIAS_DATE_TOLERANCE_DAYS = 21;
+
     private final IpoListingRepository listingRepo;
     private final IpoGmpHistoryRepository gmpHistoryRepo;
     private final IpoSubscriptionHistoryRepository subHistoryRepo;
     private final IpoChangeEventRepository changeEventRepo;
     private final IpoFinancialRepository financialRepo;
     private final IpoMapper mapper;
+    private final IpoNormalizer normalizer;
     private final Clock clock;
 
     @Autowired
     public IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                              IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                             IpoFinancialRepository financialRepo, IpoMapper mapper) {
-        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, financialRepo, mapper, Clock.systemUTC());
+                             IpoFinancialRepository financialRepo, IpoMapper mapper, IpoNormalizer normalizer) {
+        this(listingRepo, gmpHistoryRepo, subHistoryRepo, changeEventRepo, financialRepo, mapper, normalizer,
+                Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for deterministic {@code now()}. */
     IpoIngestService(IpoListingRepository listingRepo, IpoGmpHistoryRepository gmpHistoryRepo,
                       IpoSubscriptionHistoryRepository subHistoryRepo, IpoChangeEventRepository changeEventRepo,
-                      IpoFinancialRepository financialRepo, IpoMapper mapper, Clock clock) {
+                      IpoFinancialRepository financialRepo, IpoMapper mapper, IpoNormalizer normalizer, Clock clock) {
         this.listingRepo = listingRepo;
         this.gmpHistoryRepo = gmpHistoryRepo;
         this.subHistoryRepo = subHistoryRepo;
         this.changeEventRepo = changeEventRepo;
         this.financialRepo = financialRepo;
         this.mapper = mapper;
+        this.normalizer = normalizer;
         this.clock = clock;
     }
 
@@ -101,13 +114,16 @@ public class IpoIngestService {
         // regardless of a source's own wording (e.g. NSE's "Active"/"Listed", or
         // "Main Board"/"NSE Emerge" for type). This is what makes the "listed" LISTING-transition
         // check and the status/type filters reliable across sources.
-        IpoDto dto = withDerivedListingGain(withCloseCutoff(withOpenPromotion(
-                withOpenCutoff(withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))))));
+        IpoDto dto = withDerivedListingGain(withCalendarStatus(
+                withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))));
         Instant now = clock.instant();
-        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
+        String aliasKey = normalizer.aliasKey(dto.companyName());
+        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey())
+                .orElseGet(() -> resolveByAlias(aliasKey, dto));
 
         if (existing == null) {
             IpoListingEntity entity = mapper.toNewEntity(dto);
+            entity.setAliasKey(aliasKey);
             entity.setFirstSeenAt(now);
             entity.setLastSeenAt(now);
             IpoListingEntity saved = listingRepo.save(entity);
@@ -119,11 +135,76 @@ public class IpoIngestService {
 
         List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
         mapper.applyUpdatable(dto, existing);
+        // Keep the identity and the resolution key in step with the name/date we just accepted:
+        // when the alias fallback rescued this row from a revised open date, its stored matchKey
+        // still encodes the OLD date, and leaving it there would let the next poll miss on
+        // matchKey again and re-enter this same fallback forever.
+        existing.setMatchKey(dto.matchKey());
+        existing.setAliasKey(aliasKey);
         existing.setLastSeenAt(now);
         listingRepo.save(existing);
         events.forEach(changeEventRepo::save);
         appendHistory(existing.getId(), dto, now);
         upsertFinancials(existing.getId(), dto.financials());
+    }
+
+    /**
+     * The row this dto is an update to, found by resolution key rather than identity — the fallback
+     * that stops one company becoming several rows.
+     *
+     * <p>{@code matchKey} is {@code normalize(name)|openDate}, so it changes whenever a feed
+     * revises the open date or writes the name in a different house style ({@code "Co."} against
+     * {@code "Company"}, {@code "&"} against {@code "and"}). Each variant used to mint a fresh row
+     * that nothing connected to the original, which is what put two cards for one IPO on the list
+     * and — because a duplicate pair looks ambiguous to {@code InvestorgainMatcher} — left BOTH of
+     * them without a GMP.
+     *
+     * <p>The alias key is deliberately lossy, so a hit is only a CANDIDATE. Two guards keep it from
+     * fusing genuinely different issues by the same company (an SME issue and a later mainboard
+     * one share a byte-identical name):
+     * <ul>
+     *   <li>exactly one live candidate — anything ambiguous is left alone for the duplicate report
+     *       to resolve under review, never merged silently on the ingest path;</li>
+     *   <li>the candidate's dates must plausibly be the same issue: no open date on either side
+     *       (nothing to contradict), or open dates within {@link #ALIAS_DATE_TOLERANCE_DAYS}.</li>
+     * </ul>
+     * A rejected candidate simply falls through to "insert a new row" — the previous behaviour.
+     */
+    private IpoListingEntity resolveByAlias(String aliasKey, IpoDto dto) {
+        if (aliasKey == null) {
+            return null;
+        }
+        List<IpoListingEntity> candidates = listingRepo.findLiveByAliasKey(aliasKey);
+        if (candidates.size() != 1) {
+            if (candidates.size() > 1) {
+                log.debug("IPO alias fallback: '{}' (alias={}) matches {} live rows - ambiguous, "
+                        + "left for the duplicate report", dto.companyName(), aliasKey, candidates.size());
+            }
+            return null;
+        }
+        IpoListingEntity candidate = candidates.get(0);
+        if (!plausiblySameIssue(candidate.getOpenDate(), dto.openDate())) {
+            log.debug("IPO alias fallback: '{}' (alias={}) matched row {} but open dates are {} vs {} "
+                            + "- treating as a separate issue", dto.companyName(), aliasKey,
+                    candidate.getId(), candidate.getOpenDate(), dto.openDate());
+            return null;
+        }
+        log.info("IPO alias fallback: '{}' resolved to existing row {} ('{}') - open date {} -> {}, "
+                        + "no duplicate created", dto.companyName(), candidate.getId(),
+                candidate.getCompanyName(), candidate.getOpenDate(), dto.openDate());
+        return candidate;
+    }
+
+    /**
+     * Whether two open dates can be the same issue. A missing date on either side cannot
+     * contradict anything (a feed routinely carries the name before the schedule), so it passes;
+     * two known dates must be close enough to read as a revision rather than a separate issue.
+     */
+    private static boolean plausiblySameIssue(LocalDate existingOpen, LocalDate incomingOpen) {
+        if (existingOpen == null || incomingOpen == null) {
+            return true;
+        }
+        return Math.abs(ChronoUnit.DAYS.between(existingOpen, incomingOpen)) <= ALIAS_DATE_TOLERANCE_DAYS;
     }
 
     /**
@@ -287,63 +368,20 @@ public class IpoIngestService {
     }
 
     /**
-     * Holds a source-reported "open" IPO at "upcoming" until the IST open moment (Indian IPO bidding
-     * opens ~10&nbsp;AM IST on day one). A source (e.g. NSE) can flag an issue "Active" at the very
-     * start of the open day; without this clamp a midnight/early-morning poll would flip it to "open"
-     * and fire the "IPO is open" push at 12&nbsp;AM. The date-only {@link IpoStatusCanonicalizer#deriveStatus}
-     * already respects this cutoff — this applies the same rule to a source-reported status. Guarded on a
-     * known {@code openDate}: with none we can't reason about timing, so the status is left untouched.
-     */
-    private IpoDto withOpenCutoff(IpoDto dto) {
-        if (!STATUS_OPEN.equals(dto.status()) || dto.openDate() == null
-                || IpoStatusCanonicalizer.isPastOpen(dto.openDate(), LocalDateTime.now(clock.withZone(IST)))) {
-            return dto;
-        }
-        return withStatus(dto, STATUS_UPCOMING);
-    }
-
-    /**
-     * The mirror of {@link #withOpenCutoff}: promotes a source-reported "upcoming" IPO to
-     * "open"/"closed" once the IST calendar says its subscription window has actually started.
+     * Applies the Indian IPO calendar to whatever status this row currently carries.
      *
-     * <p>Upstream feeds move an issue out of their "upcoming" bucket whenever their own batch job
-     * happens to run — NSE can still be advertising an IPO as forthcoming hours after 10&nbsp;AM
-     * IST bidding opened. Without this the stored status (and therefore the "IPO is open" push,
-     * which is driven off the {@code upcoming → open} STATUS event) lands at whatever arbitrary
-     * hour the slowest source caught up, instead of at the real open moment. It also unsticks an
-     * IPO left at "upcoming" by a feed that never updated it at all — the window having both
-     * opened AND closed yields "closed" directly.
-     *
-     * <p>Deliberately conservative: BOTH dates must be known, and it never promotes to "listed"
-     * (a listing date is a forecast until the shares actually trade, and a false "has listed"
-     * push is worse than a late one). So the calendar only ever overrides a stale "upcoming"
-     * inside the window the exchange itself published.
+     * <p>This used to be three separate methods (hold a premature "open", promote a stale
+     * "upcoming", downgrade a closed-but-still-"open") and they drifted apart: the promotion
+     * refused to act without a close date while the date-only derivation was happy to call the
+     * same issue open. The rule now lives once, in
+     * {@link IpoStatusCanonicalizer#calendarCorrected}, and {@code IpoStatusSweepService} applies
+     * the identical rule to stored rows between polls — because a transition driven purely by the
+     * clock must not wait for the next poll to be noticed.
      */
-    private IpoDto withOpenPromotion(IpoDto dto) {
-        if (!STATUS_UPCOMING.equals(dto.status()) || dto.openDate() == null || dto.closeDate() == null) {
-            return dto;
-        }
-        LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
-        if (!IpoStatusCanonicalizer.isPastOpen(dto.openDate(), nowIst)) {
-            return dto;
-        }
-        return withStatus(dto, IpoStatusCanonicalizer.isPastClose(dto.closeDate(), nowIst)
-                ? STATUS_CLOSED : STATUS_OPEN);
-    }
-
-    /**
-     * Downgrades an "open" IPO to "closed" once the IST close moment has passed (Indian IPOs close
-     * ~5&nbsp;PM IST on the last day). Both a source's reported status and the date-only
-     * {@link IpoStatusCanonicalizer#deriveStatus} keep returning "open" on the close day itself, so
-     * without this an IPO stayed Open all evening. Applied to the INCOMING dto (before the
-     * change-compare), so once persisted it stays "closed" and never flip-flops back to "open".
-     */
-    private IpoDto withCloseCutoff(IpoDto dto) {
-        if (!STATUS_OPEN.equals(dto.status())
-                || !IpoStatusCanonicalizer.isPastClose(dto.closeDate(), LocalDateTime.now(clock.withZone(IST)))) {
-            return dto;
-        }
-        return withStatus(dto, STATUS_CLOSED);
+    private IpoDto withCalendarStatus(IpoDto dto) {
+        String corrected = IpoStatusCanonicalizer.calendarCorrected(
+                dto.status(), dto.openDate(), dto.closeDate(), LocalDateTime.now(clock.withZone(IST)));
+        return Objects.equals(corrected, dto.status()) ? dto : withStatus(dto, corrected);
     }
 
     /**

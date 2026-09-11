@@ -55,7 +55,18 @@ public final class ConfigKeys {
     public static final String IPO_NSE_BASE_URL                     = "ipo.nse.base-url";
     public static final String IPO_CHITTORGARH_BASE_URL             = "ipo.chittorgarh.base-url";
     public static final String IPO_INVESTORGAIN_BASE_URL            = "ipo.investorgain.base-url";
+    // How many per-IPO investorgain detail fetches one refresh pass may spend. Candidates are
+    // rotated least-recently-refreshed first, so this sets how FAST every tracked IPO comes round,
+    // not which ones ever do.
+    public static final String IPO_INVESTORGAIN_FETCH_BUDGET        = "ipo.investorgain.fetch-budget";
     public static final String IPO_GMP_NOTIFY_THRESHOLD_PCT         = "ipo.gmp.notify-threshold-pct";
+    // Notification hygiene. GMP pushes ship OFF: a grey-market number moves all day, and pushing
+    // every move produced 28 notifications in five hours from a single afternoon's polling.
+    public static final String IPO_GMP_NOTIFY_ENABLED               = "ipo.gmp.notify-enabled";
+    public static final String IPO_GMP_NOTIFY_MIN_ABSOLUTE          = "ipo.gmp.notify-min-absolute";
+    public static final String IPO_NOTIFY_COOLDOWN_HOURS            = "ipo.notify.cooldown-hours";
+    public static final String IPO_NOTIFY_MAX_PER_DAY               = "ipo.notify.max-per-day";
+    public static final String IPO_NOTIFY_DIGEST_THRESHOLD          = "ipo.notify.digest-threshold";
     // List view: drop long-since-listed IPOs so the list stays "current" (0 = never hide).
     public static final String IPO_LIST_HIDE_LISTED_AFTER_DAYS      = "ipo.list.hide-listed-after-days";
     // Notification quiet-hours + non-trading-day gating (Indian market calendar). Hours are IST;

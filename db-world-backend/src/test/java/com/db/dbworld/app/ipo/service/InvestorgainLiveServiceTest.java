@@ -168,7 +168,7 @@ class InvestorgainLiveServiceTest {
                 .logoUrl("https://www.chittorgarh.net/images/ipo/existing.png")
                 .estimatedListingPrice(java.math.BigDecimal.ONE)
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(withLogo));
+        when(listingRepo.findAllLive()).thenReturn(List.of(withLogo));
 
         newService().refresh();
 
@@ -182,7 +182,7 @@ class InvestorgainLiveServiceTest {
                 .id("ipo-1").companyName("Lumino Industries Limited").investorgainId(1619)
                 .estimatedListingPrice(java.math.BigDecimal.ONE)
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(noLogo));
+        when(listingRepo.findAllLive()).thenReturn(List.of(noLogo));
 
         newService().refresh();
 
@@ -197,7 +197,7 @@ class InvestorgainLiveServiceTest {
                 .openDate(LocalDate.of(2026, 8, 27))
                 .gmp(new java.math.BigDecimal("40")).subTotal(new java.math.BigDecimal("0.90"))
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         assertThat(newService().refresh()).isEqualTo(1);
 
@@ -227,7 +227,7 @@ class InvestorgainLiveServiceTest {
                 .priceMax(new java.math.BigDecimal("83"))
                 .investorgainId(1619)
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         newService().refresh();
 
@@ -241,7 +241,7 @@ class InvestorgainLiveServiceTest {
         stubFeeds();
         IpoListingEntity lumino = IpoListingEntity.builder()
                 .id("ipo-1").companyName("Lumino Industries Limited").investorgainId(1619).build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         newService().refresh();
 
@@ -269,7 +269,7 @@ class InvestorgainLiveServiceTest {
                 .lotSize(182).peRatio(new java.math.BigDecimal("33.12")).anchorInvestor(true)
                 .gmpUpdatedLabel("27-Aug 20:02")
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         assertThat(newService().refresh()).isZero();
         verify(listingRepo, org.mockito.Mockito.never()).save(any());
@@ -284,7 +284,7 @@ class InvestorgainLiveServiceTest {
                 .thenThrow(new RuntimeException("dashboard 503"));
         IpoListingEntity lumino = IpoListingEntity.builder()
                 .id("ipo-1").companyName("Lumino Industries Limited").investorgainId(1619).build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         assertThat(newService().refresh()).isEqualTo(1);
 
@@ -325,7 +325,7 @@ class InvestorgainLiveServiceTest {
                 .gmp(new java.math.BigDecimal("40"))
                 .estimatedListingPrice(new java.math.BigDecimal("122"))
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         newService().refresh();
 
@@ -355,7 +355,7 @@ class InvestorgainLiveServiceTest {
                 .subjectToSauda(new java.math.BigDecimal("7600"))
                 .estProfit(new java.math.BigDecimal("10010"))
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         newService().refresh();
 
@@ -371,7 +371,7 @@ class InvestorgainLiveServiceTest {
                 .id("ipo-1").companyName("Lumino Industries Limited").investorgainId(1619)
                 .gmp(new java.math.BigDecimal("55"))
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(lumino));
+        when(listingRepo.findAllLive()).thenReturn(List.of(lumino));
 
         newService().refresh();
 
@@ -388,7 +388,7 @@ class InvestorgainLiveServiceTest {
                 .gmp(new java.math.BigDecimal("18.5")).listingExchange("BOTH")
                 .estimatedListingPrice(java.math.BigDecimal.ONE)
                 .build();
-        when(listingRepo.findAll()).thenReturn(List.of(gaja));
+        when(listingRepo.findAllLive()).thenReturn(List.of(gaja));
 
         newService().refresh();
 

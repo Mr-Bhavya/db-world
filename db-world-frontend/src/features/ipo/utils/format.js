@@ -150,16 +150,36 @@ export const isClosingToday = (ipo) =>
   ipo?.status === 'open' && daysUntil(ipo.closeDate) === 0;
 
 /**
+ * An IPO whose bidding window STARTS today but hasn't started yet — i.e. it's still `upcoming`
+ * and its open date is today.
+ *
+ * <p>This exists to fill a real gap. Bidding opens at 10 AM IST, so the stored status is
+ * deliberately still "upcoming" between midnight and then; without this the issue sat buried in
+ * the Upcoming section, below IPOs that don't open for another week, on the one day it matters
+ * most. Deriving it from the date in the browser means it's right the instant the day turns —
+ * no job has to run, and nothing has to claim the issue is "open" before anyone can actually bid.
+ *
+ * <p>Deliberately scoped to `upcoming`: once the status really does flip at 10 AM the IPO belongs
+ * in "Open now", so this section empties itself during the morning rather than competing with it.
+ */
+export const isOpeningToday = (ipo) =>
+  ipo?.status === 'upcoming' && daysUntil(ipo.openDate) === 0;
+
+/**
  * Sections for the grouped list, in the order they matter to someone deciding what to do next:
- * a same-day deadline first, then what they can still act on, then what's merely announced, then
- * the archive.
+ * a same-day deadline first, then today's new arrivals, then what they can still act on, then
+ * what's merely announced, then the archive.
  *
  * Grouping replaces most of the reason to touch the status filter at all — the filter narrows,
  * whereas this ORDERS by urgency and keeps everything visible, which is what a tracker is for.
  * Sections with nothing in them are dropped by the caller rather than rendered as empty headings.
+ *
+ * Order matters because the first match wins: a single-day issue that opens AND closes today is a
+ * deadline before it is an arrival, so "Closing today" stays at the top.
  */
 export const IPO_GROUPS = [
   { key: 'closingToday', label: 'Closing today', match: isClosingToday },
+  { key: 'openingToday', label: 'Opening today', match: isOpeningToday },
   { key: 'open', label: 'Open now', match: (i) => i.status === 'open' },
   { key: 'upcoming', label: 'Upcoming', match: (i) => i.status === 'upcoming' },
   { key: 'closed', label: 'Awaiting listing', match: (i) => i.status === 'closed' },
