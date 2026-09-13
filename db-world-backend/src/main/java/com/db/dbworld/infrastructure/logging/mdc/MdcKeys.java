@@ -41,4 +41,16 @@ public final class MdcKeys {
 
     /** Query string (already URL-encoded). */
     public static final String QUERY      = "query";
+
+    /**
+     * Scheduler run correlation id — one per execution of a background job, written by
+     * {@code JobRunRecorder} and stored on the matching {@code scheduler_job_history} row.
+     * It is what lets the admin Scheduler page pull up exactly the log lines a given run
+     * produced. Distinct from {@link #TRACE_ID}, which belongs to an HTTP request: a
+     * manually-triggered job carries both (the trace of the admin's click and the run id).
+     */
+    public static final String JOB_RUN_ID = "jobRunId";
+
+    /** Scheduler job id (e.g. {@code TmdbMovieSync}) for the run identified by {@link #JOB_RUN_ID}. */
+    public static final String JOB        = "job";
 }

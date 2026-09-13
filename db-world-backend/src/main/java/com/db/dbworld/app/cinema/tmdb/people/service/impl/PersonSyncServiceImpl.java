@@ -29,7 +29,7 @@ public class PersonSyncServiceImpl implements PersonSyncService {
     private final TmdbClient       tmdbClient;
 
     @Override
-    public void syncUnsyncedPersons() {
+    public PersonSyncReport syncUnsyncedPersons(ProgressListener onProgress) {
 
         long total   = personRepository.countByPersonSyncedFalse();
         long synced  = 0;
@@ -64,10 +64,12 @@ public class PersonSyncServiceImpl implements PersonSyncService {
                 // Rate-limit: stay within TMDB's ~50 requests/sec free-tier guideline
                 try { Thread.sleep(TmdbSync.DELAY_MS); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    log.warn("PersonSync interrupted");
-                    return;
+                    log.warn("PersonSync interrupted after synced={}, failed={}", synced, failed);
+                    return new PersonSyncReport(total, synced, failed, true);
                 }
             }
+
+            onProgress.onProgress(synced, failed);
 
             if (batch.isLast()) break;
 
@@ -76,6 +78,7 @@ public class PersonSyncServiceImpl implements PersonSyncService {
         }
 
         log.info("PersonSync complete — synced={}, failed={}", synced, failed);
+        return new PersonSyncReport(total, synced, failed, false);
     }
 
     @Override

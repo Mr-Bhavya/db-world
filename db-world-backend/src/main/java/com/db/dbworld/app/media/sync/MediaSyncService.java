@@ -1,8 +1,9 @@
 package com.db.dbworld.app.media.sync;
 
-import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity;
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
+import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity.TriggerSource;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
-import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryRepository;
+import com.db.dbworld.app.admin.scheduler.service.JobRunRecorder;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
@@ -11,7 +12,6 @@ import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.apache.logging.log4j.ThreadContext;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.event.EventListener;
@@ -23,13 +23,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -97,7 +95,7 @@ public class MediaSyncService {
     private final SymlinkService                symlinkService;
     private final AppProperties                 appProperties;
     private final SchedulerJobConfigRepository  schedulerConfigRepo;
-    private final SchedulerJobHistoryRepository schedulerHistoryRepo;
+    private final JobRunRecorder                recorder;
 
     /**
      * Live stability window. Read from {@code scheduler_job_config.stability_window_seconds}
@@ -130,7 +128,7 @@ public class MediaSyncService {
     public void scanOnStartup() {
         log.info("MediaSync: cold-start reconciliation starting (stability-window={})",
                 props.stabilityWindow());
-        scan();
+        recordedScan();
     }
 
     /**
@@ -147,28 +145,43 @@ public class MediaSyncService {
             log.debug("MediaSync: disabled in scheduler_job_config; skipping tick");
             return;
         }
-        scan();
+        recordedScan();
     }
 
     // ── Core scan ────────────────────────────────────────────────────────────
 
     /**
-     * Runs a single reconciliation pass. Public so admin endpoints can
-     * trigger an on-demand scan if needed.
+     * Runs a scan as a recorded scheduler run — correlation id, timing and the history row
+     * come from {@link JobRunRecorder}, same as every cron job.
+     *
+     * <p>The manual "Run now" path does NOT come through here: it calls
+     * {@code SchedulerAdminService.runJob("MediaSync")}, which wraps {@link #scan} in a
+     * recorder of its own. Routing both through a recorder is what fixed the old double
+     * bookkeeping, where a manual MediaSync wrote two history rows for one scan.
      */
-    public SyncReport scan() {
-        ThreadContext.put("traceId", "media-sync-" + UUID.randomUUID());
-        LocalDateTime startedAt = LocalDateTime.now();
+    public SyncReport recordedScan() {
+        try {
+            return recorder.run(JOB_ID, TriggerSource.SCHEDULED, null, this::scan);
+        } catch (Exception e) {
+            // Already logged and recorded as FAILED by the recorder.
+            return new SyncReport(0, 0, 0, 0, true);
+        }
+    }
+
+    /**
+     * Runs a single reconciliation pass and reports what it did into {@code summary}. The
+     * caller owns the run's history row; this method writes none.
+     */
+    public SyncReport scan(JobRunSummary.Builder summary) {
         long start = System.currentTimeMillis();
-        SyncReport report;
 
         try {
             Path root = appProperties.getStreamPath();
             if (root == null || !Files.isDirectory(root)) {
-                log.warn("MediaSync: stream root not a directory ({}); skipping", root);
-                report = new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
-                persistHistory(startedAt, report, "stream root not a directory: " + root);
-                return report;
+                // Thrown rather than returned so the run is recorded as FAILED — a scanner
+                // pointed at a missing stream root silently "succeeding" every 60 seconds is
+                // exactly the state this page exists to make visible.
+                throw new IllegalStateException("stream root not a directory: " + root);
             }
 
             var onDisk = walkRoot(root);
@@ -181,7 +194,7 @@ public class MediaSyncService {
             int removed = applyRemovals(toRemove, inDb);
 
             long duration = System.currentTimeMillis() - start;
-            report = new SyncReport(added, removed, onDisk.size(), duration, false);
+            SyncReport report = new SyncReport(added, removed, onDisk.size(), duration, false);
 
             if (report.changed()) {
                 log.info("MediaSync: added={} removed={} total-on-disk={} took={}ms",
@@ -190,37 +203,16 @@ public class MediaSyncService {
                 log.debug("MediaSync: no changes (total-on-disk={}, took {}ms)",
                         onDisk.size(), duration);
             }
-            persistHistory(startedAt, report,
-                    report.changed() ? "added=" + added + ", removed=" + removed : null);
+            summary.count("added", added)
+                   .count("removed", removed)
+                   .count("filesOnDisk", onDisk.size());
+            if (!report.changed()) {
+                summary.note("No changes — the stream directory matches the database");
+            }
             return report;
 
-        } catch (Exception e) {
-            log.error("MediaSync: scan failed: {}", e.getMessage(), e);
-            report = new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
-            persistHistory(startedAt, report, e.getMessage());
-            return report;
         } finally {
             lastScanCompletedAt.set(System.currentTimeMillis());
-            ThreadContext.clearAll();
-        }
-    }
-
-    /**
-     * Writes a row to scheduler_job_history so the admin UI's per-job history
-     * drawer surfaces the scan outcome alongside cron-job runs. Best-effort —
-     * a history-write failure must not crash the scan itself.
-     */
-    private void persistHistory(LocalDateTime startedAt, SyncReport report, String message) {
-        try {
-            schedulerHistoryRepo.save(SchedulerJobHistoryEntity.builder()
-                    .jobName(JOB_ID)
-                    .startedAt(startedAt)
-                    .durationMs(report.durationMs())
-                    .status(report.failed() ? "FAILED" : "SUCCESS")
-                    .message(message)
-                    .build());
-        } catch (Exception e) {
-            log.warn("MediaSync: failed to write history row: {}", e.getMessage());
         }
     }
 

@@ -45,22 +45,37 @@ public class TmdbSyncOrchestratorService {
      ===================================== */
 
     public SyncMetrics syncMovies(SyncWindow window) {
-        log.debug("syncMovies entry; window={}", window);
-        return sync(window, RecordType.MOVIE);
+        return syncMovies(window, new SyncMetrics());
     }
 
     public SyncMetrics syncTv(SyncWindow window) {
+        return syncTv(window, new SyncMetrics());
+    }
+
+    /**
+     * As {@link #syncMovies(SyncWindow)}, but on metrics the CALLER owns.
+     *
+     * <p>These counters are incremented throughout a run that takes minutes. Creating the
+     * object in here meant nobody could read them until it finished, so the admin page had
+     * nothing to show but a spinner. Handing the caller the same instance makes the run's
+     * progress observable while it is still happening.
+     */
+    public SyncMetrics syncMovies(SyncWindow window, SyncMetrics metrics) {
+        log.debug("syncMovies entry; window={}", window);
+        return sync(window, RecordType.MOVIE, metrics);
+    }
+
+    public SyncMetrics syncTv(SyncWindow window, SyncMetrics metrics) {
         log.debug("syncTv entry; window={}", window);
-        return sync(window, RecordType.TV_SERIES);
+        return sync(window, RecordType.TV_SERIES, metrics);
     }
 
     /* =====================================
        CORE SYNC ENGINE
      ===================================== */
 
-    private SyncMetrics sync(SyncWindow window, RecordType type) {
+    private SyncMetrics sync(SyncWindow window, RecordType type, SyncMetrics metrics) {
 
-        SyncMetrics metrics = new SyncMetrics();
         AtomicInteger warnCount = new AtomicInteger();
 
         List<Long> changedIds = fetchTmdbChangedIds(window.startDate(), window.endDate(), type);

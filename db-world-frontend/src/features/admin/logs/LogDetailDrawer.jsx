@@ -104,6 +104,9 @@ function Body({ entry, dark }) {
           <Field label="Thread" value={entry.thread} monospace />
           <Field label="Trace ID" value={entry.traceId} copyable monospace />
           <Field label="Request ID" value={entry.requestId} copyable monospace />
+          {/* Present only on lines emitted inside a scheduler run. */}
+          <Field label="Job" value={entry.job} monospace />
+          <Field label="Run ID" value={entry.jobRunId} copyable monospace />
           <Field label="Timestamp" value={fmtDateTime(entry.timestamp)} monospace />
           <Field label="Message" value={entry.message} />
         </>

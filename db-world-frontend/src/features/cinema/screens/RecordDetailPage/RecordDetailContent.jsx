@@ -573,13 +573,29 @@ export default function RecordDetailContent({
   const didAutoJump = useRef(false);
   useEffect(() => {
     if (location.state?.defaultTab !== 'Watch' || !record || didAutoJump.current) return;
+    // Wait for whatever this branch needs rather than burning the one-shot on a render
+    // where we can't act yet: on a cold open `record` resolves before the media-files
+    // query does, and consuming the flag there meant Play just opened the details.
+    if (!hasSeasons && !mediaFiles.length) return;
+
     didAutoJump.current = true;
+    // Clear the flag off the history entry as well, not just this component. `didAutoJump`
+    // is mount-scoped, and this overlay unmounts the moment the player route takes over
+    // (it only renders while `location.state.background` is set). Closing the player is a
+    // `navigate(-1)`, which restores THIS entry's state verbatim — so a ref-only guard came
+    // back false with `defaultTab` still 'Watch', and the player reopened itself on every
+    // close until the tab was killed. `background`/`cardRecord`/`originRect` are preserved,
+    // so the overlay stays mounted and the back stack keeps its depth.
+    const { defaultTab: _defaultTab, ...keptState } = location.state;
+    navigate(`${location.pathname}${location.search}${location.hash}`,
+      { replace: true, state: keptState });
+
     if (hasSeasons) {
       setTimeout(() => scrollToSection(SECTION_IDS.seasons), 80);
-    } else if (mediaFiles.length) {
+    } else {
       handlePlay();
     }
-  }, [record, location.state, scrollToSection, hasSeasons, mediaFiles, handlePlay]);
+  }, [record, location, navigate, scrollToSection, hasSeasons, mediaFiles, handlePlay]);
 
   // ── Error / empty states ───────────────────────────────────────────────
   // Only fall back to a bare skeleton when there's NO preview to render from
