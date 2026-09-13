@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Log4j2
@@ -31,6 +32,9 @@ import java.util.UUID;
 public class AuthenticationService {
 
     private final Duration refreshTokenTtl = Duration.ofDays(30);
+
+    /** Ceiling on a user's concurrent live sessions — see {@link #enforceSessionCap}. */
+    private static final int MAX_ACTIVE_SESSIONS = 10;
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -206,6 +210,20 @@ public class AuthenticationService {
     }
 
     /**
+     * Ends one session by family id, for callers that already know which family to retire — the
+     * biometric exchange retiring the session its own previous unlock created.
+     *
+     * @return how many tokens were revoked (0 if the family was already closed)
+     */
+    @Transactional
+    public int revokeFamily(UUID familyId, RevokeReason reason) {
+        if (familyId == null) {
+            return 0;
+        }
+        return refreshTokenRepository.revokeFamily(familyId, reason, Instant.now());
+    }
+
+    /**
      * Resolves the rotation family a refresh token belongs to.
      *
      * <p>Lets "sign out my other devices" spare the caller's own session: the client presents
@@ -241,6 +259,7 @@ public class AuthenticationService {
         refreshToken.setRefreshCount(0);
 
         refreshTokenRepository.save(refreshToken);
+        enforceSessionCap(user, refreshToken.getFamilyId());
 
         log.info("Session started for user [{}] (family={}, platform={}, ttl={}d)",
                 user.getEmail(), refreshToken.getFamilyId(), context.platform(), refreshTokenTtl.toDays());
@@ -252,6 +271,37 @@ public class AuthenticationService {
                 Duration.between(Instant.now(), refreshToken.getExpiry()),
                 userMapper.toDto(user)
         );
+    }
+
+    /**
+     * Retires a user's least-recently-used sessions once they hold more than
+     * {@link #MAX_ACTIVE_SESSIONS}, newest always kept.
+     *
+     * <p>A backstop, not the primary control. Sessions are supposed to be bounded by devices, and
+     * each auth path is supposed to retire the one it replaces — but a path that forgets to is
+     * invisible until someone reads their session list, and by then the account is carrying dozens
+     * of live 30-day credentials. Biometric unlock did exactly that and reached 92. This makes the
+     * ceiling a property of session creation itself, so the next flow to get it wrong is capped
+     * rather than unbounded.
+     *
+     * <p>Deliberately generous: a real person might legitimately be signed in on a phone app, phone
+     * browser, tablet and two desktop browsers. Anyone past this many has sessions they are not
+     * using, and it is the quiet ones that go.
+     */
+    private void enforceSessionCap(UserEntity user, UUID keepFamilyId) {
+        List<UUID> live = refreshTokenRepository.findLiveFamilyIdsMostRecentFirst(
+                user.getUserId(), Instant.now());
+        if (live.size() <= MAX_ACTIVE_SESSIONS) {
+            return;
+        }
+        List<UUID> excess = live.stream()
+                .filter(f -> !f.equals(keepFamilyId))
+                .skip(Math.max(0, MAX_ACTIVE_SESSIONS - 1L))
+                .toList();
+        excess.forEach(f -> refreshTokenRepository.revokeFamily(
+                f, RevokeReason.SUPERSEDED, Instant.now()));
+        log.info("Session cap reached for user [{}] — retired {} idle session(s), {} remain",
+                user.getEmail(), excess.size(), MAX_ACTIVE_SESSIONS);
     }
 
     /**

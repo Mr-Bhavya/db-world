@@ -187,4 +187,89 @@ class BiometricDeviceServiceTest {
 
         assertThat(service.exchange(raw, CONTEXT)).isNotNull();
     }
+
+    /** An enrolled device that has already unlocked once. */
+    private BiometricDeviceEntity enrolled(UUID previousFamily) {
+        BiometricDeviceEntity e = new BiometricDeviceEntity();
+        e.setUser(user);
+        e.setDeviceId("dev-1");
+        e.setDeviceLabel("SM-S721B Build/BP4A.251205.006");
+        e.setTokenHash("hash");
+        e.setExpiry(Instant.now().plus(Duration.ofDays(90)));
+        e.setSessionFamilyId(previousFamily);
+        return e;
+    }
+
+    @Test
+    void exchange_retiresTheSessionThisDevicesPreviousUnlockCreated() {
+        // THE bug behind 92 live sessions on one account. A biometric unlock resumes a device that
+        // already has a session; it must not stack another alongside it. Every orphan left behind
+        // stayed a valid credential for the full 30-day refresh TTL.
+        UUID previous = UUID.randomUUID();
+        UUID fresh = UUID.randomUUID();
+        BiometricDeviceEntity device = enrolled(previous);
+        when(repo.findByTokenHashAndRevokedFalse(anyString())).thenReturn(Optional.of(device));
+        when(authenticationService.issueSession(user, CONTEXT))
+                .thenReturn(new AuthToken("a", "r", fresh, Duration.ofDays(30), null));
+
+        service.exchange("raw", CONTEXT);
+
+        verify(authenticationService).revokeFamily(
+                previous, com.db.dbworld.security.entity.RefreshTokenEntity.RevokeReason.SUPERSEDED);
+        // ...and the device now points at the new one, so the NEXT unlock retires this one.
+        assertThat(device.getSessionFamilyId()).isEqualTo(fresh);
+    }
+
+    @Test
+    void exchange_firstEverUnlock_hasNoPreviousSessionToRetire() {
+        UUID fresh = UUID.randomUUID();
+        BiometricDeviceEntity device = enrolled(null);
+        when(repo.findByTokenHashAndRevokedFalse(anyString())).thenReturn(Optional.of(device));
+        when(authenticationService.issueSession(user, CONTEXT))
+                .thenReturn(new AuthToken("a", "r", fresh, Duration.ofDays(30), null));
+
+        service.exchange("raw", CONTEXT);
+
+        verify(authenticationService, never()).revokeFamily(any(), any());
+        assertThat(device.getSessionFamilyId()).isEqualTo(fresh);
+    }
+
+    @Test
+    void enroll_retiresAStaleEnrollmentForTheSamePhysicalDevice() {
+        // The device id used to live in localStorage, which a Capacitor WebView does not keep. Each
+        // wipe minted a new uuid, and since enroll upserts on (userId, deviceId) that meant a whole
+        // new row - one account reached four for a single phone. The superseded token exists on no
+        // device (setCredentials overwrote it) yet stayed valid for 90 days.
+        String label = "SM-S721B Build/BP4A.251205.006";
+        BiometricDeviceEntity stale = new BiometricDeviceEntity();
+        stale.setDeviceId("old-uuid");
+        stale.setDeviceLabel(label);
+        BiometricDeviceEntity otherPhone = new BiometricDeviceEntity();
+        otherPhone.setDeviceId("tablet");
+        otherPhone.setDeviceLabel("SM-X200 Build/UP1A.231005.007");
+
+        when(repo.findByUser_UserIdAndDeviceId(1L, "new-uuid")).thenReturn(Optional.empty());
+        when(repo.findByUser_UserIdAndRevokedFalseOrderByCreatedDesc(1L))
+                .thenReturn(List.of(stale, otherPhone));
+
+        service.enroll("a@b.com", "new-uuid", label);
+
+        assertThat(stale.isRevoked()).isTrue();
+        assertThat(otherPhone.isRevoked()).isFalse();   // a genuinely different device survives
+    }
+
+    @Test
+    void enroll_withNoDeviceLabel_retiresNothing() {
+        // No label means no evidence about which physical device a row describes, and revoking on
+        // a guess would sign a real device out of biometrics.
+        BiometricDeviceEntity other = new BiometricDeviceEntity();
+        other.setDeviceId("old-uuid");
+        other.setDeviceLabel(null);
+        when(repo.findByUser_UserIdAndDeviceId(1L, "new-uuid")).thenReturn(Optional.empty());
+        when(repo.findByUser_UserIdAndRevokedFalseOrderByCreatedDesc(1L)).thenReturn(List.of(other));
+
+        service.enroll("a@b.com", "new-uuid", null);
+
+        assertThat(other.isRevoked()).isFalse();
+    }
 }

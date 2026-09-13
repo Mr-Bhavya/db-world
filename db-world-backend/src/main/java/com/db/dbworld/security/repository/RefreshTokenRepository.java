@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -59,7 +60,18 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
                                      @Param("reason") RefreshTokenEntity.RevokeReason reason,
                                      @Param("now") Instant now);
 
-    /** Revokes one session by family id — "sign out this device". */
+    /**
+     * Revokes one session by family id — "sign out this device".
+     *
+     * <p>Carries its own {@code @Transactional} because, unlike every other {@code @Modifying}
+     * method here, this one has a caller that is NOT already inside a transaction: the
+     * active-session cap runs from {@code generateTokens}, and that is reached from
+     * {@code authenticate()} — plain password login, which is not annotated. An
+     * {@code executeUpdate} with no transaction throws {@code TransactionRequiredException}, so
+     * without this the cap would break sign-in. Propagation is REQUIRED, so the transactional
+     * callers that already exist simply join theirs as before.
+     */
+    @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
            UPDATE RefreshTokenEntity t
@@ -70,6 +82,25 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     int revokeFamily(@Param("familyId") UUID familyId,
                      @Param("reason") RefreshTokenEntity.RevokeReason reason,
                      @Param("now") Instant now);
+
+    /**
+     * A user's still-usable sessions, one entry per family, most-recently-used first — the input to
+     * the active-session cap.
+     *
+     * <p>Grouped by family because a family IS the session: rotation replaces the token inside it
+     * many times over, and counting rows would measure how chatty a device is rather than how many
+     * devices are signed in. Ordered by the family's newest {@code lastUsed} so trimming the tail
+     * retires the sessions that have gone quietest.
+     */
+    @Query("""
+           SELECT t.familyId FROM RefreshTokenEntity t
+            WHERE t.user.userId = :userId
+              AND t.revokedAt IS NULL
+              AND t.expiry > :now
+            GROUP BY t.familyId
+            ORDER BY MAX(t.lastUsed) DESC
+           """)
+    List<UUID> findLiveFamilyIdsMostRecentFirst(@Param("userId") long userId, @Param("now") Instant now);
 
     /** Hard-removes a user's token rows. Only the account purge should need this. */
     long deleteByUser_UserId(long userId);
