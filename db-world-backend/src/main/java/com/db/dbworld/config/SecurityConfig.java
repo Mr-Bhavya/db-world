@@ -2,6 +2,8 @@ package com.db.dbworld.config;
 
 import com.db.dbworld.core.security.handler.TokenAuthenticationHandler;
 import com.db.dbworld.security.auth.CustomAuthenticationProvider;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,9 +23,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+@Log4j2
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /**
+     * Origins allowed to make CREDENTIALED cross-origin calls — see {@code app.cors} in
+     * application.yml. Externalised so the dev-machine and LAN origins can live in the
+     * {@code local} profile instead of shipping to production, where (with credentials enabled)
+     * they let any page on the user's machine or Wi-Fi read their signed-in data.
+     *
+     * <p>No default value on purpose: a missing property fails the context at startup rather than
+     * silently falling back to something permissive.
+     */
+    @Value("${app.cors.allowed-origin-patterns}")
+    private List<String> allowedOriginPatterns;
 
     @Bean
     SecurityFilterChain securityFilterChain(
@@ -54,6 +69,30 @@ public class SecurityConfig {
                 .build();
     }
 
+    /**
+     * Shouts at boot if any plain-HTTP origin is trusted for credentialed requests.
+     *
+     * <p>Splitting the dev origins into the {@code local} profile only helps if production is not
+     * running that profile — and the WAR is started by {@code dbworldctl} on the Pi, a script that
+     * lives outside this repository, so nothing here can prove which profile is active. A silent
+     * misconfiguration would look exactly like a correct one while leaving the whole LAN trusted.
+     *
+     * <p>An {@code http://} origin combined with {@code allowCredentials} is the specific hazard:
+     * it means a page the user did not fetch over TLS can read their signed-in data, and anyone on
+     * the path can inject that page. Warn rather than fail, because this is legitimate on a dev
+     * machine — the point is that it can never be quiet in a log someone is reading.
+     */
+    private void warnAboutDevOrigins() {
+        List<String> insecure = allowedOriginPatterns.stream()
+                .filter(p -> p.startsWith("http://"))
+                .toList();
+        if (!insecure.isEmpty()) {
+            log.warn("CORS allows credentialed requests from PLAIN-HTTP origins {} — expected only "
+                            + "on a dev machine. If this is production, `app.cors.allowed-origin-patterns` "
+                            + "is wrong or the `local` profile is active.", insecure);
+        }
+    }
+
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
 
@@ -70,22 +109,10 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
 
+        warnAboutDevOrigins();
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "https://localhost",
-                "https://localhost:*",
-                "http://127.0.0.1:*",
-                "https://127.0.0.1",
-                "https://127.0.0.1:*",
-                "http://192.168.*",
-                "https://192.168.*",
-                "https://db-world.in",
-                "https://www.db-world.in",
-                "https://api.db-world.in",
-                "https://cdn.db-world.in",
-                "https://app.db-world.in"
-        ));
+        config.setAllowedOriginPatterns(allowedOriginPatterns);
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));
         config.setAllowCredentials(true);

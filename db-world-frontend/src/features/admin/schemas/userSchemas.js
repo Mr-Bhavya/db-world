@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH, MIN_PASSWORD_MESSAGE } from '@shared/auth/passwordPolicy';
 import { z } from 'zod';
 
 export const createUserSchema = z.object({
@@ -9,7 +10,7 @@ export const createUserSchema = z.object({
                .min(999999999, 'Must be at least 9 digits')
                .max(9999999999, 'Must be at most 10 digits'),
   email:     z.string().email('Invalid email'),
-  password:  z.string().min(6, 'Min 6 chars').max(100, 'Max 100 chars'),
+  password:  z.string().min(MIN_PASSWORD_LENGTH, MIN_PASSWORD_MESSAGE).max(100, 'Max 100 chars'),
   roleId:    z.coerce.number().optional(),
 });
 
@@ -26,7 +27,7 @@ export const updateUserSchema = z.object({
 
 // Admin reset-password (dedicated endpoint) — no current-password needed.
 export const adminPasswordSchema = z.object({
-  newPassword:     z.string().min(6, 'Min 6 chars').max(100, 'Max 100 chars'),
+  newPassword:     z.string().min(MIN_PASSWORD_LENGTH, MIN_PASSWORD_MESSAGE).max(100, 'Max 100 chars'),
   confirmPassword: z.string(),
 }).refine(d => d.newPassword === d.confirmPassword, {
   message: 'Passwords do not match', path: ['confirmPassword'],
@@ -34,7 +35,7 @@ export const adminPasswordSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Required'),
-  newPassword:     z.string().min(6, 'Min 6 chars').max(100),
+  newPassword:     z.string().min(MIN_PASSWORD_LENGTH, MIN_PASSWORD_MESSAGE).max(100),
   confirmPassword: z.string(),
 }).refine(d => d.newPassword === d.confirmPassword, {
   message: 'Passwords do not match',

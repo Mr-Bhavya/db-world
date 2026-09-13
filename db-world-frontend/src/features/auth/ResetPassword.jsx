@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH } from '@shared/auth/passwordPolicy';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -47,8 +48,8 @@ export default function ResetPassword() {
   const [done, setDone] = useState(false);
 
   const mismatch = confirm.length > 0 && password !== confirm;
-  const tooShort = password.length > 0 && password.length < 6;
-  const canSubmit = password.length >= 6 && password === confirm && !loading;
+  const tooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+  const canSubmit = password.length >= MIN_PASSWORD_LENGTH && password === confirm && !loading;
 
   const heading = useMemo(() => {
     if (done) return 'Password updated';

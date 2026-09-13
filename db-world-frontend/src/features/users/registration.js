@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH } from '@shared/auth/passwordPolicy';
 import React, { useState } from 'react';
 import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
@@ -103,7 +104,7 @@ const Registration = () => {
         ok = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
         break;
       case 'password':
-        ok = !!value && !/\s/.test(value) && value.length >= 6;
+        ok = !!value && !/\s/.test(value) && value.length >= MIN_PASSWORD_LENGTH;
         break;
       case 'agreeCheckBox':
         ok = !!value;
@@ -257,7 +258,7 @@ const Registration = () => {
                   error={errors.password}
                   // Standing guidance rather than only an error: the rule is worth knowing before
                   // you have broken it.
-                  helperText={errors.password ? 'Minimum 6 characters, no spaces' : 'At least 6 characters, no spaces'}
+                  helperText={`At least ${MIN_PASSWORD_LENGTH} characters, no spaces`}
                   slotProps={{
                     input: {
                       ...adornment(LockRounded, 'password'),

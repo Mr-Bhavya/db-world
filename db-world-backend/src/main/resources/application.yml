@@ -232,6 +232,27 @@ app:
     # against public-base-url.
     fallback-image: /icons/icon-192.png
 
+  # Browser origins allowed to make CREDENTIALED cross-origin calls. This list is the
+  # whole access-control boundary for the browser: an origin named here can read any
+  # response the signed-in user can, because allowCredentials is on.
+  #
+  # Production values only — `localhost` and `192.168.*` used to be hard-coded into the
+  # CorsConfigurationSource bean, which meant they shipped to prod. With credentials
+  # enabled that let ANY page served from the user's machine or from any device on the
+  # same Wi-Fi read their DB World data, over plain http at that (so injectable by a
+  # network attacker too). The dev origins now live in application-local.yml, so
+  # forgetting to set a profile fails CLOSED rather than open.
+  cors:
+    allowed-origin-patterns:
+      - https://db-world.in
+      - https://www.db-world.in
+      - https://api.db-world.in
+      - https://cdn.db-world.in
+      - https://app.db-world.in
+      # The Android WebView's own origin — Capacitor serves the bundle from here, so
+      # without it the packaged app is cross-origin to its own API.
+      - https://localhost
+
 # =========================================================
 # db-world feature configs
 # =========================================================

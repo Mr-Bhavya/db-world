@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH, MIN_PASSWORD_MESSAGE } from '@shared/auth/passwordPolicy';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -130,7 +131,7 @@ const ChangePasswordDialog = ({ open, onClose }) => {
   const validate = () => {
     const e = {};
     if (!form.oldPassword) e.oldPassword = 'Required';
-    if (!form.newPassword || form.newPassword.length < 6) e.newPassword = 'Min 6 characters';
+    if (!form.newPassword || form.newPassword.length < MIN_PASSWORD_LENGTH) e.newPassword = MIN_PASSWORD_MESSAGE;
     if (form.newPassword !== form.confirm) e.confirm = 'Passwords do not match';
     setErrors(e);
     return Object.keys(e).length === 0;

@@ -76,6 +76,31 @@ dbworld:
     sample-data:
       enabled: false
 
+# Dev-machine and LAN origins, so `npm run dev` and a phone on the same Wi-Fi can both
+# reach a locally-running API. These REPLACE the production list rather than extending it
+# (a YAML list is overridden wholesale, not merged), so the prod domains are restated here.
+#
+# Deliberately scoped to this profile. These same patterns used to be hard-coded in the
+# CorsConfigurationSource bean and therefore active in production, where — with
+# allowCredentials on — any page on the user's machine or anywhere on their Wi-Fi could
+# read their signed-in data.
+app:
+  cors:
+    allowed-origin-patterns:
+      - https://db-world.in
+      - https://www.db-world.in
+      - https://api.db-world.in
+      - https://cdn.db-world.in
+      - https://app.db-world.in
+      - http://localhost:*
+      - https://localhost
+      - https://localhost:*
+      - http://127.0.0.1:*
+      - https://127.0.0.1
+      - https://127.0.0.1:*
+      - http://192.168.*
+      - https://192.168.*
+
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
 #https://api.themoviedb.org/3/movie/721048?api_key=${TMDB_API_KEY}&append_to_response=videos
