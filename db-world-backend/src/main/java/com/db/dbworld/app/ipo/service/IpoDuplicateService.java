@@ -181,29 +181,98 @@ public class IpoDuplicateService {
      * complementary fragments — one matched investorgain and carries the GMP, the other was ingested
      * from NSE and carries the price band and lot size — so a merge that only repointed history
      * would discard half the data that made the merge worth doing.
+     *
+     * <p><b>Every</b> field carrying IPO data is copied, deliberately. An earlier version listed
+     * only the ones a duplicate pair was expected to disagree about, and {@code status} was not
+     * among them — which broke the merge in the most visible way possible. {@link #survivorOrder()}
+     * treats an investorgain id as decisive, and the investorgain row is precisely the one that
+     * never carries a lifecycle status (that service only ever updates rows the ingest path
+     * created, it never creates one). So a merge promoted the statusless half and tombstoned the
+     * half that had the status: the surviving card dropped out of "Awaiting listing" and into the
+     * catch-all "Other" section wearing an "Unknown" chip, and — because status is what the list
+     * filters on — became unreachable from the status filter entirely. {@code ipoType} and
+     * {@code listingExchange} went the same way, losing the Mainboard/SME chip and the exchange.
+     *
+     * <p>The only fields left out are identity and merge bookkeeping — {@code id}, {@code matchKey},
+     * {@code aliasKey}, {@code mergedIntoId}, {@code companyName}, {@code firstSeenAt},
+     * {@code lastSeenAt}, {@code updatedAt} — each of which must keep describing the survivor's own
+     * row, plus {@code gmpRefreshedAt}: it timestamps the survivor's last GMP fetch, and leaving it
+     * null when the GMP was inherited reads as "never refreshed", which puts the row at the FRONT
+     * of the staleness-ordered fetch queue and self-corrects on the next tick. Inheriting the
+     * loser's timestamp would instead claim a freshness the survivor hasn't earned.
+     * {@code IpoDuplicateServiceTest} enforces this split by reflection, so a field added to the
+     * entity later cannot be silently dropped the way {@code status} was.
      */
     private void fillMissingFrom(IpoListingEntity survivor, IpoListingEntity loser) {
-        fill(survivor, loser, IpoListingEntity::getInvestorgainId, IpoListingEntity::setInvestorgainId);
-        fill(survivor, loser, IpoListingEntity::getGmp, IpoListingEntity::setGmp);
-        fill(survivor, loser, IpoListingEntity::getGmpPct, IpoListingEntity::setGmpPct);
-        fill(survivor, loser, IpoListingEntity::getGmpRating, IpoListingEntity::setGmpRating);
-        fill(survivor, loser, IpoListingEntity::getSubTotal, IpoListingEntity::setSubTotal);
+        // Lifecycle — what the list groups, filters and colours by. The status bug lived here.
+        fill(survivor, loser, IpoListingEntity::getStatus, IpoListingEntity::setStatus);
+        fill(survivor, loser, IpoListingEntity::getIpoType, IpoListingEntity::setIpoType);
+        fill(survivor, loser, IpoListingEntity::getListingExchange, IpoListingEntity::setListingExchange);
+        fill(survivor, loser, IpoListingEntity::getAllotmentStatus, IpoListingEntity::setAllotmentStatus);
+
+        // Dates
+        fill(survivor, loser, IpoListingEntity::getOpenDate, IpoListingEntity::setOpenDate);
+        fill(survivor, loser, IpoListingEntity::getCloseDate, IpoListingEntity::setCloseDate);
+        fill(survivor, loser, IpoListingEntity::getAllotmentDate, IpoListingEntity::setAllotmentDate);
+        fill(survivor, loser, IpoListingEntity::getRefundDate, IpoListingEntity::setRefundDate);
+        fill(survivor, loser, IpoListingEntity::getDematDate, IpoListingEntity::setDematDate);
+        fill(survivor, loser, IpoListingEntity::getListingDate, IpoListingEntity::setListingDate);
+
+        // Pricing and issue structure
         fill(survivor, loser, IpoListingEntity::getPriceMin, IpoListingEntity::setPriceMin);
         fill(survivor, loser, IpoListingEntity::getPriceMax, IpoListingEntity::setPriceMax);
         fill(survivor, loser, IpoListingEntity::getLotSize, IpoListingEntity::setLotSize);
         fill(survivor, loser, IpoListingEntity::getIssueSize, IpoListingEntity::setIssueSize);
-        fill(survivor, loser, IpoListingEntity::getOpenDate, IpoListingEntity::setOpenDate);
-        fill(survivor, loser, IpoListingEntity::getCloseDate, IpoListingEntity::setCloseDate);
-        fill(survivor, loser, IpoListingEntity::getAllotmentDate, IpoListingEntity::setAllotmentDate);
-        fill(survivor, loser, IpoListingEntity::getListingDate, IpoListingEntity::setListingDate);
+        fill(survivor, loser, IpoListingEntity::getFaceValue, IpoListingEntity::setFaceValue);
+        fill(survivor, loser, IpoListingEntity::getFreshIssue, IpoListingEntity::setFreshIssue);
+        fill(survivor, loser, IpoListingEntity::getOfferForSale, IpoListingEntity::setOfferForSale);
         fill(survivor, loser, IpoListingEntity::getListingPrice, IpoListingEntity::setListingPrice);
         fill(survivor, loser, IpoListingEntity::getListingGainPct, IpoListingEntity::setListingGainPct);
+
+        // Grey market / subscription, and the investorgain id that keeps both flowing
+        fill(survivor, loser, IpoListingEntity::getInvestorgainId, IpoListingEntity::setInvestorgainId);
+        fill(survivor, loser, IpoListingEntity::getGmp, IpoListingEntity::setGmp);
+        fill(survivor, loser, IpoListingEntity::getGmpPct, IpoListingEntity::setGmpPct);
+        fill(survivor, loser, IpoListingEntity::getGmpRating, IpoListingEntity::setGmpRating);
+        fill(survivor, loser, IpoListingEntity::getGmpMin, IpoListingEntity::setGmpMin);
+        fill(survivor, loser, IpoListingEntity::getGmpMax, IpoListingEntity::setGmpMax);
+        fill(survivor, loser, IpoListingEntity::getGmpUpdatedLabel, IpoListingEntity::setGmpUpdatedLabel);
+        fill(survivor, loser, IpoListingEntity::getEstimatedListingPrice, IpoListingEntity::setEstimatedListingPrice);
+        fill(survivor, loser, IpoListingEntity::getSubjectToSauda, IpoListingEntity::setSubjectToSauda);
+        fill(survivor, loser, IpoListingEntity::getEstProfit, IpoListingEntity::setEstProfit);
+        fill(survivor, loser, IpoListingEntity::getPeRatio, IpoListingEntity::setPeRatio);
+        fill(survivor, loser, IpoListingEntity::getAnchorInvestor, IpoListingEntity::setAnchorInvestor);
+        fill(survivor, loser, IpoListingEntity::getSubTotal, IpoListingEntity::setSubTotal);
+        fill(survivor, loser, IpoListingEntity::getSubscriptionUpdatedLabel,
+                IpoListingEntity::setSubscriptionUpdatedLabel);
+
+        // Registrar and allotment
         fill(survivor, loser, IpoListingEntity::getRegistrar, IpoListingEntity::setRegistrar);
         fill(survivor, loser, IpoListingEntity::getRegistrarUrl, IpoListingEntity::setRegistrarUrl);
+        fill(survivor, loser, IpoListingEntity::getAllotmentLink, IpoListingEntity::setAllotmentLink);
+
+        // Company profile and the detail page's long-form sections
         fill(survivor, loser, IpoListingEntity::getLogoUrl, IpoListingEntity::setLogoUrl);
+        fill(survivor, loser, IpoListingEntity::getLogoDomain, IpoListingEntity::setLogoDomain);
         fill(survivor, loser, IpoListingEntity::getAbout, IpoListingEntity::setAbout);
         fill(survivor, loser, IpoListingEntity::getTickerSymbol, IpoListingEntity::setTickerSymbol);
-        fill(survivor, loser, IpoListingEntity::getAllotmentLink, IpoListingEntity::setAllotmentLink);
+        fill(survivor, loser, IpoListingEntity::getStrengths, IpoListingEntity::setStrengths);
+        fill(survivor, loser, IpoListingEntity::getRisks, IpoListingEntity::setRisks);
+        fill(survivor, loser, IpoListingEntity::getKpisJson, IpoListingEntity::setKpisJson);
+        fill(survivor, loser, IpoListingEntity::getIssueObjectsJson, IpoListingEntity::setIssueObjectsJson);
+        fill(survivor, loser, IpoListingEntity::getIssueDetailsJson, IpoListingEntity::setIssueDetailsJson);
+        fill(survivor, loser, IpoListingEntity::getLeadManagers, IpoListingEntity::setLeadManagers);
+        fill(survivor, loser, IpoListingEntity::getFoundedYear, IpoListingEntity::setFoundedYear);
+        fill(survivor, loser, IpoListingEntity::getManagingDirector, IpoListingEntity::setManagingDirector);
+        fill(survivor, loser, IpoListingEntity::getParentCompany, IpoListingEntity::setParentCompany);
+        fill(survivor, loser, IpoListingEntity::getSector, IpoListingEntity::setSector);
+        fill(survivor, loser, IpoListingEntity::getHeadquarters, IpoListingEntity::setHeadquarters);
+        fill(survivor, loser, IpoListingEntity::getWebsite, IpoListingEntity::setWebsite);
+
+        // Carried so the survivor inherits "the closing-soon push already went out for this
+        // company" — the two rows were one IPO, so re-sending it would be a duplicate alert.
+        fill(survivor, loser, IpoListingEntity::getClosingSoonNotifiedAt,
+                IpoListingEntity::setClosingSoonNotifiedAt);
     }
 
     private <T> void fill(IpoListingEntity survivor, IpoListingEntity loser,

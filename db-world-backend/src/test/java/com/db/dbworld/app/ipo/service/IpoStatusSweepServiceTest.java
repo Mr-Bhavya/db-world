@@ -158,4 +158,47 @@ class IpoStatusSweepServiceTest {
 
         assertThat(serviceAt(MID_MORNING_IST).sweepQuietly()).isZero();
     }
+
+    @Test
+    void sweep_statuslessRow_isDerivedFromItsDatesInsteadOfStayingUnknown() {
+        // calendarCorrected returns a null status untouched - correcting one presupposes having
+        // one - so before this the sweep could never repair a statusless row, and nothing else
+        // would either: the ingest path derives a status from dates but only runs for IPOs a
+        // source re-reports, and NSE drops an issue once it stops being current. The row sat in
+        // the list's catch-all "Other" section under an "Unknown" chip forever, however complete
+        // its dates were. This is the production shape: closed 12 Sep, still Unknown on the 13th.
+        IpoListingEntity ipo = ipo("1", null, OPEN_DAY, CLOSE_DAY);
+        when(listingRepo.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(serviceAt(EVENING_CLOSE_DAY).sweep()).isEqualTo(1);
+        assertThat(ipo.getStatus()).isEqualTo("closed");
+        verify(listingRepo).saveAll(List.of(ipo));
+    }
+
+    @Test
+    void sweep_healingAStatuslessRow_staysSilentSoNoStalePushGoesOut() {
+        // Filling a gap is not a lifecycle transition - nothing happened to the IPO, we merely
+        // learned where it already was. A STATUS event here would reach IpoLifecycleChange as an
+        // OPENED moment and push "X IPO is open" for an issue that opened days ago, in a burst,
+        // the first time this runs over the backlog of merged rows.
+        IpoListingEntity ipo = ipo("1", null, OPEN_DAY, CLOSE_DAY);
+        when(listingRepo.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(serviceAt(MID_MORNING_IST).sweep()).isEqualTo(1);
+        assertThat(ipo.getStatus()).isEqualTo("open");   // stored...
+        verify(listingRepo).saveAll(List.of(ipo));
+        verify(changeEventRepo, never()).saveAll(any());  // ...but not announced
+    }
+
+    @Test
+    void sweep_statuslessRowWithNoDates_isLeftAloneRatherThanGuessed() {
+        // A genuinely unscheduled issue (NSE's own long-pending listing, price band announced, no
+        // dates) has nothing to derive from. "Other" is honest here; inventing "upcoming" is not.
+        IpoListingEntity ipo = ipo("1", null, null, null);
+        when(listingRepo.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(serviceAt(MID_MORNING_IST).sweep()).isZero();
+        assertThat(ipo.getStatus()).isNull();
+        verify(listingRepo, never()).saveAll(any());
+    }
 }

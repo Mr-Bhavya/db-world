@@ -15,10 +15,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -214,5 +218,124 @@ class IpoDuplicateServiceTest {
         verify(changeEventRepo).repointToSurvivor("ipo-a", "ipo-b");
         verify(changeEventRepo).repointToSurvivor("ipo-a", "ipo-c");
         verify(changeEventRepo, never()).repointToSurvivor(eq("ipo-b"), anyString());
+    }
+
+    @Test
+    void merge_carriesTheStatusOntoAStatuslessInvestorgainSurvivor() {
+        // The exact production shape. survivorOrder() treats an investorgain id as decisive, and
+        // that row is the one that never has a status - InvestorgainGmpService only ever updates
+        // rows the ingest path created. Before the fix the merge tombstoned the half that HAD the
+        // status, so the surviving card fell out of "Awaiting listing" into the catch-all "Other"
+        // section wearing an "Unknown" chip, and dropped off the status filter altogether.
+        IpoListingEntity fromInvestorgain = row("ipo-a", "LCC Projects Ltd.", "lcc projects|2026-09-09", T0);
+        fromInvestorgain.setInvestorgainId(1234);
+        fromInvestorgain.setGmp(new BigDecimal("65"));
+        IpoListingEntity fromNse = row("ipo-b", "LCC Projects Limited", "lcc projects ltd|2026-09-09", T0);
+        fromNse.setStatus("closed");
+        fromNse.setIpoType("mainboard");
+        fromNse.setListingExchange("BOTH");
+
+        when(listingRepo.findDuplicateAliasKeys()).thenReturn(List.of("lccprojects"));
+        when(listingRepo.findLiveByAliasKey("lccprojects")).thenReturn(List.of(fromInvestorgain, fromNse));
+
+        service().mergeAll();
+
+        assertThat(fromInvestorgain.getMergedIntoId()).isNull();       // it survived, as designed
+        assertThat(fromNse.getMergedIntoId()).isEqualTo("ipo-a");
+        assertThat(fromInvestorgain.getStatus()).isEqualTo("closed");  // ...and kept the lifecycle
+        assertThat(fromInvestorgain.getIpoType()).isEqualTo("mainboard");
+        assertThat(fromInvestorgain.getListingExchange()).isEqualTo("BOTH");
+        assertThat(fromInvestorgain.getGmp()).isEqualByComparingTo("65");   // its own value untouched
+    }
+
+    @Test
+    void merge_neverOverwritesAValueTheSurvivorAlreadyHas() {
+        IpoListingEntity survivor = row("ipo-a", "Acme Ltd", "acme|2026-09-09", T0);
+        survivor.setInvestorgainId(1234);
+        survivor.setStatus("open");
+        IpoListingEntity loser = row("ipo-b", "Acme Limited", "acmex|2026-09-09", T0.plusSeconds(60));
+        loser.setStatus("upcoming");   // staler half - must not win
+
+        when(listingRepo.findDuplicateAliasKeys()).thenReturn(List.of("acme"));
+        when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(survivor, loser));
+
+        service().mergeAll();
+
+        assertThat(survivor.getStatus()).isEqualTo("open");
+    }
+
+    /**
+     * Identity and merge bookkeeping - the fields that must keep describing the survivor's OWN row
+     * rather than being inherited from a row being tombstoned.
+     *
+     * <p>{@code gmpRefreshedAt} is here on purpose: it timestamps the survivor's last GMP fetch, so
+     * leaving it null when the GMP was inherited reads as "never refreshed", which puts the row at
+     * the front of the staleness-ordered investorgain queue and self-corrects on the next tick.
+     * Inheriting the loser's would claim a freshness the survivor hasn't earned.
+     */
+    private static final Set<String> NOT_INHERITED = Set.of(
+            "id", "matchKey", "aliasKey", "mergedIntoId", "companyName",
+            "firstSeenAt", "lastSeenAt", "updatedAt", "gmpRefreshedAt");
+
+    /**
+     * Every other field on the entity must survive a merge. This is the guard that would have
+     * caught the {@code status} bug: {@code fillMissingFrom} was a hand-maintained list, so a
+     * field simply absent from it was discarded in silence, with all 1145 tests still green. Adding
+     * a column to {@code IpoListingEntity} now fails here until it is either copied or explicitly
+     * declared as bookkeeping above.
+     */
+    @Test
+    void merge_carriesEveryDataFieldTheSurvivorIsMissing() throws Exception {
+        // The loser gets EVERY data field, which includes investorgainId - so survivorship can't
+        // be left to that. Both rows carry one (ties on the first rule) and the survivor then wins
+        // decisively on application count, which is a repository call rather than an entity field.
+        // The one field this consequently can't prove is copied is investorgainId itself, and a
+        // survivor is by definition selected for having one.
+        IpoListingEntity survivor = IpoListingEntity.builder()
+                .id("ipo-a").companyName("Acme Ltd").matchKey("acme|2026-09-09").aliasKey("acme")
+                .investorgainId(1234).firstSeenAt(T0).build();
+        IpoListingEntity loser = IpoListingEntity.builder()
+                .id("ipo-b").companyName("Acme Limited").matchKey("acmex|2026-09-09").aliasKey("acme")
+                .firstSeenAt(T0.plusSeconds(60)).build();
+
+        List<Field> dataFields = Arrays.stream(IpoListingEntity.class.getDeclaredFields())
+                .filter(f -> !f.isSynthetic() && !Modifier.isStatic(f.getModifiers()))
+                .filter(f -> !NOT_INHERITED.contains(f.getName()))
+                .toList();
+        for (Field f : dataFields) {
+            f.setAccessible(true);
+            f.set(loser, sampleValueFor(f.getType()));
+        }
+
+        when(listingRepo.findDuplicateAliasKeys()).thenReturn(List.of("acme"));
+        when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(survivor, loser));
+        when(userApplicationRepo.countByIpoId("ipo-a")).thenReturn(5L);
+        when(userApplicationRepo.countByIpoId("ipo-b")).thenReturn(0L);
+
+        service().mergeAll();
+
+        assertThat(loser.getMergedIntoId()).isEqualTo("ipo-a");   // the roles this test assumes
+
+        for (Field f : dataFields) {
+            assertThat(f.get(survivor))
+                    .describedAs("IpoListingEntity.%s was dropped by the merge - add it to "
+                            + "IpoDuplicateService.fillMissingFrom, or to NOT_INHERITED if the "
+                            + "survivor must keep its own", f.getName())
+                    .isNotNull();
+        }
+    }
+
+    /** A non-null value of the right type for any field the entity declares. */
+    private static Object sampleValueFor(Class<?> type) {
+        if (type == String.class) return "x";
+        if (type == BigDecimal.class) return new BigDecimal("1");
+        if (type == Integer.class || type == int.class) return 1;
+        if (type == Long.class || type == long.class) return 1L;
+        if (type == Boolean.class || type == boolean.class) return Boolean.TRUE;
+        if (type == LocalDate.class) return LocalDate.of(2026, 9, 9);
+        if (type == Instant.class) return T0;
+        throw new IllegalStateException(
+                "IpoListingEntity has a field of unhandled type " + type.getName()
+                        + " - teach sampleValueFor about it so the merge stays covered");
     }
 }

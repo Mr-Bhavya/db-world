@@ -46,7 +46,8 @@ import java.util.Objects;
  * over a couple of hundred rows and a write only for the ones that actually moved, so it is cheap
  * enough to sit alongside the live GMP refresh. It applies
  * {@link IpoStatusCanonicalizer#calendarCorrected} — the exact same rule the ingest path applies to
- * an incoming source row — so a swept row and a polled row can never disagree.
+ * an incoming source row — so a swept row and a polled row can never disagree. A row holding NO
+ * status gets the full date-derivation instead, silently; see {@link #correct}.
  *
  * <p>Each change is written as a {@code STATUS} change event as well as to the listing, so the
  * "IPO is open" push rides the existing notification queue and arrives within half an hour of the
@@ -100,13 +101,21 @@ public class IpoStatusSweepService {
         List<IpoChangeEventEntity> events = new ArrayList<>();
         for (IpoListingEntity ipo : listingRepo.findAllLive()) {
             String current = ipo.getStatus();
-            String corrected = IpoStatusCanonicalizer.calendarCorrected(
-                    current, ipo.getOpenDate(), ipo.getCloseDate(), nowIst);
-            if (Objects.equals(current, corrected)) {
+            String corrected = correct(ipo, current, nowIst);
+            if (corrected == null || Objects.equals(current, corrected)) {
                 continue;
             }
             ipo.setStatus(corrected);
             advanced.add(ipo);
+            // A row that never had a status is FILLED IN, not transitioned: nothing happened to the
+            // IPO, we merely learned where it already was. Emitting a change event here would let
+            // IpoLifecycleChange read it as a lifecycle moment and push "🟢 X IPO is open" for an
+            // issue that opened days ago — or "has listed" for one that listed weeks ago, in a
+            // burst, the first time this runs over a backlog. So the heal is silent, and only a
+            // genuine move off a known status announces itself.
+            if (current == null) {
+                continue;
+            }
             // Same shape the ingest path writes, so IpoLifecycleChange maps it to the OPENED push
             // exactly as it would have done had a poll caught the transition.
             events.add(IpoChangeEventEntity.builder()
@@ -121,11 +130,45 @@ public class IpoStatusSweepService {
             return 0;
         }
         listingRepo.saveAll(advanced);
-        changeEventRepo.saveAll(events);
+        // Can be empty while `advanced` is not: a sweep that only healed statusless rows moves
+        // listings without announcing anything.
+        if (!events.isEmpty()) {
+            changeEventRepo.saveAll(events);
+        }
         log.info("IPO status sweep: advanced {} listing(s) — {}", advanced.size(),
                 advanced.stream()
                         .map(i -> i.getCompanyName() + " -> " + i.getStatus())
                         .toList());
         return advanced.size();
+    }
+
+    /**
+     * What this row's status should be right now: the calendar correction for a row that HAS a
+     * status, and a full date-derivation for one that doesn't.
+     *
+     * <p>The second branch is the one that matters.
+     * {@link IpoStatusCanonicalizer#calendarCorrected} returns its input untouched when that input
+     * is {@code null} — correcting a status presupposes having one — so on its own the sweep could
+     * never repair a statusless row, and nothing else would either: the ingest path derives a
+     * status from dates, but it only runs for IPOs a source re-reports, and NSE drops an issue the
+     * moment it stops being current. A row that reached the table without a status therefore kept
+     * that gap permanently, sitting in the list's catch-all "Other" section under an "Unknown"
+     * chip, invisible to the status filter, no matter how complete its dates were.
+     *
+     * <p>Two things put rows in that state: {@code IpoDuplicateService} promoting a statusless
+     * investorgain row to survivor (fixed at the source, but rows merged before that fix are still
+     * out there), and any IPO first ingested with no dates to derive from that acquired them later.
+     * Deriving here fixes both, and costs nothing — the dates are already loaded.
+     *
+     * @return the status to store, or {@code null} when the dates still can't decide (a genuinely
+     * unscheduled issue stays "Other", which is honest rather than guessed)
+     */
+    private static String correct(IpoListingEntity ipo, String current, LocalDateTime nowIst) {
+        if (current == null) {
+            return IpoStatusCanonicalizer.deriveStatus(
+                    ipo.getOpenDate(), ipo.getCloseDate(), ipo.getListingDate(), nowIst);
+        }
+        return IpoStatusCanonicalizer.calendarCorrected(
+                current, ipo.getOpenDate(), ipo.getCloseDate(), nowIst);
     }
 }
