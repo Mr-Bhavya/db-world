@@ -1,6 +1,7 @@
 package com.db.dbworld.core.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.db.dbworld.core.user.PasswordPolicy;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -40,7 +41,7 @@ public class CreateUserRequest {
     // Minimum 8, the NIST SP 800-63B floor. It was 6, which against a login endpoint that
     // had no rate limiting at all was the weakest link on the web side; LoginRateLimiter
     // closes the other half. Existing passwords are unaffected - this validates new input.
-    @Size(min = 8, max = 100)
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = PasswordPolicy.MAX_LENGTH)
     private String password;
 
     private Long roleId; // optional — defaults to VIEWER if not provided
