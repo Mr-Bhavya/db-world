@@ -283,7 +283,25 @@ export default function Hero({
 
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const isXl = useMediaQuery(theme.breakpoints.up('xl'));
-  const isTv = useMediaQuery('(min-width:1920px)');
+  /**
+   * "This hero has a whole television in front of it."
+   *
+   * NOT simply a wide viewport, which is what this used to be — and the distinction is
+   * the reason the modal looked wrong on a large monitor. `useMediaQuery` measures the
+   * VIEWPORT, but inside RecordDetailModal the hero is boxed at 1150px (1360px past
+   * 1920px), so on a 4K display every one of the rules below fired for a container less
+   * than half the width they were written for: 75vh of height at a fixed 1360 width,
+   * `original`-size backdrops, five genre chips, 3.8rem titles.
+   *
+   * The height was the visible damage. 75vh on a tall display forces a near-portrait box
+   * at that fixed width, and `object-fit: cover` then crops a landscape backdrop hard to
+   * fill it — which is why the modal showed a tall portrait slice with the metadata
+   * squeezed into the strip underneath.
+   *
+   * Gating on `!inModal` fixes all of it at once, and cuts bandwidth as a side effect:
+   * a 1360px box has no use for an `original` plate.
+   */
+  const isTv = useMediaQuery('(min-width:1920px)') && !inModal;
 
   // Mobile leads with the portrait poster rather than a cropped landscape still —
   // a 16:9 backdrop squeezed into a phone loses most of its subject, and the poster
@@ -505,7 +523,23 @@ export default function Hero({
         // cinematic letterbox the landscape backdrop is cut for.
         minHeight: { xs: '68vh', sm: 420, md: 500, lg: 560, xl: 620 },
         ...(isXs && { maxHeight: 640 }),
+        // Full-bleed only. 75vh of a tall display is a sensible hero when the hero is
+        // as wide as the screen; see below for why it is not, inside the modal.
         ...(isTv && { minHeight: '75vh' }),
+        // In the modal the hero is a FIXED-width box — 1150px, or 1360px past a 1920px
+        // viewport — so height measured against the viewport describes nothing about
+        // the shape it will actually be. On a 4K display `75vh` produced an ~800px-tall
+        // hero in a 1360px box: near-portrait, which `object-fit: cover` then satisfied
+        // by cropping a landscape backdrop down to a narrow vertical slice.
+        //
+        // Fixed heights instead, chosen to keep that box comfortably landscape (1360x560
+        // is about 2.4:1). Not `aspectRatio`: the root is a flex container with
+        // `overflow: hidden`, so a ratio that came out shorter than the content would
+        // clip the CTA row rather than grow for it.
+        //
+        // xs is excluded — a phone opens the full-page route, and its 68vh poster stage
+        // is deliberate.
+        ...(inModal && !isXs && { minHeight: { sm: 400, md: 460, lg: 520, xl: 560 } }),
         overflow: 'hidden',
         bgcolor: '#050505',
         display: 'flex',
@@ -689,10 +723,91 @@ export default function Hero({
         back button and the trailer's own mute/replay/stop are siblings, so they survive
         the fade for free and there is nothing to special-case.
       */}
+      {/*
+        What stays behind while the trailer has the screen: the title, and nothing else.
+
+        Hiding the whole hero left the viewer looking at an unlabelled video, which is
+        disorienting on a page they may have opened from a rail of twenty similar posters.
+        Netflix and Prime both keep the title up for exactly that reason — it is the one
+        piece of chrome that answers "what am I watching" rather than "what can I do".
+
+        A separate element rather than lifting the real title out of the block below,
+        because the two want different treatment: this one is smaller, sits where the eye
+        already is, and cross-fades against the rest. Lifting the original would have
+        meant it could not move independently of the column it lives in.
+      */}
+      <AnimatePresence>
+        {immersive && (
+          <Box
+            key="immersive-title"
+            component={motion.div}
+            aria-hidden
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.96 }}
+            // Slower in than the content is out, and delayed past it, so the two are
+            // never at full strength together — that overlap is what makes a cross-fade
+            // read as a glitch rather than a hand-off.
+            transition={{
+              duration: reduceMotion ? 0 : 0.55,
+              delay: reduceMotion ? 0 : 0.18,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            sx={{
+              position: 'absolute',
+              zIndex: 2,
+              left: { xs: 16, sm: 24, md: 40, xl: 64 },
+              bottom: { xs: 20, md: 30, xl: 44 },
+              maxWidth: '70%',
+              pointerEvents: 'none',
+            }}
+          >
+            {logoUrl ? (
+              <Box
+                component="img"
+                src={logoUrl}
+                alt=""
+                draggable={false}
+                sx={{
+                  // Deliberately smaller than the hero's own logo slot: this is a
+                  // watermark identifying the video, not the page's headline.
+                  maxWidth: { xs: 160, sm: 190, md: 230, lg: 260, xl: 300 },
+                  maxHeight: { xs: 60, sm: 64, md: 84, lg: 96, xl: 112 },
+                  objectFit: 'contain',
+                  objectPosition: 'left bottom',
+                  display: 'block',
+                  filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.65))',
+                }}
+              />
+            ) : (
+              <Typography
+                component="p"
+                sx={{
+                  fontSize: { xs: '1.1rem', sm: '1.25rem', md: '1.5rem', xl: '1.8rem' },
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.15,
+                  color: '#fff',
+                  textShadow: '0 2px 14px rgba(0,0,0,0.75)',
+                }}
+              >
+                {tmdb.title ?? record?.name}
+              </Typography>
+            )}
+          </Box>
+        )}
+      </AnimatePresence>
+
       <Box
         component={motion.div}
-        animate={{ opacity: immersive ? 0 : 1 }}
-        transition={{ duration: reduceMotion ? 0 : 0.6, ease: 'easeOut' }}
+        // Scale and lift, not just opacity. A straight fade reads as the page dimming;
+        // easing the block down and back a touch as it goes reads as it stepping out of
+        // the way, which is the language Netflix uses when its billboard yields to a
+        // trailer. Standard decelerate curve — quick to commit, slow to settle.
+        animate={immersive
+          ? { opacity: 0, y: reduceMotion ? 0 : 12, scale: reduceMotion ? 1 : 0.985 }
+          : { opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.4, 0, 0.2, 1] }}
         // Invisible is not the same as gone. Without this, PLAY is still sitting there
         // waiting to be clicked by someone aiming at the video, and a screen reader would
         // still announce a hero that is not on screen. `inert` covers pointer events,
@@ -708,6 +823,11 @@ export default function Hero({
           px: { xs: 2, sm: 3, md: 5, xl: 8 },
           pt: { xs: 3, md: 6 },
           pb: { xs: 2, md: 3.5, xl: 5 },
+          // Collapse toward the bottom-left rather than the centre, so the block shrinks
+          // INTO roughly where the immersive title is about to appear. Scaling from the
+          // middle would drift the whole column sideways as it goes, which reads as
+          // drift rather than a hand-off.
+          transformOrigin: 'left bottom',
           // Belt and braces. `inert` has to survive being forwarded through Box and
           // motion.div to reach the DOM, and if it ever silently stops doing so the
           // failure is the exact bug this guards against — an invisible PLAY button that
@@ -825,7 +945,10 @@ export default function Hero({
             <Box component={motion.div} variants={RISE} sx={{
               display: 'flex', alignItems: 'flex-end',
               minHeight: { xs: 74, sm: 76, md: 104, lg: 118, xl: 136 },
-              '@media (min-width:1920px)': { minHeight: 168 },
+              // Spread, not a raw @media: CSS cannot see `inModal`, so the query
+              // fired for the boxed hero too. Overrides the whole responsive value,
+              // exactly as the media query did at this width.
+              ...(isTv && { minHeight: 168 }),
             }}>
               {logoUrl ? (
                 <Box
@@ -893,7 +1016,7 @@ export default function Hero({
                 bottom-aligned — so the Watch button still never moves. */}
             <Box sx={{
               minHeight: { xs: 30, sm: 30, md: 34, xl: 40 },
-              '@media (min-width:1920px)': { minHeight: 48 },
+              ...(isTv && { minHeight: 48 }),
               display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
             }}>
             {tmdb.tagline ? (
@@ -1110,7 +1233,7 @@ export default function Hero({
               sx={{
               display: { xs: 'none', sm: 'block' },
               minHeight: { sm: 52, md: 54, lg: 56, xl: 64 },
-              '@media (min-width:1920px)': { minHeight: 116 },
+              ...(isTv && { minHeight: 116 }),
             }}>
             {heroOverview && !isXs ? (
               <Typography component={motion.p} variants={SLIDE} sx={{
