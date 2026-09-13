@@ -49,6 +49,21 @@ public class SchedulerAdminController {
         return ApiResponse.success("Job triggered: " + jobName);
     }
 
+    /**
+     * Stops a long-running job (the TMDB syncs and the person backfill can run for
+     * minutes). Cancelling files the run as CANCELLED, not FAILED.
+     */
+    @PostMapping("/cancel/{jobName}")
+    @AdminAccess
+    public ApiResponse<Void> cancel(@PathVariable String jobName) {
+        log.info("Admin requested cancellation of scheduler job: {}", jobName);
+        boolean cancelled = schedulerAdminService.cancelRunning(jobName);
+        if (!cancelled) {
+            return ApiResponse.error(HttpStatus.CONFLICT, "Job is not currently running: " + jobName);
+        }
+        return ApiResponse.success("Cancellation requested for " + jobName);
+    }
+
     @PatchMapping("/toggle/{jobName}")
     @AdminAccess
     public ApiResponse<Void> toggle(@PathVariable String jobName) {

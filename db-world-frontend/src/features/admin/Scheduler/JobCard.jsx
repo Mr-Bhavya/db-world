@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Chip, Switch, Tooltip, IconButton,
   Button, CircularProgress, LinearProgress, alpha,
@@ -6,6 +6,7 @@ import {
 import {
   PlayArrow, CheckCircle, Error as ErrorIcon, History, Edit as EditIcon,
   DragIndicator, StickyNote2, Autorenew, Code, PauseCircleOutlineRounded,
+  StopCircleRounded, WarningAmberRounded, BlockRounded,
 } from '@mui/icons-material';
 import { Reorder, useDragControls } from 'framer-motion';
 import { useT } from '@shared/theme';
@@ -13,8 +14,27 @@ import { adminSurface } from '@features/admin/adminUi';
 import { metaFor } from './jobMeta';
 import {
   clockTime, counterLabel, describeSchedule, formatDuration, fullTime,
-  highlightCounters, isFailureCounter, relativeTime,
+  highlightCounters, isFailureCounter, relativeTime, runPace,
 } from './schedulerUtils';
+
+/**
+ * Milliseconds elapsed since `startedAt`, ticking once a second while `active`.
+ *
+ * A job's own poll is every 2s, but elapsed time has to move smoothly or the card
+ * looks frozen — and "is this stuck?" is exactly the question a frozen-looking card
+ * fails to answer.
+ */
+function useElapsed(startedAt, active) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active || !startedAt) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active, startedAt]);
+  if (!startedAt || !active) return null;
+  const t = new Date(startedAt).getTime();
+  return Number.isNaN(t) ? null : Math.max(0, now - t);
+}
 
 /**
  * A labelled column of the desktop row.
@@ -53,6 +73,22 @@ function LastRunStatus({ job }) {
 
   if (!job.lastStatus) {
     return <Typography sx={{ fontSize: '0.72rem', color: T.textFaint }}>Never run</Typography>;
+  }
+  if (job.lastStatus === 'CANCELLED') {
+    return (
+      <Tooltip title="Someone stopped this run">
+        <Chip
+          size="small"
+          icon={<BlockRounded sx={{ fontSize: 11 }} />}
+          label="Cancelled"
+          sx={{
+            height: 20, fontSize: '0.65rem', fontWeight: 700,
+            bgcolor: T.warningBg, color: T.warning,
+            '& .MuiChip-icon': { color: T.warning, ml: 0.5 },
+          }}
+        />
+      </Tooltip>
+    );
   }
   if (job.lastStatus === 'FAILED') {
     return (
@@ -95,7 +131,7 @@ function LastRunStatus({ job }) {
  * jobs on screen. It also had nowhere to put the facts that make this page useful:
  * whether the last run worked, what it did, and when the next one is.
  */
-export default function JobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, triggering }) {
+export default function JobCard({ job, onTrigger, onCancel, onToggle, onEdit, onShowHistory, triggering, cancelling }) {
   const T = useT();
   const S = adminSurface(T);
   const dragControls = useDragControls();
@@ -107,6 +143,10 @@ export default function JobCard({ job, onTrigger, onToggle, onEdit, onShowHistor
   const enabled = job.enabled !== false;
   const failed = job.lastStatus === 'FAILED';
   const highlights = highlightCounters(job.lastSummary, 2);
+
+  const elapsedMs = useElapsed(job.currentRunStartedAt, isRunning);
+  const pace = runPace(elapsedMs, job.expectedDurationMs);
+  const liveCounters = highlightCounters({ counters: job.currentCounters }, 3);
 
   return (
     <Reorder.Item
@@ -219,20 +259,60 @@ export default function JobCard({ job, onTrigger, onToggle, onEdit, onShowHistor
             {/* ── Last run ─────────────────────────────────────────────── */}
             <Field label="Last run">
               {isRunning ? (
-                <Box sx={{ minWidth: 0 }}>
-                  <Chip
-                    size="small"
-                    label="Running"
-                    icon={<CircularProgress size={9} sx={{ color: `${meta.color} !important` }} />}
-                    sx={{
-                      height: 20, fontSize: '0.65rem',
-                      bgcolor: alpha(meta.color, 0.14), color: meta.color,
-                      '& .MuiChip-icon': { ml: 0.5 },
-                    }}
-                  />
+                <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexWrap: 'wrap' }}>
+                    <Chip
+                      size="small"
+                      label={elapsedMs != null ? `Running ${formatDuration(elapsedMs)}` : 'Running'}
+                      icon={<CircularProgress size={9} sx={{ color: `${meta.color} !important` }} />}
+                      sx={{
+                        height: 20, fontSize: '0.65rem',
+                        bgcolor: alpha(meta.color, 0.14), color: meta.color,
+                        '& .MuiChip-icon': { ml: 0.5 },
+                      }}
+                    />
+                    {/* "running 12m" says nothing on its own; "usually 4m" is what turns it
+                        into a verdict. */}
+                    {pace.expected && (
+                      <Tooltip title={pace.overrun
+                        ? 'Well past this job’s usual duration — it may be stuck'
+                        : 'Median of recent successful runs'}>
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3 }}>
+                          {pace.overrun && <WarningAmberRounded sx={{ fontSize: 12, color: T.warning }} />}
+                          <Typography sx={{
+                            fontSize: '0.68rem',
+                            color: pace.overrun ? T.warning : T.textFaint,
+                            fontWeight: pace.overrun ? 700 : 400,
+                          }}>
+                            {pace.expected}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    )}
+                  </Box>
+
+                  {/* Counters straight off the in-flight run, so a long job visibly moves. */}
+                  {liveCounters.length > 0 && (
+                    <Box sx={{ display: 'flex', gap: 0.4, flexWrap: 'wrap' }}>
+                      {liveCounters.map((h) => (
+                        <Chip
+                          key={h.key}
+                          size="small"
+                          label={`${counterLabel(h.key)} ${h.value}`}
+                          sx={{
+                            height: 17, fontSize: '0.6rem', borderRadius: 0.75,
+                            bgcolor: isFailureCounter(h.key) ? T.errorBg : S.inset,
+                            color: isFailureCounter(h.key) ? T.error : T.textMuted,
+                            '& .MuiChip-label': { px: 0.7 },
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+
                   <LinearProgress sx={{
-                    height: 2, borderRadius: 1, mt: 0.6, bgcolor: S.inset,
-                    '& .MuiLinearProgress-bar': { bgcolor: meta.color },
+                    height: 2, borderRadius: 1, bgcolor: S.inset,
+                    '& .MuiLinearProgress-bar': { bgcolor: pace.overrun ? T.warning : meta.color },
                   }} />
                 </Box>
               ) : (
@@ -328,22 +408,43 @@ export default function JobCard({ job, onTrigger, onToggle, onEdit, onShowHistor
                 </IconButton>
               </Tooltip>
 
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<PlayArrow sx={{ fontSize: 14 }} />}
-                disabled={isRunning}
-                onClick={() => onTrigger(job)}
-                sx={{
-                  flex: { xs: 1, md: 'unset' },
-                  borderColor: alpha(meta.color, 0.35), color: meta.color,
-                  fontSize: '0.72rem', textTransform: 'none', fontWeight: 700,
-                  py: 0.25, px: 1, whiteSpace: 'nowrap',
-                  '&:hover': { borderColor: meta.color, bgcolor: alpha(meta.color, 0.08) },
-                }}
-              >
-                {isRunning ? 'Running' : 'Run now'}
-              </Button>
+              {/* The same slot: while a job runs, the useful action is stopping it. A
+                  TMDB sync started by mistake otherwise runs for seven minutes with no
+                  way out but a restart. */}
+              {isRunning ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<StopCircleRounded sx={{ fontSize: 15 }} />}
+                  disabled={cancelling}
+                  onClick={() => onCancel(job)}
+                  sx={{
+                    flex: { xs: 1, md: 'unset' },
+                    borderColor: alpha(T.error, 0.35), color: T.error,
+                    fontSize: '0.72rem', textTransform: 'none', fontWeight: 700,
+                    py: 0.25, px: 1, whiteSpace: 'nowrap',
+                    '&:hover': { borderColor: T.error, bgcolor: alpha(T.error, 0.08) },
+                  }}
+                >
+                  {cancelling ? 'Stopping…' : 'Cancel'}
+                </Button>
+              ) : (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<PlayArrow sx={{ fontSize: 14 }} />}
+                  onClick={() => onTrigger(job)}
+                  sx={{
+                    flex: { xs: 1, md: 'unset' },
+                    borderColor: alpha(meta.color, 0.35), color: meta.color,
+                    fontSize: '0.72rem', textTransform: 'none', fontWeight: 700,
+                    py: 0.25, px: 1, whiteSpace: 'nowrap',
+                    '&:hover': { borderColor: meta.color, bgcolor: alpha(meta.color, 0.08) },
+                  }}
+                >
+                  Run now
+                </Button>
+              )}
 
               <Tooltip title={enabled ? 'Disable job' : 'Enable job'}>
                 <Switch

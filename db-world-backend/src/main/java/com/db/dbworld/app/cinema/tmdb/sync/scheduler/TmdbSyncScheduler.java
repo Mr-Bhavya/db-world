@@ -16,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
+import java.util.Map;
 
 
 @Component
@@ -48,12 +49,19 @@ public class TmdbSyncScheduler {
 
             log.info("TMDB sync run started; type={}; window={}", type, window);
 
-            SyncMetrics metrics;
+            // Owned here, not inside the orchestrator, so the admin page can watch these
+            // climb during a run that takes minutes instead of staring at a spinner.
+            SyncMetrics metrics = new SyncMetrics();
+            summary.progress(() -> Map.of(
+                    "changed", (long) metrics.getTotal().get(),
+                    "synced",  (long) metrics.getSuccess().get(),
+                    "failed",  (long) metrics.getFailed().get(),
+                    "skipped", (long) metrics.getSkipped().get()));
 
             if (type == RecordType.MOVIE) {
-                metrics = syncService.syncMovies(window);
+                syncService.syncMovies(window, metrics);
             } else {
-                metrics = syncService.syncTv(window);
+                syncService.syncTv(window, metrics);
             }
 
             long elapsed = System.currentTimeMillis() - start;

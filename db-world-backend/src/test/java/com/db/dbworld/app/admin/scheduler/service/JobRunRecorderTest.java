@@ -14,6 +14,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
@@ -142,6 +148,115 @@ class JobRunRecorderTest {
         recorder.run("MediaSync", TriggerSource.SCHEDULED, null, summary -> null);
 
         assertThat(captureSaved().getSummaryJson()).isNull();
+    }
+
+    // ── Cancellation ─────────────────────────────────────────────────────────
+
+    /** Runs {@code body} on another thread and waits for it to reach and leave the recorder. */
+    private void runUntilCancelled(String jobId, CountDownLatch started) throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        Thread worker = new Thread(() -> {
+            try {
+                recorder.run(jobId, TriggerSource.MANUAL, "admin@example.com", summary -> {
+                    summary.count("synced", 12);
+                    started.countDown();
+                    Thread.sleep(10_000); // released by the interrupt that cancel() sends
+                    return null;
+                });
+            } catch (Exception expected) {
+                // The recorder rethrows; the caller decides, and here we do not care.
+            } finally {
+                done.countDown();
+            }
+        }, "test-" + jobId);
+        worker.setDaemon(true);
+        worker.start();
+
+        assertThat(started.await(5, TimeUnit.SECONDS)).as("job should have started").isTrue();
+        assertThat(recorder.cancel(jobId)).as("cancel should find the running job").isTrue();
+        assertThat(done.await(5, TimeUnit.SECONDS)).as("job should have stopped").isTrue();
+    }
+
+    /** Someone pressing stop is not an incident, and must not be filed as a failure. */
+    @Test
+    void cancel_recordsTheRunAsCancelled_keepingItsPartialCounters() throws Exception {
+        runUntilCancelled("TmdbMovieSync", new CountDownLatch(1));
+
+        SchedulerJobHistoryEntity saved = captureSaved();
+        assertThat(saved.getStatus()).isEqualTo("CANCELLED");
+        assertThat(saved.getSummaryJson()).contains("\"synced\":12");
+        assertThat(saved.getMessage()).contains("Cancelled");
+    }
+
+    @Test
+    void cancel_returnsFalseWhenNothingIsRunning() {
+        assertThat(recorder.cancel("TmdbMovieSync")).isFalse();
+    }
+
+    /** The live view is what lets the page show progress on a job still going. */
+    @Test
+    void exposesTheRunInFlight_withItsLiveCounters() throws Exception {
+        AtomicLong progress = new AtomicLong(7);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        Thread worker = new Thread(() -> {
+            try {
+                recorder.run("PersonSyncScheduler", TriggerSource.SCHEDULED, null, summary -> {
+                    summary.progress(() -> Map.of("synced", progress.get()));
+                    started.countDown();
+                    release.await();
+                    return null;
+                });
+            } catch (Exception ignored) {
+                // not exercised here
+            }
+        }, "test-inflight");
+        worker.setDaemon(true);
+        worker.start();
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+
+        var inFlight = recorder.current("PersonSyncScheduler");
+        assertThat(inFlight).isPresent();
+        assertThat(inFlight.get().summary().liveCounters()).containsEntry("synced", 7L);
+        progress.set(42);
+        assertThat(inFlight.get().summary().liveCounters()).containsEntry("synced", 42L);
+
+        release.countDown();
+        worker.join(5_000);
+        assertThat(recorder.current("PersonSyncScheduler")).isEmpty();
+    }
+
+    /**
+     * Cron jobs run on a POOLED TaskScheduler thread. Handing one back still interrupted
+     * would kill the next unrelated job that happened to land on it.
+     */
+    @Test
+    void clearsTheInterruptFlagBeforeReleasingTheThread() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        AtomicBoolean stillInterrupted = new AtomicBoolean(true);
+        CountDownLatch checked = new CountDownLatch(1);
+
+        Thread worker = new Thread(() -> {
+            try {
+                recorder.run("TmdbTvSync", TriggerSource.MANUAL, null, summary -> {
+                    started.countDown();
+                    Thread.sleep(10_000);
+                    return null;
+                });
+            } catch (Exception expected) {
+                // rethrown by the recorder
+            }
+            stillInterrupted.set(Thread.currentThread().isInterrupted());
+            checked.countDown();
+        }, "test-interrupt");
+        worker.setDaemon(true);
+        worker.start();
+
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+        recorder.cancel("TmdbTvSync");
+        assertThat(checked.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(stillInterrupted).isFalse();
     }
 
     /** History is bookkeeping — losing it must never take the job down with it. */

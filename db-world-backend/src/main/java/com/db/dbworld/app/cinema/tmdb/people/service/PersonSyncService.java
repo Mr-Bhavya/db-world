@@ -8,7 +8,21 @@ public interface PersonSyncService {
      * @return what the pass actually did — reported on the admin Scheduler page, where a run
      *         that synced nothing used to be indistinguishable from one that synced hundreds
      */
-    PersonSyncReport syncUnsyncedPersons();
+    PersonSyncReport syncUnsyncedPersons(ProgressListener onProgress);
+
+    /** Convenience for callers that do not care about progress. */
+    default PersonSyncReport syncUnsyncedPersons() {
+        return syncUnsyncedPersons((synced, failed) -> {});
+    }
+
+    /**
+     * Called after each batch so a caller can show live progress. A plain callback rather
+     * than the scheduler's summary type, so this service stays unaware of the admin layer.
+     */
+    @FunctionalInterface
+    interface ProgressListener {
+        void onProgress(long synced, long failed);
+    }
 
     /** Returns count of persons not yet synced. */
     long countUnsynced();

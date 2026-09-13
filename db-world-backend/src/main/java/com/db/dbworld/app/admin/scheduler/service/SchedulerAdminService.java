@@ -223,6 +223,20 @@ public class SchedulerAdminService {
         runJob(jobId, TriggerSource.SCHEDULED, null);
     }
 
+    /**
+     * Stops the run currently executing for {@code jobId}.
+     *
+     * @return false when nothing is running for that job — the caller reports a conflict
+     *         rather than pretending it cancelled something
+     */
+    public boolean cancelRunning(String jobId) {
+        boolean cancelled = recorder.cancel(jobId);
+        if (cancelled) {
+            log.info("Admin cancelled running job: {}", jobId);
+        }
+        return cancelled;
+    }
+
     public void runJob(String jobId, TriggerSource source, String triggeredByUser) {
         SchedulerJobConfigEntity config = configRepo.findById(jobId).orElse(null);
         if (config != null && !config.isEnabled()) {
@@ -309,6 +323,19 @@ public class SchedulerAdminService {
                     m.put("lastSummary",         parseSummary(stats.summaryJson()));
                     m.put("consecutiveFailures", stats.consecutiveFailures());
                     m.put("nextRunAt",           nextRunAt(c, stats.startedAt()));
+                    // Typical duration, so the page can say "running 12m — usually 4m".
+                    // That comparison is the actual answer to "is it stuck?", and it needs
+                    // no data beyond the history already read above.
+                    m.put("expectedDurationMs",  stats.medianDurationMs());
+
+                    // A run still going: when it started and how far it has got. Without
+                    // these a long job is an unchanging spinner.
+                    recorder.current(c.getJobId()).ifPresent(run -> {
+                        m.put("currentRunId",        run.runId());
+                        m.put("currentRunStartedAt", run.startedAt());
+                        Map<String, Long> live = run.summary().liveCounters();
+                        if (!live.isEmpty()) m.put("currentCounters", live);
+                    });
                     return m;
                 }).toList();
     }
@@ -322,8 +349,8 @@ public class SchedulerAdminService {
      */
     private record RunStats(String status, LocalDateTime startedAt, Long durationMs,
                             String message, String runId, String summaryJson,
-                            int consecutiveFailures) {
-        static final RunStats NONE = new RunStats(null, null, null, null, null, null, 0);
+                            int consecutiveFailures, Long medianDurationMs) {
+        static final RunStats NONE = new RunStats(null, null, null, null, null, null, 0, null);
     }
 
     /**
@@ -345,7 +372,27 @@ public class SchedulerAdminService {
         }
         SchedulerJobHistoryEntity last = recent.getFirst();
         return new RunStats(last.getStatus(), last.getStartedAt(), last.getDurationMs(),
-                last.getMessage(), last.getRunId(), last.getSummaryJson(), streak);
+                last.getMessage(), last.getRunId(), last.getSummaryJson(), streak,
+                medianSuccessfulDuration(recent));
+    }
+
+    /**
+     * Median duration of the recent SUCCESSFUL runs, or null when there aren't enough to
+     * mean anything.
+     *
+     * <p>Median rather than mean: one cold-start run that took forty times as long as usual
+     * would drag an average far enough to make every later run look fast. Failures are
+     * excluded because a run that died in 200ms says nothing about how long the work takes.
+     */
+    private Long medianSuccessfulDuration(List<SchedulerJobHistoryEntity> recent) {
+        List<Long> durations = recent.stream()
+                .filter(h -> "SUCCESS".equals(h.getStatus()))
+                .map(SchedulerJobHistoryEntity::getDurationMs)
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+        if (durations.size() < 3) return null;
+        return durations.get(durations.size() / 2);
     }
 
     /**

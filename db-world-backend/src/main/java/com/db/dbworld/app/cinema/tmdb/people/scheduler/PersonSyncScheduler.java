@@ -9,6 +9,9 @@ import lombok.extern.log4j.Log4j2;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Person detail backfill job. Correlation id, timing and the run history row are owned by
  * {@code JobRunRecorder} on the scheduler side.
@@ -31,7 +34,20 @@ public class PersonSyncScheduler {
         }
 
         log.info("PersonSync scheduled run starting — {} unsynced persons", unsynced);
-        PersonSyncReport report = personSyncService.syncUnsyncedPersons();
+
+        // Live progress for the admin page: this run walks every unsynced person at TMDB's
+        // rate limit, so it can take minutes and needs to look like it is getting somewhere.
+        AtomicLong liveSynced = new AtomicLong();
+        AtomicLong liveFailed = new AtomicLong();
+        summary.progress(() -> Map.of(
+                "pending", unsynced,
+                "synced",  liveSynced.get(),
+                "failed",  liveFailed.get()));
+
+        PersonSyncReport report = personSyncService.syncUnsyncedPersons((s, f) -> {
+            liveSynced.set(s);
+            liveFailed.set(f);
+        });
         log.info("PersonSync scheduled run completed; took={}ms", System.currentTimeMillis() - start);
 
         summary.count("pending", report.pending())

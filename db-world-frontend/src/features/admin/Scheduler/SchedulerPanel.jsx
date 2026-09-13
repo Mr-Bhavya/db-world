@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box, Typography, Button, Chip,
   IconButton, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Tooltip,
@@ -23,7 +23,7 @@ import {
 import RunLogPanel from './RunLogPanel';
 import JobCard from './JobCard';
 import { JOB_META } from './jobMeta';
-import { describeSchedule } from './schedulerUtils';
+import { completionMessage, describeSchedule } from './schedulerUtils';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -32,6 +32,7 @@ const api = {
         .get('/api/admin/scheduler/history', { params: { limit, jobName } })
         .then(r => r.data?.data ?? []),
   trigger: (jobId)              => axiosInstance.post(`/api/admin/scheduler/trigger/${jobId}`),
+  cancel:  (jobId)              => axiosInstance.post(`/api/admin/scheduler/cancel/${jobId}`),
   toggle:  (jobId)              => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
   updateCron:     (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/cron/${jobId}`,     body),
   updateInterval: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/interval/${jobId}`, body),
@@ -900,7 +901,7 @@ export default function SchedulerPanel() {
 
   const triggerMutation = useMutation({
     mutationFn: (job) => api.trigger(job.id),
-    onMutate:   (job) => setTriggeringId(job.id),
+    onMutate:   (job) => { setTriggeringId(job.id); watchedRuns.current.add(job.id); },
     onSuccess:  (_, job) => {
       notify.success(`${JOB_META[job.id]?.label ?? job.id} triggered`);
       // Refetch straight away so the server's own RUNNING status takes over as soon
@@ -916,6 +917,54 @@ export default function SchedulerPanel() {
       notify.error(`Failed to trigger ${JOB_META[job.id]?.label ?? job.id}`);
     },
   });
+
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const cancelMutation = useMutation({
+    mutationFn: (job) => api.cancel(job.id),
+    onMutate:   (job) => setCancellingId(job.id),
+    onSuccess:  (_, job) => {
+      notify.info(`Stopping ${JOB_META[job.id]?.label ?? job.id}…`);
+      qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
+    },
+    onError: (e, job) => {
+      setCancellingId(null);
+      // 409 means it finished between the click and the request landing, which is a
+      // perfectly normal race and not worth an error toast.
+      notify[e?.response?.status === 409 ? 'info' : 'error'](
+        e?.response?.status === 409
+          ? `${JOB_META[job.id]?.label ?? job.id} had already finished`
+          : 'Failed to cancel the job',
+      );
+    },
+    onSettled: () => setTimeout(() => setCancellingId(null), 1500),
+  });
+
+  /**
+   * Tells you how a run YOU started ended.
+   *
+   * A manual run can take minutes; the "triggered" toast is long gone by then, and
+   * without this the outcome only exists if you happen to still be looking at that
+   * card. Watches for jobs you triggered going RUNNING -> not, and reports what the
+   * card would have shown.
+   */
+  const watchedRuns = useRef(new Set());
+  const prevRunning = useRef(new Set());
+  useEffect(() => {
+    const running = new Set(jobs.filter((j) => j.status === 'RUNNING').map((j) => j.id));
+    for (const id of prevRunning.current) {
+      if (running.has(id) || !watchedRuns.current.has(id)) continue;
+      watchedRuns.current.delete(id);
+      const job = jobs.find((j) => j.id === id);
+      if (!job) continue;
+      const { severity, text } = completionMessage({
+        ...job,
+        name: JOB_META[job.id]?.label ?? job.name ?? job.id,
+      });
+      notify[severity](text);
+    }
+    prevRunning.current = running;
+  }, [jobs]);
 
   const toggleMutation = useMutation({
     mutationFn: (job) => api.toggle(job.id),
@@ -1010,7 +1059,9 @@ export default function SchedulerPanel() {
                 key={job.id}
                 job={job}
                 triggering={triggeringId === job.id}
+                cancelling={cancellingId === job.id}
                 onTrigger={(j) => triggerMutation.mutate(j)}
+                onCancel={(j) => cancelMutation.mutate(j)}
                 onToggle={(j) => toggleMutation.mutate(j)}
                 onEdit={(j) => setEditJob(j)}
                 onShowHistory={(j) => setHistoryJob(j)}

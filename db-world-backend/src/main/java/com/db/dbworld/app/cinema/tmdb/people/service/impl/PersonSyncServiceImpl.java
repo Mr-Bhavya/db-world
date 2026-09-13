@@ -29,7 +29,7 @@ public class PersonSyncServiceImpl implements PersonSyncService {
     private final TmdbClient       tmdbClient;
 
     @Override
-    public PersonSyncReport syncUnsyncedPersons() {
+    public PersonSyncReport syncUnsyncedPersons(ProgressListener onProgress) {
 
         long total   = personRepository.countByPersonSyncedFalse();
         long synced  = 0;
@@ -68,6 +68,8 @@ public class PersonSyncServiceImpl implements PersonSyncService {
                     return new PersonSyncReport(total, synced, failed, true);
                 }
             }
+
+            onProgress.onProgress(synced, failed);
 
             if (batch.isLast()) break;
 

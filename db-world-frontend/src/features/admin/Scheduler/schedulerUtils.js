@@ -132,3 +132,33 @@ export function describeSchedule(job) {
   }
   return expr;
 }
+
+/**
+ * How this run is going against how long the job usually takes.
+ *
+ * The comparison is the point: "running 12m" means nothing on its own, but "running
+ * 12m, usually 4m" is the difference between patience and a stuck job. Only flags an
+ * overrun past 2x the median, because normal runs vary a lot — a sync whose upstream
+ * returned twice the usual changes is slow, not broken.
+ */
+export function runPace(elapsedMs, expectedMs) {
+  if (!expectedMs || elapsedMs == null) return { expected: null, overrun: false };
+  return {
+    expected: `usually ${formatDuration(expectedMs)}`,
+    overrun: elapsedMs > expectedMs * 2,
+  };
+}
+
+/**
+ * A one-line outcome for the toast shown when a run you started finishes.
+ * Mirrors what the card shows, so the two never disagree.
+ */
+export function completionMessage(job) {
+  const name = job?.name ?? job?.id;
+  if (job?.lastStatus === 'CANCELLED') return { severity: 'info', text: `${name} cancelled` };
+  if (job?.lastStatus === 'FAILED') {
+    return { severity: 'error', text: `${name} failed — ${job.lastMessage || 'see logs'}` };
+  }
+  const detail = outcomeText(job);
+  return { severity: 'success', text: detail ? `${name} finished — ${detail}` : `${name} finished` };
+}

@@ -3,6 +3,7 @@ package com.db.dbworld.app.admin.scheduler.dto;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Structured outcome of one scheduler run, persisted as JSON on the history row.
@@ -45,6 +46,25 @@ public record JobRunSummary(Map<String, Long> counters, String note) {
     public static final class Builder {
         private final Map<String, Long> counters = new LinkedHashMap<>();
         private String note;
+        private volatile Supplier<Map<String, Long>> progress;
+
+        /**
+         * Registers a live view of this run's counters, read by the admin page WHILE the
+         * job is still going.
+         *
+         * <p>A supplier rather than incremental {@code count()} calls, because the numbers a
+         * long job wants to report already live in something it is mutating as it works
+         * ({@code SyncMetrics}'s atomics, a batch loop's running totals). Handing over a
+         * reader avoids making every loop iteration reach back into this builder.
+         *
+         * <p>The supplier is called from the HTTP thread while the job thread runs, so it
+         * must read thread-safe state — atomics, not plain locals. Only the supplier is
+         * exposed live; {@link #counters} itself is never read across threads.
+         */
+        public Builder progress(Supplier<Map<String, Long>> supplier) {
+            this.progress = supplier;
+            return this;
+        }
 
         public Builder count(String name, long value) {
             counters.put(name, value);
@@ -63,6 +83,23 @@ public record JobRunSummary(Map<String, Long> counters, String note) {
 
         public JobRunSummary build() {
             return new JobRunSummary(counters, note);
+        }
+
+        /**
+         * Counters as they stand right now, for a run still in flight. Empty when the job
+         * registered no {@link #progress} supplier — such a job simply shows elapsed time
+         * instead of progress, which is better than showing numbers that never move.
+         */
+        public Map<String, Long> liveCounters() {
+            Supplier<Map<String, Long>> p = progress;
+            if (p == null) return Map.of();
+            try {
+                Map<String, Long> live = p.get();
+                return live == null ? Map.of() : live;
+            } catch (Exception e) {
+                // Progress reporting must never be able to break the page that reads it.
+                return Map.of();
+            }
         }
     }
 }

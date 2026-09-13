@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  clockTime, counterLabel, describeSchedule, formatDuration,
-  highlightCounters, isFailureCounter, outcomeText, relativeTime,
+  clockTime, completionMessage, counterLabel, describeSchedule, formatDuration,
+  highlightCounters, isFailureCounter, outcomeText, relativeTime, runPace,
 } from './schedulerUtils';
 
 const NOW = new Date('2026-09-13T21:00:00+05:30').getTime();
@@ -166,5 +166,56 @@ describe('describeSchedule', () => {
 
   it('handles a job with no schedule at all', () => {
     expect(describeSchedule({ jobType: 'CRON' })).toBe('—');
+  });
+});
+
+describe('runPace', () => {
+  it('reports the usual duration without crying wolf', () => {
+    const pace = runPace(5 * 60_000, 4 * 60_000);
+    expect(pace.expected).toBe('usually 4m');
+    expect(pace.overrun).toBe(false);
+  });
+
+  /** Normal runs vary a lot, so only a large overshoot counts as suspicious. */
+  it('flags an overrun only past twice the median', () => {
+    expect(runPace(7 * 60_000, 4 * 60_000).overrun).toBe(false);
+    expect(runPace(12 * 60_000, 4 * 60_000).overrun).toBe(true);
+  });
+
+  it('says nothing when there is no history to compare against', () => {
+    expect(runPace(60_000, null)).toEqual({ expected: null, overrun: false });
+    expect(runPace(null, 60_000)).toEqual({ expected: null, overrun: false });
+  });
+});
+
+describe('completionMessage', () => {
+  it('reports a success with what the run did', () => {
+    const msg = completionMessage({
+      name: 'TMDB Movie Sync', lastStatus: 'SUCCESS',
+      lastSummary: { counters: { synced: 312, failed: 2 } },
+    });
+    expect(msg.severity).toBe('success');
+    expect(msg.text).toContain('failed 2');
+  });
+
+  it('reports a failure with its reason', () => {
+    const msg = completionMessage({
+      name: 'Media File Sync', lastStatus: 'FAILED', lastMessage: 'stream root missing',
+    });
+    expect(msg.severity).toBe('error');
+    expect(msg.text).toContain('stream root missing');
+  });
+
+  /** Stopping a job yourself is not an incident and must not be reported as one. */
+  it('reports a cancellation as information, not an error', () => {
+    const msg = completionMessage({ name: 'TMDB TV Sync', lastStatus: 'CANCELLED' });
+    expect(msg.severity).toBe('info');
+    expect(msg.text).toContain('cancelled');
+  });
+
+  it('still says something when the run reported nothing', () => {
+    const msg = completionMessage({ name: 'Tag Scheduler', lastStatus: 'SUCCESS' });
+    expect(msg.severity).toBe('success');
+    expect(msg.text).toBe('Tag Scheduler finished');
   });
 });

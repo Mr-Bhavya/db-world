@@ -12,7 +12,11 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Wraps one execution of a background job: mints its correlation id, publishes it to the
@@ -42,6 +46,47 @@ import java.util.UUID;
 public class JobRunRecorder {
 
     private final SchedulerJobHistoryRepository historyRepo;
+
+    /**
+     * Runs currently in flight, by job id.
+     *
+     * <p>This is what lets the admin page say something about a job that is STILL GOING.
+     * Without it a seven-minute TMDB sync is an unchanging spinner, and there is no way to
+     * tell "working through 900 records" from "hung on a dead connection".
+     */
+    private final Map<String, InFlight> inFlight = new ConcurrentHashMap<>();
+
+    /** A run in progress: its id, start, live counters, and the thread doing the work. */
+    public record InFlight(String runId, LocalDateTime startedAt, JobRunSummary.Builder summary,
+                           Thread thread, AtomicBoolean cancelRequested) {}
+
+    /** The run currently executing for {@code jobId}, if any. */
+    public Optional<InFlight> current(String jobId) {
+        return Optional.ofNullable(inFlight.get(jobId));
+    }
+
+    /**
+     * Asks the running job to stop, by interrupting the thread executing it.
+     *
+     * <p>Interruption rather than a bespoke cancel flag, because the long jobs already
+     * respond to it: PersonSync's rate-limit {@code Thread.sleep} throws, and the TMDB
+     * sync's {@code blockLast()} throws and disposes the reactive pipeline underneath it.
+     * A separate flag would need every loop to remember to poll it; this one is understood
+     * by the blocking calls the jobs already make.
+     *
+     * <p>The flag is recorded separately so the run is filed as CANCELLED rather than
+     * FAILED — someone pressing stop is not an incident.
+     *
+     * @return false when that job is not currently running
+     */
+    public boolean cancel(String jobId) {
+        InFlight run = inFlight.get(jobId);
+        if (run == null) return false;
+        run.cancelRequested().set(true);
+        run.thread().interrupt();
+        log.info("Cancellation requested for job {} (run {})", jobId, run.runId());
+        return true;
+    }
 
     /**
      * Private mapper, not the injected bean: Spring Boot 4 ships Jackson 3 and exposes no
@@ -77,16 +122,29 @@ public class JobRunRecorder {
         JobRunSummary.Builder summary = JobRunSummary.builder();
         LocalDateTime startedAt = LocalDateTime.now();
         long startMs = System.currentTimeMillis();
+        AtomicBoolean cancelRequested = new AtomicBoolean();
+        inFlight.put(jobId, new InFlight(runId, startedAt, summary, Thread.currentThread(), cancelRequested));
         String status  = "SUCCESS";
         String message = null;
         try {
             return body.run(summary);
         } catch (Exception e) {
-            status  = "FAILED";
-            message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            log.error("Job {} failed after {}ms: {}", jobId, System.currentTimeMillis() - startMs, message, e);
+            if (cancelRequested.get()) {
+                status  = "CANCELLED";
+                message = "Cancelled after " + (System.currentTimeMillis() - startMs) + "ms";
+                log.info("Job {} cancelled after {}ms", jobId, System.currentTimeMillis() - startMs);
+            } else {
+                status  = "FAILED";
+                message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                log.error("Job {} failed after {}ms: {}", jobId, System.currentTimeMillis() - startMs, message, e);
+            }
             throw (e instanceof RuntimeException re) ? re : new IllegalStateException(e);
         } finally {
+            inFlight.remove(jobId);
+            // Clear the interrupt before handing the thread back. Cron jobs run on a POOLED
+            // TaskScheduler thread, and leaving it interrupted would make the next unrelated
+            // job to land on it die instantly.
+            Thread.interrupted();
             persist(jobId, runId, startedAt, System.currentTimeMillis() - startMs,
                     status, message, summary.build(), source, user);
             restore(MdcKeys.JOB, prevJob);
