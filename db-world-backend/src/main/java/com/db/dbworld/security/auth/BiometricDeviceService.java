@@ -6,6 +6,7 @@ import com.db.dbworld.security.dto.AuthToken;
 import com.db.dbworld.security.dto.SessionContext;
 import com.db.dbworld.security.dto.BiometricDeviceDto;
 import com.db.dbworld.security.entity.BiometricDeviceEntity;
+import com.db.dbworld.security.entity.RefreshTokenEntity;
 import com.db.dbworld.security.repository.BiometricDeviceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -22,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Biometric "device token" flow (option B). After a normal password login the client can enroll the
@@ -49,20 +51,58 @@ public class BiometricDeviceService {
     public String enroll(String email, String deviceId, String deviceLabel) {
         UserEntity user = userService.getUserEntityByEmail(email);
         String rawToken = randomToken();
+        String label = blankToNull(deviceLabel);
 
         BiometricDeviceEntity e = repo.findByUser_UserIdAndDeviceId(user.getUserId(), deviceId)
                 .orElseGet(BiometricDeviceEntity::new);
         e.setUser(user);
         e.setDeviceId(deviceId);
-        e.setDeviceLabel(blankToNull(deviceLabel));
+        e.setDeviceLabel(label);
         e.setTokenHash(sha256Hex(rawToken));
         e.setExpiry(Instant.now().plus(TTL));
         e.setLastUsed(null);
         e.setRevoked(false);
         repo.save(e);
 
-        log.info("Biometric device enrolled for user [{}] (device={})", email, deviceId);
+        int superseded = revokeSupersededEnrollments(user.getUserId(), deviceId, label);
+        log.info("Biometric device enrolled for user [{}] (device={}, supersededStaleEnrollments={})",
+                email, deviceId, superseded);
         return rawToken;
+    }
+
+    /**
+     * Revokes this user's OTHER live enrollments carrying the same device label — rows that
+     * describe the same physical handset under a device id it no longer uses.
+     *
+     * <p>The client's device id used to live in {@code localStorage}, which a Capacitor WebView
+     * does not keep: clearing the app's cache, storage pressure, or a reinstall wipes it, and the
+     * next enrollment minted a fresh uuid. Since {@code enroll} upserts on
+     * {@code (user_id, device_id)}, that produced a NEW row every time instead of updating the
+     * existing one — one production account accumulated four rows for a single phone.
+     *
+     * <p>The clutter is the least of it. Re-enrolling overwrites the Keystore credential, so the
+     * superseded token exists on no device at all, yet its row stayed unrevoked and unexpired for
+     * the full 90-day TTL: a live credential nothing could present and nothing would retire.
+     *
+     * <p>Matching on the label is safe precisely because it is specific (it carries the build
+     * string, e.g. {@code "SM-S721B Build/BP4A.251205.006"}), and because the only way to reach
+     * here is a fresh enrollment from the device that owns that label — whatever token the old row
+     * described has already been overwritten in the Keystore. Rows with no label are left alone.
+     *
+     * @return how many stale enrollments were retired
+     */
+    private int revokeSupersededEnrollments(long userId, String keepDeviceId, String label) {
+        if (label == null) {
+            return 0;
+        }
+        List<BiometricDeviceEntity> stale =
+                repo.findByUser_UserIdAndRevokedFalseOrderByCreatedDesc(userId).stream()
+                        .filter(d -> !keepDeviceId.equals(d.getDeviceId()))
+                        .filter(d -> label.equals(d.getDeviceLabel()))
+                        .toList();
+        stale.forEach(d -> d.setRevoked(true));
+        repo.saveAll(stale);
+        return stale.size();
     }
 
     /** Exchanges a device token for a fresh session (access token + persisted refresh token). */
@@ -79,10 +119,25 @@ public class BiometricDeviceService {
 
         e.setLastUsed(Instant.now());
         e.setExpiry(Instant.now().plus(TTL)); // sliding window
+
+        // A biometric unlock RESUMES this device's session; it does not add a second one. Retire
+        // the family the previous unlock created before minting the replacement, so an enrolled
+        // device holds exactly one live session no matter how often it is unlocked.
+        UUID previousFamily = e.getSessionFamilyId();
+        AuthToken token = authenticationService.issueSession(user, context);
+        e.setSessionFamilyId(token.familyId());
         repo.save(e);
 
-        log.info("Biometric unlock for user [{}] (device={})", user.getEmail(), e.getDeviceId());
-        return authenticationService.issueSession(user, context);
+        if (previousFamily != null && !previousFamily.equals(token.familyId())) {
+            int retired = authenticationService.revokeFamily(
+                    previousFamily, RefreshTokenEntity.RevokeReason.SUPERSEDED);
+            log.debug("Biometric unlock retired the device's previous session (family={}, tokens={})",
+                    previousFamily, retired);
+        }
+
+        log.info("Biometric unlock for user [{}] (device={}, family={})",
+                user.getEmail(), e.getDeviceId(), token.familyId());
+        return token;
     }
 
     /** Revokes one device for the caller (settings toggle / logout). */

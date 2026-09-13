@@ -3,6 +3,14 @@ import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 const BASE = '/api/auth/biometric';
 const unwrap = (r) => r.data?.data ?? r.data;
 
+/**
+ * Ceiling on the unlock exchange specifically. The default axios timeout is none, so on a stalled
+ * connection the lock screen would wait forever with no way forward but killing the app — and this
+ * is the one request standing between the user and their own device. Failing at 15s lets the gate
+ * offer "Try again", which on a flaky signal usually succeeds immediately.
+ */
+const EXCHANGE_TIMEOUT_MS = 15_000;
+
 /** Enroll this device (authenticated). Returns the raw device token — store it once, securely. */
 export const enrollDevice = (deviceId, deviceLabel) =>
   axiosInstance.post(`${BASE}/enroll`, { deviceId, deviceLabel }).then((r) => unwrap(r)?.deviceToken);
@@ -17,7 +25,7 @@ export const enrollDevice = (deviceId, deviceLabel) =>
  * `refreshToken` is present only on native, which stores it itself.
  */
 export const exchangeDeviceToken = (deviceToken) =>
-  axiosInstance.post(`${BASE}/exchange`, { deviceToken }).then((r) => {
+  axiosInstance.post(`${BASE}/exchange`, { deviceToken }, { timeout: EXCHANGE_TIMEOUT_MS }).then((r) => {
     const payload = unwrap(r) ?? {};
     return {
       accessToken: payload.token ?? payload.accessToken,

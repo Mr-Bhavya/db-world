@@ -238,4 +238,36 @@ class AuthenticationServiceRotationTest {
         assertThat(service.resolveFamilyId(null)).isNull();
         assertThat(service.resolveFamilyId("  ")).isNull();
     }
+
+    @Test
+    void issueSession_underTheCap_retiresNothing() {
+        when(refreshTokenRepository.findLiveFamilyIdsMostRecentFirst(eq(42L), any()))
+                .thenReturn(java.util.List.of(UUID.randomUUID(), UUID.randomUUID()));
+
+        service.issueSession(user, CONTEXT);
+
+        verify(refreshTokenRepository, never()).revokeFamily(any(), eq(RevokeReason.SUPERSEDED), any());
+    }
+
+    @Test
+    void issueSession_pastTheCap_retiresTheQuietestSessionsAndKeepsTheNewOne() {
+        // A backstop, not the primary control - sessions are supposed to be bounded by devices and
+        // each auth path is supposed to retire the one it replaces. Biometric unlock did neither
+        // and reached 92 live 30-day credentials on one account before anyone noticed, so the
+        // ceiling now belongs to session creation itself.
+        java.util.List<UUID> live = new java.util.ArrayList<>();
+        for (int i = 0; i < 14; i++) {
+            live.add(UUID.randomUUID());
+        }
+        when(refreshTokenRepository.findLiveFamilyIdsMostRecentFirst(eq(42L), any())).thenReturn(live);
+
+        AuthToken issued = service.issueSession(user, CONTEXT);
+
+        ArgumentCaptor<UUID> retired = ArgumentCaptor.forClass(UUID.class);
+        verify(refreshTokenRepository, atLeastOnce())
+                .revokeFamily(retired.capture(), eq(RevokeReason.SUPERSEDED), any());
+        // Ordered most-recent-first, so the tail is what goes: 14 live, cap 10, brand-new one kept.
+        assertThat(retired.getAllValues()).containsExactlyElementsOf(live.subList(9, 14));
+        assertThat(retired.getAllValues()).doesNotContain(issued.familyId());
+    }
 }

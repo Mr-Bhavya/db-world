@@ -9,15 +9,45 @@ const ENABLED_KEY = 'dbworld_biometric_enabled';
 
 const isNative = () => Capacitor.getPlatform() === 'android';
 
-/** Stable per-install device identifier (one enrolled credential per user + device). */
-function getDeviceId() {
-  let id = localStorage.getItem(DEVICE_ID_KEY);
-  if (!id) {
-    id = (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(DEVICE_ID_KEY, id);
+/**
+ * Stable per-device identifier — one enrolled credential per user + device.
+ *
+ * <p>Resolved from the Keystore FIRST, because that is the only store here that actually lasts.
+ * `localStorage` in a Capacitor WebView is cache: clearing the app's storage, eviction under
+ * pressure, or a reinstall all wipe it. It used to be the only home for this id, so every wipe
+ * minted a fresh uuid — and since the server upserts enrollments on `(userId, deviceId)`, each
+ * new uuid created a whole new enrollment row instead of updating the existing one. One account
+ * ended up with four rows for a single phone, three of them credentials no device could present
+ * and nothing would retire for 90 days.
+ *
+ * <p>`setCredentials` already writes the id as the credential's `username`, so the durable copy
+ * costs nothing extra — it has been sitting there all along. `getCredentials` reads it without
+ * prompting (`verifyIdentity` is the prompt) and throws when nothing is enrolled yet, which is
+ * simply the first-run path.
+ */
+async function readDeviceId() {
+  if (isNative()) {
+    try {
+      const cred = await NativeBiometric.getCredentials({ server: SERVER });
+      if (cred?.username) {
+        localStorage.setItem(DEVICE_ID_KEY, cred.username);   // re-seed the fast path
+        return cred.username;
+      }
+    } catch {
+      // Nothing enrolled on this device yet — fall through to the cache.
+    }
   }
+  return localStorage.getItem(DEVICE_ID_KEY);
+}
+
+async function getDeviceId() {
+  const existing = await readDeviceId();
+  if (existing) return existing;
+
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem(DEVICE_ID_KEY, id);
   return id;
 }
 
@@ -27,9 +57,18 @@ function deviceLabel() {
   return (m?.[1] || 'Android device').split(';')[0].trim().slice(0, 60);
 }
 
-/** The stored device id for this install, or null if none has been minted yet (read-only). */
+/**
+ * The device id this install actually enrolls under, or null if none exists yet. Read-only — it
+ * never mints one, so asking the question cannot create an identity.
+ *
+ * <p>Resolves through the same Keystore-first path as {@link getDeviceId}, which matters for the
+ * device-management list: it marks which row is "this device", and that marker is what stops
+ * someone revoking their own phone while clearing out duplicates. Reading `localStorage` alone
+ * returned null whenever the WebView's storage had been cleared — exactly the situation that
+ * produced the duplicate rows being cleared out in the first place.
+ */
 export function getStoredDeviceId() {
-  return localStorage.getItem(DEVICE_ID_KEY);
+  return readDeviceId();
 }
 
 /** Whether the user has turned on biometric unlock on this device. */
@@ -76,7 +115,7 @@ export async function verifyDeviceOwner(reason = 'Unlock DB World') {
  * Caller must already be logged in.
  */
 export async function enableBiometric() {
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   const token = await enrollDevice(deviceId, deviceLabel());
   if (!token) throw new Error('No device token returned from enroll');
   await NativeBiometric.setCredentials({ username: deviceId, password: token, server: SERVER });
@@ -106,7 +145,18 @@ export const BIOMETRIC_OUTCOME = {
   UNAVAILABLE: 'unavailable',
   FALLBACK: 'fallback',
   ERROR: 'error',
+  /**
+   * The scan succeeded and the token exchange did not reach the server. Distinct from ERROR
+   * because nothing is wrong with the user's finger, the device or the enrollment — retrying on a
+   * better signal just works, and telling them "Could not unlock" invites them to re-scan or
+   * reach for a password they do not need.
+   */
+  NETWORK: 'network',
 };
+
+/** An axios failure with no HTTP response: timed out, offline, or DNS/TLS never completed. */
+export const isNetworkError = (e) =>
+  e?.code === 'ECONNABORTED' || e?.code === 'ERR_NETWORK' || (!!e?.request && !e?.response);
 
 export function classifyBiometricError(e) {
   switch (Number(e?.code)) {
@@ -138,17 +188,32 @@ export function classifyBiometricError(e) {
   }
 }
 
-export async function biometricUnlock(reason = 'Unlock DB World') {
+/**
+ * Unlock: prompt for fingerprint/face, read the stored token, exchange it for a session.
+ *
+ * <p>`onVerified` fires the instant the LOCAL proof succeeds, before the network exchange starts.
+ * The two halves feel nothing alike — the prompt is instantaneous and on-device, the exchange is a
+ * round trip that on a weak signal can take many seconds — and collapsing them into one awaited
+ * call left the caller unable to tell them apart. The OS sheet would dismiss on a successful
+ * fingerprint and the user would be returned to an idle-looking lock screen with no indication
+ * anything had happened, until the response landed and the app abruptly moved on.
+ *
+ * @param {string} reason shown in the system prompt
+ * @param {{onVerified?: () => void}} [callbacks] `onVerified` = local biometric accepted; the
+ *   remaining wait is network
+ */
+export async function biometricUnlock(reason = 'Unlock DB World', { onVerified } = {}) {
   await NativeBiometric.verifyIdentity({ reason, title: 'Unlock DB World', useFallback: true });
   const cred = await NativeBiometric.getCredentials({ server: SERVER });
   const token = cred?.password;
   if (!token) throw new Error('No stored device credential');
+  onVerified?.();
   return exchangeDeviceToken(token);
 }
 
 /** Disable: revoke server-side, wipe the Keystore credential, clear the local flag. */
 export async function disableBiometric() {
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   try { await revokeDevice(deviceId); } catch { /* revoke is best-effort */ }
   try { await NativeBiometric.deleteCredentials({ server: SERVER }); } catch { /* ignore */ }
   localStorage.removeItem(ENABLED_KEY);

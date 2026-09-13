@@ -48,6 +48,22 @@ public class BiometricDeviceEntity {
 
     private Instant expiry;
 
+    /**
+     * The refresh-token family of the session this device most recently unlocked into, so the next
+     * unlock can retire it instead of stacking another one alongside.
+     *
+     * <p>Without this, every biometric unlock minted a brand-new family that nothing ever revoked —
+     * {@code generateTokens} assumes a fresh sign-in is a distinct device, which is true for a
+     * password login and false for a device resuming its own session. One production account
+     * reached 92 live sessions in a month, most showing zero token refreshes because the next
+     * unlock orphaned them seconds later. Each orphan stayed a valid credential for the full
+     * refresh TTL, so this is a credential-lifetime problem, not just a cluttered list.
+     *
+     * <p>Null for a device enrolled but never yet unlocked, and for rows predating this column.
+     */
+    @Column(name = "session_family_id")
+    private UUID sessionFamilyId;
+
     private boolean revoked;
 
     @ManyToOne(optional = false)

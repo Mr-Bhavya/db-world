@@ -17,7 +17,17 @@ export default function BiometricDevicesSection() {
   const T = useT();
   const [devices, setDevices] = useState(null); // null = loading
   const [revoking, setRevoking] = useState(null);
-  const thisDeviceId = getStoredDeviceId();
+  // Resolved asynchronously because on Android the durable copy lives in the Keystore, not in
+  // localStorage. Null until it arrives, which only costs the "This device" marker a frame.
+  const [thisDeviceId, setThisDeviceId] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getStoredDeviceId()
+      .then((id) => { if (!cancelled) setThisDeviceId(id); })
+      .catch(() => { /* no marker is better than the wrong marker */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const load = useCallback(() => {
     listDevices()
