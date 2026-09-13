@@ -1,10 +1,13 @@
 package com.db.dbworld.app.admin.scheduler.service;
 
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobConfigEntity;
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobConfigEntity.JobType;
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity;
+import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity.TriggerSource;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryRepository;
+import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.app.cinema.catalog.tags.scheduler.TagScheduler;
 import com.db.dbworld.app.cinema.tmdb.people.scheduler.PersonSyncScheduler;
 import com.db.dbworld.app.cinema.tmdb.sync.scheduler.TmdbSyncScheduler;
@@ -20,6 +23,8 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -41,6 +46,13 @@ public class SchedulerAdminService {
     private final IpoPollScheduler              ipoPollScheduler;
     private final IpoLiveScheduler              ipoLiveScheduler;
     private final JdbcTemplate                  jdbcTemplate;
+    private final JobRunRecorder                recorder;
+    private final UserContext                   userContext;
+    private final SchedulerHistoryRetentionService retentionService;
+
+    /** See the note in {@code JobRunRecorder} on why this is a private Jackson 3 mapper. */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> SUMMARY_MAP = new TypeReference<>() {};
 
     private static final List<SchedulerJobConfigEntity> DEFAULTS = List.of(
             SchedulerJobConfigEntity.builder().jobId("TagScheduler")
@@ -83,7 +95,12 @@ public class SchedulerAdminService {
             // Offset to :15 and :45 so it never starts in lockstep with the poll on the hour.
             SchedulerJobConfigEntity.builder().jobId(IpoLiveScheduler.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 15/30 10-20 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(6).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(6).build(),
+            // Housekeeping for this very table. Runs at 04:30 IST — after the nightly TMDB/person
+            // syncs have finished writing their rows and well before anyone is looking at the page.
+            SchedulerJobConfigEntity.builder().jobId(SchedulerHistoryRetentionService.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 30 4 * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(7).build()
     );
 
     /**
@@ -188,53 +205,64 @@ public class SchedulerAdminService {
             log.warn("Job {} already running — skipping manual trigger", jobId);
             return false;
         }
-        Thread t = new Thread(() -> runJob(jobId), "manual-trigger-" + jobId);
+        // Resolve the admin here, on the request thread — the run happens on a bare thread
+        // with no SecurityContext, so asking for it over there would always come back empty.
+        String triggeredBy = userContext.optionalUser().map(u -> u.email()).orElse(null);
+        Thread t = new Thread(() -> runJob(jobId, TriggerSource.MANUAL, triggeredBy),
+                "manual-trigger-" + jobId);
         t.setDaemon(true);
         t.start();
         return true;
     }
 
+    /** Cron-trigger entry point. */
     public void runJob(String jobId) {
+        runJob(jobId, TriggerSource.SCHEDULED, null);
+    }
+
+    public void runJob(String jobId, TriggerSource source, String triggeredByUser) {
         SchedulerJobConfigEntity config = configRepo.findById(jobId).orElse(null);
         if (config != null && !config.isEnabled()) {
             log.debug("Job {} is disabled, skipping", jobId);
             return;
         }
         jobStatus.put(jobId, "RUNNING");
-        LocalDateTime startedAt = LocalDateTime.now();
-        long startMs = System.currentTimeMillis();
-        String status  = "SUCCESS";
-        String message = null;
         try {
-            switch (jobId) {
-                case "TagScheduler"        -> tagScheduler.updateTags();
-                case "TmdbMovieSync"       -> tmdbSyncScheduler.runMovieSync();
-                case "TmdbTvSync"          -> tmdbSyncScheduler.runTvSync();
-                case "PersonSyncScheduler" -> personSyncScheduler.runPersonSync();
-                case "MediaSync"           -> mediaSyncService.scan();
-                case IpoPollScheduler.JOB_ID -> ipoPollScheduler.pollOnce();
-                case IpoLiveScheduler.JOB_ID -> ipoLiveScheduler.refreshOnce();
-                default -> throw new IllegalArgumentException("Unknown job: " + jobId);
-            }
+            recorder.run(jobId, source, triggeredByUser, summary -> {
+                dispatch(jobId, summary);
+                return null;
+            });
         } catch (Exception e) {
-            status  = "FAILED";
-            message = e.getMessage();
-            log.error("Job {} failed after {}ms: {}", jobId, System.currentTimeMillis() - startMs, e.getMessage(), e);
+            // Already logged and written as a FAILED history row by the recorder. Swallowed
+            // here so a failing job never escapes into the TaskScheduler's error handler.
         } finally {
-            long durationMs = System.currentTimeMillis() - startMs;
             jobStatus.put(jobId, "IDLE");
-            persistHistory(jobId, startedAt, durationMs, status, message);
         }
     }
 
-    private void persistHistory(String jobName, LocalDateTime startedAt, long durationMs, String status, String message) {
-        try {
-            historyRepo.save(SchedulerJobHistoryEntity.builder()
-                    .jobName(jobName).startedAt(startedAt)
-                    .durationMs(durationMs).status(status).message(message)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to persist scheduler history for {}: {}", jobName, e.getMessage());
+    /**
+     * Runs the job body, reporting what it did into {@code summary}.
+     *
+     * <p>Jobs that already return a structured result ({@code pollOnce}) are mapped here;
+     * the rest fill the builder as they go, so a run that dies halfway still records the
+     * work it completed.
+     */
+    private void dispatch(String jobId, JobRunSummary.Builder summary) {
+        switch (jobId) {
+            case "TagScheduler"        -> tagScheduler.updateTags(summary);
+            case "TmdbMovieSync"       -> tmdbSyncScheduler.runMovieSync(summary);
+            case "TmdbTvSync"          -> tmdbSyncScheduler.runTvSync(summary);
+            case "PersonSyncScheduler" -> personSyncScheduler.runPersonSync(summary);
+            case "MediaSync"           -> mediaSyncService.scan(summary);
+            case IpoPollScheduler.JOB_ID -> {
+                var result = ipoPollScheduler.pollOnce();
+                summary.count("sourcesPolled", result.sourcesPolled())
+                       .count("sourcesFailed", result.sourcesFailed())
+                       .count("iposSeen",      result.ipoCount());
+            }
+            case IpoLiveScheduler.JOB_ID -> ipoLiveScheduler.refreshOnce(summary);
+            case SchedulerHistoryRetentionService.JOB_ID -> retentionService.prune(summary);
+            default -> throw new IllegalArgumentException("Unknown job: " + jobId);
         }
     }
 
@@ -281,12 +309,34 @@ public class SchedulerAdminService {
 
     private Map<String, Object> toHistoryRow(SchedulerJobHistoryEntity h) {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id",         h.getId());
         m.put("jobName",    h.getJobName());
         m.put("startedAt",  h.getStartedAt());
         m.put("durationMs", h.getDurationMs());
         m.put("status",     h.getStatus());
         m.put("message",    h.getMessage());
+        // runId is null on rows written before run correlation existed — the UI hides the
+        // "view logs" affordance for those rather than offering a search that can't hit.
+        m.put("runId",      h.getRunId());
+        m.put("summary",    parseSummary(h.getSummaryJson()));
+        m.put("triggeredBy",     h.getTriggeredBy() != null ? h.getTriggeredBy().name() : null);
+        m.put("triggeredByUser", h.getTriggeredByUser());
         return m;
+    }
+
+    /**
+     * Inflates the stored summary so the UI receives an object, not a JSON string it would
+     * have to parse itself. A row whose JSON is unreadable (hand-edited, or written by an
+     * older shape) degrades to null rather than failing the whole history request.
+     */
+    private Map<String, Object> parseSummary(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return MAPPER.readValue(json, SUMMARY_MAP);
+        } catch (Exception e) {
+            log.debug("Unreadable scheduler run summary JSON, ignoring: {}", e.getMessage());
+            return null;
+        }
     }
 
     // ── Mutation API ─────────────────────────────────────────────────────────────
@@ -413,6 +463,7 @@ public class SchedulerAdminService {
             case "MediaSync"           -> "Media File Sync";
             case IpoPollScheduler.JOB_ID -> "IPO Tracker Poll";
             case IpoLiveScheduler.JOB_ID -> "IPO Live GMP, Subscription & Alerts";
+            case SchedulerHistoryRetentionService.JOB_ID -> "Run History Cleanup";
             default -> jobId;
         };
     }
@@ -426,6 +477,7 @@ public class SchedulerAdminService {
             case "MediaSync"           -> "Reconciles media_files against the stream directory — picks up SSH/SMB/file-manager adds, deletes, renames";
             case IpoPollScheduler.JOB_ID -> "Polls enabled IPO sources (IPO Guru, NSE, Chittorgarh), merges and ingests listing/GMP/subscription updates";
             case IpoLiveScheduler.JOB_ID -> "Refreshes live GMP, subscription, rating, market lot, P/E and listing price from investorgain, then sends any IPO push still pending \u2014 every 30 min inside the IST market window";
+            case SchedulerHistoryRetentionService.JOB_ID -> "Deletes scheduler run history past its retention window — lengths are set under Settings → Scheduler (4:30 AM IST)";
             default -> "";
         };
     }

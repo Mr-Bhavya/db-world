@@ -65,8 +65,11 @@ class JacksonBeanWiringTest {
                 for (Parameter parameter : constructor.getParameters()) {
                     String type = parameter.getType().getName();
                     if (type.startsWith(JACKSON_2_DATABIND)) {
-                        offenders.add("%s takes %s — Spring Boot 4 has no such bean; use "
-                                + "a private `new tools.jackson.databind.ObjectMapper()` instead"
+                        // Parenthesised: `"a" + "b".formatted(x)` binds .formatted to the LAST
+                        // literal only, which left the %s placeholders unfilled and the failure
+                        // message unable to name the offending bean.
+                        offenders.add(("%s takes %s — Spring Boot 4 has no such bean; use "
+                                + "a private `new tools.jackson.databind.ObjectMapper()` instead")
                                 .formatted(bean.getName(), type));
                     }
                 }

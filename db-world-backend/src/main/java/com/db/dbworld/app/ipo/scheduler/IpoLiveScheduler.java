@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.scheduler;
 
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.ipo.notification.IpoNotificationService;
 import com.db.dbworld.app.ipo.service.InvestorgainLiveService;
 import com.db.dbworld.app.ipo.service.IpoStatusSweepService;
@@ -57,9 +58,16 @@ public class IpoLiveScheduler {
      * until early afternoon on its own open day. It runs before delivery so a status that flips on
      * this tick is pushed on this tick.
      */
-    public void refreshOnce() {
-        liveService.refresh();
-        statusSweepService.sweepQuietly();
-        notificationService.deliverPending();
+    public void refreshOnce(JobRunSummary.Builder summary) {
+        int refreshed     = liveService.refresh();
+        int statusChanges = statusSweepService.sweepQuietly();
+        int pushesSent    = notificationService.deliverPending();
+
+        summary.count("ipoNumbersRefreshed", refreshed)
+               .count("statusesAdvanced",    statusChanges)
+               .count("pushesSent",          pushesSent);
+        if (refreshed == 0) {
+            summary.note("No live IPOs to refresh — investorgain returned nothing for the current window");
+        }
     }
 }

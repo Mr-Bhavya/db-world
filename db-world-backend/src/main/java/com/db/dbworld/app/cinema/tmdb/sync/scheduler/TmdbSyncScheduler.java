@@ -1,7 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.sync.scheduler;
 
-import com.db.dbworld.app.cinema.common.constants.CinemaConstants.Scheduler;
-import com.db.dbworld.app.cinema.common.constants.CinemaConstants.Time;
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.common.events.BulkRecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordType;
@@ -13,12 +12,10 @@ import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbSyncOrchestratorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
-import org.apache.logging.log4j.ThreadContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
-import java.util.UUID;
 
 
 @Component
@@ -30,21 +27,20 @@ public class TmdbSyncScheduler {
     private final TmdbRecordSyncService syncStateService;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    public void runMovieSync() {
-        runSync(RecordType.MOVIE);
+    public void runMovieSync(JobRunSummary.Builder summary) {
+        runSync(RecordType.MOVIE, summary);
     }
 
-    public void runTvSync() {
-        runSync(RecordType.TV_SERIES);
+    public void runTvSync(JobRunSummary.Builder summary) {
+        runSync(RecordType.TV_SERIES, summary);
     }
 
     /* =====================================
        GENERIC SYNC
      ===================================== */
 
-    private void runSync(RecordType type) {
+    private void runSync(RecordType type, JobRunSummary.Builder summary) {
 
-        ThreadContext.put("traceId", UUID.randomUUID().toString());
         long start = System.currentTimeMillis();
 
         try {
@@ -62,14 +58,28 @@ public class TmdbSyncScheduler {
 
             long elapsed = System.currentTimeMillis() - start;
             log.info("TMDB sync completed; type={}; summary={}; took={}ms", type, metrics.summary(), elapsed);
+            report(summary, metrics);
 
             applicationEventPublisher.publishEvent(new BulkRecordChangedEvent());
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - start;
             log.error("TMDB sync aborted; type={}; took={}ms", type, elapsed, e);
             throw e;
-        } finally {
-            ThreadContext.clearAll();
+        }
+    }
+
+    /**
+     * Copies the run's metrics onto the history row. These are the numbers that answer the
+     * question the admin page previously couldn't: whether a 400-second "SUCCESS" touched
+     * four hundred records or none.
+     */
+    private void report(JobRunSummary.Builder summary, SyncMetrics metrics) {
+        summary.count("changed", metrics.getTotal().get())
+               .count("synced",  metrics.getSuccess().get())
+               .count("failed",  metrics.getFailed().get())
+               .count("skipped", metrics.getSkipped().get());
+        if (metrics.getTotal().get() == 0) {
+            summary.note("TMDB reported no changes in the window — nothing to sync");
         }
     }
 

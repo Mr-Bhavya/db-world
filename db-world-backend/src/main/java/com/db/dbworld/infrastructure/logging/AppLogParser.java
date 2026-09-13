@@ -38,7 +38,10 @@ public class AppLogParser {
                 return wrap(LogType.DEBUG, null, null, dto, null);
             }
 
-            // ---------- INFO ----------
+            // ---------- INFO (and WARN, which shares its shape) ----------
+            // The info file is written with a ThresholdFilter at INFO, so it carries WARN
+            // lines too. The envelope type says which SHAPE was parsed; the DTO's own level
+            // keeps the real severity, so the UI still renders a WARN as a WARN.
             AppInfoLogDto dto = gson.fromJson(obj, AppInfoLogDto.class);
             return wrap(LogType.INFO, null, null, null, dto);
 

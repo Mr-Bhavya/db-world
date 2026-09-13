@@ -23,6 +23,7 @@ public final class SettingsCatalog {
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
     private static final String C_INGESTION = "Media Ingestion";
+    private static final String C_SCHEDULER = "Scheduler";
 
     /**
      * Default NSE market-holiday seed. Fixed-date national holidays are written as recurring
@@ -228,7 +229,18 @@ public final class SettingsCatalog {
              "Generate the scrub-bar preview sprite (a thumbnail roughly every 10s of video) during "
              + "ingestion. Turn off to skip it entirely — noticeably less CPU/time per job, at the cost "
              + "of no hover-scrub thumbnails in the player for newly ingested files. Applies on the next job.",
-             true, 3)
+             true, 3),
+
+        // ── Scheduler ────────────────────────────────────────────────────
+        intg(SCHEDULER_HISTORY_RETENTION_DAYS, C_SCHEDULER, "Run history retention (days)",
+             "How long a job's run history is kept before the nightly prune deletes it. Applies to "
+             + "every job except the high-frequency ones below.",
+             30, 1L, 3650L, 0),
+        intg(SCHEDULER_HISTORY_RETENTION_DAYS_FREQUENT, C_SCHEDULER, "Retention for frequent jobs (days)",
+             "Shorter retention for jobs that run on a minutes-scale interval — MediaSync alone writes "
+             + "a row every 60s, which is ~98% of all history. Keeping those as long as the daily jobs "
+             + "buries the interesting runs and grows the table without bound.",
+             3, 1L, 365L, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

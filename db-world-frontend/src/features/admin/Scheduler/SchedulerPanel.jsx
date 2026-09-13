@@ -11,6 +11,7 @@ import {
   Error as ErrorIcon, History, Timer, Code,
   Edit as EditIcon, DragIndicator, Close as CloseIcon,
   Autorenew, Sync, StickyNote2, SaveRounded,
+  ExpandMoreRounded, PersonRounded, DeleteSweepRounded,
 } from '@mui/icons-material';
 import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,6 +21,7 @@ import { useT } from '@shared/theme';
 import {
   AdminPage, SectionCard, AdminActionButton, EmptyState, adminSurface,
 } from '@features/admin/adminUi';
+import RunLogPanel from './RunLogPanel';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -42,6 +44,7 @@ const JOB_META = {
   TmdbTvSync:          { color: '#a855f7', label: 'TMDB TV Sync',      icon: Schedule },
   PersonSyncScheduler: { color: '#0d9488', label: 'Person Detail Sync',icon: Schedule },
   MediaSync:           { color: '#10b981', label: 'Media File Sync',   icon: Sync      },
+  SchedulerHistoryPrune: { color: '#64748b', label: 'Run History Cleanup', icon: DeleteSweepRounded },
 };
 
 // ─── Schedule description ─────────────────────────────────────────────────────
@@ -591,6 +594,88 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   );
 }
 
+// ─── Run outcome ───────────────────────────────────────────────────
+
+/** camelCase counter key → readable label ("filesOnDisk" → "Files on disk"). */
+function labelFor(key) {
+  const spaced = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * What a run actually did, as counter chips plus its note.
+ *
+ * Runs recorded before this existed carry no summary — those rows just show their message,
+ * exactly as they always did.
+ */
+function RunSummary({ summary, message, failed }) {
+  const T = useT();
+  const S = adminSurface(T);
+  const counters = summary?.counters ?? {};
+  const entries  = Object.entries(counters);
+  const note     = summary?.note;
+
+  if (entries.length === 0 && !note && !message) return null;
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {entries.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          {entries.map(([k, v]) => {
+            // A non-zero failure count is the one number worth colouring — it is the reason
+            // someone opened this dialog.
+            const bad = /fail/i.test(k) && Number(v) > 0;
+            return (
+              <Chip
+                key={k}
+                size="small"
+                label={`${labelFor(k)} ${v}`}
+                sx={{
+                  height: 18, fontSize: '0.62rem', borderRadius: 0.75,
+                  bgcolor: bad ? T.errorBg : S.inset,
+                  color:   bad ? T.error   : T.textMuted,
+                  '& .MuiChip-label': { px: 0.75 },
+                }}
+              />
+            );
+          })}
+        </Box>
+      )}
+      {(note || message) && (
+        <Typography sx={{
+          fontSize: '0.7rem', fontStyle: 'italic',
+          color: failed && message ? T.error : T.textFaint,
+        }}>
+          {message || note}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+/** Whether the run came from its schedule or from someone pressing "Run now". */
+function TriggerCell({ row }) {
+  const T = useT();
+  if (row.triggeredBy === 'MANUAL') {
+    return (
+      <Tooltip title={row.triggeredByUser ? `Run manually by ${row.triggeredByUser}` : 'Run manually'}>
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textMuted }}>
+          <PersonRounded sx={{ fontSize: 12 }} />
+          <Typography sx={{ fontSize: '0.68rem' }}>Manual</Typography>
+        </Box>
+      </Tooltip>
+    );
+  }
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textFaint }}>
+      <ScheduleRounded sx={{ fontSize: 12 }} />
+      <Typography sx={{ fontSize: '0.68rem' }}>
+        {row.triggeredBy === 'SCHEDULED' ? 'Scheduled' : '—'}
+      </Typography>
+    </Box>
+  );
+}
+
 // ─── Per-job history modal ────────────────────────────────────────────────────
 /**
  * Forwarded-ref wrapper so MUI's transitions can target the motion'd content.
@@ -605,12 +690,17 @@ function HistoryModal({ job, onClose }) {
   const T = useT();
   const S = adminSurface(T);
   const open = !!job;
+  // One row open at a time — stacking several log panels in a capped-height dialog just
+  // pushes the row you were reading off screen.
+  const [expandedRun, setExpandedRun] = useState(null);
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['scheduler-job-history', job?.id],
     queryFn:  () => api.history(job.id, 100),
     enabled:  open,
     refetchInterval: open ? 5_000 : false,
   });
+
+  useEffect(() => { setExpandedRun(null); }, [job?.id]);
 
   const meta = JOB_META[job?.id] ?? { color: T.teal };
   const fmt   = (iso) => iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -700,15 +790,28 @@ function HistoryModal({ job, onClose }) {
                     <TableCell>Started</TableCell>
                     <TableCell>Duration</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell>Trigger</TableCell>
+                    <TableCell sx={{ width: 36 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rows.map((row, i) => (
-                    <React.Fragment key={i}>
-                      <TableRow sx={{
-                        '& td': { color: T.textMuted, fontSize: '0.78rem', borderColor: S.divider },
-                        '&:hover': { bgcolor: S.cardHover },
-                      }}>
+                  {rows.map((row, i) => {
+                    const key      = row.id ?? `${row.startedAt}-${i}`;
+                    const expanded = expandedRun === key;
+                    const hasLogs  = !!row.runId;
+                    return (
+                    <React.Fragment key={key}>
+                      <TableRow
+                        onClick={hasLogs ? () => setExpandedRun(expanded ? null : key) : undefined}
+                        sx={{
+                          '& td': {
+                            color: T.textMuted, fontSize: '0.78rem',
+                            borderColor: expanded ? 'transparent' : S.divider,
+                          },
+                          '&:hover': { bgcolor: S.cardHover },
+                          cursor: hasLogs ? 'pointer' : 'default',
+                        }}
+                      >
                         <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.72rem !important' }}>
                           {fmt(row.startedAt)}
                         </TableCell>
@@ -734,17 +837,39 @@ function HistoryModal({ job, onClose }) {
                               sx={{ bgcolor: S.inset, color: T.textMuted, height: 18, fontSize: '0.62rem' }} />
                           )}
                         </TableCell>
+                        <TableCell><TriggerCell row={row} /></TableCell>
+                        <TableCell sx={{ pr: 1 }}>
+                          {hasLogs && (
+                            <Tooltip title={expanded ? 'Hide logs' : 'Show this run\u2019s logs'}>
+                              <ExpandMoreRounded sx={{
+                                fontSize: 16, color: T.textFaint, display: 'block',
+                                transition: 'transform 160ms ease',
+                                transform: expanded ? 'rotate(180deg)' : 'none',
+                              }} />
+                            </Tooltip>
+                          )}
+                        </TableCell>
                       </TableRow>
-                      {row.message && (
-                        <TableRow sx={{
-                          '& td': { color: T.textFaint, fontSize: '0.72rem', borderColor: T.border,
-                            py: 0.5, pl: 3, fontStyle: 'italic' },
-                        }}>
-                          <TableCell colSpan={3}>{row.message}</TableCell>
+
+                      {/* What the run actually did — the counters the job reported. */}
+                      {(row.summary || row.message) && (
+                        <TableRow sx={{ '& td': { borderColor: expanded ? 'transparent' : S.divider, py: 0.5, pl: 3 } }}>
+                          <TableCell colSpan={5}>
+                            <RunSummary summary={row.summary} message={row.message} failed={row.status === 'FAILED'} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+
+                      {expanded && (
+                        <TableRow sx={{ '& td': { borderColor: S.divider, py: 1, px: 2 } }}>
+                          <TableCell colSpan={5}>
+                            <RunLogPanel runId={row.runId} startedAt={row.startedAt} />
+                          </TableCell>
                         </TableRow>
                       )}
                     </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
