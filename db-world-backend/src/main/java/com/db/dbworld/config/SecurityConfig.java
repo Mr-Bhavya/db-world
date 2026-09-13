@@ -3,7 +3,7 @@ package com.db.dbworld.config;
 import com.db.dbworld.core.security.handler.TokenAuthenticationHandler;
 import com.db.dbworld.security.auth.CustomAuthenticationProvider;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,19 +26,23 @@ import java.util.List;
 @Log4j2
 @Configuration
 @EnableMethodSecurity
+@EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
     /**
-     * Origins allowed to make CREDENTIALED cross-origin calls — see {@code app.cors} in
-     * application.yml. Externalised so the dev-machine and LAN origins can live in the
-     * {@code local} profile instead of shipping to production, where (with credentials enabled)
-     * they let any page on the user's machine or Wi-Fi read their signed-in data.
+     * Origins allowed to make CREDENTIALED cross-origin calls. Externalised so the dev-machine
+     * and LAN origins can live in the {@code local} profile instead of shipping to production,
+     * where — with credentials enabled — they let any page on the user's machine or anywhere on
+     * their Wi-Fi read their signed-in data.
      *
-     * <p>No default value on purpose: a missing property fails the context at startup rather than
-     * silently falling back to something permissive.
+     * <p>Bound, not {@code @Value}-injected: see {@link CorsProperties} for why a YAML sequence
+     * cannot be read through a placeholder.
      */
-    @Value("${app.cors.allowed-origin-patterns}")
-    private List<String> allowedOriginPatterns;
+    private final CorsProperties corsProperties;
+
+    public SecurityConfig(CorsProperties corsProperties) {
+        this.corsProperties = corsProperties;
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(
@@ -83,7 +87,7 @@ public class SecurityConfig {
      * machine — the point is that it can never be quiet in a log someone is reading.
      */
     private void warnAboutDevOrigins() {
-        List<String> insecure = allowedOriginPatterns.stream()
+        List<String> insecure = corsProperties.allowedOriginPatterns().stream()
                 .filter(p -> p.startsWith("http://"))
                 .toList();
         if (!insecure.isEmpty()) {
@@ -112,7 +116,7 @@ public class SecurityConfig {
         warnAboutDevOrigins();
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(allowedOriginPatterns);
+        config.setAllowedOriginPatterns(corsProperties.allowedOriginPatterns());
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));
         config.setAllowCredentials(true);
