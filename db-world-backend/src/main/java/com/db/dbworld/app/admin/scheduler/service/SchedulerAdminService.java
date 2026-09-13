@@ -20,6 +20,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,8 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -292,8 +295,87 @@ public class SchedulerAdminService {
                     m.put("status",          jobStatus.getOrDefault(c.getJobId(), "IDLE"));
                     m.put("description",     description(c.getJobId(), unsyncedPersons));
                     m.put("displayOrder",    c.getDisplayOrder());
+
+                    // Last-run outcome and what comes next. The admin page carried a
+                    // "Last Failed" chip that could never render, because nothing here
+                    // ever sent a lastStatus — so a job that had been failing every
+                    // night read exactly like one that had never failed.
+                    RunStats stats = runStats(c.getJobId());
+                    m.put("lastStatus",          stats.status());
+                    m.put("lastRunAt",           stats.startedAt());
+                    m.put("lastDurationMs",      stats.durationMs());
+                    m.put("lastMessage",         stats.message());
+                    m.put("lastRunId",           stats.runId());
+                    m.put("lastSummary",         parseSummary(stats.summaryJson()));
+                    m.put("consecutiveFailures", stats.consecutiveFailures());
+                    m.put("nextRunAt",           nextRunAt(c, stats.startedAt()));
                     return m;
                 }).toList();
+    }
+
+    /**
+     * Last-run facts for one job, plus how many runs in a row have failed.
+     *
+     * <p>A single failure is noise — an upstream feed hiccups. The same job failing
+     * every night for a week is an outage nobody noticed, and the two have to look
+     * different on the page.
+     */
+    private record RunStats(String status, LocalDateTime startedAt, Long durationMs,
+                            String message, String runId, String summaryJson,
+                            int consecutiveFailures) {
+        static final RunStats NONE = new RunStats(null, null, null, null, null, null, 0);
+    }
+
+    /**
+     * How far back the failure streak is counted. One indexed page per job (there are
+     * under a dozen) is cheaper and far more portable than a window function, which
+     * would have to behave identically on MySQL and on H2 in the tests.
+     */
+    private static final int STREAK_WINDOW = 25;
+
+    private RunStats runStats(String jobId) {
+        List<SchedulerJobHistoryEntity> recent =
+                historyRepo.findByJobNameOrderByStartedAtDesc(jobId, PageRequest.of(0, STREAK_WINDOW));
+        if (recent.isEmpty()) return RunStats.NONE;
+
+        int streak = 0;
+        for (SchedulerJobHistoryEntity h : recent) {
+            if (!"FAILED".equals(h.getStatus())) break;
+            streak++;
+        }
+        SchedulerJobHistoryEntity last = recent.getFirst();
+        return new RunStats(last.getStatus(), last.getStartedAt(), last.getDurationMs(),
+                last.getMessage(), last.getRunId(), last.getSummaryJson(), streak);
+    }
+
+    /**
+     * When this job fires next, or null when it never will.
+     *
+     * <p>A disabled job has no next run — saying "in 20h" about something that is
+     * switched off is worse than saying nothing. FIXED_DELAY jobs self-schedule from
+     * the end of the previous run, so their estimate is derived from the last run
+     * rather than from a cron expression; before the first run there is nothing to
+     * derive it from.
+     */
+    private LocalDateTime nextRunAt(SchedulerJobConfigEntity c, LocalDateTime lastRunAt) {
+        if (!c.isEnabled()) return null;
+        try {
+            if (c.getJobType() == JobType.FIXED_DELAY) {
+                if (c.getIntervalSeconds() == null || lastRunAt == null) return null;
+                return lastRunAt.plusSeconds(c.getIntervalSeconds());
+            }
+            if (c.getCronExpression() == null) return null;
+            ZoneId zone = c.getTimezone() != null ? ZoneId.of(c.getTimezone()) : ZoneId.systemDefault();
+            ZonedDateTime next = CronExpression.parse(c.getCronExpression()).next(ZonedDateTime.now(zone));
+            // Normalised to the server's local time so the UI can treat it exactly like
+            // startedAt, instead of having two date fields with different semantics.
+            return next == null ? null : next.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+        } catch (Exception e) {
+            // A cron expression the admin typed by hand can be invalid; the page should
+            // still render every other fact about the job.
+            log.debug("Could not compute next run for {}: {}", c.getJobId(), e.getMessage());
+            return null;
+        }
     }
 
     public List<Map<String, Object>> getHistory(int limit) {
