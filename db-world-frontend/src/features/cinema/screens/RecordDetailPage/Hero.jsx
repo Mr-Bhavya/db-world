@@ -226,13 +226,15 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 const TRAILER_DELAY_MS = 2600;
 
 /**
- * How long the viewer must be still before the synopsis clears out of the trailer's way.
+ * How long the viewer must be still before the hero clears out of the trailer's way.
  *
- * Long enough to finish reading two clamped lines, short enough that the trailer is not
- * playing behind text for its whole run. The same idea as a video player hiding its
- * chrome, and the same reason: once you are watching, the copy is in the way.
+ * Same idea as a video player hiding its chrome, and the same reason: once you are
+ * watching, the copy is in the way. Longer than it looks like it should be, because this
+ * now hides the whole foreground rather than two lines of synopsis — including PLAY. The
+ * old 2600ms was tuned for "long enough to finish reading two clamped lines", and reusing
+ * it here would take the primary action away from someone who had merely paused to read.
  */
-const HERO_IDLE_MS = 2600;
+const HERO_IDLE_MS = 4000;
 
 /**
  * Pick artwork with no title text burned into it.
@@ -374,16 +376,22 @@ export default function Hero({
   };
 
   /**
-   * Fades the synopsis away while the trailer plays and the viewer is still, and brings
-   * it straight back on any sign of activity.
+   * Immersive mode: the trailer is playing and the viewer has gone still, so the whole
+   * foreground gets out of its way. Any sign of activity brings it straight back.
    *
-   * Only ever armed while the trailer is actually playing — with no trailer the copy is
-   * the whole point of the hero and must never disappear. Listening on the window
-   * rather than the hero so a scroll or a mouse move anywhere counts; the events are
-   * passive because none of them are cancelled.
+   * A trailer running behind a full set of chrome is the worst of both — you cannot read
+   * the page and you cannot watch the video. Stillness while a trailer plays is the
+   * clearest signal available that the viewer has chosen the video, so the page yields to
+   * it. Exactly what Prime Video and Hotstar do with the same signal.
    *
-   * Opacity only. Collapsing the height would reflow the entire hero every few seconds,
-   * and the block already reserves a fixed two-line slot precisely to avoid that.
+   * Only ever armed while the trailer is actually playing: with no trailer the copy IS
+   * the hero and must never disappear. Listening on the window rather than the hero, so a
+   * scroll or a mouse move anywhere counts; the events are passive because none of them
+   * are cancelled. `focusin` is in the list because a keyboard user tabbing onto PLAY has
+   * unambiguously interacted, and watching the control they just reached fade out would
+   * be the worst version of this feature.
+   *
+   * Opacity only — collapsing or unmounting would reflow the hero every few seconds.
    */
   const [heroIdle, setHeroIdle] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -401,9 +409,9 @@ export default function Hero({
       timer = setTimeout(() => setHeroIdle(true), HERO_IDLE_MS);
     };
 
-    wake();   // start the clock; the copy is readable until it runs out
+    wake();   // start the clock; the hero is readable until it runs out
 
-    const EVENTS = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'];
+    const EVENTS = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'focusin'];
     EVENTS.forEach((e) => window.addEventListener(e, wake, { passive: true }));
     return () => {
       clearTimeout(timer);
@@ -411,7 +419,7 @@ export default function Hero({
     };
   }, [trailerPlaying]);
 
-  const synopsisHidden = trailerPlaying && heroIdle;
+  const immersive = trailerPlaying && heroIdle;
 
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const endYear = !isMovie && tmdb.lastAirDate ? tmdb.lastAirDate.slice(0, 4) : null;
@@ -625,11 +633,26 @@ export default function Hero({
         },
       }} />
 
-      <Box sx={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        display: { xs: 'none', md: 'block' },
-        background: 'linear-gradient(to right, rgba(10,10,10,0.9) 0%, rgba(10,10,10,0.4) 40%, transparent 75%)',
-      }} />
+      {/*
+        The left wash exists for ONE reason: keeping the copy legible over the artwork.
+        In immersive mode there is no copy, so it is pure loss — a third of the frame
+        darkened to protect text that is not there. Fading it is what actually makes the
+        trailer feel like it took over; hiding the text alone just leaves a dim video.
+
+        Only this one. The bottom scrim below also blends the hero into the page beneath
+        it (its last stop is the page background), so fading that one would put a visible
+        seam across the bottom edge — it is doing two jobs and only one of them is done.
+      */}
+      <Box
+        component={motion.div}
+        animate={{ opacity: immersive ? 0 : 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.6, ease: 'easeOut' }}
+        sx={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          display: { xs: 'none', md: 'block' },
+          background: 'linear-gradient(to right, rgba(10,10,10,0.9) 0%, rgba(10,10,10,0.4) 40%, transparent 75%)',
+        }}
+      />
 
       {/* Back button */}
       {!inModal && (
@@ -654,18 +677,49 @@ export default function Hero({
         </IconButton>
       )}
 
-      {/* Foreground content */}
+      {/*
+        Foreground content.
+
+        Two nested motion layers, deliberately. The inner one owns the ENTRY animation
+        (`variants={COLUMN}`, staggering its children in on mount); the outer one owns the
+        immersive fade. Putting both on one element does not work — `animate="show"` and
+        `animate={{ opacity }}` are the same prop, and the second silently wins.
+
+        Everything the viewer needs while actually watching lives OUTSIDE this block: the
+        back button and the trailer's own mute/replay/stop are siblings, so they survive
+        the fade for free and there is nothing to special-case.
+      */}
       <Box
         component={motion.div}
-        variants={COLUMN}
-        initial="hidden"
-        animate="show"
+        animate={{ opacity: immersive ? 0 : 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.6, ease: 'easeOut' }}
+        // Invisible is not the same as gone. Without this, PLAY is still sitting there
+        // waiting to be clicked by someone aiming at the video, and a screen reader would
+        // still announce a hero that is not on screen. `inert` covers pointer events,
+        // focus and the accessibility tree in one — so the first tap falls through to the
+        // window listener above and simply WAKES the hero instead of starting playback.
+        //
+        // Empty string rather than a boolean: React 18 has no special handling for
+        // `inert`, so `true` renders as inert="true" with a warning, while "" renders the
+        // bare attribute the HTML spec asks for.
+        inert={immersive ? '' : undefined}
         sx={{
           position: 'relative', zIndex: 2, width: '100%',
           px: { xs: 2, sm: 3, md: 5, xl: 8 },
           pt: { xs: 3, md: 6 },
           pb: { xs: 2, md: 3.5, xl: 5 },
+          // Belt and braces. `inert` has to survive being forwarded through Box and
+          // motion.div to reach the DOM, and if it ever silently stops doing so the
+          // failure is the exact bug this guards against — an invisible PLAY button that
+          // still takes clicks. This line fails safe on its own.
+          pointerEvents: immersive ? 'none' : 'auto',
         }}
+      >
+      <Box
+        component={motion.div}
+        variants={COLUMN}
+        initial="hidden"
+        animate="show"
       >
         <Box sx={{
           display: 'flex',
@@ -1048,14 +1102,11 @@ export default function Hero({
             {/* Same containment as the cluster above: a two-line slot that holds
                 its height whether the synopsis is present, still loading, or
                 missing altogether. */}
+            {/* No longer fades on its own — the whole foreground does, one level up. This
+                used to be the ONLY thing immersive mode hid, which is why the effect
+                looked broken: it is `display: none` below `sm`, so on a phone there was
+                nothing to fade and the trailer played behind a full set of chrome. */}
             <Box
-              component={motion.div}
-              animate={{ opacity: synopsisHidden ? 0 : 1 }}
-              transition={{ duration: reduceMotion ? 0 : 0.45, ease: 'easeOut' }}
-              // Not unmounted and not collapsed: the slot keeps its height either way,
-              // so nothing below it moves. aria-hidden follows the visual state so a
-              // screen reader is not read text that is not on screen.
-              aria-hidden={synopsisHidden}
               sx={{
               display: { xs: 'none', sm: 'block' },
               minHeight: { sm: 52, md: 54, lg: 56, xl: 64 },
@@ -1350,6 +1401,7 @@ export default function Hero({
             </Box>
           </Box>
         </Box>
+      </Box>
       </Box>
     </Box>
   );
