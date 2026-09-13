@@ -40,14 +40,14 @@ const WIDE_POPPER = {
   // field and the Start Job button.
   paper: {
     sx: {
-      minWidth: { xs: 'min(92vw, 300px)', sm: 380 },
-      maxWidth: { xs: '92vw', sm: 480 },
+      minWidth: { xs: 'min(92vw, 300px)', sm: 360 },
+      maxWidth: { xs: '92vw', sm: 460 },
     },
   },
   // Bounded height too, so a 24-episode season does not run off the bottom of the
   // page on a laptop.
   listbox: {
-    sx: { maxHeight: { xs: '46vh', sm: 340 } },
+    sx: { maxHeight: { xs: '42vh', sm: 300 } },
   },
 };
 
@@ -178,9 +178,13 @@ export function EpisodePicker({
             component="li"
             key={key}
             {...rest}
+            // The overview lives here rather than on two more lines of every row. It
+            // is worth having, but not at the cost of a list tall enough to bury the
+            // rest of the form underneath it.
+            title={o.overview || undefined}
             // Column, not row: MUI's option is display:flex, and fighting that with
             // `display: block` is how you end up with a rule that silently loses.
-            sx={{ display: 'flex !important', flexDirection: 'column', alignItems: 'stretch', gap: 0.25, py: 0.9 }}
+            sx={{ display: 'flex !important', flexDirection: 'column', alignItems: 'stretch', gap: 0.1, py: 0.7 }}
           >
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline', width: '100%' }}>
               <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', minWidth: 34, flexShrink: 0 }}>
@@ -194,47 +198,30 @@ export function EpisodePicker({
               }}>
                 {o.name || 'Untitled'}
               </Typography>
-              {(o.runtime || o.rating) && (
-                <Box sx={{
-                  display: 'flex', gap: 0.75, flexShrink: 0,
-                  justifyContent: 'flex-end', minWidth: 62,
-                }}>
-                  {o.runtime && (
-                    <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
-                      {o.runtime}m
-                    </Typography>
-                  )}
-                  {o.rating && (
-                    <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
-                      ★ {o.rating}
-                    </Typography>
-                  )}
-                </Box>
-              )}
-            </Box>
-
-            {(o.air || o.overview) && (
               <Box sx={{
-                display: 'flex', gap: 0.75, minWidth: 0,
-                // Lines up under the title on desktop; on a phone that indent is width
-                // the overview needs more than the alignment is worth.
-                pl: { xs: 0, sm: '42px' },
-                flexDirection: { xs: 'column', sm: 'row' },
+                display: 'flex', gap: 0.75, flexShrink: 0,
+                justifyContent: 'flex-end', minWidth: 62,
               }}>
-                {o.air && (
-                  <Typography sx={{ fontSize: '0.67rem', color: 'text.secondary', flexShrink: 0 }}>
-                    {o.air}
+                {o.runtime && (
+                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                    {o.runtime}m
                   </Typography>
                 )}
-                {o.overview && (
-                  <Typography sx={{
-                    flex: 1, minWidth: 0, fontSize: '0.67rem', color: 'text.secondary', lineHeight: 1.4,
-                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                  }}>
-                    {o.overview}
+                {o.rating && (
+                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                    ★ {o.rating}
                   </Typography>
                 )}
               </Box>
+            </Box>
+
+            {o.air && (
+              <Typography sx={{
+                fontSize: '0.67rem', color: 'text.secondary',
+                pl: { xs: 0, sm: '42px' },
+              }}>
+                {o.air}
+              </Typography>
             )}
           </Box>
         );
