@@ -59,10 +59,23 @@ export default function AddExpenseDialog({
   const [payers, setPayers] = useState({});             // memberId -> amount string
   const [multiPayer, setMultiPayer] = useState(false);
   const [participants, setParticipants] = useState([]); // memberId[]
-  const [weights, setWeights] = useState({});           // ONLY what the user typed
+
+  /**
+   * What the user typed, kept <b>per split method</b>: `{ EXACT: {...}, PERCENT: {...} }`.
+   *
+   * One flat map was wrong in a way that only showed up in use. Switching method had to clear
+   * it — a 60 typed under Amounts means rupees, under Percent it means per cent, and carrying
+   * it over would silently reinterpret somebody's number — but clearing it meant tapping
+   * Shares to look at it and coming back to find your amounts gone. Keeping a separate set per
+   * method gets both: nothing crosses between them, and nothing is lost by looking.
+   */
+  const [weightsByMethod, setWeightsByMethod] = useState({});
   const [showSplit, setShowSplit] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const [schemaError, setSchemaError] = useState(null);
+
+  const weights = useMemo(() => weightsByMethod[method] ?? {}, [weightsByMethod, method]);
+  const setWeights = (next) => setWeightsByMethod((prev) => ({ ...prev, [method]: next }));
 
   const totalAmount = watch('totalAmount');
   const category = watch('category');
@@ -87,12 +100,14 @@ export default function AddExpenseDialog({
       setParticipants((editing.shares ?? []).map((s) => s.beneficiaryMemberId));
       // Every field counts as typed when correcting: the saved expense is somebody's decision,
       // not a suggestion to re-balance out from under them.
-      setWeights(Object.fromEntries((editing.shares ?? []).map((s) => [
-        s.beneficiaryMemberId,
-        String(editing.divisionMethod === 'PERCENT' ? (s.sharePercent ?? '')
-          : editing.divisionMethod === 'SHARES' ? (s.shareWeight ?? '')
-            : s.amount),
-      ])));
+      setWeightsByMethod({
+        [editing.divisionMethod ?? 'EQUAL']: Object.fromEntries((editing.shares ?? []).map((s) => [
+          s.beneficiaryMemberId,
+          String(editing.divisionMethod === 'PERCENT' ? (s.sharePercent ?? '')
+            : editing.divisionMethod === 'SHARES' ? (s.shareWeight ?? '')
+              : s.amount),
+        ])),
+      });
       setShowSplit(true);
       return;
     }
@@ -102,7 +117,7 @@ export default function AddExpenseDialog({
     setPayers(myMemberId ? { [myMemberId]: '' } : {});
     setMultiPayer(false);
     setParticipants(active.map((m) => m.id));
-    setWeights({});
+    setWeightsByMethod({});
     setShowSplit(false);
   }, [open, editing, reset, myMemberId, active]);
 

@@ -64,9 +64,10 @@ export default function SplitEditor({
               component={motion.button}
               type="button"
               whileTap={{ scale: 0.94 }}
-              // Switching method clears the locks: amounts, percentages and shares are not the
-              // same kind of number, so carrying one over would leave nonsense in the fields.
-              onClick={() => { onMethodChange(m.value); onWeightsChange({}); }}
+              // Each method keeps its own values (see AddExpenseDialog): switching away and
+              // back restores what you typed, and nothing is carried ACROSS methods, where a
+              // 60 would mean rupees, per cent or shares depending on where it landed.
+              onClick={() => onMethodChange(m.value)}
               title={m.hint}
               sx={{
                 px: 1.4, py: 0.6, borderRadius: 2, cursor: 'pointer',
