@@ -3,13 +3,14 @@ package com.db.dbworld.app.tally.service;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
-import com.db.dbworld.app.tally.dto.TallyRequests.AddMember;
-import com.db.dbworld.app.tally.dto.TallyRequests.CreateGroup;
-import com.db.dbworld.app.tally.dto.TallyRequests.UpdateGroup;
-import com.db.dbworld.app.tally.dto.TallyRequests.UpdateMember;
-import com.db.dbworld.app.tally.dto.TallyViews.GroupDetail;
-import com.db.dbworld.app.tally.dto.TallyViews.Member;
+import com.db.dbworld.app.tally.dto.AddMemberRequest;
+import com.db.dbworld.app.tally.dto.CreateGroupRequest;
+import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
+import com.db.dbworld.app.tally.dto.TallyMemberDto;
+import com.db.dbworld.app.tally.dto.UpdateGroupRequest;
+import com.db.dbworld.app.tally.dto.UpdateMemberRequest;
 import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.mapper.TallyMapperImpl;
 import com.db.dbworld.app.tally.repository.*;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.entity.RoleEntity;
@@ -52,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({TallyAccessService.class, TallyLedgerService.class, TallyExpenseService.class,
          TallyBalanceService.class, TallyGroupService.class, TallyMemberService.class,
-         TallyRosterTest.CacheStubConfig.class})
+         TallyRosterTest.CacheStubConfig.class, TallyMapperImpl.class})
 @DisplayName("db-tally roster")
 class TallyRosterTest {
 
@@ -94,7 +95,7 @@ class TallyRosterTest {
         outsider = user(role, "Someone", "Else");
         em.flush();
 
-        GroupDetail group = groupService.create(appaUser, new CreateGroup("Home", "Family"));
+        TallyGroupDetailDto group = groupService.create(appaUser, new CreateGroupRequest("Home", "Family"));
         groupId = group.id();
         appa = group.members().getFirst().id();
     }
@@ -139,18 +140,18 @@ class TallyRosterTest {
     @Test
     @DisplayName("a ghost joins with nothing but a name")
     void ghostNeedsOnlyAName() {
-        TallyGroupMemberEntity kid = memberService.add(appaUser, groupId,
-                new AddMember(null, "Kid", null));
+        TallyMemberDto kid = memberService.add(appaUser, groupId,
+                new AddMemberRequest(null, "Kid", null));
 
-        assertThat(kid.isGhost()).isTrue();
-        assertThat(kid.getUserId()).isNull();
-        assertThat(kid.isActive()).isTrue();
+        assertThat(kid.ghost()).isTrue();
+        assertThat(kid.userId()).isNull();
+        assertThat(kid.status()).isEqualTo(TallyMemberStatus.ACTIVE);
     }
 
     @Test
     @DisplayName("a ghost without a name is refused")
     void ghostWithoutNameRejected() {
-        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(null, "  ", null)))
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMemberRequest(null, "  ", null)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("needs a name");
     }
@@ -159,7 +160,7 @@ class TallyRosterTest {
     @DisplayName("the same account cannot be added to one group twice")
     void realUserCannotJoinTwice() {
         addRealMember(ammaUser);
-        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(ammaUser, null, null)))
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMemberRequest(ammaUser, null, null)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("already in this group");
     }
@@ -174,11 +175,11 @@ class TallyRosterTest {
         String amma = addRealMember(ammaUser);
         memberService.remove(appaUser, groupId, amma);
 
-        TallyGroupMemberEntity rejoined = memberService.add(appaUser, groupId,
-                new AddMember(ammaUser, null, null));
+        TallyMemberDto rejoined = memberService.add(appaUser, groupId,
+                new AddMemberRequest(ammaUser, null, null));
 
-        assertThat(rejoined.getId()).isEqualTo(amma);
-        assertThat(rejoined.isActive()).isTrue();
+        assertThat(rejoined.id()).isEqualTo(amma);
+        assertThat(rejoined.status()).isEqualTo(TallyMemberStatus.ACTIVE);
         assertThat(members.findByGroupId(groupId)).hasSize(2);
     }
 
@@ -188,7 +189,7 @@ class TallyRosterTest {
         em.find(UserEntity.class, ammaUser).setDeletedAt(java.time.Instant.now());
         em.flush();
 
-        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(ammaUser, null, null)))
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMemberRequest(ammaUser, null, null)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("User not found");
     }
@@ -209,7 +210,7 @@ class TallyRosterTest {
     void crossGroupDelegationRejected() {
         // No foreign key exists on paid_for_by_member_id, so this check is the only thing
         // stopping a member of one group becoming liable in another.
-        String outsideGroup = groupService.create(ammaUser, new CreateGroup("Elsewhere", null)).id();
+        String outsideGroup = groupService.create(ammaUser, new CreateGroupRequest("Elsewhere", null)).id();
         String stranger = groupService.get(ammaUser, outsideGroup).members().getFirst().id();
         String kid = ghost("Kid");
 
@@ -247,10 +248,10 @@ class TallyRosterTest {
 
         // A null paidForByMemberId has to mean "leave it alone", so removing one needs its own
         // signal -- otherwise every PATCH that did not mention delegation would wipe it.
-        memberService.update(appaUser, groupId, kid, new UpdateMember(null, null, null, false));
+        memberService.update(appaUser, groupId, kid, new UpdateMemberRequest(null, null, null, false));
         assertThat(em.find(TallyGroupMemberEntity.class, kid).getPaidForByMemberId()).isEqualTo(appa);
 
-        memberService.update(appaUser, groupId, kid, new UpdateMember(null, null, null, true));
+        memberService.update(appaUser, groupId, kid, new UpdateMemberRequest(null, null, null, true));
         assertThat(em.find(TallyGroupMemberEntity.class, kid).getPaidForByMemberId()).isNull();
     }
 
@@ -309,8 +310,8 @@ class TallyRosterTest {
         settleUp(amma, appa, "50.00");
         memberService.remove(appaUser, groupId, amma);
 
-        List<Member> roster = groupService.get(appaUser, groupId).members();
-        assertThat(roster).extracting(Member::displayName).contains("Amma Dudhia");
+        List<TallyMemberDto> roster = groupService.get(appaUser, groupId).members();
+        assertThat(roster).extracting(TallyMemberDto::displayName).contains("Amma Dudhia");
         assertThat(roster).filteredOn(m -> m.id().equals(amma))
                 .singleElement()
                 .satisfies(m -> assertThat(m.status()).isEqualTo(TallyMemberStatus.LEFT));
@@ -329,7 +330,7 @@ class TallyRosterTest {
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("needs an owner");
         assertThatThrownBy(() -> memberService.update(appaUser, groupId, appa,
-                new UpdateMember(null, TallyMemberRole.MEMBER, null, false)))
+                new UpdateMemberRequest(null, TallyMemberRole.MEMBER, null, false)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("needs an owner");
     }
@@ -428,7 +429,7 @@ class TallyRosterTest {
         spend("Groceries", "100.00", appa, appa, amma);
 
         assertThatThrownBy(() -> groupService.update(appaUser, groupId,
-                new UpdateGroup(null, null, true, false)))
+                new UpdateGroupRequest(null, null, true, false)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("50.00");
 
@@ -443,14 +444,14 @@ class TallyRosterTest {
         String amma = addRealMember(ammaUser);
         spend("Groceries", "100.00", appa, appa, amma);
 
-        assertThat(groupService.update(appaUser, groupId, new UpdateGroup(null, null, true, true))
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, true, true))
                 .archived()).isTrue();
 
         // Archived is closed for writes but still readable, and reopening undoes it.
-        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(null, "Late", null)))
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMemberRequest(null, "Late", null)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("archived");
-        assertThat(groupService.update(appaUser, groupId, new UpdateGroup(null, null, false, false))
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, false, false))
                 .archived()).isFalse();
     }
 
@@ -459,11 +460,11 @@ class TallyRosterTest {
     void archivingIsAnOwnerAction() {
         addRealMember(ammaUser);
 
-        assertThat(groupService.update(ammaUser, groupId, new UpdateGroup("Our Home", null, null, false))
+        assertThat(groupService.update(ammaUser, groupId, new UpdateGroupRequest("Our Home", null, null, false))
                 .name()).isEqualTo("Our Home");
 
         assertThatThrownBy(() -> groupService.update(ammaUser, groupId,
-                new UpdateGroup(null, null, true, false)))
+                new UpdateGroupRequest(null, null, true, false)))
                 .isInstanceOf(DbWorldException.class)
                 .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(403));
     }
@@ -480,9 +481,9 @@ class TallyRosterTest {
 
         assertThatAll404(
                 () -> groupService.get(outsider, groupId),
-                () -> groupService.update(outsider, groupId, new UpdateGroup("Mine now", null, null, false)),
-                () -> memberService.add(outsider, groupId, new AddMember(null, "Intruder", null)),
-                () -> memberService.update(outsider, groupId, kid, new UpdateMember("Renamed", null, null, false)),
+                () -> groupService.update(outsider, groupId, new UpdateGroupRequest("Mine now", null, null, false)),
+                () -> memberService.add(outsider, groupId, new AddMemberRequest(null, "Intruder", null)),
+                () -> memberService.update(outsider, groupId, kid, new UpdateMemberRequest("Renamed", null, null, false)),
                 () -> memberService.remove(outsider, groupId, kid),
                 () -> memberService.claim(outsider, groupId, kid));
     }
@@ -511,15 +512,15 @@ class TallyRosterTest {
     }
 
     private String addRealMember(Long userId) {
-        return memberService.add(appaUser, groupId, new AddMember(userId, null, null)).getId();
+        return memberService.add(appaUser, groupId, new AddMemberRequest(userId, null, null)).id();
     }
 
     private String ghost(String name) {
-        return memberService.add(appaUser, groupId, new AddMember(null, name, null)).getId();
+        return memberService.add(appaUser, groupId, new AddMemberRequest(null, name, null)).id();
     }
 
     private void delegate(String memberId, String targetId) {
-        memberService.update(appaUser, groupId, memberId, new UpdateMember(null, null, targetId, false));
+        memberService.update(appaUser, groupId, memberId, new UpdateMemberRequest(null, null, targetId, false));
     }
 
     /** An expense paid by one member and split equally, each participant liable for their own. */

@@ -3,8 +3,12 @@ package com.db.dbworld.app.tally.service;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
+import com.db.dbworld.app.tally.dto.TallyExpenseDto;
+import com.db.dbworld.app.tally.dto.TallyExpensePageDto;
 import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.mapper.TallyMapper;
 import com.db.dbworld.app.tally.repository.*;
+import org.springframework.data.domain.Limit;
 import com.db.dbworld.core.exception.DbWorldException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -13,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +44,16 @@ public class TallyExpenseService {
     private final TallyExpensePayerRepository payers;
     private final TallyExpenseShareRepository shares;
     private final TallyGroupMemberRepository members;
+    private final TallyMapper mapper;
+
+    /**
+     * How many expenses one page of the feed holds when the caller does not say.
+     *
+     * <p>Capped rather than unbounded: the feed is the screen people scroll, and a group with
+     * two years of groceries would otherwise serialise every one of them into a phone.
+     */
+    private static final int DEFAULT_PAGE_SIZE = 25;
+    private static final int MAX_PAGE_SIZE = 100;
 
     /* ============================== create ============================== */
 
@@ -51,7 +66,11 @@ public class TallyExpenseService {
      * stay wrong forever.
      */
     @Transactional
-    public TallyExpenseEntity create(Long userId, String groupId, CreateExpenseRequest request) {
+    public TallyExpenseDto create(Long userId, String groupId, CreateExpenseRequest request) {
+        return view(createEntity(userId, groupId, request));
+    }
+
+    private TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request) {
         access.requireOpenGroup(userId, groupId);
 
         // Idempotent replay comes first: a retry must return the original, not validate and
@@ -105,7 +124,11 @@ public class TallyExpenseService {
      * <p>Anyone may void their own; voiding somebody else's needs the owner role.
      */
     @Transactional
-    public TallyExpenseEntity voidExpense(Long userId, String expenseId) {
+    public TallyExpenseDto voidExpense(Long userId, String expenseId) {
+        return view(voidEntity(userId, expenseId));
+    }
+
+    private TallyExpenseEntity voidEntity(Long userId, String expenseId) {
         TallyExpenseEntity expense = expenses.findById(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
         access.requireOpenGroup(userId, expense.getGroupId());
@@ -131,10 +154,10 @@ public class TallyExpenseService {
      * the history honest — the group can see that the number was corrected, and when.
      */
     @Transactional
-    public TallyExpenseEntity replace(Long userId, String expenseId, CreateExpenseRequest request) {
+    public TallyExpenseDto replace(Long userId, String expenseId, CreateExpenseRequest request) {
         TallyExpenseEntity original = expenses.findById(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
-        voidExpense(userId, expenseId);
+        voidEntity(userId, expenseId);
 
         // The replacement cannot reuse the original's idempotency key -- it is still on the
         // voided row, and the unique key is per group, not per live row.
@@ -144,6 +167,71 @@ public class TallyExpenseService {
                         request.notes(), null, request.payers(), request.participants());
 
         return create(userId, original.getGroupId(), replacement);
+    }
+
+    /* ============================== read ============================== */
+
+    /** One expense with its payers and shares. */
+    @Transactional(readOnly = true)
+    public TallyExpenseDto get(Long userId, String expenseId) {
+        var expense = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        access.requireVisibleGroup(userId, expense.getGroupId());
+        return view(expense);
+    }
+
+    /**
+     * A page of the group's expense feed, newest first.
+     *
+     * <p>Keyset, not offset. The cursor is the previous page's last {@code (expenseDate, id)}
+     * handed straight back — see {@link TallyExpensePageDto} for why a DATE cannot be paged on
+     * its own.
+     *
+     * <p>One row more than asked for is fetched and then dropped. That extra row is how
+     * {@code hasMore} is answered without a second COUNT query over the whole group, and a count
+     * would be both slower and a different question — it asks how many exist, when all the
+     * caller needs to know is whether to offer a "load more".
+     */
+    @Transactional(readOnly = true)
+    public TallyExpensePageDto list(Long userId, String groupId, LocalDate cursorDate,
+                                    String cursorId, Integer pageSize) {
+        access.requireVisibleGroup(userId, groupId);
+
+        int size = Math.clamp(pageSize == null ? DEFAULT_PAGE_SIZE : pageSize, 1, MAX_PAGE_SIZE);
+        var probe = Limit.of(size + 1);
+
+        List<TallyExpenseEntity> rows = (cursorDate == null || cursorId == null)
+                ? expenses.findFirstPage(groupId, TallyExpenseStatus.ACTIVE, probe)
+                : expenses.findPageAfter(groupId, TallyExpenseStatus.ACTIVE, cursorDate, cursorId, probe);
+
+        boolean hasMore = rows.size() > size;
+        List<TallyExpenseEntity> page = hasMore ? rows.subList(0, size) : rows;
+
+        // Payers and shares for the whole page in two queries rather than two per expense.
+        Map<String, List<TallyExpensePayerEntity>> payersByExpense =
+                payers.findByExpenseIdIn(page.stream().map(TallyExpenseEntity::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(TallyExpensePayerEntity::getExpenseId));
+        Map<String, List<TallyExpenseShareEntity>> sharesByExpense =
+                shares.findByExpenseIdIn(page.stream().map(TallyExpenseEntity::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(TallyExpenseShareEntity::getExpenseId));
+
+        List<TallyExpenseDto> items = page.stream()
+                .map(e -> mapper.toExpenseDto(e,
+                        mapper.toPayerDtos(payersByExpense.getOrDefault(e.getId(), List.of())),
+                        mapper.toShareDtos(sharesByExpense.getOrDefault(e.getId(), List.of()))))
+                .toList();
+
+        TallyExpenseEntity last = hasMore ? page.getLast() : null;
+        return new TallyExpensePageDto(items,
+                last == null ? null : last.getExpenseDate(),
+                last == null ? null : last.getId(),
+                hasMore);
+    }
+
+    private TallyExpenseDto view(TallyExpenseEntity expense) {
+        return mapper.toExpenseDto(expense,
+                mapper.toPayerDtos(payers.findByExpenseId(expense.getId())),
+                mapper.toShareDtos(shares.findByExpenseId(expense.getId())));
     }
 
     /* ============================== building rows ============================== */

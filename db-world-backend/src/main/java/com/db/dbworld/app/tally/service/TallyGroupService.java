@@ -1,14 +1,19 @@
 package com.db.dbworld.app.tally.service;
 
-import com.db.dbworld.app.tally.dto.TallyRequests.CreateGroup;
-import com.db.dbworld.app.tally.dto.TallyRequests.UpdateGroup;
-import com.db.dbworld.app.tally.dto.TallyViews.GroupDetail;
-import com.db.dbworld.app.tally.dto.TallyViews.GroupSummary;
-import com.db.dbworld.app.tally.dto.TallyViews.Member;
-import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.dto.CreateGroupRequest;
+import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
+import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
+import com.db.dbworld.app.tally.dto.TallyMemberDto;
+import com.db.dbworld.app.tally.dto.UpdateGroupRequest;
+import com.db.dbworld.app.tally.entity.TallyGroupEntity;
+import com.db.dbworld.app.tally.entity.TallyGroupMemberEntity;
+import com.db.dbworld.app.tally.entity.TallyMemberRole;
+import com.db.dbworld.app.tally.entity.TallyMemberStatus;
+import com.db.dbworld.app.tally.mapper.TallyMapper;
 import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupRepository;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -23,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Creating, listing, opening and closing groups. */
 @Log4j2
@@ -34,6 +40,7 @@ public class TallyGroupService {
     private final TallyBalanceService balances;
     private final TallyGroupRepository groups;
     private final TallyGroupMemberRepository members;
+    private final TallyMapper mapper;
     private final UserRepository users;
 
     /* ============================== create ============================== */
@@ -46,14 +53,14 @@ public class TallyGroupService {
      * written without this row would be invisible to the person who just made it.
      */
     @Transactional
-    public GroupDetail create(Long userId, CreateGroup request) {
-        TallyGroupEntity group = new TallyGroupEntity();
+    public TallyGroupDetailDto create(Long userId, CreateGroupRequest request) {
+        var group = new TallyGroupEntity();
         group.setName(request.name().trim());
         group.setCategory(blankToNull(request.category()));
         group.setCreatedByUserId(userId);
         groups.save(group);
 
-        TallyGroupMemberEntity me = new TallyGroupMemberEntity();
+        var me = new TallyGroupMemberEntity();
         me.setGroupId(group.getId());
         me.setUserId(userId);
         me.setDisplayName(displayNameOf(userId));
@@ -69,14 +76,14 @@ public class TallyGroupService {
     /**
      * Every group the caller is in, with their own position in each.
      *
-     * <p>Resolves membership first and loads the groups by id, rather than joining from group
-     * to member. Keeping the two steps apart means the question "may I see this" is answered in
-     * one place instead of being smuggled into a join condition that every future read would
-     * have to remember to repeat.
+     * <p>Resolves membership first and loads the groups by id, rather than joining from group to
+     * member. Keeping the two steps apart means the question "may I see this" is answered in one
+     * place instead of being smuggled into a join condition that every future read would have to
+     * remember to repeat.
      */
     @Transactional(readOnly = true)
-    public List<GroupSummary> listMine(Long userId) {
-        List<TallyGroupMemberEntity> mine = members.findByUserIdAndStatus(userId, TallyMemberStatus.ACTIVE);
+    public List<TallyGroupSummaryDto> listMine(Long userId) {
+        var mine = members.findByUserIdAndStatus(userId, TallyMemberStatus.ACTIVE);
         if (mine.isEmpty()) {
             return List.of();
         }
@@ -84,17 +91,16 @@ public class TallyGroupService {
                 .collect(Collectors.toMap(TallyGroupMemberEntity::getGroupId, Function.identity()));
 
         Map<String, Long> activeCounts = members.countActiveByGroupIds(myRowByGroup.keySet()).stream()
-                .collect(Collectors.toMap(c -> c.getGroupId(), c -> c.getTotal()));
+                .collect(Collectors.toMap(TallyGroupMemberRepository.GroupCount::getGroupId,
+                        TallyGroupMemberRepository.GroupCount::getTotal));
 
         // One balance query per group. A join would collapse them, but somebody is in five
         // groups, not five hundred, and each of these is an index-only read.
         return groups.findByIdIn(myRowByGroup.keySet()).stream()
                 .sorted(Comparator.comparing(TallyGroupEntity::getUpdatedAt).reversed())
-                .map(g -> new GroupSummary(
-                        g.getId(), g.getName(), g.getCategory(), g.getCurrency(), g.isArchived(),
+                .map(g -> mapper.toGroupSummary(g,
                         activeCounts.getOrDefault(g.getId(), 0L).intValue(),
-                        balances.netOf(g.getId(), myRowByGroup.get(g.getId()).getId()),
-                        g.getUpdatedAt()))
+                        balances.netOf(g.getId(), myRowByGroup.get(g.getId()).getId())))
                 .toList();
     }
 
@@ -107,8 +113,8 @@ public class TallyGroupService {
      * caller's job, and only for the participant pickers.
      */
     @Transactional(readOnly = true)
-    public GroupDetail get(Long userId, String groupId) {
-        TallyGroupEntity group = access.requireVisibleGroup(userId, groupId);
+    public TallyGroupDetailDto get(Long userId, String groupId) {
+        var group = access.requireVisibleGroup(userId, groupId);
         return detailOf(group, members.findByGroupId(groupId), balances.balances(groupId));
     }
 
@@ -124,18 +130,18 @@ public class TallyGroupService {
      * Refused by default, with a 409 naming the largest amount, because "archived with ₹4,000
      * outstanding and hidden from everyone" is how a debt quietly stops existing.
      *
-     * <p>But not refused outright. A group can genuinely reach a state nobody intends to settle
-     * — somebody moved away, the amount stopped mattering, the rest of the group wrote it off —
-     * and a rule with no way past it would leave that group on everyone's list forever. So the
-     * caller may pass {@code settleOutstandingLater} and archive anyway. The difference that
-     * matters is that it cannot happen by accident: somebody had to be told the number and say
-     * yes. Archiving is also reversible, which is the other reason this is a speed bump rather
-     * than a wall — unlike removing a member, which is not, and where the zero-balance rule is
-     * therefore absolute.
+     * <p>But not refused outright. A group can genuinely reach a state nobody intends to settle —
+     * somebody moved away, the amount stopped mattering, the rest of the group wrote it off — and
+     * a rule with no way past it would leave that group on everyone's list forever. So the caller
+     * may pass {@code settleOutstandingLater} and archive anyway. The difference that matters is
+     * that it cannot happen by accident: somebody had to be told the number and say yes. Archiving
+     * is also reversible, which is the other reason this is a speed bump rather than a wall —
+     * unlike removing a member, which is not, and where the zero-balance rule is therefore
+     * absolute.
      */
     @Transactional
-    public GroupDetail update(Long userId, String groupId, UpdateGroup request) {
-        TallyGroupEntity group = access.requireVisibleGroup(userId, groupId);
+    public TallyGroupDetailDto update(Long userId, String groupId, UpdateGroupRequest request) {
+        var group = access.requireVisibleGroup(userId, groupId);
 
         if (request.name() != null && !request.name().isBlank()) {
             group.setName(request.name().trim());
@@ -156,51 +162,54 @@ public class TallyGroupService {
     }
 
     private void archive(TallyGroupEntity group, boolean acknowledged) {
-        if (!acknowledged) {
-            Map<String, BigDecimal> outstanding = balances.balances(group.getId());
-            if (!outstanding.isEmpty()) {
-                BigDecimal largest = outstanding.values().stream()
-                        .map(BigDecimal::abs).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-                throw new DbWorldException(HttpStatus.CONFLICT,
-                        ("This group still has %s outstanding between %d people. Settle up first, "
-                       + "or archive anyway if nobody intends to.")
-                                .formatted(largest.toPlainString(), outstanding.size()));
-            }
+        if (acknowledged) {
+            group.setArchivedAt(Instant.now());
+            return;
+        }
+        var outstanding = balances.balances(group.getId());
+        if (!outstanding.isEmpty()) {
+            var largest = outstanding.values().stream()
+                    .map(BigDecimal::abs).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+            throw new DbWorldException(HttpStatus.CONFLICT, """
+                    This group still has %s outstanding between %d people. \
+                    Settle up first, or archive anyway if nobody intends to."""
+                    .formatted(largest.toPlainString(), outstanding.size()));
         }
         group.setArchivedAt(Instant.now());
     }
 
     /* ============================== shaping ============================== */
 
-    private GroupDetail detailOf(TallyGroupEntity group, List<TallyGroupMemberEntity> roster,
-                                 Map<String, BigDecimal> balanceByMember) {
-        List<Member> memberViews = roster.stream()
+    private TallyGroupDetailDto detailOf(TallyGroupEntity group, List<TallyGroupMemberEntity> roster,
+                                         Map<String, BigDecimal> balanceByMember) {
+        List<TallyMemberDto> memberViews = roster.stream()
                 // Active first, then by name: a departed member belongs at the bottom of the
                 // list, present but out of the way.
                 .sorted(Comparator.comparing(TallyGroupMemberEntity::isActive).reversed()
                         .thenComparing(TallyGroupMemberEntity::getDisplayName, String.CASE_INSENSITIVE_ORDER))
-                .map(m -> new Member(m.getId(), m.getUserId(), m.getDisplayName(), m.getEmail(),
-                        m.getRole(), m.getStatus(), m.isGhost(), m.getPaidForByMemberId(),
-                        balanceByMember.getOrDefault(m.getId(), BigDecimal.ZERO)))
+                .map(m -> mapper.toMemberDto(m, balanceByMember.getOrDefault(m.getId(), BigDecimal.ZERO)))
                 .toList();
 
-        return new GroupDetail(group.getId(), group.getName(), group.getCategory(),
-                group.getCurrency(), group.isArchived(), group.getCreatedAt(), memberViews);
+        return mapper.toGroupDetail(group, memberViews);
     }
 
     /**
      * The creator's name for their own membership row, seeded from their account.
      *
-     * <p>Only a seed. The row keeps its own copy so it can be edited per group, and so a ghost
-     * and a real member are the same kind of thing everywhere else in the module.
+     * <p>Only a seed. The row keeps its own copy so it can be edited per group, and so a ghost and
+     * a real member are the same kind of thing everywhere else in the module.
      */
     private String displayNameOf(Long userId) {
         return users.findById(userId)
-                .map(u -> java.util.stream.Stream.of(u.getFirstName(), u.getLastName())
-                        .filter(s -> s != null && !s.isBlank())
-                        .collect(Collectors.joining(" ")))
-                .filter(s -> !s.isBlank())
+                .map(TallyGroupService::fullNameOf)
+                .filter(name -> !name.isBlank())
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    static String fullNameOf(UserEntity user) {
+        return Stream.of(user.getFirstName(), user.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
     }
 
     private static String blankToNull(String s) {

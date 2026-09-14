@@ -1,9 +1,11 @@
 package com.db.dbworld.app.tally.service;
 
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
+import com.db.dbworld.app.tally.dto.SettleUpTransferDto;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
 import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.mapper.TallyMapperImpl;
 import com.db.dbworld.app.tally.repository.*;
 import com.db.dbworld.core.exception.DbWorldException;
 import jakarta.persistence.EntityManager;
@@ -53,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({TallyAccessService.class, TallyLedgerService.class, TallyExpenseService.class,
-         TallyBalanceService.class, TallyMoneyFlowTest.CacheStubConfig.class})
+         TallyBalanceService.class, TallyMoneyFlowTest.CacheStubConfig.class, TallyMapperImpl.class})
 @DisplayName("db-tally money flow")
 class TallyMoneyFlowTest {
 
@@ -152,7 +154,7 @@ class TallyMoneyFlowTest {
         String internet = expenseService.create(AMMA_USER, groupId, request("Internet", "1000.00",
                 TallyMethod.PERCENT,
                 List.of(payer(amma, "1000.00")),
-                List.of(percent(appa, "50"), percent(amma, "50")))).getId();
+                List.of(percent(appa, "50"), percent(amma, "50")))).id();
         assertSound();
 
         // 3. SHARES, two payers -- where the paise are rounded twice.
@@ -289,7 +291,7 @@ class TallyMoneyFlowTest {
                 List.of(payer(appa, "100.00")),
                 List.of(owedBy(appa, appa), owedBy(amma, amma), owedBy(kid1, kid1), owedBy(kid2, kid2))));
 
-        List<TallyBalanceService.Transfer> plan = balanceService.settleUpPlan(groupId);
+        List<SettleUpTransferDto> plan = balanceService.settleUpPlan(groupId);
         assertThat(plan).hasSizeLessThanOrEqualTo(3);   // n - 1 for four members
 
         plan.forEach(t -> settle(t.fromMemberId(), t.toMemberId(), t.amount().toPlainString()));
@@ -391,8 +393,8 @@ class TallyMoneyFlowTest {
                 null, LocalDate.of(2026, 9, 1), null, "retry-token",
                 List.of(payer(appa, "99.00")), List.of(part(appa), part(amma)));
 
-        String first = expenseService.create(APPA_USER, groupId, req).getId();
-        String second = expenseService.create(APPA_USER, groupId, req).getId();
+        String first = expenseService.create(APPA_USER, groupId, req).id();
+        String second = expenseService.create(APPA_USER, groupId, req).id();
 
         assertThat(second).isEqualTo(first);
         assertSound();
@@ -405,7 +407,7 @@ class TallyMoneyFlowTest {
     void doubleVoidRefused() {
         String id = expenseService.create(APPA_USER, groupId, request("Once", "30.00", TallyMethod.EQUAL,
                 List.of(payer(appa, "30.00")),
-                List.of(part(appa), part(amma)))).getId();
+                List.of(part(appa), part(amma)))).id();
 
         expenseService.voidExpense(APPA_USER, id);
         assertThatThrownBy(() -> expenseService.voidExpense(APPA_USER, id))
@@ -418,14 +420,14 @@ class TallyMoneyFlowTest {
     @DisplayName("voiding someone else's expense needs the owner role")
     void voidingSomebodyElsesNeedsOwner() {
         String mine = expenseService.create(AMMA_USER, groupId, request("Amma's", "20.00", TallyMethod.EQUAL,
-                List.of(payer(amma, "20.00")), List.of(part(amma)))).getId();
+                List.of(payer(amma, "20.00")), List.of(part(amma)))).id();
 
         // Appa is the OWNER, so he may.
-        assertThat(expenseService.voidExpense(APPA_USER, mine).getStatus())
+        assertThat(expenseService.voidExpense(APPA_USER, mine).status())
                 .isEqualTo(TallyExpenseStatus.VOIDED);
 
         String appas = expenseService.create(APPA_USER, groupId, request("Appa's", "20.00", TallyMethod.EQUAL,
-                List.of(payer(appa, "20.00")), List.of(part(appa)))).getId();
+                List.of(payer(appa, "20.00")), List.of(part(appa)))).id();
 
         assertThatThrownBy(() -> expenseService.voidExpense(AMMA_USER, appas))
                 .isInstanceOf(DbWorldException.class)
@@ -454,7 +456,7 @@ class TallyMoneyFlowTest {
     void replacePostsAReversalAndARepost() {
         String id = expenseService.create(APPA_USER, groupId, request("Typo", "1000.00", TallyMethod.EQUAL,
                 List.of(payer(appa, "1000.00")),
-                List.of(part(appa), part(amma)))).getId();
+                List.of(part(appa), part(amma)))).id();
 
         expenseService.replace(APPA_USER, id, request("Corrected", "100.00", TallyMethod.EQUAL,
                 List.of(payer(appa, "100.00")),

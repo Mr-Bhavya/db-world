@@ -1,8 +1,10 @@
 package com.db.dbworld.app.tally.service;
 
-import com.db.dbworld.app.tally.dto.TallyRequests.AddMember;
-import com.db.dbworld.app.tally.dto.TallyRequests.UpdateMember;
+import com.db.dbworld.app.tally.dto.AddMemberRequest;
+import com.db.dbworld.app.tally.dto.TallyMemberDto;
+import com.db.dbworld.app.tally.dto.UpdateMemberRequest;
 import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.mapper.TallyMapper;
 import com.db.dbworld.app.tally.repository.*;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.user.entity.UserEntity;
@@ -15,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -34,6 +35,7 @@ public class TallyMemberService {
     private final TallyExpenseShareRepository shares;
     private final TallyLedgerEntryRepository ledger;
     private final TallySettlementRepository settlements;
+    private final TallyMapper mapper;
     private final UserRepository users;
 
     /* ============================== adding ============================== */
@@ -49,15 +51,15 @@ public class TallyMemberService {
      * history would fork, and their balance would be split across two people who are one.
      */
     @Transactional
-    public TallyGroupMemberEntity add(Long userId, String groupId, AddMember request) {
+    public TallyMemberDto add(Long userId, String groupId, AddMemberRequest request) {
         access.requireOpenGroup(userId, groupId);
 
-        return request.userId() == null
+        return view(groupId, request.userId() == null
                 ? addGhost(groupId, request)
-                : addRealUser(groupId, request);
+                : addRealUser(groupId, request));
     }
 
-    private TallyGroupMemberEntity addRealUser(String groupId, AddMember request) {
+    private TallyGroupMemberEntity addRealUser(String groupId, AddMemberRequest request) {
         UserEntity user = users.findById(request.userId())
                 .filter(u -> u.getDeletedAt() == null)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "User not found"));
@@ -81,12 +83,12 @@ public class TallyMemberService {
         TallyGroupMemberEntity row = new TallyGroupMemberEntity();
         row.setGroupId(groupId);
         row.setUserId(user.getUserId());
-        row.setDisplayName(firstNonBlank(request.displayName(), nameOf(user), user.getEmail()));
+        row.setDisplayName(firstNonBlank(request.displayName(), TallyGroupService.fullNameOf(user), user.getEmail()));
         row.setEmail(user.getEmail());
         return members.save(row);
     }
 
-    private TallyGroupMemberEntity addGhost(String groupId, AddMember request) {
+    private TallyGroupMemberEntity addGhost(String groupId, AddMemberRequest request) {
         if (request.displayName() == null || request.displayName().isBlank()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST,
                     "Somebody without an account still needs a name");
@@ -102,8 +104,8 @@ public class TallyMemberService {
 
     /** Renames a member, changes their role, or changes who settles their shares. */
     @Transactional
-    public TallyGroupMemberEntity update(Long userId, String groupId, String memberId,
-                                         UpdateMember request) {
+    public TallyMemberDto update(Long userId, String groupId, String memberId,
+                                 UpdateMemberRequest request) {
         access.requireOpenGroup(userId, groupId);
         TallyGroupMemberEntity member = require(groupId, memberId);
 
@@ -123,7 +125,7 @@ public class TallyMemberService {
         } else if (request.paidForByMemberId() != null && !request.paidForByMemberId().isBlank()) {
             member.setPaidForByMemberId(validDelegation(groupId, member, request.paidForByMemberId()));
         }
-        return member;
+        return view(groupId, member);
     }
 
     /**
@@ -181,7 +183,7 @@ public class TallyMemberService {
      * <p>Anyone may leave of their own accord; removing somebody else takes the owner role.
      */
     @Transactional
-    public TallyGroupMemberEntity remove(Long userId, String groupId, String memberId) {
+    public TallyMemberDto remove(Long userId, String groupId, String memberId) {
         access.requireOpenGroup(userId, groupId);
         TallyGroupMemberEntity member = require(groupId, memberId);
         TallyGroupMemberEntity me = access.requireMembership(userId, groupId);
@@ -221,7 +223,7 @@ public class TallyMemberService {
         // Their own outbound delegation is deliberately kept: if they rejoin, the arrangement
         // they had is still the one they meant. It is cleared for them if that person leaves.
         departing.setStatus(TallyMemberStatus.LEFT);
-        return departing;
+        return view(groupId, departing);
     }
 
     /* ============================== ghost claim ============================== */
@@ -256,7 +258,7 @@ public class TallyMemberService {
      * invite flow exists, that is the right place to gate this properly.
      */
     @Transactional
-    public TallyGroupMemberEntity claim(Long userId, String groupId, String ghostId) {
+    public TallyMemberDto claim(Long userId, String groupId, String ghostId) {
         access.requireOpenGroup(userId, groupId);
         TallyGroupMemberEntity survivor = access.requireMembership(userId, groupId);
         TallyGroupMemberEntity ghost = require(groupId, ghostId);
@@ -285,7 +287,7 @@ public class TallyMemberService {
         tombstone.setPaidForByMemberId(null);
 
         log.info("Claimed ghost {} into member {} in tally group {}", ghostId, survivor.getId(), groupId);
-        return require(groupId, survivor.getId());
+        return view(groupId, require(groupId, survivor.getId()));
     }
 
     /**
@@ -316,6 +318,17 @@ public class TallyMemberService {
 
     /* ============================== shared ============================== */
 
+    /**
+     * The member as the API returns them, balance included.
+     *
+     * <p>The balance is read back rather than assumed even where it is known — a member who has
+     * just been removed is necessarily at zero, for instance — so that one code path produces
+     * every member view and there is no second, hand-set version of this number to drift.
+     */
+    private TallyMemberDto view(String groupId, TallyGroupMemberEntity member) {
+        return mapper.toMemberDto(member, balances.netOf(groupId, member.getId()));
+    }
+
     private TallyGroupMemberEntity require(String groupId, String memberId) {
         return members.findByIdAndGroupId(memberId, groupId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Member not found"));
@@ -335,12 +348,6 @@ public class TallyMemberService {
             throw new DbWorldException(HttpStatus.CONFLICT,
                     "A group needs an owner. Make somebody else an owner first.");
         }
-    }
-
-    private static String nameOf(UserEntity user) {
-        return Stream.of(user.getFirstName(), user.getLastName())
-                .filter(s -> s != null && !s.isBlank())
-                .collect(Collectors.joining(" "));
     }
 
     private static String firstNonBlank(String... candidates) {

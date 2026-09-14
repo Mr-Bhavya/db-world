@@ -1,6 +1,10 @@
 package com.db.dbworld.app.tally.service;
 
+import com.db.dbworld.app.tally.dto.SettleUpTransferDto;
+import com.db.dbworld.app.tally.entity.TallyGroupMemberEntity;
+import com.db.dbworld.app.tally.mapper.TallyMapper;
 import com.db.dbworld.app.tally.repository.TallyExpensePayerRepository;
+import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
 import com.db.dbworld.app.tally.repository.TallyExpenseShareRepository;
 import com.db.dbworld.app.tally.repository.TallyLedgerEntryRepository;
 import com.db.dbworld.app.tally.repository.TallyLedgerEntryRepository.MemberTotal;
@@ -16,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Who is up and who is down, and the shortest sensible way to square it.
@@ -28,9 +33,8 @@ public class TallyBalanceService {
     private final TallyExpensePayerRepository payers;
     private final TallyExpenseShareRepository shares;
     private final TallySettlementRepository settlements;
-
-    /** One suggested payment. Advice only — recording it is an ordinary settlement. */
-    public record Transfer(String fromMemberId, String toMemberId, BigDecimal amount) {}
+    private final TallyGroupMemberRepository members;
+    private final TallyMapper mapper;
 
     /**
      * Every member's net position: positive means the group owes them.
@@ -86,7 +90,7 @@ public class TallyBalanceService {
      * look broken.
      */
     @Transactional(readOnly = true)
-    public List<Transfer> settleUpPlan(String groupId) {
+    public List<SettleUpTransferDto> settleUpPlan(String groupId) {
         Comparator<Map.Entry<String, BigDecimal>> bySizeThenId =
                 Comparator.<Map.Entry<String, BigDecimal>, BigDecimal>comparing(e -> e.getValue().abs())
                         .reversed()
@@ -103,13 +107,22 @@ public class TallyBalanceService {
             }
         });
 
-        List<Transfer> plan = new ArrayList<>();
+        // Loaded unfiltered so a departed member still reads as a person: they can be owed
+        // money right up until they are removed, and removal is what requires zero.
+        Map<String, String> nameById = members.findByGroupId(groupId).stream()
+                .collect(Collectors.toMap(TallyGroupMemberEntity::getId,
+                        TallyGroupMemberEntity::getDisplayName));
+
+        List<SettleUpTransferDto> plan = new ArrayList<>();
         while (!debtors.isEmpty() && !creditors.isEmpty()) {
             Map.Entry<String, BigDecimal> debtor = debtors.poll();
             Map.Entry<String, BigDecimal> creditor = creditors.poll();
 
             BigDecimal amount = debtor.getValue().abs().min(creditor.getValue());
-            plan.add(new Transfer(debtor.getKey(), creditor.getKey(), amount));
+            plan.add(mapper.toTransferDto(
+                    debtor.getKey(), nameById.get(debtor.getKey()),
+                    creditor.getKey(), nameById.get(creditor.getKey()),
+                    amount));
 
             // Whichever side is not fully cleared goes back in with what is left. Exact
             // BigDecimal arithmetic means a remainder is either a real amount or exactly zero;
