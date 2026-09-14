@@ -232,6 +232,23 @@ export const categoryEmoji = (category) =>
 
 export const GROUP_CATEGORIES = ['Home', 'Trip', 'Flatmates', 'Family', 'Friends', 'Other'];
 
+/**
+ * Icons offered when changing a group's own.
+ *
+ * A short curated grid rather than a full emoji keyboard: picking from twelve takes a second,
+ * picking from two thousand takes a minute and half of them render differently per platform.
+ * The server picks one from the group's name anyway, so this is for disagreeing with it.
+ */
+export const GROUP_ICONS = [
+  '👥', '🏠', '🏘️', '🧳', '🏖️', '🚗',
+  '🏕️', '✈️', '🚆', '💼', '🍽️', '☕',
+  '🎉', '🎬', '💍', '🏏', '🛒', '🧾',
+  '🫂', '🤝', '🪙', '🎓', '🐾', '💡',
+];
+
+/** Fallback when a group predates the icon column. */
+export const groupIcon = (group) => group?.icon || (group?.kind === 'DIRECT' ? '🤝' : '👥');
+
 /* ============================== split methods ============================== */
 
 export const SPLIT_METHODS = [

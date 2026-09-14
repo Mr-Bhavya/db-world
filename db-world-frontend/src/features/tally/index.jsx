@@ -43,14 +43,31 @@ export default function TallyPage() {
   const [creating, setCreating] = useState(false);
   const [startingDirect, setStartingDirect] = useState(false);
 
-  /* People and groups are listed apart because they answer different questions: "what do I owe
-     Amma" and "how is the Goa trip going" are not items on one list. Archived falls out of both
-     into its own section rather than vanishing -- a finished ledger is still readable. */
-  const { people, live, archived } = useMemo(() => ({
-    people: groups.filter((g) => !g.archived && g.kind === 'DIRECT'),
-    live: groups.filter((g) => !g.archived && g.kind !== 'DIRECT'),
-    archived: groups.filter((g) => g.archived),
-  }), [groups]);
+  /* Filter chips rather than tabs.
+     Opening the app the question is "what needs me", not "show me groups" -- one list ordered
+     by recent activity answers that, where tabs make you choose before you have seen anything.
+     Tabs would also hide half your ledgers behind a tap you might not take, and money you have
+     forgotten about is the exact failure this app exists to prevent. The chips give the
+     filtering without hiding anything by default. */
+  const [filter, setFilter] = useState('ALL');
+
+  const { open: liveLedgers, archived, counts } = useMemo(() => {
+    const notArchived = groups.filter((g) => !g.archived);
+    return {
+      open: notArchived,
+      archived: groups.filter((g) => g.archived),
+      counts: {
+        ALL: notArchived.length,
+        DIRECT: notArchived.filter((g) => g.kind === 'DIRECT').length,
+        GROUP: notArchived.filter((g) => g.kind !== 'DIRECT').length,
+      },
+    };
+  }, [groups]);
+
+  const shown = useMemo(() => (filter === 'ALL'
+    ? liveLedgers
+    : liveLedgers.filter((g) => (filter === 'DIRECT' ? g.kind === 'DIRECT' : g.kind !== 'DIRECT'))
+  ), [liveLedgers, filter]);
 
   /**
    * What the app owes you, net, across every live group.
@@ -59,8 +76,8 @@ export default function TallyPage() {
    * "am I up or down overall" and the grid below answers "in which group" anyway.
    */
   const net = useMemo(
-    () => live.reduce((sum, g) => sum + Number(g.myBalance ?? 0), 0),
-    [live],
+    () => liveLedgers.reduce((sum, g) => sum + Number(g.myBalance ?? 0), 0),
+    [liveLedgers],
   );
 
   const handleCreate = (body) => {
@@ -171,30 +188,48 @@ export default function TallyPage() {
 
         {showEmpty && <EmptyState onCreate={() => setCreating(true)} />}
 
-        {!isLoading && people.length > 0 && (
-          <Box sx={{ mb: live.length ? 4 : 0 }}>
-            <SectionHeading icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />} label="People" />
-            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
-              {people.map((group, i) => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  index={i}
-                  onOpen={() => navigate(Constants.tallyGroupPath(group.id))}
-                />
-              ))}
-            </Box>
+        {/* Only worth showing once there is something to filter. One chip row over a list of
+            two is noise. */}
+        {!isLoading && liveLedgers.length > 2 && counts.DIRECT > 0 && counts.GROUP > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.75, mb: 2 }}>
+            {[
+              { value: 'ALL', label: 'All' },
+              { value: 'DIRECT', label: 'People' },
+              { value: 'GROUP', label: 'Groups' },
+            ].map((chip) => {
+              const selected = filter === chip.value;
+              return (
+                <Box
+                  key={chip.value}
+                  component={motion.button}
+                  type="button"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setFilter(chip.value)}
+                  aria-pressed={selected}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.6,
+                    px: 1.5, py: 0.6, borderRadius: 999, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                    bgcolor: selected ? T.tealBg : T.glass,
+                    color: selected ? T.teal : T.textMuted,
+                    border: `1px solid ${selected ? T.glassBorderHover : T.border}`,
+                    transition: 'all .15s ease',
+                  }}
+                >
+                  {chip.label}
+                  <Box component="span" sx={{ opacity: 0.7, fontWeight: 600 }}>
+                    {counts[chip.value]}
+                  </Box>
+                </Box>
+              );
+            })}
           </Box>
         )}
 
-        {!isLoading && live.length > 0 && (
-          <Box>
-            {people.length > 0 && (
-              <SectionHeading icon={<GroupsRoundedIcon sx={{ fontSize: 16 }} />} label="Groups" />
-            )}
-            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
+        {!isLoading && shown.length > 0 && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
             <AnimatePresence initial={false}>
-              {live.map((group, i) => (
+              {shown.map((group, i) => (
                 <GroupCard
                   key={group.id}
                   group={group}
@@ -203,7 +238,6 @@ export default function TallyPage() {
                 />
               ))}
             </AnimatePresence>
-            </Box>
           </Box>
         )}
 

@@ -59,6 +59,8 @@ public class TallyGroupService {
         var group = new TallyGroupEntity();
         group.setName(request.name().trim());
         group.setCategory(blankToNull(request.category()));
+        group.setIcon(TallyIcons.resolve(
+                request.icon(), request.name(), request.category(), TallyGroupKind.GROUP));
         group.setCreatedByUserId(userId);
         groups.save(group);
 
@@ -121,6 +123,7 @@ public class TallyGroupService {
         var group = new TallyGroupEntity();
         group.setName(theirName);
         group.setKind(TallyGroupKind.DIRECT);
+        group.setIcon(TallyIcons.DEFAULT_DIRECT);
         group.setCreatedByUserId(userId);
         groups.save(group);
 
@@ -222,6 +225,16 @@ public class TallyGroupService {
         if (request.category() != null) {
             group.setCategory(blankToNull(request.category()));
         }
+        if (request.icon() != null && !request.icon().isBlank()) {
+            group.setIcon(request.icon().trim());
+        }
+        // A rename with no icon of its own re-derives one, but only while the icon is still
+        // whatever the server guessed. Once somebody has picked one it is theirs, and quietly
+        // swapping it because they corrected a typo in the name would be maddening.
+        if (request.name() != null && !request.name().isBlank() && request.icon() == null
+                && isDerivedIcon(group.getIcon())) {
+            group.setIcon(TallyIcons.resolve(null, group.getName(), group.getCategory(), group.getKind()));
+        }
 
         if (request.archived() != null && request.archived() != group.isArchived()) {
             access.requireOwner(userId, groupId);
@@ -300,6 +313,14 @@ public class TallyGroupService {
                 .map(String::trim)
                 .findFirst()
                 .orElseThrow(() -> new DbWorldException(HttpStatus.BAD_REQUEST, "A member needs a name"));
+    }
+
+    /** True while the icon is still one the server chose rather than one the user picked. */
+    private static boolean isDerivedIcon(String icon) {
+        return icon == null || icon.isBlank()
+                || TallyIcons.DEFAULT_GROUP.equals(icon)
+                || TallyIcons.DEFAULT_DIRECT.equals(icon)
+                || TallyIcons.DEFAULT_PERSONAL.equals(icon);
     }
 
     private static String blankToNull(String s) {

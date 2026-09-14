@@ -16,5 +16,15 @@ public enum TallyGroupKind {
     /** Several people sharing a household, a trip, a night out. */
     GROUP,
     /** Just the two of you. Promoted to {@link #GROUP} the moment a third person is added. */
-    DIRECT
+    DIRECT,
+    /**
+     * Only you — your own spending, with nobody to owe or be owed.
+     *
+     * <p>The same expenses, categories and corrections as anywhere else; balances and
+     * settle-up simply have nothing to say about a ledger with one member, so the UI hides
+     * them. Keeping it in this table rather than a separate one means the monthly total can
+     * add your own spending to your share of every group without stitching two models
+     * together.
+     */
+    PERSONAL
 }

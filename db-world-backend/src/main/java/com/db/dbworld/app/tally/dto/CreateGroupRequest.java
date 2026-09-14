@@ -12,5 +12,7 @@ import jakarta.validation.constraints.Size;
  */
 public record CreateGroupRequest(
         @NotBlank @Size(max = 120) String name,
-        @Size(max = 60) String category
+        @Size(max = 60) String category,
+        /** Optional. Left out, the server picks one from the name. */
+        @Size(max = 8) String icon
 ) {}

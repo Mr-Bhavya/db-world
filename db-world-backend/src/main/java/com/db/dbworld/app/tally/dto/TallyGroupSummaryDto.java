@@ -17,6 +17,8 @@ public record TallyGroupSummaryDto(
         String name,
         /** GROUP, or DIRECT for a running total with one person. For DIRECT, `name` is them. */
         TallyGroupKind kind,
+        /** An emoji. Never null once created — the server picks one if the user does not. */
+        String icon,
         String category,
         String currency,
         boolean archived,

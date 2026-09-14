@@ -81,7 +81,7 @@ class TallySettlementTest {
         outsider = user(role, "Outsider");
         em.flush();
 
-        var group = groupService.create(appaUser, new CreateGroupRequest("Home", null));
+        var group = groupService.create(appaUser, new CreateGroupRequest("Home", null, null));
         groupId = group.id();
         appa = group.members().getFirst().id();
         amma = memberService.add(appaUser, groupId, new AddMemberRequest(ammaUser, null, null)).id();
@@ -225,7 +225,7 @@ class TallySettlementTest {
     void strangerRefused() {
         // No foreign keys exist on these columns, so this check is the only thing stopping a
         // settlement pointing into another group.
-        var elsewhere = groupService.create(ammaUser, new CreateGroupRequest("Elsewhere", null));
+        var elsewhere = groupService.create(ammaUser, new CreateGroupRequest("Elsewhere", null, null));
         String stranger = elsewhere.members().getFirst().id();
 
         assertThatThrownBy(() -> settlementService.record(appaUser, groupId, settle(appa, stranger, "10.00", null)))
@@ -250,7 +250,7 @@ class TallySettlementTest {
     @Test
     @DisplayName("an archived group takes no more payments")
     void archivedGroupRefusesPayments() {
-        groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, true, true));
+        groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, null, true, true));
 
         assertThatThrownBy(() -> settlementService.record(appaUser, groupId, settle(amma, appa, "50.00", null)))
                 .isInstanceOf(DbWorldException.class)

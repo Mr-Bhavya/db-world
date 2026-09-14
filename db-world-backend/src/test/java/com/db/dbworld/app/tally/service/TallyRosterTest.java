@@ -96,7 +96,7 @@ class TallyRosterTest {
         outsider = user(role, "Someone", "Else");
         em.flush();
 
-        TallyGroupDetailDto group = groupService.create(appaUser, new CreateGroupRequest("Home", "Family"));
+        TallyGroupDetailDto group = groupService.create(appaUser, new CreateGroupRequest("Home", "Family", null));
         groupId = group.id();
         appa = group.members().getFirst().id();
     }
@@ -211,7 +211,7 @@ class TallyRosterTest {
     void crossGroupDelegationRejected() {
         // No foreign key exists on paid_for_by_member_id, so this check is the only thing
         // stopping a member of one group becoming liable in another.
-        String outsideGroup = groupService.create(ammaUser, new CreateGroupRequest("Elsewhere", null)).id();
+        String outsideGroup = groupService.create(ammaUser, new CreateGroupRequest("Elsewhere", null, null)).id();
         String stranger = groupService.get(ammaUser, outsideGroup).members().getFirst().id();
         String kid = ghost("Kid");
 
@@ -511,7 +511,7 @@ class TallyRosterTest {
         spend("Groceries", "100.00", appa, appa, amma);
 
         assertThatThrownBy(() -> groupService.update(appaUser, groupId,
-                new UpdateGroupRequest(null, null, true, false)))
+                new UpdateGroupRequest(null, null, null, true, false)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("50.00");
 
@@ -526,14 +526,14 @@ class TallyRosterTest {
         String amma = addRealMember(ammaUser);
         spend("Groceries", "100.00", appa, appa, amma);
 
-        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, true, true))
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, null, true, true))
                 .archived()).isTrue();
 
         // Archived is closed for writes but still readable, and reopening undoes it.
         assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMemberRequest(null, "Late", null)))
                 .isInstanceOf(DbWorldException.class)
                 .hasMessageContaining("archived");
-        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, false, false))
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroupRequest(null, null, null, false, false))
                 .archived()).isFalse();
     }
 
@@ -542,11 +542,11 @@ class TallyRosterTest {
     void archivingIsAnOwnerAction() {
         addRealMember(ammaUser);
 
-        assertThat(groupService.update(ammaUser, groupId, new UpdateGroupRequest("Our Home", null, null, false))
+        assertThat(groupService.update(ammaUser, groupId, new UpdateGroupRequest("Our Home", null, null, null, false))
                 .name()).isEqualTo("Our Home");
 
         assertThatThrownBy(() -> groupService.update(ammaUser, groupId,
-                new UpdateGroupRequest(null, null, true, false)))
+                new UpdateGroupRequest(null, null, null, true, false)))
                 .isInstanceOf(DbWorldException.class)
                 .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(403));
     }
@@ -563,7 +563,7 @@ class TallyRosterTest {
 
         assertThatAll404(
                 () -> groupService.get(outsider, groupId),
-                () -> groupService.update(outsider, groupId, new UpdateGroupRequest("Mine now", null, null, false)),
+                () -> groupService.update(outsider, groupId, new UpdateGroupRequest("Mine now", null, null, null, false)),
                 () -> memberService.add(outsider, groupId, new AddMemberRequest(null, "Intruder", null)),
                 () -> memberService.update(outsider, groupId, kid, new UpdateMemberRequest("Renamed", null, null, false)),
                 () -> memberService.remove(outsider, groupId, kid),

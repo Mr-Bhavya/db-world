@@ -59,6 +59,17 @@ public class TallyGroupEntity {
     /** Free text for the UI to badge with ("Home", "Trip", "Flatmates"); not an enum, not validated. */
     @Column(length = 60) private String category;
 
+    /**
+     * An emoji, picked from the name when the user does not choose one.
+     *
+     * <p>Stored as the character itself rather than a key into some registry: the schema is
+     * {@code utf8mb4}, so it round-trips, and the expense feed already renders category emoji
+     * at the same size — a second, differently-shaped icon vocabulary next to it would look
+     * like two apps. Eight characters because an emoji can be several code points
+     * ({@code ✈️}) and some are families of them.
+     */
+    @Column(length = 8) private String icon;
+
     @Column(name = "created_by_user_id", nullable = false) private Long createdByUserId;
 
     /** ISO-4217. See the class javadoc for why this is the group's and not the expense's. */

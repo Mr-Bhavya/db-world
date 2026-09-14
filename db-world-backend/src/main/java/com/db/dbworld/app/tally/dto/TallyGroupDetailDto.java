@@ -23,6 +23,7 @@ public record TallyGroupDetailDto(
         String id,
         String name,
         TallyGroupKind kind,
+        String icon,
         String category,
         String currency,
         boolean archived,

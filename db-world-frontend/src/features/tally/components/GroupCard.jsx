@@ -6,7 +6,7 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import { useT } from '@shared/theme';
-import { balanceTone, balanceColor, initialsOf, avatarColor } from '../utils/tallyFormat';
+import { balanceTone, balanceColor, avatarColor, groupIcon } from '../utils/tallyFormat';
 
 /**
  * One group in the list.
@@ -60,15 +60,15 @@ export default function GroupCard({ group, onOpen, index = 0 }) {
       }} />
 
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
-        {direct && (
-          <Box sx={{
-            width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-            display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800,
-            bgcolor: `${tint}22`, color: tint, border: `1px solid ${tint}55`,
-          }}>
-            {initialsOf(group.name)}
-          </Box>
-        )}
+        {/* The icon is how the list is scanned once there are more than three of these.
+            Tinted from the id so two ledgers with the same icon still look different. */}
+        <Box sx={{
+          width: 38, height: 38, borderRadius: 2.5, flexShrink: 0,
+          display: 'grid', placeItems: 'center', fontSize: 19,
+          bgcolor: `${tint}1f`, border: `1px solid ${tint}44`,
+        }}>
+          {groupIcon(group)}
+        </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography noWrap sx={{
             fontSize: 16, fontWeight: 800, color: T.textPrimary, letterSpacing: -0.2,

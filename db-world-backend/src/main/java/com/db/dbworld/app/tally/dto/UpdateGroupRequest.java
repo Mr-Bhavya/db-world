@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Size;
 public record UpdateGroupRequest(
         @Size(max = 120) String name,
         @Size(max = 60) String category,
+        @Size(max = 8) String icon,
         Boolean archived,
         boolean settleOutstandingLater
 ) {}

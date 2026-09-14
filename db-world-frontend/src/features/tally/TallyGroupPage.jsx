@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, TextField,
+  Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab,
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -15,7 +15,6 @@ import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
 import Constants from '@shared/constants';
-import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   useGroup, useExpenses, useSettleUpPlan, useCreateExpense, useVoidExpense, useReplaceExpense,
@@ -31,7 +30,8 @@ import AddMemberDialog from './components/AddMemberDialog';
 import MembersSheet from './components/MembersSheet';
 import SettleUpSheet from './components/SettleUpSheet';
 import RecordPaymentDialog from './components/RecordPaymentDialog';
-import { TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx } from './components/tallyFormUi';
+import EditGroupDialog from './components/EditGroupDialog';
+import { groupIcon } from './utils/tallyFormat';
 
 /**
  * Page chrome: the app bar offset, the side gutters and the reading-width cap.
@@ -77,7 +77,7 @@ export default function TallyGroupPage() {
   const [addingMember, setAddingMember] = useState(false);
   const [settling, setSettling] = useState(false);
   const [payment, setPayment] = useState(null);     // null | {} | prefill
-  const [renaming, setRenaming] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(false);
   const [menuAt, setMenuAt] = useState(null);
 
   const { data: plan = [], isFetching: loadingPlan } = useSettleUpPlan(groupId, settling);
@@ -209,6 +209,16 @@ export default function TallyGroupPage() {
         >
           <ArrowBackRoundedIcon />
         </IconButton>
+
+        {group && (
+          <Box sx={{
+            width: 34, height: 34, borderRadius: 2, flexShrink: 0,
+            display: 'grid', placeItems: 'center', fontSize: 18,
+            bgcolor: T.glass, border: `1px solid ${T.border}`,
+          }}>
+            {groupIcon(group)}
+          </Box>
+        )}
 
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography noWrap component="h1" sx={{
@@ -367,13 +377,13 @@ export default function TallyGroupPage() {
         }}
       >
         <MenuItem
-          onClick={() => { setMenuAt(null); setRenaming(true); }}
+          onClick={() => { setMenuAt(null); setEditingGroup(true); }}
           sx={{ fontSize: 14, color: T.textPrimary }}
         >
           <ListItemIcon sx={{ minWidth: 32 }}>
             <DriveFileRenameOutlineRoundedIcon sx={{ fontSize: 18, color: T.textMuted }} />
           </ListItemIcon>
-          Rename group
+          {group?.kind === 'DIRECT' ? 'Change icon' : 'Edit name, type and icon'}
         </MenuItem>
         {isOwner && (
           group?.archived ? (
@@ -456,59 +466,14 @@ export default function TallyGroupPage() {
         onRecord={(body) => recordSettlement.mutate(body, { onSuccess: () => setPayment(null) })}
       />
 
-      <RenameDialog
-        open={renaming}
-        initial={group?.name ?? ''}
+      <EditGroupDialog
+        open={editingGroup}
+        group={group}
         busy={updateGroup.isPending}
-        onClose={() => setRenaming(false)}
-        onSave={(name) => updateGroup.mutate({ name }, { onSuccess: () => setRenaming(false) })}
+        onClose={() => setEditingGroup(false)}
+        onSave={(body) => updateGroup.mutate(body, { onSuccess: () => setEditingGroup(false) })}
       />
     </Shell>
   );
 
-}
-
-/** Renaming is common enough to deserve its own two-line dialog rather than an inline edit. */
-function RenameDialog({ open, initial, busy, onClose, onSave }) {
-  const T = useT();
-  const [name, setName] = useState(initial);
-
-  // Seeded on every open. `useState(initial)` alone reads its argument once, on first mount,
-  // so the second time the dialog opened it would still show the name from the first.
-  useEffect(() => { if (open) setName(initial ?? ''); }, [open, initial]);
-
-  return (
-    <TallyFormDialog
-      open={open}
-      onClose={onClose}
-      busy={busy}
-      maxWidth="xs"
-      title="Rename group"
-      actions={(
-        <>
-          <TallyCancelButton onClick={onClose} disabled={busy} />
-          <TallySubmitButton
-            busy={busy}
-            disabled={!name?.trim()}
-            onClick={() => {
-              if (!name?.trim()) { notify.error('Give the group a name'); return; }
-              onSave(name.trim());
-            }}
-          >
-            Save
-          </TallySubmitButton>
-        </>
-      )}
-    >
-      <TextField
-        autoFocus
-        fullWidth
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        label="Group name"
-        sx={tallyFieldSx(T)}
-      />
-    </TallyFormDialog>
-  );
 }
