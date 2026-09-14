@@ -3,6 +3,7 @@ package com.db.dbworld.security.token;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.mail.MailService;
 import com.db.dbworld.core.mail.MailTemplates;
+import com.db.dbworld.core.user.PasswordPolicy;
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.security.auth.SessionRevocationService;
@@ -140,9 +141,15 @@ public class AccountRecoveryService {
      */
     @Transactional
     public void resetPassword(final String rawToken, final String newPassword) {
-        if (newPassword == null || newPassword.length() < 6) {
+        // Validated here rather than by @Size because the raw password arrives as a
+        // method argument, not a bean field — which is exactly how it drifted to 6 while
+        // every DTO moved to 8.
+        if (newPassword == null || newPassword.length() < PasswordPolicy.MIN_LENGTH) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, PasswordPolicy.TOO_SHORT_MESSAGE);
+        }
+        if (newPassword.length() > PasswordPolicy.MAX_LENGTH) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST,
-                    "Password must be at least 6 characters");
+                    "Password must be at most " + PasswordPolicy.MAX_LENGTH + " characters");
         }
 
         final VerificationTokenEntity token = redeem(rawToken, Purpose.PASSWORD_RESET, "reset");

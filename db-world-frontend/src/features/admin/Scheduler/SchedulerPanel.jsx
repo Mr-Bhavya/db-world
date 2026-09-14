@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Box, Typography, Card, CardContent, Button, Chip,
+  Box, Typography, Button, Chip,
   IconButton, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Tooltip,
-  LinearProgress, Switch, alpha, Dialog, DialogTitle,
+  Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Alert,
   ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack, Grow,
 } from '@mui/material';
 import {
-  Schedule, ScheduleRounded, PlayArrow, CheckCircle,
-  Error as ErrorIcon, History, Timer, Code,
-  Edit as EditIcon, DragIndicator, Close as CloseIcon,
-  Autorenew, Sync, StickyNote2, SaveRounded,
+  Schedule, ScheduleRounded, CheckCircle,
+  Error as ErrorIcon, History, Timer,
+  Close as CloseIcon, SaveRounded, Autorenew,
+  ExpandMoreRounded, PersonRounded,
 } from '@mui/icons-material';
-import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
+import { Reorder, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
@@ -20,6 +20,10 @@ import { useT } from '@shared/theme';
 import {
   AdminPage, SectionCard, AdminActionButton, EmptyState, adminSurface,
 } from '@features/admin/adminUi';
+import RunLogPanel from './RunLogPanel';
+import JobCard from './JobCard';
+import { JOB_META } from './jobMeta';
+import { completionMessage, describeSchedule } from './schedulerUtils';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -28,6 +32,7 @@ const api = {
         .get('/api/admin/scheduler/history', { params: { limit, jobName } })
         .then(r => r.data?.data ?? []),
   trigger: (jobId)              => axiosInstance.post(`/api/admin/scheduler/trigger/${jobId}`),
+  cancel:  (jobId)              => axiosInstance.post(`/api/admin/scheduler/cancel/${jobId}`),
   toggle:  (jobId)              => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
   updateCron:     (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/cron/${jobId}`,     body),
   updateInterval: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/interval/${jobId}`, body),
@@ -35,43 +40,7 @@ const api = {
   reorder: (orders)             => axiosInstance.patch('/api/admin/scheduler/reorder', orders),
 };
 
-// ─── Per-job display metadata ─────────────────────────────────────────────────
-const JOB_META = {
-  TagScheduler:        { color: '#f59e0b', label: 'Tag Scheduler',     icon: Schedule },
-  TmdbMovieSync:       { color: '#6366f1', label: 'TMDB Movie Sync',   icon: Schedule },
-  TmdbTvSync:          { color: '#a855f7', label: 'TMDB TV Sync',      icon: Schedule },
-  PersonSyncScheduler: { color: '#0d9488', label: 'Person Detail Sync',icon: Schedule },
-  MediaSync:           { color: '#10b981', label: 'Media File Sync',   icon: Sync      },
-};
 
-// ─── Schedule description ─────────────────────────────────────────────────────
-/** Renders a human-readable line for the job's cadence — works for both
- *  CRON (`0 0 2 * * *`) and FIXED_DELAY (every N seconds). */
-function describeSchedule(job) {
-  if (job?.jobType === 'FIXED_DELAY') {
-    const s = job.intervalSeconds ?? 0;
-    if (s < 60) return `Every ${s}s`;
-    if (s % 60 === 0) {
-      const m = s / 60;
-      return m === 1 ? 'Every minute' : `Every ${m} minutes`;
-    }
-    return `Every ${s}s`;
-  }
-  const expr = job?.cronExpression;
-  if (!expr) return '—';
-  const parts = expr.split(' ');
-  if (parts.length < 6) return expr;
-  const [, min, hour] = parts;
-  if (hour === '*/6') return 'Every 6 hours';
-  if (hour === '*/2') return 'Every 2 hours';
-  if (hour === '*/1') return 'Every hour';
-  if (/^\d+$/.test(hour)) {
-    const h = parseInt(hour, 10);
-    const m = parseInt(min, 10);
-    return `Daily at ${h}:${String(m).padStart(2, '0')}${job.timezone ? ' ' + job.timezone.replace('Asia/', '') : ''}`;
-  }
-  return expr;
-}
 
 // ─── Cron expression parser / builder ────────────────────────────────────────
 /**
@@ -591,6 +560,88 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   );
 }
 
+// ─── Run outcome ───────────────────────────────────────────────────
+
+/** camelCase counter key → readable label ("filesOnDisk" → "Files on disk"). */
+function labelFor(key) {
+  const spaced = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * What a run actually did, as counter chips plus its note.
+ *
+ * Runs recorded before this existed carry no summary — those rows just show their message,
+ * exactly as they always did.
+ */
+function RunSummary({ summary, message, failed }) {
+  const T = useT();
+  const S = adminSurface(T);
+  const counters = summary?.counters ?? {};
+  const entries  = Object.entries(counters);
+  const note     = summary?.note;
+
+  if (entries.length === 0 && !note && !message) return null;
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {entries.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          {entries.map(([k, v]) => {
+            // A non-zero failure count is the one number worth colouring — it is the reason
+            // someone opened this dialog.
+            const bad = /fail/i.test(k) && Number(v) > 0;
+            return (
+              <Chip
+                key={k}
+                size="small"
+                label={`${labelFor(k)} ${v}`}
+                sx={{
+                  height: 18, fontSize: '0.62rem', borderRadius: 0.75,
+                  bgcolor: bad ? T.errorBg : S.inset,
+                  color:   bad ? T.error   : T.textMuted,
+                  '& .MuiChip-label': { px: 0.75 },
+                }}
+              />
+            );
+          })}
+        </Box>
+      )}
+      {(note || message) && (
+        <Typography sx={{
+          fontSize: '0.7rem', fontStyle: 'italic',
+          color: failed && message ? T.error : T.textFaint,
+        }}>
+          {message || note}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+/** Whether the run came from its schedule or from someone pressing "Run now". */
+function TriggerCell({ row }) {
+  const T = useT();
+  if (row.triggeredBy === 'MANUAL') {
+    return (
+      <Tooltip title={row.triggeredByUser ? `Run manually by ${row.triggeredByUser}` : 'Run manually'}>
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textMuted }}>
+          <PersonRounded sx={{ fontSize: 12 }} />
+          <Typography sx={{ fontSize: '0.68rem' }}>Manual</Typography>
+        </Box>
+      </Tooltip>
+    );
+  }
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textFaint }}>
+      <ScheduleRounded sx={{ fontSize: 12 }} />
+      <Typography sx={{ fontSize: '0.68rem' }}>
+        {row.triggeredBy === 'SCHEDULED' ? 'Scheduled' : '—'}
+      </Typography>
+    </Box>
+  );
+}
+
 // ─── Per-job history modal ────────────────────────────────────────────────────
 /**
  * Forwarded-ref wrapper so MUI's transitions can target the motion'd content.
@@ -605,12 +656,17 @@ function HistoryModal({ job, onClose }) {
   const T = useT();
   const S = adminSurface(T);
   const open = !!job;
+  // One row open at a time — stacking several log panels in a capped-height dialog just
+  // pushes the row you were reading off screen.
+  const [expandedRun, setExpandedRun] = useState(null);
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['scheduler-job-history', job?.id],
     queryFn:  () => api.history(job.id, 100),
     enabled:  open,
     refetchInterval: open ? 5_000 : false,
   });
+
+  useEffect(() => { setExpandedRun(null); }, [job?.id]);
 
   const meta = JOB_META[job?.id] ?? { color: T.teal };
   const fmt   = (iso) => iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -698,21 +754,37 @@ function HistoryModal({ job, onClose }) {
                     },
                   }}>
                     <TableCell>Started</TableCell>
-                    <TableCell>Duration</TableCell>
+                    {/* Five columns do not fit a phone-width dialog. Duration and
+                        trigger fold away there and reappear on the summary line
+                        below the row, so nothing is actually lost. */}
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Duration</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Trigger</TableCell>
+                    <TableCell sx={{ width: 36 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rows.map((row, i) => (
-                    <React.Fragment key={i}>
-                      <TableRow sx={{
-                        '& td': { color: T.textMuted, fontSize: '0.78rem', borderColor: S.divider },
-                        '&:hover': { bgcolor: S.cardHover },
-                      }}>
+                  {rows.map((row, i) => {
+                    const key      = row.id ?? `${row.startedAt}-${i}`;
+                    const expanded = expandedRun === key;
+                    const hasLogs  = !!row.runId;
+                    return (
+                    <React.Fragment key={key}>
+                      <TableRow
+                        onClick={hasLogs ? () => setExpandedRun(expanded ? null : key) : undefined}
+                        sx={{
+                          '& td': {
+                            color: T.textMuted, fontSize: '0.78rem',
+                            borderColor: expanded ? 'transparent' : S.divider,
+                          },
+                          '&:hover': { bgcolor: S.cardHover },
+                          cursor: hasLogs ? 'pointer' : 'default',
+                        }}
+                      >
                         <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.72rem !important' }}>
                           {fmt(row.startedAt)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Timer sx={{ fontSize: 12, color: T.textFaint }} />
                             <Typography sx={{ fontSize: '0.74rem', color: T.textMuted }}>
@@ -734,17 +806,47 @@ function HistoryModal({ job, onClose }) {
                               sx={{ bgcolor: S.inset, color: T.textMuted, height: 18, fontSize: '0.62rem' }} />
                           )}
                         </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                          <TriggerCell row={row} />
+                        </TableCell>
+                        <TableCell sx={{ pr: 1 }}>
+                          {hasLogs && (
+                            <Tooltip title={expanded ? 'Hide logs' : 'Show this run\u2019s logs'}>
+                              <ExpandMoreRounded sx={{
+                                fontSize: 16, color: T.textFaint, display: 'block',
+                                transition: 'transform 160ms ease',
+                                transform: expanded ? 'rotate(180deg)' : 'none',
+                              }} />
+                            </Tooltip>
+                          )}
+                        </TableCell>
                       </TableRow>
-                      {row.message && (
-                        <TableRow sx={{
-                          '& td': { color: T.textFaint, fontSize: '0.72rem', borderColor: T.border,
-                            py: 0.5, pl: 3, fontStyle: 'italic' },
-                        }}>
-                          <TableCell colSpan={3}>{row.message}</TableCell>
+
+                      {/* What the run actually did — the counters the job reported. */}
+                      {(row.summary || row.message) && (
+                        <TableRow sx={{ '& td': { borderColor: expanded ? 'transparent' : S.divider, py: 0.5, pl: 3 } }}>
+                          <TableCell colSpan={5}>
+                            <Box sx={{ display: { xs: 'flex', sm: 'none' }, gap: 1, mb: 0.5 }}>
+                              <Typography sx={{ fontSize: '0.68rem', color: T.textFaint }}>
+                                {fmtMs(row.durationMs)}
+                              </Typography>
+                              <TriggerCell row={row} />
+                            </Box>
+                            <RunSummary summary={row.summary} message={row.message} failed={row.status === 'FAILED'} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+
+                      {expanded && (
+                        <TableRow sx={{ '& td': { borderColor: S.divider, py: 1, px: 2 } }}>
+                          <TableCell colSpan={5}>
+                            <RunLogPanel runId={row.runId} startedAt={row.startedAt} />
+                          </TableCell>
                         </TableRow>
                       )}
                     </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -755,145 +857,6 @@ function HistoryModal({ job, onClose }) {
   );
 }
 
-// ─── Draggable Job Card ───────────────────────────────────────────────────────
-function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, triggering }) {
-  const T            = useT();
-  const S            = adminSurface(T);
-  const dragControls = useDragControls();
-  const meta         = JOB_META[job.id] ?? { color: T.teal, label: job.name, icon: Schedule };
-  const Icon         = meta.icon ?? Schedule;
-  const isRunning    = job.status === 'RUNNING' || triggering;
-  const isFixedDelay = job.jobType === 'FIXED_DELAY';
-
-  return (
-    <Reorder.Item
-      value={job}
-      dragListener={false}
-      dragControls={dragControls}
-      style={{ listStyle: 'none' }}
-      layout
-    >
-      <Card sx={{
-        bgcolor: S.card,
-        border: `1px solid ${isRunning ? meta.color + '55' : S.border}`,
-        borderRadius: 2,
-        mb: 1.5,
-        transition: 'border-color 0.2s',
-        '&:hover': { borderColor: meta.color + '66' },
-        cursor: 'default',
-        userSelect: 'none',
-      }}>
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } }, display: 'flex', gap: 1.5 }}>
-
-          {/* Drag handle */}
-          <Box
-            onPointerDown={e => dragControls.start(e)}
-            sx={{
-              display: 'flex', alignItems: 'center', cursor: 'grab',
-              color: T.textFaint, flexShrink: 0, touchAction: 'none',
-              '&:active': { cursor: 'grabbing' },
-            }}
-          >
-            <DragIndicator sx={{ fontSize: 18 }} />
-          </Box>
-
-          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {/* Name row + toggle */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-              <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Icon sx={{ fontSize: 16, color: meta.color, flexShrink: 0 }} />
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontSize: { xs: '0.82rem', sm: '0.88rem' }, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>
-                    {meta.label}
-                  </Typography>
-                  <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.72rem' }, color: T.textFaint, mt: 0.3, lineHeight: 1.4 }}>
-                    {job.description}
-                  </Typography>
-                  {job.notes && (
-                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, alignItems: 'flex-start',
-                      bgcolor: alpha(meta.color, 0.06),
-                      border: `1px solid ${alpha(meta.color, 0.18)}`,
-                      borderRadius: 0.75, px: 0.75, py: 0.5 }}>
-                      <StickyNote2 sx={{ fontSize: 12, color: meta.color, mt: 0.15, flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: '0.7rem', color: T.textMuted,
-                        lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
-                        {job.notes}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-              <Tooltip title={job.enabled !== false ? 'Disable job' : 'Enable job'}>
-                <Switch size="small" checked={job.enabled !== false} onChange={() => onToggle(job)}
-                  sx={{ flexShrink: 0,
-                    '& .MuiSwitch-thumb': { bgcolor: job.enabled !== false ? meta.color : undefined },
-                    '& .MuiSwitch-track': { bgcolor: job.enabled !== false ? `${meta.color}55` : undefined },
-                  }} />
-              </Tooltip>
-            </Box>
-
-            {/* Schedule row */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-              {isFixedDelay
-                ? <Autorenew sx={{ fontSize: 12, color: T.textFaint, flexShrink: 0 }} />
-                : <Code      sx={{ fontSize: 12, color: T.textFaint, flexShrink: 0 }} />}
-              <Tooltip title={isFixedDelay ? `Self-scheduled, every ${job.intervalSeconds}s` : (job.cronExpression ?? '')}>
-                <Typography sx={{ fontSize: '0.68rem',
-                  fontFamily: isFixedDelay ? 'inherit' : 'monospace',
-                  color: T.textMuted, mr: 'auto' }}>
-                  {describeSchedule(job)}
-                </Typography>
-              </Tooltip>
-              <Tooltip title={isFixedDelay ? 'Edit interval' : 'Edit cron schedule'}>
-                <IconButton size="small" onClick={() => onEdit(job)}
-                  sx={{ p: 0.25, color: T.textFaint, '&:hover': { color: meta.color } }}>
-                  <EditIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-              {/* History button — opens per-job drawer */}
-              <Tooltip title="View history">
-                <IconButton size="small" onClick={() => onShowHistory(job)}
-                  sx={{ p: 0.25, color: T.textFaint, '&:hover': { color: meta.color } }}>
-                  <History sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            {/* Status indicator */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              {isRunning ? (
-                <Chip label="Running" size="small"
-                  icon={<CircularProgress size={9} sx={{ color: `${T.success} !important` }} />}
-                  sx={{ bgcolor: T.successBg, color: T.success, height: 20, fontSize: '0.65rem', '& .MuiChip-icon': { ml: 0.5 } }} />
-              ) : job.lastStatus === 'FAILED' ? (
-                <Chip label="Last Failed" size="small" icon={<ErrorIcon sx={{ fontSize: 11 }} />}
-                  sx={{ bgcolor: T.errorBg, color: T.error, height: 20, fontSize: '0.65rem', '& .MuiChip-icon': { color: T.error, ml: 0.5 } }} />
-              ) : (
-                <Chip label="Idle" size="small"
-                  sx={{ bgcolor: S.inset, color: T.textMuted, height: 20, fontSize: '0.65rem' }} />
-              )}
-            </Box>
-
-            {isRunning && (
-              <LinearProgress sx={{ height: 2, borderRadius: 1, bgcolor: S.inset,
-                '& .MuiLinearProgress-bar': { bgcolor: meta.color } }} />
-            )}
-
-            <Button size="small" variant="outlined" fullWidth startIcon={<PlayArrow sx={{ fontSize: 14 }} />}
-              disabled={isRunning} onClick={() => onTrigger(job)}
-              sx={{
-                mt: 'auto', borderColor: alpha(meta.color, 0.35), color: meta.color, fontSize: '0.75rem',
-                '&:hover': { borderColor: meta.color, bgcolor: alpha(meta.color, 0.08) },
-                '&:disabled': { borderColor: T.border, color: T.textFaint },
-              }}>
-              {isRunning ? 'Running…' : 'Run Now'}
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-    </Reorder.Item>
-  );
-}
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 export default function SchedulerPanel() {
@@ -903,7 +866,15 @@ export default function SchedulerPanel() {
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({
     queryKey: ['scheduler-jobs'],
     queryFn:  api.jobs,
-    refetchInterval: 15_000,
+    // Adaptive: a flat 15s meant pressing "Run now" could sit there for fifteen
+    // seconds before the card admitted anything was happening, and a job that
+    // finished in two seconds could start and end entirely between two polls. While
+    // anything is RUNNING we watch closely; the rest of the time this page is a
+    // near-static list and does not deserve the traffic.
+    refetchInterval: (query) => {
+      const rows = query.state.data ?? [];
+      return rows.some((j) => j.status === 'RUNNING') ? 2_000 : 15_000;
+    },
   });
 
   // ── Local ordered jobs (for drag-to-reorder) ─────────────────────────────
@@ -930,21 +901,70 @@ export default function SchedulerPanel() {
 
   const triggerMutation = useMutation({
     mutationFn: (job) => api.trigger(job.id),
-    onMutate:   (job) => setTriggeringId(job.id),
+    onMutate:   (job) => { setTriggeringId(job.id); watchedRuns.current.add(job.id); },
     onSuccess:  (_, job) => {
       notify.success(`${JOB_META[job.id]?.label ?? job.id} triggered`);
+      // Refetch straight away so the server's own RUNNING status takes over as soon
+      // as it exists; the optimistic flag below only has to bridge that gap. Once the
+      // list reports RUNNING the adaptive interval keeps it fresh, so the second
+      // refresh no longer has to guess a duration.
+      qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
       qc.invalidateQueries({ queryKey: ['scheduler-job-history', job.id] });
-      setTimeout(() => {
-        setTriggeringId(null);
-        qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
-        qc.invalidateQueries({ queryKey: ['scheduler-job-history', job.id] });
-      }, 2000);
+      setTimeout(() => setTriggeringId(null), 1500);
     },
     onError: (_, job) => {
       setTriggeringId(null);
       notify.error(`Failed to trigger ${JOB_META[job.id]?.label ?? job.id}`);
     },
   });
+
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const cancelMutation = useMutation({
+    mutationFn: (job) => api.cancel(job.id),
+    onMutate:   (job) => setCancellingId(job.id),
+    onSuccess:  (_, job) => {
+      notify.info(`Stopping ${JOB_META[job.id]?.label ?? job.id}…`);
+      qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
+    },
+    onError: (e, job) => {
+      setCancellingId(null);
+      // 409 means it finished between the click and the request landing, which is a
+      // perfectly normal race and not worth an error toast.
+      notify[e?.response?.status === 409 ? 'info' : 'error'](
+        e?.response?.status === 409
+          ? `${JOB_META[job.id]?.label ?? job.id} had already finished`
+          : 'Failed to cancel the job',
+      );
+    },
+    onSettled: () => setTimeout(() => setCancellingId(null), 1500),
+  });
+
+  /**
+   * Tells you how a run YOU started ended.
+   *
+   * A manual run can take minutes; the "triggered" toast is long gone by then, and
+   * without this the outcome only exists if you happen to still be looking at that
+   * card. Watches for jobs you triggered going RUNNING -> not, and reports what the
+   * card would have shown.
+   */
+  const watchedRuns = useRef(new Set());
+  const prevRunning = useRef(new Set());
+  useEffect(() => {
+    const running = new Set(jobs.filter((j) => j.status === 'RUNNING').map((j) => j.id));
+    for (const id of prevRunning.current) {
+      if (running.has(id) || !watchedRuns.current.has(id)) continue;
+      watchedRuns.current.delete(id);
+      const job = jobs.find((j) => j.id === id);
+      if (!job) continue;
+      const { severity, text } = completionMessage({
+        ...job,
+        name: JOB_META[job.id]?.label ?? job.name ?? job.id,
+      });
+      notify[severity](text);
+    }
+    prevRunning.current = running;
+  }, [jobs]);
 
   const toggleMutation = useMutation({
     mutationFn: (job) => api.toggle(job.id),
@@ -1035,11 +1055,13 @@ export default function SchedulerPanel() {
           style={{ padding: 0, margin: 0 }}>
           <AnimatePresence>
             {orderedJobs.map((job) => (
-              <DraggableJobCard
+              <JobCard
                 key={job.id}
                 job={job}
                 triggering={triggeringId === job.id}
+                cancelling={cancellingId === job.id}
                 onTrigger={(j) => triggerMutation.mutate(j)}
+                onCancel={(j) => cancelMutation.mutate(j)}
                 onToggle={(j) => toggleMutation.mutate(j)}
                 onEdit={(j) => setEditJob(j)}
                 onShowHistory={(j) => setHistoryJob(j)}

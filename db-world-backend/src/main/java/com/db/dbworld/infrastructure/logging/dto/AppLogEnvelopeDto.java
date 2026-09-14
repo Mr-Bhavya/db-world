@@ -40,6 +40,20 @@ public class AppLogEnvelopeDto {
         return null;
     }
 
+    /**
+     * The populated DTO, whichever shape this line turned out to be — or the raw line when
+     * parsing failed. Lets a caller that doesn't care about the variant (the scheduler
+     * run-log lookup, which mixes info and debug lines in one list) hand the payload straight
+     * to the serialiser.
+     */
+    public Object payload() {
+        if (debug != null) return debug;
+        if (error != null) return error;
+        if (info != null) return info;
+        if (request != null) return request;
+        return rawLine;
+    }
+
     public LogType level() {
         if (debug != null) return debug.getLevel();
         if (error != null) return error.getLevel();

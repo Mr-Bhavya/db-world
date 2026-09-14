@@ -140,10 +140,12 @@ function FiltersBody({ mode, facets, filters, onChange, onClearAll, supportsHist
       )}
 
       <Divider sx={{ borderColor: S.divider }} />
-      <Section title="Trace / Request ID">
+      <Section title="Correlation IDs">
         <Box sx={{ display: 'grid', gap: 1 }}>
           <TextField size="small" placeholder="Trace ID" value={filters.traceId} onChange={(e) => onChange({ traceId: e.target.value.trim() })} sx={fieldSx} />
           <TextField size="small" placeholder="Request ID" value={filters.requestId} onChange={(e) => onChange({ requestId: e.target.value.trim() })} sx={fieldSx} />
+          {/* Usually arrives pre-filled from the Scheduler page's "Log Viewer" button. */}
+          <TextField size="small" placeholder="Scheduler run ID" value={filters.jobRunId} onChange={(e) => onChange({ jobRunId: e.target.value.trim() })} sx={fieldSx} />
         </Box>
       </Section>
 

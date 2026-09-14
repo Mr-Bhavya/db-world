@@ -107,6 +107,13 @@ public class RefreshTokenEntity {
         LOGOUT_ALL,
         ROTATED,
         REUSE_DETECTED,
+        /**
+         * Replaced by a newer session for the SAME device — a biometric unlock resuming a device
+         * that already had one, or a session retired by the per-user active-session cap. Distinct
+         * from {@link #ROTATED} (which is one token replacing another INSIDE a family) because
+         * this retires the whole family.
+         */
+        SUPERSEDED,
         ROLE_DOWNGRADE,
         ACCOUNT_DISABLED,
         ACCOUNT_LOCKED,

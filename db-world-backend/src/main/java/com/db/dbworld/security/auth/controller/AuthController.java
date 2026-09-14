@@ -7,6 +7,7 @@ import com.db.dbworld.core.user.dto.CreateUserRequest;
 import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.security.auth.AuthenticationService;
 import com.db.dbworld.security.auth.BiometricDeviceService;
+import com.db.dbworld.security.auth.LoginRateLimiter;
 import com.db.dbworld.security.dto.AuthToken;
 import com.db.dbworld.security.dto.BiometricDeviceDto;
 import com.db.dbworld.security.dto.BiometricEnrollRequest;
@@ -60,6 +61,7 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthenticationService authenticationService;
+    private final LoginRateLimiter loginRateLimiter;
     private final BiometricDeviceService biometricDeviceService;
     private final GoogleAuthService googleAuthService;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
@@ -89,11 +91,22 @@ public class AuthController {
             HttpServletRequest request
     ) {
         SessionContext context = sessionContext(request);
-        AuthToken tokens = authenticationService.authenticate(
-                context,
-                loginRequest.getEmail().toLowerCase(),
-                loginRequest.getPassword()
-        );
+        String email = loginRequest.getEmail().toLowerCase();
+
+        // Checked BEFORE authenticate() on purpose: bcrypt at cost 12 is ~250ms of CPU per call,
+        // so spending it and then rejecting would leave the flooding problem entirely unsolved.
+        loginRateLimiter.checkAllowed(email, context.ipAddress());
+
+        AuthToken tokens;
+        try {
+            tokens = authenticationService.authenticate(context, email, loginRequest.getPassword());
+        } catch (RuntimeException e) {
+            // Every rejection counts — bad password, disabled, locked. An attacker learns nothing
+            // from the distinction, and treating some failures as free would leave a gap to aim at.
+            loginRateLimiter.recordFailure(email, context.ipAddress());
+            throw e;
+        }
+        loginRateLimiter.recordSuccess(email);
 
         return sessionResponse(tokens, context, "Login successful");
     }
@@ -145,6 +158,14 @@ public class AuthController {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error(HttpStatus.UNAUTHORIZED, "No refresh token"));
+        }
+
+        if (!isSameOriginXhr(request)) {
+            log.warn("Cross-site refresh attempt rejected (platform={}, ip={})",
+                    context.platform(), context.ipAddress());
+            return ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(HttpStatus.FORBIDDEN, "Refresh must be an XHR from an allowed origin"));
         }
 
         AuthToken tokens = authenticationService.refreshToken(refreshToken, context);
@@ -333,6 +354,38 @@ public class AuthController {
      * manages, and preferring a caller-supplied header there would let script-injected content
      * choose the token.
      */
+    /**
+     * Whether this refresh came from our own client code rather than a cross-site request forged
+     * by another website.
+     *
+     * <p>This is the one endpoint authenticated purely by an ambient credential: the refresh
+     * cookie is {@code SameSite=None} (the Android WebView is a genuinely cross-site origin), CSRF
+     * protection is disabled app-wide, and the handler takes no {@code @RequestBody}. That
+     * combination made it reachable by a plain cross-site form POST — a SIMPLE request, so no
+     * preflight is sent and CORS never gets a say. The browser attaches the cookie, and the server
+     * rotates the token.
+     *
+     * <p>The attacker cannot read the response, so this stole nothing. What it did was SPEND the
+     * victim's refresh token: their browser keeps the old cookie, the server has marked it used,
+     * and their next genuine refresh looks exactly like a replay — so {@code handleReuse} revokes
+     * the whole family and signs them out. Any site they visited could log them out of DB World at
+     * will.
+     *
+     * <p>The fix is to demand a header no cross-site form can set. Requiring ANY custom header
+     * forces the browser to preflight, and the preflight is governed by the CORS allow-list, which
+     * a hostile origin fails. Both real clients already send one — the web app sends
+     * {@code X-Client-Platform} on every refresh, native additionally sends {@code X-Refresh-Token}
+     * — so this rejects the forged request without touching a single legitimate one.
+     */
+    private static boolean isSameOriginXhr(HttpServletRequest request) {
+        return hasText(request.getHeader(ClientPlatform.HEADER))
+                || hasText(request.getHeader(REFRESH_TOKEN_HEADER));
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String presentedRefreshToken(String cookieToken, HttpServletRequest request) {
         if (cookieToken != null && !cookieToken.isBlank()) {
             return cookieToken;
