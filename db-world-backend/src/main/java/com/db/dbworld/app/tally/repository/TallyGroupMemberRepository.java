@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +39,28 @@ public interface TallyGroupMemberRepository extends JpaRepository<TallyGroupMemb
 
     /** Backs "my groups"; served by {@code idx_tally_group_member_user}. */
     List<TallyGroupMemberEntity> findByUserIdAndStatus(Long userId, TallyMemberStatus status);
+
+    /** How many people are still in each of these groups. */
+    interface GroupCount {
+        String getGroupId();
+        Long getTotal();
+    }
+
+    /**
+     * Active head-count for several groups at once.
+     *
+     * <p>One query for the whole list rather than one per group: the group list is the app's
+     * landing screen, and a count is the sort of thing that turns into an N+1 without anybody
+     * noticing, because it looks free.
+     */
+    @Query("""
+            select m.groupId as groupId, count(m) as total
+              from TallyGroupMemberEntity m
+             where m.groupId in :groupIds
+               and m.status = com.db.dbworld.app.tally.entity.TallyMemberStatus.ACTIVE
+             group by m.groupId
+            """)
+    List<GroupCount> countActiveByGroupIds(@Param("groupIds") Collection<String> groupIds);
 
     /* ============================== delegation ============================== */
 

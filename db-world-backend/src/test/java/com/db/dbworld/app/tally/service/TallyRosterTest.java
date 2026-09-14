@@ -1,0 +1,551 @@
+package com.db.dbworld.app.tally.service;
+
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
+import com.db.dbworld.app.tally.dto.TallyRequests.AddMember;
+import com.db.dbworld.app.tally.dto.TallyRequests.CreateGroup;
+import com.db.dbworld.app.tally.dto.TallyRequests.UpdateGroup;
+import com.db.dbworld.app.tally.dto.TallyRequests.UpdateMember;
+import com.db.dbworld.app.tally.dto.TallyViews.GroupDetail;
+import com.db.dbworld.app.tally.dto.TallyViews.Member;
+import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.repository.*;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.role.entity.RoleEntity;
+import com.db.dbworld.core.role.enums.Role;
+import com.db.dbworld.core.user.entity.UserEntity;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.support.NoOpCacheManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * The roster: who is in a group, who pays for whom, and what happens when somebody leaves or a
+ * ghost turns out to be a real person.
+ *
+ * <p>Most of what is asserted here is a <em>refusal</em>. That is the shape of the module — the
+ * money arithmetic is covered by {@link TallyMoneyFlowTest}, and what is left is a set of rules
+ * whose entire job is to stop a balance becoming unreachable: you cannot remove somebody who is
+ * owed money, you cannot leave a group without an owner, you cannot build a delegation chain,
+ * and you cannot merge two people whose rows would collide.
+ */
+@DataJpaTest
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import({TallyAccessService.class, TallyLedgerService.class, TallyExpenseService.class,
+         TallyBalanceService.class, TallyGroupService.class, TallyMemberService.class,
+         TallyRosterTest.CacheStubConfig.class})
+@DisplayName("db-tally roster")
+class TallyRosterTest {
+
+    @TestConfiguration
+    static class CacheStubConfig {
+        @Bean
+        CacheManager cacheManager() {
+            return new NoOpCacheManager();
+        }
+    }
+
+    @Autowired private EntityManager em;
+    @Autowired private TallyGroupService groupService;
+    @Autowired private TallyMemberService memberService;
+    @Autowired private TallyExpenseService expenseService;
+    @Autowired private TallyGroupMemberRepository members;
+    @Autowired private TallyLedgerEntryRepository ledger;
+    @Autowired private TallyExpensePayerRepository payers;
+    @Autowired private TallyExpenseShareRepository shares;
+    @Autowired private TallySettlementRepository settlements;
+    @Autowired private TallyLedgerService ledgerService;
+
+    private Long appaUser;
+    private Long ammaUser;
+    private Long outsider;
+    private String groupId;
+    private String appa;
+
+    @BeforeEach
+    void setUp() {
+        // The db-world ACCOUNT role, which is unrelated to TallyMemberRole -- the group's own
+        // OWNER/MEMBER. VIEWER here so the two never look like the same idea in this test.
+        RoleEntity role = new RoleEntity();
+        role.setName(Role.VIEWER);
+        em.persist(role);
+
+        appaUser = user(role, "Appa", "Dudhia");
+        ammaUser = user(role, "Amma", "Dudhia");
+        outsider = user(role, "Someone", "Else");
+        em.flush();
+
+        GroupDetail group = groupService.create(appaUser, new CreateGroup("Home", "Family"));
+        groupId = group.id();
+        appa = group.members().getFirst().id();
+    }
+
+    /* ============================== creating ============================== */
+
+    @Test
+    @DisplayName("creating a group puts the creator in it as the owner")
+    void creatorBecomesOwner() {
+        // The membership row is the only thing that grants access; createdByUserId grants
+        // nothing. Without it the creator could not see the group they just made.
+        assertThat(groupService.get(appaUser, groupId).members())
+                .singleElement()
+                .satisfies(m -> {
+                    assertThat(m.userId()).isEqualTo(appaUser);
+                    assertThat(m.role()).isEqualTo(TallyMemberRole.OWNER);
+                    assertThat(m.displayName()).isEqualTo("Appa Dudhia");
+                    assertThat(m.ghost()).isFalse();
+                });
+    }
+
+    @Test
+    @DisplayName("my groups lists what I am in, with my own balance")
+    void listMineCarriesMyBalance() {
+        String amma = addRealMember(ammaUser);
+        spend("Groceries", "100.00", appa, appa, amma);
+
+        assertThat(groupService.listMine(appaUser)).singleElement().satisfies(g -> {
+            assertThat(g.name()).isEqualTo("Home");
+            assertThat(g.memberCount()).isEqualTo(2);
+            assertThat(g.myBalance()).isEqualByComparingTo("50.00");
+        });
+        assertThat(groupService.listMine(ammaUser)).singleElement()
+                .satisfies(g -> assertThat(g.myBalance()).isEqualByComparingTo("-50.00"));
+
+        // Never joined anything: an empty list, not somebody else's group.
+        assertThat(groupService.listMine(outsider)).isEmpty();
+    }
+
+    /* ============================== adding ============================== */
+
+    @Test
+    @DisplayName("a ghost joins with nothing but a name")
+    void ghostNeedsOnlyAName() {
+        TallyGroupMemberEntity kid = memberService.add(appaUser, groupId,
+                new AddMember(null, "Kid", null));
+
+        assertThat(kid.isGhost()).isTrue();
+        assertThat(kid.getUserId()).isNull();
+        assertThat(kid.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a ghost without a name is refused")
+    void ghostWithoutNameRejected() {
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(null, "  ", null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("needs a name");
+    }
+
+    @Test
+    @DisplayName("the same account cannot be added to one group twice")
+    void realUserCannotJoinTwice() {
+        addRealMember(ammaUser);
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(ammaUser, null, null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("already in this group");
+    }
+
+    @Test
+    @DisplayName("re-adding somebody who left revives their original row, id and all")
+    void rejoinIsAnUpdateNotAnInsert() {
+        // The rule the whole member table is shaped around. A second row would take a new id,
+        // and every share and ledger entry already written would keep pointing at the old one --
+        // their history would fork and their balance would be split across two people who are
+        // one. The unique key makes the INSERT fail; this makes the right thing happen instead.
+        String amma = addRealMember(ammaUser);
+        memberService.remove(appaUser, groupId, amma);
+
+        TallyGroupMemberEntity rejoined = memberService.add(appaUser, groupId,
+                new AddMember(ammaUser, null, null));
+
+        assertThat(rejoined.getId()).isEqualTo(amma);
+        assertThat(rejoined.isActive()).isTrue();
+        assertThat(members.findByGroupId(groupId)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("a deleted account cannot be added")
+    void softDeletedUserRejected() {
+        em.find(UserEntity.class, ammaUser).setDeletedAt(java.time.Instant.now());
+        em.flush();
+
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(ammaUser, null, null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("User not found");
+    }
+
+    /* ============================== delegation ============================== */
+
+    @Test
+    @DisplayName("nobody can pay for themselves")
+    void selfDelegationRejected() {
+        String kid = ghost("Kid");
+        assertThatThrownBy(() -> delegate(kid, kid))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("cannot pay for themselves");
+    }
+
+    @Test
+    @DisplayName("liability cannot be pointed at somebody in another group")
+    void crossGroupDelegationRejected() {
+        // No foreign key exists on paid_for_by_member_id, so this check is the only thing
+        // stopping a member of one group becoming liable in another.
+        String outsideGroup = groupService.create(ammaUser, new CreateGroup("Elsewhere", null)).id();
+        String stranger = groupService.get(ammaUser, outsideGroup).members().getFirst().id();
+        String kid = ghost("Kid");
+
+        assertThatThrownBy(() -> delegate(kid, stranger))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("not in this group");
+    }
+
+    @Test
+    @DisplayName("a delegation chain is refused from either end")
+    void delegationStaysDepthOne() {
+        // Enforced here, when it is set, rather than when an expense uses it. Two cheap queries
+        // keep the graph a depth-1 forest forever; detecting a cycle at expense-write time
+        // would surface as an unrelated third party's expense refusing to save.
+        String kid = ghost("Kid");
+        String grandkid = ghost("Grandkid");
+        delegate(kid, appa);
+
+        // kid already delegates, so nobody may delegate TO kid.
+        assertThatThrownBy(() -> delegate(grandkid, kid))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("already has somebody paying for them");
+
+        // appa is already paying for kid, so appa may not delegate to anyone.
+        assertThatThrownBy(() -> delegate(appa, grandkid))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("so somebody else cannot pay for them");
+    }
+
+    @Test
+    @DisplayName("a delegation can be cleared, which null alone could not ask for")
+    void delegationCanBeCleared() {
+        String kid = ghost("Kid");
+        delegate(kid, appa);
+
+        // A null paidForByMemberId has to mean "leave it alone", so removing one needs its own
+        // signal -- otherwise every PATCH that did not mention delegation would wipe it.
+        memberService.update(appaUser, groupId, kid, new UpdateMember(null, null, null, false));
+        assertThat(em.find(TallyGroupMemberEntity.class, kid).getPaidForByMemberId()).isEqualTo(appa);
+
+        memberService.update(appaUser, groupId, kid, new UpdateMember(null, null, null, true));
+        assertThat(em.find(TallyGroupMemberEntity.class, kid).getPaidForByMemberId()).isNull();
+    }
+
+    /* ============================== removing ============================== */
+
+    @Test
+    @DisplayName("somebody who is owed money cannot be removed, and the amount is named")
+    void removalRefusedWhileMoneyIsOutstanding() {
+        // The most important rule in the module. Removing them would not move the money
+        // anywhere -- it would just stop anyone being able to see it or settle it.
+        String amma = addRealMember(ammaUser);
+        String kid = ghost("Kid");
+        // Amma fronts 100 for herself and the child, so she is owed 50 and the child owes 50.
+        // Neither is the sole owner, so the balance rule is what answers here rather than the
+        // last-owner rule -- both refuse, and the test would not be testing this one otherwise.
+        spend("Groceries", "100.00", amma, kid, amma);
+
+        assertThatThrownBy(() -> memberService.remove(appaUser, groupId, amma))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("50.00")
+                .hasMessageContaining("still owed");
+
+        assertThatThrownBy(() -> memberService.remove(appaUser, groupId, kid))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("50.00")
+                .hasMessageContaining("still owes");
+
+        assertThat(em.find(TallyGroupMemberEntity.class, amma).isActive()).isTrue();
+        assertThat(em.find(TallyGroupMemberEntity.class, kid).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("removal succeeds once the balance is exactly zero, and clears delegations to them")
+    void removalClearsInboundDelegations() {
+        String kid1 = ghost("Kid 1");
+        String kid2 = ghost("Kid 2");
+        String amma = addRealMember(ammaUser);
+        delegate(kid1, amma);
+        delegate(kid2, amma);
+
+        memberService.remove(appaUser, groupId, amma);
+
+        assertThat(em.find(TallyGroupMemberEntity.class, amma).getStatus())
+                .isEqualTo(TallyMemberStatus.LEFT);
+        assertThat(em.find(TallyGroupMemberEntity.class, kid1).getPaidForByMemberId())
+                .as("a dangling delegation would silently reappear in the next expense's snapshot")
+                .isNull();
+        assertThat(em.find(TallyGroupMemberEntity.class, kid2).getPaidForByMemberId()).isNull();
+    }
+
+    @Test
+    @DisplayName("a departed member still has a name on the history they are part of")
+    void departedMembersStillRender() {
+        String amma = addRealMember(ammaUser);
+        spend("Dinner", "100.00", appa, appa, amma);
+        settleUp(amma, appa, "50.00");
+        memberService.remove(appaUser, groupId, amma);
+
+        List<Member> roster = groupService.get(appaUser, groupId).members();
+        assertThat(roster).extracting(Member::displayName).contains("Amma Dudhia");
+        assertThat(roster).filteredOn(m -> m.id().equals(amma))
+                .singleElement()
+                .satisfies(m -> assertThat(m.status()).isEqualTo(TallyMemberStatus.LEFT));
+        // Active first, departed at the bottom.
+        assertThat(roster.getLast().id()).isEqualTo(amma);
+    }
+
+    @Test
+    @DisplayName("the last owner cannot leave or be demoted")
+    void groupAlwaysKeepsAnOwner() {
+        // Otherwise nobody can archive the group, remove anyone or void a mistaken expense --
+        // and since promoting an owner is itself an owner action, there is no way back.
+        addRealMember(ammaUser);
+
+        assertThatThrownBy(() -> memberService.remove(appaUser, groupId, appa))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("needs an owner");
+        assertThatThrownBy(() -> memberService.update(appaUser, groupId, appa,
+                new UpdateMember(null, TallyMemberRole.MEMBER, null, false)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("needs an owner");
+    }
+
+    @Test
+    @DisplayName("a plain member may leave, but may not remove anybody else")
+    void leavingIsYoursRemovingIsNot() {
+        String amma = addRealMember(ammaUser);
+        String kid = ghost("Kid");
+
+        assertThatThrownBy(() -> memberService.remove(ammaUser, groupId, kid))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(403));
+
+        assertThatCode(() -> memberService.remove(ammaUser, groupId, amma)).doesNotThrowAnyException();
+    }
+
+    /* ============================== ghost claim ============================== */
+
+    @Test
+    @DisplayName("claiming a ghost folds its whole history into the claimer")
+    void claimRepointsEveryReference() {
+        // A merge rather than an update: the claimer is already in the group, so setting
+        // userId on the ghost would collide with uk_tally_group_member_group_user.
+        String amma = addRealMember(ammaUser);
+        String ghostAmma = ghost("Amma (no account yet)");
+        String kid = ghost("Kid");
+        delegate(kid, ghostAmma);                                  // 8, the self-reference
+
+        spend("Dinner", "100.00", ghostAmma, ghostAmma, appa);     // 1, 2, 3, 4, 5
+        settleUp(appa, ghostAmma, "50.00");                        // 6, 7
+
+        BigDecimal ghostBalanceBefore = ledger.netBalanceOf(groupId, ghostAmma);
+        memberService.claim(ammaUser, groupId, ghostAmma);
+        em.flush();
+        em.clear();
+
+        assertThat(payers.findByExpenseId(anyExpenseId())).extracting(TallyExpensePayerEntity::getMemberId)
+                .containsOnly(amma);
+        assertThat(shares.findByExpenseId(anyExpenseId()))
+                .allSatisfy(s -> assertThat(List.of(s.getBeneficiaryMemberId(), s.getOwedByMemberId()))
+                        .doesNotContain(ghostAmma));
+        assertThat(ledger.findByGroupId(groupId))
+                .allSatisfy(e -> assertThat(List.of(e.getFromMemberId(), e.getToMemberId()))
+                        .doesNotContain(ghostAmma));
+        assertThat(settlements.findByGroupIdAndStatusOrderBySettledAtDesc(groupId, TallySettlementStatus.ACTIVE))
+                .allSatisfy(s -> assertThat(List.of(s.getFromMemberId(), s.getToMemberId()))
+                        .doesNotContain(ghostAmma));
+        assertThat(em.find(TallyGroupMemberEntity.class, kid).getPaidForByMemberId())
+                .as("the self-referencing delegation is the column a merge written from memory forgets")
+                .isEqualTo(amma);
+
+        assertThat(em.find(TallyGroupMemberEntity.class, ghostAmma).getStatus())
+                .isEqualTo(TallyMemberStatus.LEFT);
+        assertThat(ledger.netBalanceOf(groupId, amma))
+                .as("the money came across with the history")
+                .isEqualByComparingTo(ghostBalanceBefore);
+    }
+
+    @Test
+    @DisplayName("a claim that two rows would collide on is refused, not guessed at")
+    void claimRefusedOnCollision() {
+        // Both identities on one expense: repointing would make one member appear twice and hit
+        // uk_tally_expense_share_expense_beneficiary. Merging would mean summing amounts and
+        // picking one of two owed_by values -- guessing about somebody's money.
+        String amma = addRealMember(ammaUser);
+        String ghostAmma = ghost("Amma (no account yet)");
+        spend("Dinner", "100.00", appa, amma, ghostAmma);
+
+        assertThatThrownBy(() -> memberService.claim(ammaUser, groupId, ghostAmma))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("same expense");
+
+        assertThat(em.find(TallyGroupMemberEntity.class, ghostAmma).isActive())
+                .as("nothing was half-merged")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("a member who already has an account cannot be claimed")
+    void cannotClaimARealMember() {
+        String amma = addRealMember(ammaUser);
+        assertThatThrownBy(() -> memberService.claim(appaUser, groupId, amma))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("already belongs to an account");
+    }
+
+    /* ============================== archiving ============================== */
+
+    @Test
+    @DisplayName("archiving is refused while money is outstanding, and says how much")
+    void archiveRefusedWithOutstandingBalances() {
+        // "Archived with money outstanding and hidden from everyone" is how a debt quietly
+        // stops existing.
+        String amma = addRealMember(ammaUser);
+        spend("Groceries", "100.00", appa, appa, amma);
+
+        assertThatThrownBy(() -> groupService.update(appaUser, groupId,
+                new UpdateGroup(null, null, true, false)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("50.00");
+
+        assertThat(groupService.get(appaUser, groupId).archived()).isFalse();
+    }
+
+    @Test
+    @DisplayName("archiving anyway is allowed, but only on purpose")
+    void archiveAllowedWhenAcknowledged() {
+        // A group can genuinely reach a state nobody intends to settle. The rule is a speed
+        // bump, not a wall -- what matters is that somebody was told the number and said yes.
+        String amma = addRealMember(ammaUser);
+        spend("Groceries", "100.00", appa, appa, amma);
+
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroup(null, null, true, true))
+                .archived()).isTrue();
+
+        // Archived is closed for writes but still readable, and reopening undoes it.
+        assertThatThrownBy(() -> memberService.add(appaUser, groupId, new AddMember(null, "Late", null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("archived");
+        assertThat(groupService.update(appaUser, groupId, new UpdateGroup(null, null, false, false))
+                .archived()).isFalse();
+    }
+
+    @Test
+    @DisplayName("renaming is open to any member, archiving is not")
+    void archivingIsAnOwnerAction() {
+        addRealMember(ammaUser);
+
+        assertThat(groupService.update(ammaUser, groupId, new UpdateGroup("Our Home", null, null, false))
+                .name()).isEqualTo("Our Home");
+
+        assertThatThrownBy(() -> groupService.update(ammaUser, groupId,
+                new UpdateGroup(null, null, true, false)))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(403));
+    }
+
+    /* ============================== authorization ============================== */
+
+    @Test
+    @DisplayName("a non-member gets 404 from every entry point, read and write alike")
+    void outsidersSeeNothingAnywhere() {
+        // db-tally is the first shared object in db-world, so this is written out in full. A
+        // mutation answering 403 leaks exactly what a read answering 403 would: that the group
+        // is real, and therefore who shares one with whom.
+        String kid = ghost("Kid");
+
+        assertThatAll404(
+                () -> groupService.get(outsider, groupId),
+                () -> groupService.update(outsider, groupId, new UpdateGroup("Mine now", null, null, false)),
+                () -> memberService.add(outsider, groupId, new AddMember(null, "Intruder", null)),
+                () -> memberService.update(outsider, groupId, kid, new UpdateMember("Renamed", null, null, false)),
+                () -> memberService.remove(outsider, groupId, kid),
+                () -> memberService.claim(outsider, groupId, kid));
+    }
+
+    private static void assertThatAll404(Runnable... calls) {
+        for (Runnable call : calls) {
+            assertThatThrownBy(call::run)
+                    .isInstanceOf(DbWorldException.class)
+                    .satisfies(e -> {
+                        assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(404);
+                        assertThat(e).hasMessage("Group not found");
+                    });
+        }
+    }
+
+    /* ============================== fixtures ============================== */
+
+    private Long user(RoleEntity role, String first, String last) {
+        UserEntity u = new UserEntity();
+        u.setFirstName(first);
+        u.setLastName(last);
+        u.setEmail(first.toLowerCase() + "@example.test");
+        u.setRole(role);
+        em.persist(u);
+        return u.getUserId();
+    }
+
+    private String addRealMember(Long userId) {
+        return memberService.add(appaUser, groupId, new AddMember(userId, null, null)).getId();
+    }
+
+    private String ghost(String name) {
+        return memberService.add(appaUser, groupId, new AddMember(null, name, null)).getId();
+    }
+
+    private void delegate(String memberId, String targetId) {
+        memberService.update(appaUser, groupId, memberId, new UpdateMember(null, null, targetId, false));
+    }
+
+    /** An expense paid by one member and split equally, each participant liable for their own. */
+    private void spend(String what, String total, String payer, String... participants) {
+        expenseService.create(appaUser, groupId, new CreateExpenseRequest(
+                what, new BigDecimal(total), TallyMethod.EQUAL, null, LocalDate.of(2026, 9, 1), null, null,
+                List.of(new PayerInput(payer, new BigDecimal(total))),
+                java.util.Arrays.stream(participants)
+                        .map(p -> new ParticipantInput(p, null, null, null, p))
+                        .toList()));
+    }
+
+    private void settleUp(String from, String to, String amount) {
+        TallySettlementEntity s = new TallySettlementEntity();
+        s.setGroupId(groupId);
+        s.setFromMemberId(from);
+        s.setToMemberId(to);
+        s.setAmount(new BigDecimal(amount));
+        s.setSettledAt(java.time.Instant.now());
+        s.setRecordedByUserId(appaUser);
+        settlements.save(s);
+        ledgerService.postSettlement(s);
+    }
+
+    private String anyExpenseId() {
+        return em.createQuery("select e.id from TallyExpenseEntity e where e.groupId = :g", String.class)
+                .setParameter("g", groupId).getResultList().getFirst();
+    }
+}

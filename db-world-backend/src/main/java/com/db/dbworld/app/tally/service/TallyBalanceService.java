@@ -57,6 +57,21 @@ public class TallyBalanceService {
     }
 
     /**
+     * One member's net position, as a plain number rather than a map lookup.
+     *
+     * <p>Two callers need exactly this and nothing else: the group list, which shows the caller
+     * where they stand in each group, and member removal, which has to prove the number is
+     * exactly zero before letting anybody go. Never null — a member with no activity nets to
+     * zero, and the removal guard would otherwise have a null to trip over on the one check
+     * standing between a departing member and money disappearing.
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal netOf(String groupId, String memberId) {
+        BigDecimal net = ledger.netBalanceOf(groupId, memberId);
+        return net == null ? BigDecimal.ZERO : net;
+    }
+
+    /**
      * Suggested payments that clear the group, largest debtor against largest creditor.
      *
      * <p><b>This never writes anything.</b> Splitwise's equivalent rewrites who owes whom, which

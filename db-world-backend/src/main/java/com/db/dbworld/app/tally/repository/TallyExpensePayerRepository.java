@@ -35,4 +35,21 @@ public interface TallyExpensePayerRepository extends JpaRepository<TallyExpenseP
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update TallyExpensePayerEntity p set p.memberId = :survivorId where p.memberId = :loserId")
     int repointPayer(@Param("survivorId") String survivorId, @Param("loserId") String loserId);
+
+    /**
+     * How many of the loser's rows sit on an expense the survivor is already on, ahead of a
+     * ghost claim. {@code uk_tally_expense_payer_expense_member} allows each member once per expense, so repointing
+     * those would hit the key.
+     *
+     * <p>A SELECT with a self-referencing subquery, which is fine: MySQL error 1093 forbids
+     * reading the table you are <em>writing</em>, so it applies to the bulk UPDATE and DELETE
+     * forms and not to a plain count like this one.
+     */
+    @Query("""
+            select count(p) from TallyExpensePayerEntity p
+             where p.memberId = :loserId
+               and exists (select 1 from TallyExpensePayerEntity other
+                           where other.expenseId = p.expenseId and other.memberId = :survivorId)
+            """)
+    long countMergeCollisions(@Param("survivorId") String survivorId, @Param("loserId") String loserId);
 }

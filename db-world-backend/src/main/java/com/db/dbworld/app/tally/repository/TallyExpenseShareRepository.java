@@ -61,4 +61,22 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update TallyExpenseShareEntity s set s.owedByMemberId = :survivorId where s.owedByMemberId = :loserId")
     int repointOwedBy(@Param("survivorId") String survivorId, @Param("loserId") String loserId);
+
+    /**
+     * How many of the loser's rows sit on an expense the survivor is already on, ahead of a
+     * ghost claim. {@code uk_tally_expense_share_expense_beneficiary} allows each member once per expense, so repointing
+     * those would hit the key.
+     *
+     * <p>A SELECT with a self-referencing subquery, which is fine: MySQL error 1093 forbids
+     * reading the table you are <em>writing</em>, so it applies to the bulk UPDATE and DELETE
+     * forms and not to a plain count like this one.
+     */
+    @Query("""
+            select count(s) from TallyExpenseShareEntity s
+             where s.beneficiaryMemberId = :loserId
+               and exists (select 1 from TallyExpenseShareEntity other
+                           where other.expenseId = s.expenseId
+                             and other.beneficiaryMemberId = :survivorId)
+            """)
+    long countMergeCollisions(@Param("survivorId") String survivorId, @Param("loserId") String loserId);
 }
