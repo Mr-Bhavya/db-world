@@ -28,6 +28,15 @@ export const fetchGroup = (groupId) =>
 
 export const createGroup = (body) => axiosInstance.post(`${BASE}/groups`, body).then(unwrap);
 
+/**
+ * Starts a running total with one person — or returns the one that already exists.
+ *
+ * The server refuses to create a second ledger with somebody you already share one with, so
+ * this is safe to call from a "split with" button without checking first.
+ */
+export const createDirectLedger = (body) =>
+  axiosInstance.post(`${BASE}/groups/direct`, body).then(unwrap);
+
 export const updateGroup = (groupId, body) =>
   axiosInstance.patch(`${BASE}/groups/${groupId}`, body).then(unwrap);
 

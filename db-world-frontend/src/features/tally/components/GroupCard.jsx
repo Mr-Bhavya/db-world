@@ -2,10 +2,11 @@ import { Box, Typography, Chip } from '@mui/material';
 import { motion, useReducedMotion } from 'framer-motion';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import { useT } from '@shared/theme';
-import { balanceTone, balanceColor } from '../utils/tallyFormat';
+import { balanceTone, balanceColor, initialsOf, avatarColor } from '../utils/tallyFormat';
 
 /**
  * One group in the list.
@@ -21,6 +22,10 @@ export default function GroupCard({ group, onOpen, index = 0 }) {
   const tone = balanceTone(group.myBalance, { self: true });
   const color = balanceColor(group.myBalance, T);
   const settled = tone.kind === 'settled';
+  // A one-to-one ledger is a person, not a group, and should read as one. Its `name` is
+  // already the other person's, so only the iconography and the subtitle change.
+  const direct = group.kind === 'DIRECT';
+  const tint = avatarColor(group.id ?? '');
 
   return (
     <Box
@@ -55,6 +60,15 @@ export default function GroupCard({ group, onOpen, index = 0 }) {
       }} />
 
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
+        {direct && (
+          <Box sx={{
+            width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+            display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800,
+            bgcolor: `${tint}22`, color: tint, border: `1px solid ${tint}55`,
+          }}>
+            {initialsOf(group.name)}
+          </Box>
+        )}
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography noWrap sx={{
             fontSize: 16, fontWeight: 800, color: T.textPrimary, letterSpacing: -0.2,
@@ -62,9 +76,13 @@ export default function GroupCard({ group, onOpen, index = 0 }) {
             {group.name}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.4 }}>
-            <GroupsRoundedIcon sx={{ fontSize: 14, color: T.textMuted }} />
+            {direct
+              ? <PersonRoundedIcon sx={{ fontSize: 14, color: T.textMuted }} />
+              : <GroupsRoundedIcon sx={{ fontSize: 14, color: T.textMuted }} />}
             <Typography sx={{ fontSize: 12, color: T.textMuted }}>
-              {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'}
+              {direct
+                ? 'Just the two of you'
+                : `${group.memberCount} ${group.memberCount === 1 ? 'person' : 'people'}`}
             </Typography>
             {group.category && (
               <>

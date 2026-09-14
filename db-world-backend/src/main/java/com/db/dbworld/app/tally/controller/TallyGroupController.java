@@ -1,5 +1,6 @@
 package com.db.dbworld.app.tally.controller;
 
+import com.db.dbworld.app.tally.dto.CreateDirectRequest;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
 import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
@@ -42,6 +43,20 @@ public class TallyGroupController {
             @Valid @RequestBody CreateGroupRequest request) {
         var group = groups.create(userContext.userId(), request);
         return TallyResponses.created("Group created", group);
+    }
+
+    /**
+     * Starts a running total with one other person, or reopens the one you already have.
+     *
+     * <p>Answers 201 either way. The caller asked for a ledger with somebody and now has one;
+     * whether it had to be created is an implementation detail, and a 200-versus-201 split
+     * here would leak that without telling them anything they can use.
+     */
+    @PostMapping("/direct")
+    public ResponseEntity<ApiResponse<TallyGroupDetailDto>> createDirect(
+            @Valid @RequestBody CreateDirectRequest request) {
+        var ledger = groups.createDirect(userContext.userId(), request);
+        return TallyResponses.created("You can now split with %s".formatted(ledger.name()), ledger);
     }
 
     /** One group and its full roster, departed members included. */

@@ -19,7 +19,7 @@ import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   useGroup, useExpenses, useSettleUpPlan, useCreateExpense, useVoidExpense, useReplaceExpense,
-  useAddMember, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
+  useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
   useRecordSettlement,
 } from './hooks/useTally';
 import { groupExpensesByDate, formatMoney } from './utils/tallyFormat';
@@ -85,7 +85,7 @@ export default function TallyGroupPage() {
   const createExpense = useCreateExpense(groupId);
   const replaceExpense = useReplaceExpense(groupId);
   const voidExpense = useVoidExpense(groupId);
-  const addMember = useAddMember(groupId);
+  const addMembers = useAddMembers(groupId);
   const removeMember = useRemoveMember(groupId);
   const updateMember = useUpdateMember(groupId);
   const claimMember = useClaimMember(groupId);
@@ -431,9 +431,9 @@ export default function TallyGroupPage() {
       <AddMemberDialog
         open={addingMember}
         onClose={() => setAddingMember(false)}
-        busy={addMember.isPending}
+        busy={addMembers.isPending}
         existingUserIds={members.map((m) => m.userId).filter(Boolean)}
-        onAdd={(body) => addMember.mutate(body, { onSuccess: () => setAddingMember(false) })}
+        onAdd={(bodies) => addMembers.mutate(bodies, { onSuccess: () => setAddingMember(false) })}
       />
 
       <SettleUpSheet

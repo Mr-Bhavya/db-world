@@ -1,5 +1,7 @@
 package com.db.dbworld.app.tally.dto;
 
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -20,6 +22,7 @@ import java.util.List;
 public record TallyGroupDetailDto(
         String id,
         String name,
+        TallyGroupKind kind,
         String category,
         String currency,
         boolean archived,

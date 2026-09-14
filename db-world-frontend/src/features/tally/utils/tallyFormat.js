@@ -143,22 +143,89 @@ export function paidByLabel(expense, nameOf) {
 /* ============================== categories ============================== */
 
 /**
- * The category list offered in the dialog.
+ * Every category on offer, grouped for the "More" menu.
  *
- * Free text on the server, a fixed menu here: a picker of eight gets a category onto almost
- * every expense, where a text field gets one onto almost none, and the column stays open for
- * anything the menu does not cover.
+ * Free text on the server, a fixed list here: a picker gets a category onto almost every
+ * expense where a text field gets one onto almost none, and the column stays open for anything
+ * the list does not cover.
+ *
+ * Grouped rather than one long alphabetical run, because the groups are how people search —
+ * you know you are looking for a travel thing before you know whether you want Train or Taxi.
  */
-export const EXPENSE_CATEGORIES = [
-  { value: 'Food', emoji: '🍽️' },
-  { value: 'Groceries', emoji: '🛒' },
-  { value: 'Travel', emoji: '✈️' },
-  { value: 'Transport', emoji: '🚗' },
-  { value: 'Home', emoji: '🏠' },
-  { value: 'Bills', emoji: '🧾' },
-  { value: 'Fun', emoji: '🎬' },
-  { value: 'Other', emoji: '📦' },
+export const CATEGORY_GROUPS = [
+  {
+    label: 'Eating',
+    items: [
+      { value: 'Food', emoji: '🍽️' },
+      { value: 'Tea/Coffee', emoji: '☕' },
+      { value: 'Breakfast', emoji: '🍳' },
+      { value: 'Lunch', emoji: '🍛' },
+      { value: 'Dinner', emoji: '🍲' },
+      { value: 'Snacks', emoji: '🍿' },
+      { value: 'Groceries', emoji: '🛒' },
+    ],
+  },
+  {
+    label: 'Getting around',
+    items: [
+      { value: 'Transport', emoji: '🚗' },
+      { value: 'Train', emoji: '🚆' },
+      { value: 'Bus', emoji: '🚌' },
+      { value: 'Taxi', emoji: '🚕' },
+      { value: 'Flight', emoji: '✈️' },
+      { value: 'Fuel', emoji: '⛽' },
+      { value: 'Parking', emoji: '🅿️' },
+    ],
+  },
+  {
+    label: 'Going out',
+    items: [
+      { value: 'Tickets', emoji: '🎟️' },
+      { value: 'Movies', emoji: '🎬' },
+      { value: 'Stay', emoji: '🏨' },
+      { value: 'Trip', emoji: '🧳' },
+      { value: 'Fun', emoji: '🎉' },
+    ],
+  },
+  {
+    label: 'Living',
+    items: [
+      { value: 'Rent', emoji: '🏠' },
+      { value: 'Bills', emoji: '🧾' },
+      { value: 'Recharge', emoji: '📱' },
+      { value: 'Repairs', emoji: '🔧' },
+      { value: 'Household', emoji: '🧻' },
+    ],
+  },
+  {
+    label: 'Everything else',
+    items: [
+      { value: 'Shopping', emoji: '🛍️' },
+      { value: 'Medical', emoji: '💊' },
+      { value: 'Education', emoji: '📚' },
+      { value: 'Gifts', emoji: '🎁' },
+      { value: 'Personal care', emoji: '💇' },
+      { value: 'Pets', emoji: '🐾' },
+      { value: 'Other', emoji: '📦' },
+    ],
+  },
 ];
+
+/** Flat list, for lookups and for searching the More menu. */
+export const EXPENSE_CATEGORIES = CATEGORY_GROUPS.flatMap((g) => g.items);
+
+/**
+ * The handful shown as chips without opening anything.
+ *
+ * Eight, and no more. The full list is thirty-odd; laid out as chips it would be the largest
+ * thing in the dialog and would push the split section — the part that actually needs
+ * attention — below the fold on a phone. Everything else is one tap away behind "More", and a
+ * category picked from there is shown alongside these so the selection is never hidden.
+ */
+export const COMMON_CATEGORIES = [
+  'Food', 'Tea/Coffee', 'Breakfast', 'Groceries',
+  'Transport', 'Train', 'Tickets', 'Bills',
+].map((value) => EXPENSE_CATEGORIES.find((c) => c.value === value));
 
 export const categoryEmoji = (category) =>
   EXPENSE_CATEGORIES.find((c) => c.value === category)?.emoji ?? '📦';

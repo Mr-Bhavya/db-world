@@ -4,6 +4,7 @@ import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
 import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
 import com.db.dbworld.app.tally.dto.AddMemberRequest;
+import com.db.dbworld.app.tally.dto.CreateDirectRequest;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
 import com.db.dbworld.app.tally.dto.TallyMemberDto;
@@ -418,6 +419,87 @@ class TallyRosterTest {
                 .hasMessageContaining("already belongs to an account");
     }
 
+    /* ============================== one-to-one ledgers ============================== */
+
+    @Test
+    @DisplayName("a direct ledger is a two-person group that reads as the other person")
+    void directLedgerIsJustTheTwoOfYou() {
+        // The whole feature is a presentation change over the existing model -- no second set
+        // of tables, no second copy of the arithmetic to keep in agreement.
+        var ledger = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+
+        assertThat(ledger.kind()).isEqualTo(TallyGroupKind.DIRECT);
+        assertThat(ledger.name()).isEqualTo("Amma Dudhia");
+        assertThat(ledger.members()).hasSize(2)
+                .extracting(TallyMemberDto::displayName)
+                .containsExactlyInAnyOrder("Appa Dudhia", "Amma Dudhia");
+    }
+
+    @Test
+    @DisplayName("asking twice returns the same ledger rather than a second one")
+    void directLedgersAreNeverDuplicated() {
+        // Two running totals with one person is the money-in-two-places failure this module is
+        // arranged to prevent: you settle up on one and still owe on the other.
+        var first = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+        var again = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+
+        assertThat(again.id()).isEqualTo(first.id());
+        assertThat(groupService.listMine(appaUser))
+                .filteredOn(g -> g.kind() == TallyGroupKind.DIRECT)
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("the other person does not need an account")
+    void directLedgerWithSomebodyWithoutAnAccount() {
+        var ledger = groupService.createDirect(appaUser, new CreateDirectRequest(null, "Auto driver"));
+
+        assertThat(ledger.name()).isEqualTo("Auto driver");
+        assertThat(ledger.members()).filteredOn(TallyMemberDto::ghost).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("you cannot start one with yourself")
+    void directLedgerWithYourselfRefused() {
+        assertThatThrownBy(() -> groupService.createDirect(appaUser, new CreateDirectRequest(appaUser, null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("yourself");
+    }
+
+    @Test
+    @DisplayName("a third person turns it into an ordinary group, keeping everything recorded")
+    void thirdPersonPromotesADirectLedger() {
+        // Promoted rather than refused: "you and Amma" really does become "the flat" when
+        // somebody moves in, and starting again would throw away the history.
+        var ledger = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+        spendIn(ledger.id(), "Taxi", "100.00", ledger.members().getFirst().id());
+
+        memberService.add(appaUser, ledger.id(), new AddMemberRequest(null, "Flatmate", null));
+
+        var after = groupService.get(appaUser, ledger.id());
+        assertThat(after.kind()).isEqualTo(TallyGroupKind.GROUP);
+        assertThat(after.members()).hasSize(3);
+        assertThat(expenseService.list(appaUser, ledger.id(), null, null, null).items())
+                .as("nothing recorded before the promotion is lost")
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a direct ledger splits, settles and closes like any other group")
+    void directLedgerBehavesLikeAGroup() {
+        var ledger = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+        String me = ledger.myMemberId();
+        String them = ledger.members().stream()
+                .filter(m -> !m.id().equals(me)).findFirst().orElseThrow().id();
+
+        spendIn(ledger.id(), "Dinner", "100.00", me, me, them);
+
+        assertThat(groupService.get(appaUser, ledger.id()).members())
+                .filteredOn(m -> m.id().equals(them))
+                .singleElement()
+                .satisfies(m -> assertThat(m.balance()).isEqualByComparingTo("-50.00"));
+    }
+
     /* ============================== archiving ============================== */
 
     @Test
@@ -525,10 +607,15 @@ class TallyRosterTest {
 
     /** An expense paid by one member and split equally, each participant liable for their own. */
     private void spend(String what, String total, String payer, String... participants) {
-        expenseService.create(appaUser, groupId, new CreateExpenseRequest(
+        spendIn(groupId, what, total, payer, participants);
+    }
+
+    private void spendIn(String inGroup, String what, String total, String payer, String... participants) {
+        expenseService.create(appaUser, inGroup, new CreateExpenseRequest(
                 what, new BigDecimal(total), TallyMethod.EQUAL, null, LocalDate.of(2026, 9, 1), null, null,
                 List.of(new PayerInput(payer, new BigDecimal(total))),
-                java.util.Arrays.stream(participants)
+                (participants.length == 0 ? java.util.stream.Stream.of(payer)
+                        : java.util.Arrays.stream(participants))
                         .map(p -> new ParticipantInput(p, null, null, null, p))
                         .toList()));
     }

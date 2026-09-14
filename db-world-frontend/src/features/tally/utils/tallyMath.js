@@ -134,6 +134,55 @@ export function addsUp(total, parts) {
 }
 
 /**
+ * Spreads whatever is left over the fields nobody has touched.
+ *
+ * This is the rule behind the Amounts and Percent editors: every field starts pre-filled with
+ * an even share, and the moment you type into one it becomes <b>locked</b>. From then on it is
+ * yours — the remainder is re-spread across the fields that are still untouched, and a locked
+ * field is never written to again. Re-balancing everything on every keystroke is the obvious
+ * implementation and it is unusable: the number you set a second ago moves while you are
+ * typing the next one, and you can never make two of three values stick.
+ *
+ * @param total      the whole to divide: an amount for EXACT, "100" for PERCENT
+ * @param memberIds  everyone in the split, in display order
+ * @param locked     Set of ids the user has typed into
+ * @param values     current field values, keyed by id
+ * @returns {{values: Object, remainder: string, over: boolean}} `remainder` is what could not
+ *          be placed — non-zero only when the locked fields alone already miss the total.
+ */
+export function redistribute({ total, memberIds, locked, values = {} }) {
+  const safe = (v) => { try { return toPaise(v || '0'); } catch { return 0n; } };
+
+  let totalPaise;
+  try { totalPaise = toPaise(total || '0'); } catch { return { values, remainder: '0.00', over: false }; }
+
+  const free = memberIds.filter((id) => !locked.has(id));
+  const lockedSum = memberIds
+    .filter((id) => locked.has(id))
+    .reduce((sum, id) => sum + safe(values[id]), 0n);
+
+  const remaining = totalPaise - lockedSum;
+  const next = { ...values };
+
+  // Nothing left to move it into: report the gap so the caller can say so plainly.
+  if (free.length === 0) {
+    return { values: next, remainder: fromPaise(remaining), over: remaining < 0n };
+  }
+
+  // Locked fields already exceed the total. Zero the rest rather than inventing negatives,
+  // and let the caller show how far over it has gone.
+  if (remaining <= 0n) {
+    free.forEach((id) => { next[id] = '0.00'; });
+    return { values: next, remainder: fromPaise(remaining), over: remaining < 0n };
+  }
+
+  allocate(fromPaise(remaining), free.map((memberId) => ({ memberId, weight: 1 })))
+    .forEach((a) => { next[a.memberId] = a.amount; });
+
+  return { values: next, remainder: '0.00', over: false };
+}
+
+/**
  * Previews an expense the way the server will record it.
  *
  * Returns one row per participant with the amount they consume, plus who actually settles it

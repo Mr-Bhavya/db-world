@@ -4,14 +4,17 @@ import { Box, Typography, Button, Fab } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
-import { useGroups, useCreateGroup } from './hooks/useTally';
+import { useGroups, useCreateGroup, useCreateDirect } from './hooks/useTally';
 import { formatMoney, balanceColor } from './utils/tallyFormat';
 import GroupCard from './components/GroupCard';
 import GroupCardSkeleton from './components/GroupCardSkeleton';
 import CreateGroupDialog from './components/CreateGroupDialog';
+import StartDirectDialog from './components/StartDirectDialog';
 
 const SKELETON_COUNT = 4;
 
@@ -36,10 +39,16 @@ export default function TallyPage() {
 
   const { data: groups = [], isLoading } = useGroups();
   const createGroup = useCreateGroup();
+  const createDirect = useCreateDirect();
   const [creating, setCreating] = useState(false);
+  const [startingDirect, setStartingDirect] = useState(false);
 
-  const { live, archived } = useMemo(() => ({
-    live: groups.filter((g) => !g.archived),
+  /* People and groups are listed apart because they answer different questions: "what do I owe
+     Amma" and "how is the Goa trip going" are not items on one list. Archived falls out of both
+     into its own section rather than vanishing -- a finished ledger is still readable. */
+  const { people, live, archived } = useMemo(() => ({
+    people: groups.filter((g) => !g.archived && g.kind === 'DIRECT'),
+    live: groups.filter((g) => !g.archived && g.kind !== 'DIRECT'),
     archived: groups.filter((g) => g.archived),
   }), [groups]);
 
@@ -121,22 +130,36 @@ export default function TallyPage() {
             )}
           </Box>
 
-          {/* Desktop gets a button in the header; phones get the FAB below, which is where a
-              thumb already is. */}
-          <Button
-            onClick={() => setCreating(true)}
-            startIcon={<AddIcon />}
-            variant="contained"
-            disableElevation
-            sx={{
-              display: { xs: 'none', sm: 'inline-flex' },
-              textTransform: 'none', fontWeight: 700, fontSize: 14,
-              borderRadius: 2.5, px: 2.25, py: 1, flexShrink: 0,
-              bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
-            }}
-          >
-            New group
-          </Button>
+          {/* Desktop gets both actions; phones get the FABs below, where a thumb already is.
+              Splitting with one person comes first because it is the lighter of the two --
+              no name to invent and nothing to set up. */}
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1, flexShrink: 0 }}>
+            <Button
+              onClick={() => setStartingDirect(true)}
+              startIcon={<PersonRoundedIcon />}
+              variant="contained"
+              disableElevation
+              sx={{
+                textTransform: 'none', fontWeight: 700, fontSize: 14,
+                borderRadius: 2.5, px: 2.25, py: 1,
+                bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
+              }}
+            >
+              Split with someone
+            </Button>
+            <Button
+              onClick={() => setCreating(true)}
+              startIcon={<GroupsRoundedIcon />}
+              sx={{
+                textTransform: 'none', fontWeight: 700, fontSize: 14,
+                borderRadius: 2.5, px: 2, py: 1,
+                color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
+                '&:hover': { bgcolor: T.glassHover },
+              }}
+            >
+              New group
+            </Button>
+          </Box>
         </Box>
 
         {/* ── Groups ───────────────────────────────────────────────────────── */}
@@ -148,8 +171,28 @@ export default function TallyPage() {
 
         {showEmpty && <EmptyState onCreate={() => setCreating(true)} />}
 
+        {!isLoading && people.length > 0 && (
+          <Box sx={{ mb: live.length ? 4 : 0 }}>
+            <SectionHeading icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />} label="People" />
+            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
+              {people.map((group, i) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  index={i}
+                  onOpen={() => navigate(Constants.tallyGroupPath(group.id))}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+
         {!isLoading && live.length > 0 && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
+          <Box>
+            {people.length > 0 && (
+              <SectionHeading icon={<GroupsRoundedIcon sx={{ fontSize: 16 }} />} label="Groups" />
+            )}
+            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
             <AnimatePresence initial={false}>
               {live.map((group, i) => (
                 <GroupCard
@@ -160,18 +203,16 @@ export default function TallyPage() {
                 />
               ))}
             </AnimatePresence>
+            </Box>
           </Box>
         )}
 
         {!isLoading && archived.length > 0 && (
           <Box sx={{ mt: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-              <Inventory2OutlinedIcon sx={{ fontSize: 16, color: T.textMuted }} />
-              <Typography sx={{ fontSize: 13, fontWeight: 800, color: T.textMuted }}>
-                Archived
-              </Typography>
-              <Box sx={{ flex: 1, height: '1px', bgcolor: T.border }} />
-            </Box>
+            <SectionHeading
+              icon={<Inventory2OutlinedIcon sx={{ fontSize: 16 }} />}
+              label="Archived"
+            />
             <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
               {archived.map((group, i) => (
                 <GroupCard
@@ -187,25 +228,48 @@ export default function TallyPage() {
       </Box>
 
       {/* Thumb-reachable on a phone, and clear of the home indicator. */}
-      <Fab
-        onClick={() => setCreating(true)}
-        aria-label="New group"
-        sx={{
-          display: { xs: 'flex', sm: 'none' },
-          position: 'fixed', right: 18,
-          bottom: 'calc(18px + env(safe-area-inset-bottom))',
-          bgcolor: T.teal, color: '#fff',
-          '&:hover': { bgcolor: T.tealHover },
-        }}
-      >
-        <AddIcon />
-      </Fab>
+      <Box sx={{
+        display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 1.25,
+        position: 'fixed', right: 18, bottom: 'calc(18px + env(safe-area-inset-bottom))',
+        alignItems: 'flex-end',
+      }}>
+        <Fab
+          size="small"
+          onClick={() => setCreating(true)}
+          aria-label="New group"
+          sx={{
+            bgcolor: T.glass, color: T.textPrimary, border: `1px solid ${T.border}`,
+            '&:hover': { bgcolor: T.glassHover },
+          }}
+        >
+          <GroupsRoundedIcon sx={{ fontSize: 19 }} />
+        </Fab>
+        <Fab
+          onClick={() => setStartingDirect(true)}
+          aria-label="Split with someone"
+          sx={{ bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover } }}
+        >
+          <AddIcon />
+        </Fab>
+      </Box>
 
       <CreateGroupDialog
         open={creating}
         onClose={() => setCreating(false)}
         onCreate={handleCreate}
         busy={createGroup.isPending}
+      />
+
+      <StartDirectDialog
+        open={startingDirect}
+        onClose={() => setStartingDirect(false)}
+        busy={createDirect.isPending}
+        onStart={(body) => createDirect.mutate(body, {
+          onSuccess: (ledger) => {
+            setStartingDirect(false);
+            if (ledger?.id) navigate(Constants.tallyGroupPath(ledger.id));
+          },
+        })}
       />
     </Box>
   );
@@ -218,6 +282,17 @@ export default function TallyPage() {
  * Naming the ghost feature here is deliberate: it is the reason to choose this over Splitwise,
  * and it is invisible until you are already inside a group.
  */
+function SectionHeading({ icon, label }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, color: T.textMuted }}>
+      {icon}
+      <Typography sx={{ fontSize: 13, fontWeight: 800, color: T.textMuted }}>{label}</Typography>
+      <Box sx={{ flex: 1, height: '1px', bgcolor: T.border }} />
+    </Box>
+  );
+}
+
 function EmptyState({ onCreate }) {
   const T = useT();
   const reduce = useReducedMotion();

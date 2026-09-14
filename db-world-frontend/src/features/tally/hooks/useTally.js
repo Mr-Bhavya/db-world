@@ -96,6 +96,18 @@ export function useCreateGroup() {
   });
 }
 
+export function useCreateDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.createDirectLedger,
+    onSuccess: (ledger) => {
+      qc.invalidateQueries({ queryKey: keys.groups });
+      notify.success(`You can now split with ${ledger?.name ?? 'them'}`);
+    },
+    onError: (e) => notify.error(errMsg(e, 'Could not start that')),
+  });
+}
+
 export function useUpdateGroup(groupId) {
   const qc = useQueryClient();
   return useMutation({
@@ -110,13 +122,46 @@ export function useUpdateGroup(groupId) {
 
 /* ============================== members ============================== */
 
-export function useAddMember(groupId) {
+/**
+ * Adds several people in one go.
+ *
+ * Sequential requests rather than a bulk endpoint. A batch is a handful of people, so the
+ * round trips cost nothing worth optimising, and one request per person means a failure is
+ * <em>per person</em> — somebody who is already in the group does not stop the other three
+ * from being added, and the toast can name who did not make it and why.
+ *
+ * Sequential rather than parallel on purpose too: these all write the same group, and the
+ * server's own uniqueness checks read before they write.
+ */
+export function useAddMembers(groupId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body) => api.addMember(groupId, body),
-    onSuccess: (member) => {
+    mutationFn: async (bodies) => {
+      const added = [];
+      const failed = [];
+      for (const body of bodies) {
+        try {
+          // Awaited in sequence deliberately -- see the note above.
+          added.push(await api.addMember(groupId, body));
+        } catch (e) {
+          failed.push({
+            name: body.displayName ?? 'that person',
+            reason: errMsg(e, 'could not be added'),
+          });
+        }
+      }
+      return { added, failed };
+    },
+    onSuccess: ({ added, failed }) => {
       invalidateGroup(qc, groupId);
-      notify.success(`${member?.displayName ?? 'They'} joined the group`);
+      if (added.length) {
+        notify.success(added.length === 1
+          ? `${added[0].displayName} joined the group`
+          : `${added.length} people joined the group`);
+      }
+      // Reported separately, and after the success, so a partial batch reads as what it is:
+      // most of it worked, and here is the bit that did not.
+      failed.forEach((f) => notify.error(`${f.name}: ${f.reason}`));
     },
     onError: (e) => notify.error(errMsg(e, 'Could not add them')),
   });

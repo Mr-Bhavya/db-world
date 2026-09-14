@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  allocate, allocateEqually, toPaise, fromPaise, sumAmounts, addsUp, previewShares,
+  allocate, allocateEqually, toPaise, fromPaise, sumAmounts, addsUp, previewShares, redistribute,
 } from './tallyMath';
 
 /**
@@ -194,5 +194,65 @@ describe('previewShares', () => {
       ],
     });
     expect(amounts(rows)).toEqual(['70.00', '30.00']);
+  });
+});
+
+describe('redistribute — the auto-fill that must not overwrite what you typed', () => {
+  const ids = ['a', 'b', 'c'];
+  const run = (total, locked, values) => redistribute({
+    total, memberIds: ids, locked: new Set(locked), values,
+  });
+
+  it('fills every field evenly when nothing is locked', () => {
+    const { values } = run('90.00', [], {});
+    expect(values).toEqual({ a: '30.00', b: '30.00', c: '30.00' });
+  });
+
+  it('gives the odd paisa out rather than losing it', () => {
+    const { values } = run('100.00', [], {});
+    expect(sumAmounts(Object.values(values))).toBe('100.00');
+    expect(values).toEqual({ a: '33.34', b: '33.33', c: '33.33' });
+  });
+
+  it('LEAVES A LOCKED FIELD ALONE and spreads the rest over the others', () => {
+    // The whole point. Type 50 into `a`, and only b and c may move.
+    const { values } = run('90.00', ['a'], { a: '50.00', b: '30.00', c: '30.00' });
+    expect(values.a).toBe('50.00');
+    expect(values).toEqual({ a: '50.00', b: '20.00', c: '20.00' });
+  });
+
+  it('never disturbs a second locked field when a third is edited', () => {
+    // The exact failure reported: setting one value moved a value already set by hand.
+    const { values } = run('100.00', ['a', 'b'], { a: '50.00', b: '20.00', c: '30.00' });
+    expect(values.a).toBe('50.00');
+    expect(values.b).toBe('20.00');
+    expect(values.c).toBe('30.00');
+  });
+
+  it('reports the shortfall once every field is locked', () => {
+    const { values, remainder, over } = run('100.00', ids, { a: '10.00', b: '20.00', c: '30.00' });
+    expect(values).toEqual({ a: '10.00', b: '20.00', c: '30.00' });
+    expect(remainder).toBe('40.00');
+    expect(over).toBe(false);
+  });
+
+  it('zeroes the untouched fields and flags it when the locked ones already exceed the total', () => {
+    const { values, over } = run('100.00', ['a'], { a: '150.00', b: '10.00', c: '10.00' });
+    expect(values).toEqual({ a: '150.00', b: '0.00', c: '0.00' });
+    expect(over).toBe(true);
+  });
+
+  it('works the same for percentages, where the whole is 100', () => {
+    const even = run('100', [], {});
+    expect(even.values).toEqual({ a: '33.34', b: '33.33', c: '33.33' });
+
+    const withOneSet = run('100', ['a'], { a: '50', b: '0', c: '0' });
+    expect(withOneSet.values).toEqual({ a: '50', b: '25.00', c: '25.00' });
+  });
+
+  it('treats a half-typed field as zero instead of throwing', () => {
+    const { values } = run('60.00', ['a'], { a: '', b: '', c: '' });
+    expect(values.b).toBe('30.00');
+    expect(values.c).toBe('30.00');
   });
 });

@@ -37,9 +37,10 @@ export const expenseSchema = z.object({
   description: z.string().trim().min(1, 'What was it for?').max(200, 'That is a bit long for a title'),
   totalAmount: money('Amount'),
   divisionMethod: z.enum(['EQUAL', 'EXACT', 'PERCENT', 'SHARES']),
-  category: z.string().trim().max(60).optional().or(z.literal('')),
+  category: z.string().trim().max(60).nullish().or(z.literal('')),
   expenseDate: z.string().min(1, 'Pick a date'),
-  notes: z.string().trim().max(1000, 'That note is too long').optional().or(z.literal('')),
+  notes: z.string().trim().max(1000, 'That note is too long').nullish().or(z.literal('')),
+  idempotencyKey: z.string().max(64).nullish(),
 
   // Who paid. Kept as a list from the start rather than a single id: two people splitting the
   // bill at the till is ordinary, and retrofitting it later would change every row's shape.
@@ -48,12 +49,17 @@ export const expenseSchema = z.object({
     amount: money('Paid'),
   })).min(1, 'Somebody has to have paid'),
 
+  // Every optional here is `.nullish()`, not `.optional()`. In zod v4 `optional` means
+  // `T | undefined` and REJECTS null — and JSON has no undefined, so a field the form does not
+  // use is naturally sent as null. That mismatch silently failed every single expense: the
+  // whole payload was rejected, the submit handler returned without a word, and the Add button
+  // did nothing at all. Anything on this object that can be absent must accept null.
   participants: z.array(z.object({
     memberId: z.string().min(1),
-    exactAmount: z.string().optional(),
-    percent: z.string().optional(),
-    shareWeight: z.string().optional(),
-    owedByMemberId: z.string().optional().nullable(),
+    exactAmount: z.string().nullish(),
+    percent: z.string().nullish(),
+    shareWeight: z.string().nullish(),
+    owedByMemberId: z.string().nullish(),
   })).min(1, 'Pick at least one person to split this with'),
 });
 

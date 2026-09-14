@@ -40,6 +40,22 @@ public class TallyGroupEntity {
 
     @Column(nullable = false, length = 120) private String name;
 
+    /**
+     * Group, or a running total with one other person. See {@link TallyGroupKind}.
+     *
+     * <p>The explicit {@code columnDefinition} is load-bearing. This column was added after the
+     * table already existed, and it carries the DEFAULT into the {@code ALTER TABLE} that
+     * {@code ddl-auto: update} generates — so rows written before it existed come back as
+     * GROUP rather than NULL. Without it every pre-existing group would fail to read.
+     *
+     * <p>Adding a column this way is safe; adding or changing an <em>index</em> is not, which
+     * is why the keys on this table had to be right on the first deploy and this did not.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20,
+            columnDefinition = "varchar(20) not null default 'GROUP'")
+    private TallyGroupKind kind = TallyGroupKind.GROUP;
+
     /** Free text for the UI to badge with ("Home", "Trip", "Flatmates"); not an enum, not validated. */
     @Column(length = 60) private String category;
 

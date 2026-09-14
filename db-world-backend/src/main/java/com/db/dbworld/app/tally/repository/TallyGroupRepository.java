@@ -30,4 +30,26 @@ public interface TallyGroupRepository extends JpaRepository<TallyGroupEntity, St
      */
     @Query("select g from TallyGroupEntity g where g.id = :id and g.archivedAt is null")
     Optional<TallyGroupEntity> findOpenById(@Param("id") String id);
+
+    /**
+     * Any live one-to-one ledger these two people already share.
+     *
+     * <p>Used to stop a second one being created. Two parallel running totals with the same
+     * person is precisely the money-in-two-places failure this module is built to avoid —
+     * you would settle up on one and still owe on the other, with no way to see why.
+     *
+     * <p>Matched on <b>user id only</b>, so it applies to real accounts. Two ledgers each with
+     * a ghost called "Amma" may genuinely be two different people, and guessing from a name
+     * would silently merge somebody's debts.
+     */
+    @Query("""
+            select g.id from TallyGroupEntity g
+             where g.kind = com.db.dbworld.app.tally.entity.TallyGroupKind.DIRECT
+               and g.archivedAt is null
+               and exists (select 1 from TallyGroupMemberEntity mine
+                            where mine.groupId = g.id and mine.userId = :me)
+               and exists (select 1 from TallyGroupMemberEntity theirs
+                            where theirs.groupId = g.id and theirs.userId = :them)
+            """)
+    List<String> findDirectLedgerBetween(@Param("me") Long me, @Param("them") Long them);
 }

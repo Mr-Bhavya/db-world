@@ -1,11 +1,13 @@
 package com.db.dbworld.app.tally.service;
 
+import com.db.dbworld.app.tally.dto.CreateDirectRequest;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
 import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
 import com.db.dbworld.app.tally.dto.TallyMemberDto;
 import com.db.dbworld.app.tally.dto.UpdateGroupRequest;
 import com.db.dbworld.app.tally.entity.TallyGroupEntity;
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
 import com.db.dbworld.app.tally.entity.TallyGroupMemberEntity;
 import com.db.dbworld.app.tally.entity.TallyMemberRole;
 import com.db.dbworld.app.tally.entity.TallyMemberStatus;
@@ -69,6 +71,77 @@ public class TallyGroupService {
 
         log.debug("Created tally group {} for user {}", group.getId(), userId);
         return detailOf(userId, group, List.of(me), Map.of());
+    }
+
+    /**
+     * Starts — or reopens — a running total with one other person.
+     *
+     * <p>A one-to-one ledger is a group with two members and nothing else. Every expense,
+     * balance, settlement and settle-up plan works on it untouched; only the presentation
+     * differs, which is why this is a {@code kind} column rather than a second set of tables
+     * and a second copy of the arithmetic to keep in agreement.
+     *
+     * <p><b>Never creates a second ledger with somebody you already have one with.</b> It
+     * returns the existing one instead. Two running totals with the same person is the
+     * money-in-two-places failure the whole module is arranged to prevent: you would settle up
+     * on one, still owe on the other, and have no way to see why.
+     *
+     * <p>The group takes the other person's name, so it reads as them everywhere a group name
+     * would otherwise appear — including in code that has never heard of {@code DIRECT}.
+     */
+    @Transactional
+    public TallyGroupDetailDto createDirect(Long userId, CreateDirectRequest request) {
+        boolean hasAccount = request.userId() != null;
+        if (hasAccount && request.userId().equals(userId)) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "You cannot split with yourself");
+        }
+        if (!hasAccount && (request.displayName() == null || request.displayName().isBlank())) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Pick somebody, or give them a name");
+        }
+
+        if (hasAccount) {
+            var existing = groups.findDirectLedgerBetween(userId, request.userId());
+            if (!existing.isEmpty()) {
+                log.debug("Reusing direct ledger {} between {} and {}",
+                        existing.getFirst(), userId, request.userId());
+                return get(userId, existing.getFirst());
+            }
+        }
+
+        UserEntity other = hasAccount
+                ? users.findById(request.userId())
+                        .filter(u -> u.getDeletedAt() == null)
+                        .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "User not found"))
+                : null;
+
+        String theirName = hasAccount
+                ? firstNonBlank(fullNameOf(other), other.getEmail())
+                : request.displayName().trim();
+
+        var group = new TallyGroupEntity();
+        group.setName(theirName);
+        group.setKind(TallyGroupKind.DIRECT);
+        group.setCreatedByUserId(userId);
+        groups.save(group);
+
+        var me = new TallyGroupMemberEntity();
+        me.setGroupId(group.getId());
+        me.setUserId(userId);
+        me.setDisplayName(displayNameOf(userId));
+        me.setRole(TallyMemberRole.OWNER);
+        members.save(me);
+
+        var them = new TallyGroupMemberEntity();
+        them.setGroupId(group.getId());
+        them.setDisplayName(theirName);
+        if (hasAccount) {
+            them.setUserId(other.getUserId());
+            them.setEmail(other.getEmail());
+        }
+        members.save(them);
+
+        log.debug("Created direct ledger {} between {} and {}", group.getId(), userId, theirName);
+        return detailOf(userId, group, List.of(me, them), Map.of());
     }
 
     /* ============================== read ============================== */
@@ -218,6 +291,15 @@ public class TallyGroupService {
         return Stream.of(user.getFirstName(), user.getLastName())
                 .filter(part -> part != null && !part.isBlank())
                 .collect(Collectors.joining(" "));
+    }
+
+    /** First of these with something in it. Used where a name has more than one fallback. */
+    static String firstNonBlank(String... candidates) {
+        return Stream.of(candidates)
+                .filter(c -> c != null && !c.isBlank())
+                .map(String::trim)
+                .findFirst()
+                .orElseThrow(() -> new DbWorldException(HttpStatus.BAD_REQUEST, "A member needs a name"));
     }
 
     private static String blankToNull(String s) {

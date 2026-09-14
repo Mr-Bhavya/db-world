@@ -1,5 +1,7 @@
 package com.db.dbworld.app.tally.dto;
 
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -13,6 +15,8 @@ import java.time.Instant;
 public record TallyGroupSummaryDto(
         String id,
         String name,
+        /** GROUP, or DIRECT for a running total with one person. For DIRECT, `name` is them. */
+        TallyGroupKind kind,
         String category,
         String currency,
         boolean archived,

@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * The roster: adding people, changing who pays for whom, letting people go, and turning a ghost
@@ -52,11 +51,31 @@ public class TallyMemberService {
      */
     @Transactional
     public TallyMemberDto add(Long userId, String groupId, AddMemberRequest request) {
-        access.requireOpenGroup(userId, groupId);
+        var group = access.requireOpenGroup(userId, groupId);
 
-        return view(groupId, request.userId() == null
+        var added = request.userId() == null
                 ? addGhost(groupId, request)
-                : addRealUser(groupId, request));
+                : addRealUser(groupId, request);
+
+        promoteIfNoLongerDirect(group);
+        return view(groupId, added);
+    }
+
+    /**
+     * A one-to-one ledger stops being one the moment a third person joins.
+     *
+     * <p>Promoted rather than refused. "You and Amma" genuinely turns into "the flat" when a
+     * third person moves in, and blocking that would force somebody to start again and lose
+     * every expense already recorded. The rows do not change at all — only how the thing is
+     * labelled and listed.
+     */
+    private void promoteIfNoLongerDirect(TallyGroupEntity group) {
+        if (group.getKind() != TallyGroupKind.DIRECT) return;
+        long active = members.findByGroupIdAndStatus(group.getId(), TallyMemberStatus.ACTIVE).size();
+        if (active > 2) {
+            log.debug("Direct ledger {} became a group at {} members", group.getId(), active);
+            group.setKind(TallyGroupKind.GROUP);
+        }
     }
 
     private TallyGroupMemberEntity addRealUser(String groupId, AddMemberRequest request) {
@@ -83,7 +102,7 @@ public class TallyMemberService {
         TallyGroupMemberEntity row = new TallyGroupMemberEntity();
         row.setGroupId(groupId);
         row.setUserId(user.getUserId());
-        row.setDisplayName(firstNonBlank(request.displayName(), TallyGroupService.fullNameOf(user), user.getEmail()));
+        row.setDisplayName(TallyGroupService.firstNonBlank(request.displayName(), TallyGroupService.fullNameOf(user), user.getEmail()));
         row.setEmail(user.getEmail());
         return members.save(row);
     }
@@ -348,14 +367,6 @@ public class TallyMemberService {
             throw new DbWorldException(HttpStatus.CONFLICT,
                     "A group needs an owner. Make somebody else an owner first.");
         }
-    }
-
-    private static String firstNonBlank(String... candidates) {
-        return Stream.of(candidates)
-                .filter(s -> s != null && !s.isBlank())
-                .map(String::trim)
-                .findFirst()
-                .orElseThrow(() -> new DbWorldException(HttpStatus.BAD_REQUEST, "A member needs a name"));
     }
 
     private static String blankToNull(String s) {
