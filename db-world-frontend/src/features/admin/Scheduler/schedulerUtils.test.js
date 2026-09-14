@@ -7,6 +7,23 @@ import {
 const NOW = new Date('2026-09-13T21:00:00+05:30').getTime();
 const at = (iso) => new Date(iso).toISOString();
 
+/**
+ * An instant at `hh:mm` LOCAL time, `dayOffset` days from `base`.
+ *
+ * clockTime renders in the viewer's own timezone, which is right for the UI but
+ * makes a fixed UTC instant mean a different calendar day depending on where the
+ * test runs. Pinning one broke CI: 02:00 IST is the PREVIOUS day at 20:30 UTC, so
+ * the "same day" assertion held on a laptop in India and failed on a UTC runner.
+ * Building the input from local-time parts asserts the actual contract -- same
+ * local day versus not -- in any timezone.
+ */
+function localAt(base, dayOffset, hh, mm) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + dayOffset);
+  d.setHours(hh, mm, 0, 0);
+  return d.toISOString();
+}
+
 describe('formatDuration', () => {
   it('keeps sub-second runs in milliseconds', () => {
     expect(formatDuration(185)).toBe('185 ms');
@@ -58,11 +75,11 @@ describe('relativeTime', () => {
 
 describe('clockTime', () => {
   it('shows just the time for today', () => {
-    expect(clockTime(at('2026-09-13T02:00:00+05:30'), NOW)).toBe('02:00');
+    expect(clockTime(localAt(NOW, 0, 2, 0), NOW)).toBe('02:00');
   });
 
   it('prefixes the weekday when it is not today', () => {
-    expect(clockTime(at('2026-09-14T02:00:00+05:30'), NOW)).toMatch(/^\w{3} 02:00$/);
+    expect(clockTime(localAt(NOW, 1, 2, 0), NOW)).toMatch(/^\w{3} 02:00$/);
   });
 
   it('returns null when there is no next run', () => {
