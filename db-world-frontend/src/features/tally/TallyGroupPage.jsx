@@ -12,6 +12,7 @@ import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRena
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
 import Constants from '@shared/constants';
@@ -19,6 +20,7 @@ import { useT } from '@shared/theme';
 import {
   useGroup, useExpenses, useSettleUpPlan, useCreateExpense, useVoidExpense, useReplaceExpense,
   useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
+  useActivity, useRestoreExpense,
   useRecordSettlement,
 } from './hooks/useTally';
 import { groupExpensesByDate, formatMoney } from './utils/tallyFormat';
@@ -31,6 +33,7 @@ import MembersSheet from './components/MembersSheet';
 import SettleUpSheet from './components/SettleUpSheet';
 import RecordPaymentDialog from './components/RecordPaymentDialog';
 import EditGroupDialog from './components/EditGroupDialog';
+import HistorySheet from './components/HistorySheet';
 import { groupIcon } from './utils/tallyFormat';
 
 /**
@@ -78,9 +81,11 @@ export default function TallyGroupPage() {
   const [settling, setSettling] = useState(false);
   const [payment, setPayment] = useState(null);     // null | {} | prefill
   const [editingGroup, setEditingGroup] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [menuAt, setMenuAt] = useState(null);
 
   const { data: plan = [], isFetching: loadingPlan } = useSettleUpPlan(groupId, settling);
+  const { data: history, isFetching: loadingHistory } = useActivity(groupId, showHistory);
 
   const createExpense = useCreateExpense(groupId);
   const replaceExpense = useReplaceExpense(groupId);
@@ -91,6 +96,7 @@ export default function TallyGroupPage() {
   const claimMember = useClaimMember(groupId);
   const updateGroup = useUpdateGroup(groupId);
   const recordSettlement = useRecordSettlement(groupId);
+  const restoreExpense = useRestoreExpense(groupId);
 
   const members = group?.members ?? [];
   const myMemberId = group?.myMemberId ?? null;
@@ -385,6 +391,16 @@ export default function TallyGroupPage() {
           </ListItemIcon>
           {group?.kind === 'DIRECT' ? 'Change icon' : 'Edit name, type and icon'}
         </MenuItem>
+        <MenuItem
+          onClick={() => { setMenuAt(null); setShowHistory(true); }}
+          sx={{ fontSize: 14, color: T.textPrimary }}
+        >
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            <HistoryRoundedIcon sx={{ fontSize: 18, color: T.textMuted }} />
+          </ListItemIcon>
+          History
+        </MenuItem>
+
         {isOwner && (
           group?.archived ? (
             <MenuItem
@@ -464,6 +480,15 @@ export default function TallyGroupPage() {
         myMemberId={myMemberId}
         prefill={payment}
         onRecord={(body) => recordSettlement.mutate(body, { onSuccess: () => setPayment(null) })}
+      />
+
+      <HistorySheet
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        entries={history?.items ?? []}
+        loading={loadingHistory}
+        restoring={restoreExpense.isPending}
+        onRestore={(entry) => restoreExpense.mutate(entry.subjectId)}
       />
 
       <EditGroupDialog

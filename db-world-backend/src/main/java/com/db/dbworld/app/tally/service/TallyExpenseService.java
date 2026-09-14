@@ -8,6 +8,8 @@ import com.db.dbworld.app.tally.dto.TallyExpensePageDto;
 import com.db.dbworld.app.tally.entity.*;
 import com.db.dbworld.app.tally.mapper.TallyMapper;
 import com.db.dbworld.app.tally.repository.*;
+import com.db.dbworld.app.tally.entity.TallyActivityAction;
+import com.db.dbworld.app.tally.entity.TallyActivitySubject;
 import org.springframework.data.domain.Limit;
 import com.db.dbworld.core.exception.DbWorldException;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,8 @@ public class TallyExpenseService {
     private final TallyExpensePayerRepository payers;
     private final TallyExpenseShareRepository shares;
     private final TallyGroupMemberRepository members;
+    private final TallyActivityService activity;
+    private final TallyActivityRepository activityLog;
     private final TallyMapper mapper;
 
     /**
@@ -67,7 +71,9 @@ public class TallyExpenseService {
      */
     @Transactional
     public TallyExpenseDto create(Long userId, String groupId, CreateExpenseRequest request) {
-        return view(createEntity(userId, groupId, request));
+        var expense = createEntity(userId, groupId, request);
+        activity.expenseAdded(expense, userId);
+        return view(expense);
     }
 
     private TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request) {
@@ -125,7 +131,9 @@ public class TallyExpenseService {
      */
     @Transactional
     public TallyExpenseDto voidExpense(Long userId, String expenseId) {
-        return view(voidEntity(userId, expenseId));
+        var expense = voidEntity(userId, expenseId);
+        activity.expenseRemoved(expense, userId);
+        return view(expense);
     }
 
     private TallyExpenseEntity voidEntity(Long userId, String expenseId) {
@@ -166,7 +174,77 @@ public class TallyExpenseService {
                         request.divisionMethod(), request.category(), request.expenseDate(),
                         request.notes(), null, request.payers(), request.participants());
 
-        return create(userId, original.getGroupId(), replacement);
+        // createEntity, not create(): the public one logs "added", and a correction is one
+        // event, not a removal plus an addition. The private pair deliberately says nothing so
+        // the caller decides what the log should read.
+        var posted = createEntity(userId, original.getGroupId(), replacement);
+        activity.expenseCorrected(original, posted, userId);
+        return view(posted);
+    }
+
+    /* ============================== restore ============================== */
+
+    /**
+     * Puts a removed expense back, as a fresh copy.
+     *
+     * <p><b>Not an un-void.</b> Voiding wrote a reversal into an append-only ledger and there
+     * is no such thing as un-reversing it, so this re-posts the original's contents as a new
+     * expense and leaves the removed one exactly where it is. The outcome is the same money;
+     * what differs is that the history keeps both, which is the point of having a log at all.
+     *
+     * <p>The copy reproduces the original faithfully — same split method, same weights, same
+     * snapshotted {@code owedBy} — rather than re-deriving anything. Re-deriving would apply
+     * today's delegations to an expense from last month, which is exactly what snapshotting
+     * exists to prevent.
+     *
+     * <p>It can legitimately fail: if somebody in that expense has since left the group, the
+     * usual membership check refuses and names them. That is the honest answer — their balance
+     * was brought to zero so they could leave, and quietly putting a debt back on them would
+     * undo that.
+     */
+    @Transactional
+    public TallyExpenseDto restore(Long userId, String expenseId) {
+        var original = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        access.requireOpenGroup(userId, original.getGroupId());
+
+        if (original.isActive()) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "That expense has not been removed");
+        }
+        if (activityLog.existsBySubjectTypeAndSubjectIdAndAction(
+                TallyActivitySubject.EXPENSE, expenseId, TallyActivityAction.EXPENSE_RESTORED)) {
+            // Restoring posts a copy, so without this a second tap silently creates the
+            // expense twice and the duplicate looks every bit as legitimate as the first.
+            throw new DbWorldException(HttpStatus.CONFLICT, "That expense has already been put back");
+        }
+
+        var posted = createEntity(userId, original.getGroupId(), asRequest(original));
+        activity.expenseRestored(original, posted, userId);
+        return view(posted);
+    }
+
+    /** Rebuilds the request that would recreate an expense exactly as it was recorded. */
+    private CreateExpenseRequest asRequest(TallyExpenseEntity original) {
+        var method = original.getDivisionMethod();
+        return new CreateExpenseRequest(
+                original.getDescription(),
+                original.getTotalAmount(),
+                method,
+                original.getCategory(),
+                original.getExpenseDate(),
+                original.getNotes(),
+                null,   // a restore is a new write, so it gets a new retry token, not the old one
+                payers.findByExpenseId(original.getId()).stream()
+                        .map(p -> new PayerInput(p.getMemberId(), p.getAmount()))
+                        .toList(),
+                shares.findByExpenseId(original.getId()).stream()
+                        .map(share -> new ParticipantInput(
+                                share.getBeneficiaryMemberId(),
+                                method == TallyMethod.EXACT ? share.getAmount() : null,
+                                method == TallyMethod.PERCENT ? share.getSharePercent() : null,
+                                method == TallyMethod.SHARES ? share.getShareWeight() : null,
+                                share.getOwedByMemberId()))
+                        .toList());
     }
 
     /* ============================== read ============================== */

@@ -37,6 +37,7 @@ public class TallySettlementService {
     private final TallyLedgerService ledgerService;
     private final TallySettlementRepository settlements;
     private final TallyGroupMemberRepository members;
+    private final TallyActivityService activity;
     private final TallyMapper mapper;
 
     /* ============================== record ============================== */
@@ -82,6 +83,7 @@ public class TallySettlementService {
         settlements.save(settlement);
 
         ledgerService.postSettlement(settlement);
+        activity.settlementRecorded(settlement, from.getDisplayName(), to.getDisplayName(), userId);
 
         log.debug("Recorded settlement {} of {} from {} to {}",
                 settlement.getId(), settlement.getAmount(), from.getId(), to.getId());
@@ -117,6 +119,9 @@ public class TallySettlementService {
 
         settlement.setStatus(TallySettlementStatus.REVERSED);
         ledgerService.reverse(TallyLedgerSourceType.SETTLEMENT, settlement.getId());
+        activity.settlementReversed(settlement,
+                nameOf(settlement.getGroupId(), settlement.getFromMemberId()),
+                nameOf(settlement.getGroupId(), settlement.getToMemberId()), userId);
 
         log.debug("Reversed settlement {}", settlement.getId());
         return mapper.toSettlementDto(settlement);
@@ -159,6 +164,13 @@ public class TallySettlementService {
                 .filter(TallyGroupMemberEntity::isActive)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.BAD_REQUEST,
                         "That person is not in this group"));
+    }
+
+    /** A member's name for the log, falling back rather than failing if they are gone. */
+    private String nameOf(String groupId, String memberId) {
+        return members.findByIdAndGroupId(memberId, groupId)
+                .map(TallyGroupMemberEntity::getDisplayName)
+                .orElse("someone");
     }
 
     private static String blankToNull(String s) {

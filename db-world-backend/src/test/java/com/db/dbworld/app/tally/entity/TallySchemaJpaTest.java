@@ -159,6 +159,19 @@ class TallySchemaJpaTest {
         }
 
         @Test
+        @DisplayName("the history feed and per-row lookups are both indexed")
+        void activityIndexes() {
+            // Added after the first deploy, so these had the same one-shot constraint the rest
+            // of the schema did. `id` trailing on the feed index is load-bearing rather than
+            // decorative: one user action writes several activity rows in the same instant, so
+            // created_at alone is not a total order and the keyset would skip rows without it.
+            assertThat(indexColumns("idx_tally_activity_group_at"))
+                    .containsExactly("group_id", "created_at", "id");
+            assertThat(indexColumns("idx_tally_activity_subject"))
+                    .containsExactly("subject_type", "subject_id");
+        }
+
+        @Test
         @DisplayName("no member-only ledger index — the two balance indexes already serve it")
         void noRedundantLedgerIndex() {
             // Per-member balances resolve through the (group_id, member_id) prefix of the pair

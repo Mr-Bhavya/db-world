@@ -1,6 +1,7 @@
 package com.db.dbworld.app.tally.service;
 
 import com.db.dbworld.app.tally.dto.CreateDirectRequest;
+import com.db.dbworld.app.tally.dto.TallyActivityPageDto;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
 import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
@@ -42,6 +43,7 @@ public class TallyGroupService {
     private final TallyBalanceService balances;
     private final TallyGroupRepository groups;
     private final TallyGroupMemberRepository members;
+    private final TallyActivityService activity;
     private final TallyMapper mapper;
     private final UserRepository users;
 
@@ -70,6 +72,8 @@ public class TallyGroupService {
         me.setDisplayName(displayNameOf(userId));
         me.setRole(TallyMemberRole.OWNER);
         members.save(me);
+
+        activity.groupCreated(group, userId);
 
         log.debug("Created tally group {} for user {}", group.getId(), userId);
         return detailOf(userId, group, List.of(me), Map.of());
@@ -143,6 +147,8 @@ public class TallyGroupService {
         }
         members.save(them);
 
+        activity.groupCreated(group, userId);
+
         log.debug("Created direct ledger {} between {} and {}", group.getId(), userId, theirName);
         return detailOf(userId, group, List.of(me, them), Map.of());
     }
@@ -194,6 +200,20 @@ public class TallyGroupService {
         return detailOf(userId, group, members.findByGroupId(groupId), balances.balances(groupId));
     }
 
+    /**
+     * The group's history.
+     *
+     * <p>Goes through {@code requireVisibleGroup} rather than {@code requireOpenGroup}: an
+     * archived group's history is most of the reason to keep the group at all, and a log you
+     * cannot read once the thing is finished is not much of a log.
+     */
+    @Transactional(readOnly = true)
+    public TallyActivityPageDto activity(Long userId, String groupId, Instant cursorAt,
+                                         String cursorId, Integer size) {
+        access.requireVisibleGroup(userId, groupId);
+        return activity.list(groupId, cursorAt, cursorId, size);
+    }
+
     /* ============================== update ============================== */
 
     /**
@@ -219,6 +239,13 @@ public class TallyGroupService {
     public TallyGroupDetailDto update(Long userId, String groupId, UpdateGroupRequest request) {
         var group = access.requireVisibleGroup(userId, groupId);
 
+        // Captured before anything moves: the entity is managed, so reading these afterwards
+        // would compare the new values against themselves and log nothing.
+        var changes = new TallyActivityService.Changes();
+        String wasName = group.getName();
+        String wasCategory = group.getCategory();
+        String wasIcon = group.getIcon();
+
         if (request.name() != null && !request.name().isBlank()) {
             group.setName(request.name().trim());
         }
@@ -236,6 +263,11 @@ public class TallyGroupService {
             group.setIcon(TallyIcons.resolve(null, group.getName(), group.getCategory(), group.getKind()));
         }
 
+        changes.add("Name", wasName, group.getName())
+                .add("Type", wasCategory, group.getCategory())
+                .add("Icon", wasIcon, group.getIcon());
+        activity.groupUpdated(group, userId, changes);
+
         if (request.archived() != null && request.archived() != group.isArchived()) {
             access.requireOwner(userId, groupId);
             if (request.archived()) {
@@ -243,6 +275,7 @@ public class TallyGroupService {
             } else {
                 group.setArchivedAt(null);
             }
+            activity.groupArchived(group, userId, request.archived());
         }
         return detailOf(userId, group, members.findByGroupId(groupId), balances.balances(groupId));
     }

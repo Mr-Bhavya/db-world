@@ -37,6 +37,21 @@ export const createGroup = (body) => axiosInstance.post(`${BASE}/groups`, body).
 export const createDirectLedger = (body) =>
   axiosInstance.post(`${BASE}/groups/direct`, body).then(unwrap);
 
+/**
+ * A page of the group's history, newest first.
+ *
+ * Readable for archived groups too -- that history is most of the reason to archive rather
+ * than delete. Both cursor halves travel together or not at all.
+ */
+export const fetchActivity = (groupId, { cursorAt, cursorId, size } = {}) =>
+  axiosInstance.get(`${BASE}/groups/${groupId}/activity`, {
+    params: {
+      cursorAt: cursorAt && cursorId ? cursorAt : undefined,
+      cursorId: cursorAt && cursorId ? cursorId : undefined,
+      size: size || undefined,
+    },
+  }).then(unwrap);
+
 export const updateGroup = (groupId, body) =>
   axiosInstance.patch(`${BASE}/groups/${groupId}`, body).then(unwrap);
 
@@ -90,6 +105,10 @@ export const fetchExpense = (expenseId) =>
 /** A correction: the server voids the original and posts a replacement with a new id. */
 export const replaceExpense = (expenseId, body) =>
   axiosInstance.put(`${BASE}/expenses/${expenseId}`, body).then(unwrap);
+
+/** Puts a removed expense back, as a fresh copy. The removed one stays removed. */
+export const restoreExpense = (expenseId) =>
+  axiosInstance.post(`${BASE}/expenses/${expenseId}/restore`).then(unwrap);
 
 export const voidExpense = (expenseId) =>
   axiosInstance.delete(`${BASE}/expenses/${expenseId}`).then(unwrap);

@@ -1,6 +1,7 @@
 package com.db.dbworld.app.tally.controller;
 
 import com.db.dbworld.app.tally.dto.CreateDirectRequest;
+import com.db.dbworld.app.tally.dto.TallyActivityPageDto;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
 import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
@@ -12,7 +13,10 @@ import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 import java.util.List;
 
@@ -63,6 +67,22 @@ public class TallyGroupController {
     @GetMapping("/{groupId}")
     public ResponseEntity<ApiResponse<TallyGroupDetailDto>> get(@PathVariable String groupId) {
         return TallyResponses.ok(groups.get(userContext.userId(), groupId));
+    }
+
+    /**
+     * Everything that has happened in this group, newest first.
+     *
+     * <p>Readable for an archived group too — that history is most of the reason the group is
+     * kept rather than deleted. Paged on the cursor the previous page returned; pass both
+     * halves or neither, since half a keyset cursor cannot address a position.
+     */
+    @GetMapping("/{groupId}/activity")
+    public ResponseEntity<ApiResponse<TallyActivityPageDto>> activity(
+            @PathVariable String groupId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorAt,
+            @RequestParam(required = false) String cursorId,
+            @RequestParam(required = false) Integer size) {
+        return TallyResponses.ok(groups.activity(userContext.userId(), groupId, cursorAt, cursorId, size));
     }
 
     /**

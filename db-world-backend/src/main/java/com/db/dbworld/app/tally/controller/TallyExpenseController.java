@@ -85,6 +85,20 @@ public class TallyExpenseController {
     }
 
     /**
+     * Puts a removed expense back.
+     *
+     * <p>201, because it creates one: the removed expense stays removed and this is a fresh
+     * copy of its contents. Voiding wrote a reversal into an append-only ledger, and there is
+     * no un-reversing that — so "restore" means re-post, and the history keeps both, which is
+     * the point of having a log.
+     */
+    @PostMapping("/api/tally/expenses/{expenseId}/restore")
+    public ResponseEntity<ApiResponse<TallyExpenseDto>> restore(@PathVariable String expenseId) {
+        var expense = expenses.restore(userContext.userId(), expenseId);
+        return TallyResponses.created("Put %s back".formatted(expense.description()), expense);
+    }
+
+    /**
      * Voids an expense and reverses its ledger entries.
      *
      * <p>Nothing is deleted, so this returns the voided expense rather than an empty body — the

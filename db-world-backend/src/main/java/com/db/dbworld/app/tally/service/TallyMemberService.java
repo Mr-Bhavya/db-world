@@ -34,6 +34,7 @@ public class TallyMemberService {
     private final TallyExpenseShareRepository shares;
     private final TallyLedgerEntryRepository ledger;
     private final TallySettlementRepository settlements;
+    private final TallyActivityService activity;
     private final TallyMapper mapper;
     private final UserRepository users;
 
@@ -53,11 +54,19 @@ public class TallyMemberService {
     public TallyMemberDto add(Long userId, String groupId, AddMemberRequest request) {
         var group = access.requireOpenGroup(userId, groupId);
 
+        // A rejoin reuses the row somebody already had, so its id predates this call. That
+        // is how the log can tell "joined" from "came back", which are different events even
+        // though they leave the database in the same state.
+        boolean rejoin = request.userId() != null
+                && members.findByGroupIdAndUserId(groupId, request.userId())
+                        .filter(m -> !m.isActive()).isPresent();
+
         var added = request.userId() == null
                 ? addGhost(groupId, request)
                 : addRealUser(groupId, request);
 
         promoteIfNoLongerDirect(group);
+        activity.memberAdded(groupId, added, userId, rejoin);
         return view(groupId, added);
     }
 
@@ -128,6 +137,10 @@ public class TallyMemberService {
         access.requireOpenGroup(userId, groupId);
         TallyGroupMemberEntity member = require(groupId, memberId);
 
+        String wasName = member.getDisplayName();
+        TallyMemberRole wasRole = member.getRole();
+        String wasPayer = member.getPaidForByMemberId();
+
         if (request.displayName() != null && !request.displayName().isBlank()) {
             member.setDisplayName(request.displayName().trim());
         }
@@ -143,6 +156,19 @@ public class TallyMemberService {
             member.setPaidForByMemberId(null);
         } else if (request.paidForByMemberId() != null && !request.paidForByMemberId().isBlank()) {
             member.setPaidForByMemberId(validDelegation(groupId, member, request.paidForByMemberId()));
+        }
+
+        activity.memberUpdated(groupId, member, userId, new TallyActivityService.Changes()
+                .add("Name", wasName, member.getDisplayName())
+                .add("Role", wasRole.name(), member.getRole().name()));
+
+        // Logged separately from the rest: "changed who pays for them" is a different event
+        // from "renamed them", and one line saying MEMBER_UPDATED for both would make the feed
+        // unreadable exactly where it matters most.
+        if (!java.util.Objects.equals(wasPayer, member.getPaidForByMemberId())) {
+            String payerName = member.getPaidForByMemberId() == null ? null
+                    : require(groupId, member.getPaidForByMemberId()).getDisplayName();
+            activity.delegationChanged(groupId, member, payerName, userId);
         }
         return view(groupId, member);
     }
@@ -242,6 +268,7 @@ public class TallyMemberService {
         // Their own outbound delegation is deliberately kept: if they rejoin, the arrangement
         // they had is still the one they meant. It is cleared for them if that person leaves.
         departing.setStatus(TallyMemberStatus.LEFT);
+        activity.memberRemoved(groupId, departing, userId, departing.getId().equals(me.getId()));
         return view(groupId, departing);
     }
 
@@ -290,6 +317,9 @@ public class TallyMemberService {
             throw new DbWorldException(HttpStatus.CONFLICT, "That person has left this group");
         }
         requireNoMergeCollision(survivor, ghost);
+        // Read before the merge: afterwards the ghost row is a tombstone and its name is the
+        // only trace of who this used to be.
+        String ghostName = ghost.getDisplayName();
 
         payers.repointPayer(survivor.getId(), ghostId);              // 1
         shares.repointBeneficiary(survivor.getId(), ghostId);        // 2
@@ -304,6 +334,8 @@ public class TallyMemberService {
         TallyGroupMemberEntity tombstone = require(groupId, ghostId);
         tombstone.setStatus(TallyMemberStatus.LEFT);
         tombstone.setPaidForByMemberId(null);
+
+        activity.memberClaimed(groupId, require(groupId, survivor.getId()), ghostName, userId);
 
         log.info("Claimed ghost {} into member {} in tally group {}", ghostId, survivor.getId(), groupId);
         return view(groupId, require(groupId, survivor.getId()));

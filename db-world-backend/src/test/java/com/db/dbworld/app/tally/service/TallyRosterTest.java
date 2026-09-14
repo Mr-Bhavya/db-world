@@ -53,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({TallyAccessService.class, TallyLedgerService.class, TallyExpenseService.class,
-         TallyBalanceService.class, TallyGroupService.class, TallyMemberService.class,
+         TallyBalanceService.class, TallyActivityService.class, TallyGroupService.class, TallyMemberService.class,
          TallyRosterTest.CacheStubConfig.class, TallyMapperImpl.class})
 @DisplayName("db-tally roster")
 class TallyRosterTest {

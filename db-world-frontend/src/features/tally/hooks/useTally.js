@@ -19,6 +19,7 @@ const keys = {
   expenses: (id) => ['tally', 'expenses', id],
   settlements: (id) => ['tally', 'settlements', id],
   settleUp: (id) => ['tally', 'settle-up', id],
+  activity: (id) => ['tally', 'activity', id],
 };
 
 /**
@@ -35,6 +36,8 @@ function invalidateGroup(qc, groupId) {
   qc.invalidateQueries({ queryKey: keys.expenses(groupId) });
   qc.invalidateQueries({ queryKey: keys.settlements(groupId) });
   qc.invalidateQueries({ queryKey: keys.settleUp(groupId) });
+  // Every write is an event, so the history is stale after all of them.
+  qc.invalidateQueries({ queryKey: keys.activity(groupId) });
 }
 
 /* ============================== reads ============================== */
@@ -78,6 +81,20 @@ export function useSettleUpPlan(groupId, enabled = false) {
   return useQuery({
     queryKey: keys.settleUp(groupId),
     queryFn: () => api.fetchSettleUpPlan(groupId),
+    enabled: Boolean(groupId) && enabled,
+  });
+}
+
+/**
+ * The group's history.
+ *
+ * Opt-in like the settle-up plan: it is only ever shown inside the history sheet, and fetching
+ * it on every group view would be a query per visit for a screen most visits never open.
+ */
+export function useActivity(groupId, enabled = false) {
+  return useQuery({
+    queryKey: keys.activity(groupId),
+    queryFn: () => api.fetchActivity(groupId),
     enabled: Boolean(groupId) && enabled,
   });
 }
@@ -225,6 +242,20 @@ export function useReplaceExpense(groupId) {
       notify.success('Expense corrected');
     },
     onError: (e) => notify.error(errMsg(e, 'Could not correct that expense')),
+  });
+}
+
+export function useRestoreExpense(groupId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId) => api.restoreExpense(expenseId),
+    onSuccess: (expense) => {
+      invalidateGroup(qc, groupId);
+      notify.success(`Put ${expense?.description ?? 'it'} back`);
+    },
+    // The refusals here are worth reading: "already been put back", or a member who has since
+    // left and would have a debt handed back to them.
+    onError: (e) => notify.error(errMsg(e, 'Could not put that back')),
   });
 }
 
