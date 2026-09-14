@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
@@ -40,6 +42,29 @@ public class TallyActivityService {
     private final TallyActivityRepository activity;
     private final TallyGroupMemberRepository members;
     private final UserRepository users;
+
+    /**
+     * A clock that never returns the same instant twice.
+     *
+     * <p>The feed is ordered by {@code created_at} and only then by id, and the id is a random
+     * UUID — so two rows sharing a timestamp come back in arbitrary order. That is not a corner
+     * case here: one user action routinely writes several rows in one transaction, and
+     * {@code @CreationTimestamp} would stamp them all identically. A correction writing two
+     * entries, or adding a member and then an expense, would read back shuffled.
+     *
+     * <p>Bumping by a microsecond when the clock has not moved keeps the ordering honest
+     * without a sequence column. It is per-instance rather than global, which is the right
+     * scope: two instances writing to one group inside the same microsecond is both vanishingly
+     * unlikely and genuinely ambiguous.
+     */
+    private final AtomicReference<Instant> lastStamp = new AtomicReference<>(Instant.EPOCH);
+
+    private Instant nextStamp() {
+        return lastStamp.updateAndGet(previous -> {
+            Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            return now.isAfter(previous) ? now : previous.plus(1, ChronoUnit.MICROS);
+        });
+    }
 
     private static final int DEFAULT_PAGE_SIZE = 40;
     private static final int MAX_PAGE_SIZE = 150;
@@ -246,6 +271,7 @@ public class TallyActivityService {
         entry.setSubjectId(subjectId);
         entry.setSummary(trim(summary, 300));
         entry.setDetail(detail);
+        entry.setCreatedAt(nextStamp());
         activity.save(entry);
     }
 

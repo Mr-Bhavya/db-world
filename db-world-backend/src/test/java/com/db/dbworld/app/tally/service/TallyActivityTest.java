@@ -322,6 +322,41 @@ class TallyActivityTest {
     }
 
     @Test
+    @DisplayName("events read back in the order they happened, even within one instant")
+    void orderingIsChronologicalNotArbitrary() {
+        // This caught a real bug. The feed orders by created_at and only then by id, and the
+        // id is a random UUID -- so rows sharing a timestamp came back shuffled. That is not a
+        // corner case: @CreationTimestamp stamped every row of one transaction identically, so
+        // "added a member" could appear above "added an expense" that happened after it.
+        String kid = memberService.add(appaUser, groupId, new AddMemberRequest(null, "Kid", null)).id();
+        spend("First", "10.00");
+        memberService.update(appaUser, groupId, kid, new UpdateMemberRequest(null, null, appa, false));
+        spend("Second", "20.00");
+
+        assertThat(feed().stream().map(TallyActivityDto::summary).toList())
+                .containsExactly(
+                        "Added Second for ₹20.00",
+                        "Appa now pays for Kid",
+                        "Added First for ₹10.00",
+                        "Added Kid (no account)",
+                        "Added Amma",
+                        "Created Home");
+    }
+
+    @Test
+    @DisplayName("the two entries a correction writes do not collide either")
+    void correctionEntriesAreOrdered() {
+        // A correction writes two rows back to back in one transaction -- the worst case for a
+        // timestamp that does not move.
+        String id = spend("Groceries", "840.00");
+        expenseService.replace(appaUser, id, request("Groceries", "890.00"));
+
+        var stamps = feed().stream().map(TallyActivityDto::createdAt).toList();
+        assertThat(stamps).isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        assertThat(stamps).doesNotHaveDuplicates();
+    }
+
+    @Test
     @DisplayName("a non-member cannot read the history")
     void outsidersSeeNothing() {
         assertThatThrownBy(() -> groupService.activity(outsider, groupId, null, null, null))

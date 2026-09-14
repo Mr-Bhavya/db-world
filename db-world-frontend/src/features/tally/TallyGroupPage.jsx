@@ -101,6 +101,8 @@ export default function TallyGroupPage() {
   const members = group?.members ?? [];
   const myMemberId = group?.myMemberId ?? null;
   const isOwner = members.find((m) => m.id === myMemberId)?.role === 'OWNER';
+  // Balances, members and settling up all presuppose somebody on the other side.
+  const personal = group?.kind === 'PERSONAL';
   const nameOf = (id) => members.find((m) => m.id === id)?.displayName ?? 'Someone';
 
   // `page?.items ?? []` produces a new array on every render while the feed is still loading,
@@ -235,21 +237,24 @@ export default function TallyGroupPage() {
           </Typography>
           {group && (
             <Typography noWrap sx={{ fontSize: 12.5, color: T.textMuted }}>
-              {myBalance === 0 ? 'You are settled up'
-                : myBalance > 0 ? `You are owed ${formatMoney(myBalance)} here`
-                  : `You owe ${formatMoney(-myBalance)} here`}
+              {personal ? 'Only you — nothing shared'
+                : myBalance === 0 ? 'You are settled up'
+                  : myBalance > 0 ? `You are owed ${formatMoney(myBalance)} here`
+                    : `You owe ${formatMoney(-myBalance)} here`}
               {group.archived && ' · Archived'}
             </Typography>
           )}
         </Box>
 
-        <IconButton
-          onClick={() => setShowMembers(true)}
-          aria-label="Who's in this group"
-          sx={{ color: T.textMuted }}
-        >
-          <GroupsRoundedIcon />
-        </IconButton>
+        {!personal && (
+          <IconButton
+            onClick={() => setShowMembers(true)}
+            aria-label="Who's in this group"
+            sx={{ color: T.textMuted }}
+          >
+            <GroupsRoundedIcon />
+          </IconButton>
+        )}
         <IconButton
           onClick={(e) => setMenuAt(e.currentTarget)}
           aria-label="Group options"
@@ -260,7 +265,7 @@ export default function TallyGroupPage() {
       </Box>
 
       {/* ── Balances ─────────────────────────────────────────────────────── */}
-      {group && (
+      {group && !personal && (
         <Box sx={{ mb: 2 }}>
           <BalanceStrip members={members} myMemberId={myMemberId} />
         </Box>
@@ -283,6 +288,7 @@ export default function TallyGroupPage() {
           >
             Add expense
           </Button>
+          {!personal && (
           <Button
             onClick={() => setSettling(true)}
             startIcon={<HandshakeRoundedIcon />}
@@ -295,6 +301,7 @@ export default function TallyGroupPage() {
           >
             Settle up
           </Button>
+          )}
         </Box>
       )}
 

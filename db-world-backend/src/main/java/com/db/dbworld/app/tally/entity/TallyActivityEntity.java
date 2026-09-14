@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
@@ -28,8 +27,9 @@ import java.time.Instant;
 @Table(name = "tally_activity", schema = "db_world",
         indexes = {
             // The group's activity feed, newest first, paged the same way the expense feed is.
-            // `id` trailing so the keyset has a total order when several things happen inside
-            // the same second -- which they do, because one user action can write several rows.
+            // `id` trailing gives the keyset a total order so paging cannot skip or repeat a
+            // row. It does NOT order events in time -- the id is a random UUID -- which is why
+            // created_at is assigned from a strictly increasing clock; see TallyActivityService.
             @Index(name = "idx_tally_activity_group_at", columnList = "group_id, created_at, id"),
             // "What has happened to this expense" -- the history behind a single row, and what
             // the Restore button on a removed expense is found by.
@@ -71,6 +71,17 @@ public class TallyActivityEntity {
      */
     @Lob @Column(columnDefinition = "TEXT") private String detail;
 
-    // No updatedAt: the table is append-only, and offering one would invite an UPDATE.
-    @CreationTimestamp @Column(nullable = false, updatable = false) private Instant createdAt;
+    /**
+     * When it happened, and <b>strictly increasing</b> within a run.
+     *
+     * <p>Assigned by {@code TallyActivityService} rather than {@code @CreationTimestamp}. One
+     * user action writes several rows inside a single transaction, and those rows would
+     * otherwise share a timestamp to the microsecond — leaving them to be ordered by the
+     * trailing {@code id}, which is a random UUID. The feed then shows genuinely sequential
+     * events in an arbitrary order: adding a member and then an expense could read the other
+     * way round.
+     *
+     * <p>No updatedAt: the table is append-only, and offering one would invite an UPDATE.
+     */
+    @Column(nullable = false, updatable = false) private Instant createdAt;
 }

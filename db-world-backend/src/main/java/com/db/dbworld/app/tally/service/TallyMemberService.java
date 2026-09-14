@@ -54,6 +54,15 @@ public class TallyMemberService {
     public TallyMemberDto add(Long userId, String groupId, AddMemberRequest request) {
         var group = access.requireOpenGroup(userId, groupId);
 
+        // A direct ledger becomes a group when a third person joins, because "you and Amma"
+        // really does turn into "the flat". Your own spending has no such reading -- somebody
+        // else in it makes it a shared ledger with a misleading name, so this is refused
+        // rather than promoted.
+        if (group.getKind() == TallyGroupKind.PERSONAL) {
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    "This is your own spending. Start a group to share expenses with somebody.");
+        }
+
         // A rejoin reuses the row somebody already had, so its id predates this call. That
         // is how the log can tell "joined" from "came back", which are different events even
         // though they leave the database in the same state.

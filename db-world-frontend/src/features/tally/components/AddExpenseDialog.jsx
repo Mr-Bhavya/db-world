@@ -48,6 +48,15 @@ export default function AddExpenseDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const active = useMemo(() => members.filter((m) => m.status === 'ACTIVE'), [members]);
+
+  /**
+   * A ledger with one member has nothing to ask about.
+   *
+   * Who paid is you, and who it is split between is you — so both controls are hidden rather
+   * than shown with a single unchangeable option. A form that makes you confirm the only
+   * possible answer twice is a form people stop using for the quick things it is best at.
+   */
+  const soloLedger = active.length === 1;
   const nameOf = (id) => members.find((m) => m.id === id)?.displayName ?? 'Someone';
   const delegationOf = (id) => active.find((m) => m.id === id)?.paidForByMemberId ?? null;
 
@@ -308,6 +317,7 @@ export default function AddExpenseDialog({
 
         <CategoryPicker value={category} onChange={(v) => setValue('category', v)} />
 
+        {!soloLedger && (
         <PayerPicker
           members={active}
           myMemberId={myMemberId}
@@ -317,7 +327,9 @@ export default function AddExpenseDialog({
           multi={multiPayer}
           onToggleMulti={setMultiPayer}
         />
+        )}
 
+        {!soloLedger && (
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ minWidth: 0 }}>
@@ -401,6 +413,7 @@ export default function AddExpenseDialog({
             )}
           </AnimatePresence>
         </Box>
+        )}
 
         <AnimatePresence>
           {(blocker || schemaError) && (

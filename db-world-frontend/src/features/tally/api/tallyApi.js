@@ -38,6 +38,15 @@ export const createDirectLedger = (body) =>
   axiosInstance.post(`${BASE}/groups/direct`, body).then(unwrap);
 
 /**
+ * Your own spending ledger — starting one if you do not have it yet.
+ *
+ * A POST because it may create, idempotent because it returns the one you already have. Safe
+ * to call from a button without checking first.
+ */
+export const openPersonalLedger = () =>
+  axiosInstance.post(`${BASE}/groups/personal`).then(unwrap);
+
+/**
  * A page of the group's history, newest first.
  *
  * Readable for archived groups too -- that history is most of the reason to archive rather

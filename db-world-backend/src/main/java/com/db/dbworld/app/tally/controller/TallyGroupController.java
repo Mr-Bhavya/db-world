@@ -63,6 +63,18 @@ public class TallyGroupController {
         return TallyResponses.created("You can now split with %s".formatted(ledger.name()), ledger);
     }
 
+    /**
+     * Your own spending ledger, starting one if you have not already.
+     *
+     * <p>A POST because it may create; idempotent because it returns the one you have if it
+     * exists. Not a GET that quietly writes — a read that creates rows is the kind of thing
+     * that turns a page refresh into a data change.
+     */
+    @PostMapping("/personal")
+    public ResponseEntity<ApiResponse<TallyGroupDetailDto>> personal() {
+        return TallyResponses.ok("Your own spending", groups.personalLedger(userContext.userId()));
+    }
+
     /** One group and its full roster, departed members included. */
     @GetMapping("/{groupId}")
     public ResponseEntity<ApiResponse<TallyGroupDetailDto>> get(@PathVariable String groupId) {

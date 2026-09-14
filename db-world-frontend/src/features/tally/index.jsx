@@ -9,12 +9,13 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
-import { useGroups, useCreateGroup, useCreateDirect } from './hooks/useTally';
+import { useGroups, useCreateGroup, useCreateDirect, usePersonalLedger } from './hooks/useTally';
 import { formatMoney, balanceColor } from './utils/tallyFormat';
 import GroupCard from './components/GroupCard';
 import GroupCardSkeleton from './components/GroupCardSkeleton';
 import CreateGroupDialog from './components/CreateGroupDialog';
 import StartDirectDialog from './components/StartDirectDialog';
+import PersonalCard from './components/PersonalCard';
 
 const SKELETON_COUNT = 4;
 
@@ -40,6 +41,7 @@ export default function TallyPage() {
   const { data: groups = [], isLoading } = useGroups();
   const createGroup = useCreateGroup();
   const createDirect = useCreateDirect();
+  const personal = usePersonalLedger();
   const [creating, setCreating] = useState(false);
   const [startingDirect, setStartingDirect] = useState(false);
 
@@ -51,11 +53,15 @@ export default function TallyPage() {
      filtering without hiding anything by default. */
   const [filter, setFilter] = useState('ALL');
 
-  const { open: liveLedgers, archived, counts } = useMemo(() => {
-    const notArchived = groups.filter((g) => !g.archived);
+  const { open: liveLedgers, archived, counts, personalLedger } = useMemo(() => {
+    // Personal is pinned above the rest rather than mixed into the grid: it answers "what
+    // have I spent", not "where do I stand with these people", and it has no balance to
+    // compare against the ones that do.
+    const notArchived = groups.filter((g) => !g.archived && g.kind !== 'PERSONAL');
     return {
+      personalLedger: groups.find((g) => g.kind === 'PERSONAL') ?? null,
       open: notArchived,
-      archived: groups.filter((g) => g.archived),
+      archived: groups.filter((g) => g.archived && g.kind !== 'PERSONAL'),
       counts: {
         ALL: notArchived.length,
         DIRECT: notArchived.filter((g) => g.kind === 'DIRECT').length,
@@ -91,7 +97,8 @@ export default function TallyPage() {
     });
   };
 
-  const showEmpty = !isLoading && groups.length === 0;
+  // The personal card is always on screen, so "nothing here" means no shared ledgers.
+  const showEmpty = !isLoading && groups.every((g) => g.kind === 'PERSONAL');
 
   return (
     <Box sx={{
@@ -187,6 +194,19 @@ export default function TallyPage() {
         )}
 
         {showEmpty && <EmptyState onCreate={() => setCreating(true)} />}
+
+        {!isLoading && (
+          <PersonalCard
+            ledger={personalLedger}
+            busy={personal.isPending}
+            onOpen={() => {
+              if (personalLedger) { navigate(Constants.tallyGroupPath(personalLedger.id)); return; }
+              personal.mutate(undefined, {
+                onSuccess: (ledger) => ledger?.id && navigate(Constants.tallyGroupPath(ledger.id)),
+              });
+            }}
+          />
+        )}
 
         {/* Only worth showing once there is something to filter. One chip row over a list of
             two is noise. */}

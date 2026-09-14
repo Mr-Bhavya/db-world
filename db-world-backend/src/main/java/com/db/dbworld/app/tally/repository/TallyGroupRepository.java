@@ -52,4 +52,23 @@ public interface TallyGroupRepository extends JpaRepository<TallyGroupEntity, St
                             where theirs.groupId = g.id and theirs.userId = :them)
             """)
     List<String> findDirectLedgerBetween(@Param("me") Long me, @Param("them") Long them);
+
+    /**
+     * Somebody's own spending ledger, if they have started one.
+     *
+     * <p>There is exactly one per person and it is found rather than created twice, for the
+     * same reason a direct ledger is: two places to record your own spending means two monthly
+     * totals, both of them wrong.
+     *
+     * <p>Archived ones are included deliberately. If you archived it and then tap "My spending"
+     * again, the right answer is the ledger you already have — with its history — not a second
+     * empty one beside it.
+     */
+    @Query("""
+            select g.id from TallyGroupEntity g
+             where g.kind = com.db.dbworld.app.tally.entity.TallyGroupKind.PERSONAL
+               and g.createdByUserId = :userId
+             order by g.createdAt asc
+            """)
+    List<String> findPersonalLedger(@Param("userId") Long userId);
 }

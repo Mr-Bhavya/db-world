@@ -153,6 +153,45 @@ public class TallyGroupService {
         return detailOf(userId, group, List.of(me, them), Map.of());
     }
 
+    /**
+     * Your own spending — the things you paid for that were nobody else's business.
+     *
+     * <p>A ledger with one member in it. Every expense, category, correction and date works
+     * exactly as it does anywhere else; balances and settle-up simply have nothing to say when
+     * there is nobody to owe, so the UI hides them. That is the whole implementation: a second
+     * set of tables would have meant a second expense model and then a union every time the
+     * monthly total wanted to add your own spending to your share of a group.
+     *
+     * <p>Get-or-create, and never a second one. Two places to record your own spending is two
+     * monthly totals, both of them wrong.
+     */
+    @Transactional
+    public TallyGroupDetailDto personalLedger(Long userId) {
+        var existing = groups.findPersonalLedger(userId);
+        if (!existing.isEmpty()) {
+            return get(userId, existing.getFirst());
+        }
+
+        var group = new TallyGroupEntity();
+        group.setName("My spending");
+        group.setKind(TallyGroupKind.PERSONAL);
+        group.setIcon(TallyIcons.DEFAULT_PERSONAL);
+        group.setCreatedByUserId(userId);
+        groups.save(group);
+
+        var me = new TallyGroupMemberEntity();
+        me.setGroupId(group.getId());
+        me.setUserId(userId);
+        me.setDisplayName(displayNameOf(userId));
+        me.setRole(TallyMemberRole.OWNER);
+        members.save(me);
+
+        activity.groupCreated(group, userId);
+
+        log.debug("Started personal ledger {} for user {}", group.getId(), userId);
+        return detailOf(userId, group, List.of(me), Map.of());
+    }
+
     /* ============================== read ============================== */
 
     /**

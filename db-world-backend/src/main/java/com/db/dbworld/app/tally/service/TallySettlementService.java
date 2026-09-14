@@ -3,6 +3,7 @@ package com.db.dbworld.app.tally.service;
 import com.db.dbworld.app.tally.dto.RecordSettlementRequest;
 import com.db.dbworld.app.tally.dto.SettleUpTransferDto;
 import com.db.dbworld.app.tally.dto.TallySettlementDto;
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
 import com.db.dbworld.app.tally.entity.TallyGroupMemberEntity;
 import com.db.dbworld.app.tally.entity.TallyLedgerSourceType;
 import com.db.dbworld.app.tally.entity.TallySettlementEntity;
@@ -54,7 +55,13 @@ public class TallySettlementService {
      */
     @Transactional
     public TallySettlementDto record(Long userId, String groupId, RecordSettlementRequest request) {
-        access.requireOpenGroup(userId, groupId);
+        var group = access.requireOpenGroup(userId, groupId);
+        if (group.getKind() == TallyGroupKind.PERSONAL) {
+            // Nobody to pay and nobody to be paid: a personal ledger is always at zero by
+            // construction, and a payment here could only push it off zero.
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    "There is nobody to settle up with in your own spending");
+        }
 
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
             var replay = settlements.findByGroupIdAndIdempotencyKey(groupId, request.idempotencyKey());

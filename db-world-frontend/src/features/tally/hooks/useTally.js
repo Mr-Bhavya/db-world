@@ -113,6 +113,15 @@ export function useCreateGroup() {
   });
 }
 
+export function usePersonalLedger() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.openPersonalLedger,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.groups }),
+    onError: (e) => notify.error(errMsg(e, 'Could not open your spending')),
+  });
+}
+
 export function useCreateDirect() {
   const qc = useQueryClient();
   return useMutation({

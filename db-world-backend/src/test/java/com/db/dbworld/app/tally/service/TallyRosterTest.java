@@ -500,6 +500,90 @@ class TallyRosterTest {
                 .satisfies(m -> assertThat(m.balance()).isEqualByComparingTo("-50.00"));
     }
 
+    /* ============================== your own spending ============================== */
+
+    @Test
+    @DisplayName("your own spending is a ledger with one person in it")
+    void personalLedgerIsJustYou() {
+        var mine = groupService.personalLedger(appaUser);
+
+        assertThat(mine.kind()).isEqualTo(TallyGroupKind.PERSONAL);
+        assertThat(mine.name()).isEqualTo("My spending");
+        assertThat(mine.members()).singleElement()
+                .satisfies(m -> assertThat(m.userId()).isEqualTo(appaUser));
+    }
+
+    @Test
+    @DisplayName("asking twice returns the same one, never a second")
+    void personalLedgerIsNeverDuplicated() {
+        // Two places to record your own spending is two monthly totals, both wrong.
+        var first = groupService.personalLedger(appaUser);
+        var again = groupService.personalLedger(appaUser);
+
+        assertThat(again.id()).isEqualTo(first.id());
+        assertThat(groupService.listMine(appaUser))
+                .filteredOn(g -> g.kind() == TallyGroupKind.PERSONAL)
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("everyone gets their own, and cannot see anybody else's")
+    void personalLedgersAreNotShared() {
+        var mine = groupService.personalLedger(appaUser);
+        var theirs = groupService.personalLedger(ammaUser);
+
+        assertThat(theirs.id()).isNotEqualTo(mine.id());
+        assertThatThrownBy(() -> groupService.get(ammaUser, mine.id()))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus().value()).isEqualTo(404));
+    }
+
+    @Test
+    @DisplayName("spending on it records the expense and leaves you at zero")
+    void personalSpendingHasNoBalance() {
+        // All self-owed, so the ledger writes no edges at all -- there is nobody on the other
+        // end of one. The expense is still fully recorded, which is the point.
+        var mine = groupService.personalLedger(appaUser);
+        String me = mine.myMemberId();
+
+        spendIn(mine.id(), "Haircut", "300.00", me);
+
+        assertThat(expenseService.list(appaUser, mine.id(), null, null, null).items())
+                .singleElement()
+                .satisfies(e -> assertThat(e.totalAmount()).isEqualByComparingTo("300.00"));
+        assertThat(groupService.get(appaUser, mine.id()).members())
+                .singleElement()
+                .satisfies(m -> assertThat(m.balance()).isEqualByComparingTo("0"));
+    }
+
+    @Test
+    @DisplayName("nobody else can be added to it")
+    void personalLedgerTakesNoMembers() {
+        // A direct ledger is promoted when a third joins, because "you and Amma" does become
+        // "the flat". "My spending" has no such reading -- it would just be a shared ledger
+        // with a misleading name.
+        var mine = groupService.personalLedger(appaUser);
+
+        assertThatThrownBy(() -> memberService.add(appaUser, mine.id(),
+                new AddMemberRequest(null, "Somebody", null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("your own spending");
+    }
+
+    @Test
+    @DisplayName("it keeps its history if you archive and come back")
+    void archivedPersonalLedgerIsReused() {
+        var mine = groupService.personalLedger(appaUser);
+        spendIn(mine.id(), "Haircut", "300.00", mine.myMemberId());
+        groupService.update(appaUser, mine.id(), new UpdateGroupRequest(null, null, null, true, true));
+
+        var again = groupService.personalLedger(appaUser);
+
+        assertThat(again.id()).as("the one you already have, not a fresh empty one")
+                .isEqualTo(mine.id());
+        assertThat(expenseService.list(appaUser, again.id(), null, null, null).items()).hasSize(1);
+    }
+
     /* ============================== archiving ============================== */
 
     @Test
