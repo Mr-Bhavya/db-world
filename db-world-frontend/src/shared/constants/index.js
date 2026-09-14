@@ -153,6 +153,10 @@ export const EDIT_RECORD_ROUTE =
 export const DB_WALLET_ROUTE = `${APP_BASE}/db-wallet`;
 export const DB_WALLET_SHARE_ROUTE = `${APP_BASE}/shared-doc/:token`;
 
+export const DB_TALLY_ROUTE = `${APP_BASE}/db-tally`;
+export const DB_TALLY_GROUP_ROUTE = `${DB_TALLY_ROUTE}/:groupId`;
+export const tallyGroupPath = (id) => `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}`;
+
 export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
 export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
@@ -307,6 +311,9 @@ export default {
   EDIT_RECORD_ROUTE,
   DB_WALLET_ROUTE,
   DB_WALLET_SHARE_ROUTE,
+  DB_TALLY_ROUTE,
+  DB_TALLY_GROUP_ROUTE,
+  tallyGroupPath,
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,
   ipoDetailPath,

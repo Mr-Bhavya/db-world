@@ -36,7 +36,8 @@ public interface TallyMapper {
 
     /* ============================== groups ============================== */
 
-    TallyGroupDetailDto toGroupDetail(TallyGroupEntity group, List<TallyMemberDto> members);
+    TallyGroupDetailDto toGroupDetail(TallyGroupEntity group, List<TallyMemberDto> members,
+                                      String myMemberId);
 
     TallyGroupSummaryDto toGroupSummary(TallyGroupEntity group, int memberCount, BigDecimal myBalance);
 

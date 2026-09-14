@@ -68,7 +68,7 @@ public class TallyGroupService {
         members.save(me);
 
         log.debug("Created tally group {} for user {}", group.getId(), userId);
-        return detailOf(group, List.of(me), Map.of());
+        return detailOf(userId, group, List.of(me), Map.of());
     }
 
     /* ============================== read ============================== */
@@ -115,7 +115,7 @@ public class TallyGroupService {
     @Transactional(readOnly = true)
     public TallyGroupDetailDto get(Long userId, String groupId) {
         var group = access.requireVisibleGroup(userId, groupId);
-        return detailOf(group, members.findByGroupId(groupId), balances.balances(groupId));
+        return detailOf(userId, group, members.findByGroupId(groupId), balances.balances(groupId));
     }
 
     /* ============================== update ============================== */
@@ -158,7 +158,7 @@ public class TallyGroupService {
                 group.setArchivedAt(null);
             }
         }
-        return detailOf(group, members.findByGroupId(groupId), balances.balances(groupId));
+        return detailOf(userId, group, members.findByGroupId(groupId), balances.balances(groupId));
     }
 
     private void archive(TallyGroupEntity group, boolean acknowledged) {
@@ -180,8 +180,16 @@ public class TallyGroupService {
 
     /* ============================== shaping ============================== */
 
-    private TallyGroupDetailDto detailOf(TallyGroupEntity group, List<TallyGroupMemberEntity> roster,
+    private TallyGroupDetailDto detailOf(Long userId, TallyGroupEntity group,
+                                         List<TallyGroupMemberEntity> roster,
                                          Map<String, BigDecimal> balanceByMember) {
+        // Found in the roster that is already loaded rather than re-queried: access has proved
+        // the caller is a member, so their row is guaranteed to be in this list.
+        String myMemberId = roster.stream()
+                .filter(m -> userId.equals(m.getUserId()))
+                .map(TallyGroupMemberEntity::getId)
+                .findFirst().orElse(null);
+
         List<TallyMemberDto> memberViews = roster.stream()
                 // Active first, then by name: a departed member belongs at the bottom of the
                 // list, present but out of the way.
@@ -190,7 +198,7 @@ public class TallyGroupService {
                 .map(m -> mapper.toMemberDto(m, balanceByMember.getOrDefault(m.getId(), BigDecimal.ZERO)))
                 .toList();
 
-        return mapper.toGroupDetail(group, memberViews);
+        return mapper.toGroupDetail(group, memberViews, myMemberId);
     }
 
     /**

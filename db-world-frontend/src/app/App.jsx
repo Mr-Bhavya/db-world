@@ -73,6 +73,8 @@ const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybri
 const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybrid/PlayerDemo.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 const LazyWallet              = lazy(() => import('@features/wallet'));
+const LazyTally               = lazy(() => import('@features/tally'));
+const LazyTallyGroup          = lazy(() => import('@features/tally/TallyGroupPage'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
@@ -276,6 +278,8 @@ const routeConfig = {
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
+    { path: Constants.DB_TALLY_ROUTE, element: <LazyTally /> },
+    { path: Constants.DB_TALLY_GROUP_ROUTE, element: <LazyTallyGroup /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
