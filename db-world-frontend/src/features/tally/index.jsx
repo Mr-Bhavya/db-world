@@ -7,6 +7,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
@@ -17,6 +18,7 @@ import GroupCardSkeleton from './components/GroupCardSkeleton';
 import CreateGroupDialog from './components/CreateGroupDialog';
 import StartDirectDialog from './components/StartDirectDialog';
 import PersonalCard from './components/PersonalCard';
+import ImportSplitwiseDialog from './components/ImportSplitwiseDialog';
 
 const SKELETON_COUNT = 4;
 
@@ -45,6 +47,7 @@ export default function TallyPage() {
   const personal = usePersonalLedger();
   const [creating, setCreating] = useState(false);
   const [startingDirect, setStartingDirect] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   /* Filter chips rather than tabs.
      Opening the app the question is "what needs me", not "show me groups" -- one list ordered
@@ -162,6 +165,19 @@ export default function TallyPage() {
               Spending is the exception and shows at every size: it is a read, so there is no FAB
               for it, and it is the only way to reach the one screen that spans every ledger. */}
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignSelf: { xs: 'flex-start', sm: 'auto' } }}>
+            <Button
+              onClick={() => setImporting(true)}
+              startIcon={<FileUploadRoundedIcon />}
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                textTransform: 'none', fontWeight: 700, fontSize: 14,
+                borderRadius: 2.5, px: 2, py: 1,
+                color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
+                '&:hover': { bgcolor: T.glassHover },
+              }}
+            >
+              Import
+            </Button>
             <Button
               onClick={() => navigate(Constants.DB_TALLY_REPORT_ROUTE)}
               startIcon={<InsightsRoundedIcon />}
@@ -330,6 +346,16 @@ export default function TallyPage() {
         onClose={() => setCreating(false)}
         onCreate={handleCreate}
         busy={createGroup.isPending}
+      />
+
+      <ImportSplitwiseDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={(result) => {
+          // Straight into it: the point of importing is to look at what arrived, and the
+          // reconciliation has already confirmed the balances match the export.
+          if (result?.group?.id) navigate(Constants.tallyGroupPath(result.group.id));
+        }}
       />
 
       <StartDirectDialog

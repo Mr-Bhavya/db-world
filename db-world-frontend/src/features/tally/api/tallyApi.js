@@ -163,3 +163,19 @@ export const fetchGroupReport = (groupId, { period = 'MONTH', anchor } = {}) =>
   axiosInstance
     .get(`${BASE}/reports/groups/${groupId}`, { params: { period, ...(anchor ? { anchor } : {}) } })
     .then(unwrap);
+
+/* ============================== Splitwise import ============================== */
+
+/**
+ * Reads a Splitwise export and reports what is in it. Writes nothing.
+ *
+ * The CSV goes as a JSON string rather than a multipart upload: CapacitorHttp corrupts binary
+ * multipart bodies, so every upload the phone app can reach otherwise needs a base64 twin.
+ * A CSV is text, so this one endpoint works on web and in the app with no encoding either side.
+ */
+export const previewSplitwise = (csv) =>
+  axiosInstance.post(`${BASE}/import/splitwise/preview`, { csv }).then(unwrap);
+
+/** Commits the export into a brand new group, or saves nothing at all. */
+export const importSplitwise = (body) =>
+  axiosInstance.post(`${BASE}/import/splitwise`, body).then(unwrap);

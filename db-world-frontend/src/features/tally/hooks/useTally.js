@@ -135,6 +135,33 @@ export function useGroupReport(groupId, period, anchor) {
   });
 }
 
+/* ============================== Splitwise import ============================== */
+
+/** Reads the file. A mutation rather than a query because the CSV is the input. */
+export function usePreviewSplitwise() {
+  return useMutation({
+    mutationFn: api.previewSplitwise,
+    // The server refusals here are the whole value -- "does not balance", "mixes INR and USD",
+    // "does not look like a Splitwise export" -- and each one names the row or the reason.
+    onError: (e) => notify.error(errMsg(e, 'Could not read that file')),
+  });
+}
+
+export function useImportSplitwise() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.importSplitwise,
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: keys.groups });
+      qc.invalidateQueries({ queryKey: keys.reports });
+      notify.success(`Imported ${result?.expensesCreated ?? 0} expenses into ${result?.group?.name ?? 'a new group'}`);
+    },
+    // A 422 here means the balances did not match and nothing was written. That sentence names
+    // the person and both figures, so it goes through untouched.
+    onError: (e) => notify.error(errMsg(e, 'Could not import that group')),
+  });
+}
+
 /* ============================== groups ============================== */
 
 export function useCreateGroup() {
