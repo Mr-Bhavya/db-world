@@ -55,6 +55,13 @@ public class TallyLedgerService {
      * <p>Self-edges are dropped <b>after</b> allocation, never before. The portion a debtor owes
      * themselves is real — it is the part of the bill they funded — and removing it from the
      * weights beforehand would redistribute it to the other payers and overstate the debt.
+     *
+     * <p>That subtraction is only sound because the matrix preserves both of its margins. A
+     * member's net is the sum of their column minus the sum of their row, the diagonal sits in
+     * both, so dropping it changes nothing. Allocate the rows independently and the column no
+     * longer equals what they paid — at which point the diagonal stops cancelling and two
+     * people's balances are each a paisa out while the group still closes to zero. That was a
+     * real bug, and {@code TallyMultiPayerRoundingTest} is the case that found it.
      */
     @Transactional
     public List<TallyLedgerEntryEntity> postExpense(TallyExpenseEntity expense,
@@ -76,18 +83,25 @@ public class TallyLedgerService {
                 .map(p -> new TallyAllocator.Weight(p.getMemberId(), p.getAmount()))
                 .toList();
 
+        List<TallyAllocator.Weight> debtorWeights = debts.entrySet().stream()
+                .map(e -> new TallyAllocator.Weight(e.getKey(), e.getValue()))
+                .toList();
+
+        // One pass over the whole debtor-by-payer matrix, not one allocation per debtor. See
+        // TallyAllocator#allocateMatrix: allocating row by row rounds every row the same way,
+        // so the first payer by member id collects a spare paisa from EVERY debtor and the
+        // column stops adding up to what they paid. That error survives a closure check,
+        // because the paisa moves between two members rather than going missing.
+        Map<String, Map<String, BigDecimal>> matrix =
+                TallyAllocator.allocateMatrix(debtorWeights, payerWeights);
+
         Map<Edge, BigDecimal> edges = new LinkedHashMap<>();
-        debts.forEach((debtorId, owed) -> {
-            if (owed.signum() == 0) {
-                return;
+        matrix.forEach((debtorId, byPayer) -> byPayer.forEach((payerId, amount) -> {
+            if (payerId.equals(debtorId) || amount.signum() == 0) {
+                return;   // self-funded portion, or a payer who contributed nothing
             }
-            for (TallyAllocator.Allocation a : TallyAllocator.allocate(owed, payerWeights)) {
-                if (a.memberId().equals(debtorId) || a.amount().signum() == 0) {
-                    continue;   // self-funded portion, or a payer who contributed nothing
-                }
-                edges.merge(new Edge(debtorId, a.memberId()), a.amount(), BigDecimal::add);
-            }
-        });
+            edges.merge(new Edge(debtorId, payerId), amount, BigDecimal::add);
+        }));
 
         return write(expense.getGroupId(), TallyLedgerSourceType.EXPENSE, expense.getId(),
                 TallyLedgerEntryType.ORIGINAL, edges);
