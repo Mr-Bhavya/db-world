@@ -20,6 +20,8 @@ const keys = {
   settlements: (id) => ['tally', 'settlements', id],
   settleUp: (id) => ['tally', 'settle-up', id],
   activity: (id) => ['tally', 'activity', id],
+  reports: ['tally', 'report'],
+  report: (period, anchor) => ['tally', 'report', period, anchor ?? 'current'],
 };
 
 /**
@@ -38,6 +40,9 @@ function invalidateGroup(qc, groupId) {
   qc.invalidateQueries({ queryKey: keys.settleUp(groupId) });
   // Every write is an event, so the history is stale after all of them.
   qc.invalidateQueries({ queryKey: keys.activity(groupId) });
+  // The spending report reads across every group, so a write to any one of them dates it --
+  // and it is the screen most likely to be sitting in the background while you add an expense.
+  qc.invalidateQueries({ queryKey: keys.reports });
 }
 
 /* ============================== reads ============================== */
@@ -96,6 +101,21 @@ export function useActivity(groupId, enabled = false) {
     queryKey: keys.activity(groupId),
     queryFn: () => api.fetchActivity(groupId),
     enabled: Boolean(groupId) && enabled,
+  });
+}
+
+/**
+ * The spending report for one period.
+ *
+ * `placeholderData` holds the previous period on screen while the next one loads, so stepping
+ * through months slides rather than blinking through an empty chart each time. The figures are
+ * briefly a month out of date, which is why the header carries its own loading state.
+ */
+export function useSpendingReport(period, anchor) {
+  return useQuery({
+    queryKey: keys.report(period, anchor),
+    queryFn: () => api.fetchSpendingReport({ period, anchor }),
+    placeholderData: (previous) => previous,
   });
 }
 

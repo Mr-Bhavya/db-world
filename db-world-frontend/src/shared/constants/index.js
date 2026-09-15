@@ -156,6 +156,9 @@ export const DB_WALLET_SHARE_ROUTE = `${APP_BASE}/shared-doc/:token`;
 export const DB_TALLY_ROUTE = `${APP_BASE}/db-tally`;
 export const DB_TALLY_GROUP_ROUTE = `${DB_TALLY_ROUTE}/:groupId`;
 export const tallyGroupPath = (id) => `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}`;
+// Spending across every ledger. Declared before DB_TALLY_GROUP_ROUTE's `:groupId` in the route
+// table (see App.jsx) so `/report` is never swallowed as a group id -- same trap as DB_IPO_MY_ROUTE.
+export const DB_TALLY_REPORT_ROUTE = `${DB_TALLY_ROUTE}/report`;
 
 export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
@@ -313,6 +316,7 @@ export default {
   DB_WALLET_SHARE_ROUTE,
   DB_TALLY_ROUTE,
   DB_TALLY_GROUP_ROUTE,
+  DB_TALLY_REPORT_ROUTE,
   tallyGroupPath,
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,

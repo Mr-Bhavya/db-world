@@ -136,3 +136,18 @@ export const reverseSettlement = (settlementId) =>
 /** Suggested transfers. A GET, and it writes nothing — recording one is a normal settlement. */
 export const fetchSettleUpPlan = (groupId) =>
   axiosInstance.get(`${BASE}/groups/${groupId}/settle-up`).then(unwrap);
+
+/* ============================== reports ============================== */
+
+/**
+ * What the caller consumed over one week, month or year — across every ledger at once.
+ *
+ * `anchor` is any date inside the period (`yyyy-MM-dd`), not its first day: the server decides
+ * which week or month that day belongs to, so stepping back a month is one date to send rather
+ * than calendar arithmetic done twice, differently, on both sides. Omit it for the current
+ * period.
+ */
+export const fetchSpendingReport = ({ period = 'MONTH', anchor } = {}) =>
+  axiosInstance
+    .get(`${BASE}/reports/spending`, { params: { period, ...(anchor ? { anchor } : {}) } })
+    .then(unwrap);

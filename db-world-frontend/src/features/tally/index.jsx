@@ -6,6 +6,7 @@ import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
@@ -154,16 +155,32 @@ export default function TallyPage() {
             )}
           </Box>
 
-          {/* Desktop gets both actions; phones get the FABs below, where a thumb already is.
-              Splitting with one person comes first because it is the lighter of the two --
-              no name to invent and nothing to set up. */}
-          <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1, flexShrink: 0 }}>
+          {/* Desktop gets both create actions; phones get the FABs below, where a thumb
+              already is. Splitting with one person comes first because it is the lighter of the
+              two -- no name to invent and nothing to set up.
+
+              Spending is the exception and shows at every size: it is a read, so there is no FAB
+              for it, and it is the only way to reach the one screen that spans every ledger. */}
+          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignSelf: { xs: 'flex-start', sm: 'auto' } }}>
+            <Button
+              onClick={() => navigate(Constants.DB_TALLY_REPORT_ROUTE)}
+              startIcon={<InsightsRoundedIcon />}
+              sx={{
+                textTransform: 'none', fontWeight: 700, fontSize: 14,
+                borderRadius: 2.5, px: 2, py: 1,
+                color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
+                '&:hover': { bgcolor: T.glassHover },
+              }}
+            >
+              Spending
+            </Button>
             <Button
               onClick={() => setStartingDirect(true)}
               startIcon={<PersonRoundedIcon />}
               variant="contained"
               disableElevation
               sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
                 textTransform: 'none', fontWeight: 700, fontSize: 14,
                 borderRadius: 2.5, px: 2.25, py: 1,
                 bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
@@ -175,6 +192,7 @@ export default function TallyPage() {
               onClick={() => setCreating(true)}
               startIcon={<GroupsRoundedIcon />}
               sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
                 textTransform: 'none', fontWeight: 700, fontSize: 14,
                 borderRadius: 2.5, px: 2, py: 1,
                 color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,

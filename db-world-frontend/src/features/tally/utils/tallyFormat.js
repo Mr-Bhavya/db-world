@@ -294,3 +294,86 @@ export function impactLabel(impact) {
   if (impact.net < 0) return { text: `You owe ${formatMoney(-impact.net)}`, kind: 'owes' };
   return { text: 'No change for you', kind: 'settled' };
 }
+
+/* ============================== the spending report ============================== */
+
+/**
+ * An ISO `yyyy-MM-dd` as a *local* date.
+ *
+ * The `T00:00:00` is load-bearing: `new Date('2026-09-01')` is parsed as UTC and renders as
+ * 31 August anywhere west of Greenwich, which would put the first of the month in the previous
+ * one. Same reason {@link formatExpenseDate} does it.
+ */
+const localDate = (iso) => {
+  if (!iso) return null;
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/** `Mon`, `3`, or `Jan` — the label under one bar of the spending chart. */
+export function bucketLabel(period, isoStart) {
+  const date = localDate(isoStart);
+  if (!date) return '';
+  if (period === 'YEAR') return date.toLocaleDateString('en-IN', { month: 'short' });
+  if (period === 'WEEK') return date.toLocaleDateString('en-IN', { weekday: 'short' });
+  return String(date.getDate());
+}
+
+/**
+ * Which window a report covers: `September 2026`, `2026`, `14–20 Sep 2026`.
+ *
+ * Always concrete, never "this month". The reader is stepping backwards and forwards through
+ * these, and a label that changes meaning depending on today's date is the one thing a date
+ * picker must not do.
+ */
+export function formatReportWindow({ period, from, to } = {}) {
+  const start = localDate(from);
+  const end = localDate(to);
+  if (!start || !end) return '';
+
+  if (period === 'YEAR') return String(start.getFullYear());
+  if (period === 'MONTH') {
+    return start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }
+
+  // A week can straddle two months, and occasionally two years, so the start only drops its
+  // month when it genuinely shares one with the end.
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startText = sameMonth
+    ? String(start.getDate())
+    : start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const endText = end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${startText} – ${endText}`;
+}
+
+/** `so far this month`, or `in September 2026` once the period is behind us. */
+export function reportCaption(report) {
+  if (!report) return '';
+  // No next period to step into is the server saying this one has not finished yet.
+  const current = report.nextAnchor == null;
+  const unit = { WEEK: 'week', MONTH: 'month', YEAR: 'year' }[report.period] ?? 'month';
+  return current ? `so far this ${unit}` : `in ${formatReportWindow(report)}`;
+}
+
+/**
+ * This period against the one before it, in words.
+ *
+ * Returns null when there is nothing to compare against — a first month has no "versus", and
+ * "up 100%" from zero is a number that sounds like information and is not.
+ */
+export function spendingTrend(total, previousTotal, period = 'MONTH') {
+  const now = Number(total ?? 0);
+  const before = Number(previousTotal ?? 0);
+  if (!before) return null;
+
+  const unit = { WEEK: 'week', MONTH: 'month', YEAR: 'year' }[period] ?? 'month';
+  const delta = now - before;
+  if (!delta) return { direction: 'flat', percent: 0, label: `same as last ${unit}` };
+
+  const percent = Math.round(Math.abs(delta / before) * 100);
+  return {
+    direction: delta > 0 ? 'up' : 'down',
+    percent,
+    label: `${percent}% ${delta > 0 ? 'more' : 'less'} than last ${unit}`,
+  };
+}

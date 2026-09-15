@@ -40,6 +40,17 @@ public interface TallyGroupMemberRepository extends JpaRepository<TallyGroupMemb
     /** Backs "my groups"; served by {@code idx_tally_group_member_user}. */
     List<TallyGroupMemberEntity> findByUserIdAndStatus(Long userId, TallyMemberStatus status);
 
+    /**
+     * Every membership the user has ever had, departed ones included.
+     *
+     * <p>Status is deliberately not filtered. Leaving a group does not un-eat the dinners: a
+     * spending report that only looked at live memberships would quietly rewrite last year's
+     * total the moment somebody tidied up a group, and a total that changes retroactively is
+     * not a record of anything. Callers asking "where do I stand today" want
+     * {@link #findByUserIdAndStatus} instead.
+     */
+    List<TallyGroupMemberEntity> findByUserId(Long userId);
+
     /** How many people are still in each of these groups. */
     interface GroupCount {
         String getGroupId();
