@@ -48,26 +48,55 @@ describe('equal splits', () => {
     expect(total(out)).toBe('100.00');
   });
 
+  /*
+   * The two property tests below collect their failures and assert once at the end, rather than
+   * calling `expect` inside the loop.
+   *
+   * Not style: `expect` carries real per-call overhead, and this one ran ~17,000 allocations with
+   * two assertions each. At 2.8s on an idle machine it had less than twice Vitest's 5s default
+   * timeout to spare, so it failed whenever the suite ran next to anything CPU-hungry -- a red
+   * test that said nothing whatsoever about the allocator. The loop bodies are unchanged and so
+   * is every property being checked.
+   *
+   * Collecting is better diagnostics too: a real break reports every case that failed instead of
+   * dying on the first one, which for a rounding bug is the difference between "3.33 across 3"
+   * and "every odd amount above 3 rupees".
+   */
+
   it('preserves the total for every amount up to 100 rupees across every group size to 12', () => {
+    const wrong = [];
     for (let paise = 1; paise <= 10000; paise += 7) {
       for (let n = 1; n <= 12; n += 1) {
         const rupees = fromPaise(BigInt(paise));
         const out = allocateEqually(rupees, members(n));
-        expect(out).toHaveLength(n);
-        expect(total(out), `${rupees} across ${n}`).toBe(rupees);
+        if (out.length !== n || total(out) !== rupees) {
+          wrong.push(`${rupees} across ${n}: got ${total(out)} over ${out.length} share(s)`);
+        }
       }
     }
+    // Capped, because a systemic break would print thousands of lines and bury the count.
+    expect(wrong.slice(0, 20), `${wrong.length} equal split(s) did not preserve the total`)
+      .toEqual([]);
   });
 
   it('never lets two shares of an equal split differ by more than a paisa', () => {
+    // Only 315ms as it was, so this one was never at risk -- rewritten the same way to keep the
+    // pair consistent, and so that raising its volume later does not quietly reintroduce the
+    // problem.
+    const spread = [];
     for (let paise = 1; paise <= 2000; paise += 3) {
       for (let n = 1; n <= 9; n += 1) {
         const out = allocateEqually(fromPaise(BigInt(paise)), members(n));
         const values = out.map((r) => r.paise);
-        expect(values.reduce((a, b) => (a > b ? a : b)) - values.reduce((a, b) => (a < b ? a : b)))
-          .toBeLessThanOrEqual(1n);
+        const gap = values.reduce((a, b) => (a > b ? a : b))
+          - values.reduce((a, b) => (a < b ? a : b));
+        if (gap > 1n) {
+          spread.push(`${fromPaise(BigInt(paise))} across ${n}: ${gap} paise apart`);
+        }
       }
     }
+    expect(spread.slice(0, 20), `${spread.length} equal split(s) spread over a paisa`)
+      .toEqual([]);
   });
 
   it('gives one participant the whole amount', () => {
