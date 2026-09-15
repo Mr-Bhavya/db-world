@@ -151,3 +151,15 @@ export const fetchSpendingReport = ({ period = 'MONTH', anchor } = {}) =>
   axiosInstance
     .get(`${BASE}/reports/spending`, { params: { period, ...(anchor ? { anchor } : {}) } })
     .then(unwrap);
+
+/**
+ * What one group spent over a period, and who carried it.
+ *
+ * A different report from {@link fetchSpendingReport}, not the same one narrowed: the figures
+ * are the group's whole spend and a paid-versus-consumed split per member, where the personal
+ * one is only ever your own share.
+ */
+export const fetchGroupReport = (groupId, { period = 'MONTH', anchor } = {}) =>
+  axiosInstance
+    .get(`${BASE}/reports/groups/${groupId}`, { params: { period, ...(anchor ? { anchor } : {}) } })
+    .then(unwrap);

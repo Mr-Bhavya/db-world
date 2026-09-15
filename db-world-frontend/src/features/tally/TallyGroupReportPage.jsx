@@ -1,57 +1,50 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Box, IconButton, Skeleton, Tooltip, Typography } from '@mui/material';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Box, IconButton, Skeleton, Typography } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
-import { useSpendingReport } from './hooks/useTally';
+import { useGroup, useGroupReport } from './hooks/useTally';
 import {
   categoryEmoji, formatMoney, groupIcon, reportCaption, spendingTrend,
 } from './utils/tallyFormat';
 import ReportPeriodNav from './components/ReportPeriodNav';
 import SpendingChart from './components/SpendingChart';
 import SpendingBreakdown from './components/SpendingBreakdown';
+import GroupMemberSpending from './components/GroupMemberSpending';
 import { BiggestExpense, NothingSpent, TrendChip } from './components/reportPieces';
 
 /**
- * Said once, beside the figure, because the number is deliberately not the one somebody
- * remembers handing over and that needs explaining exactly once.
- */
-const SHARE_EXPLAINER = 'What you consumed, not what you paid out. Money you front for other '
-  + 'people is not counted here — it comes back to you as a balance instead.';
-
-/**
- * What you actually spent on yourself, across every ledger at once.
+ * What one group cost, and who carried it.
  *
- * <p>The headline is your <em>share</em>, never the bills you paid. Somebody who fronts a
- * ₹6,000 dinner for six and is paid back has not spent ₹6,000, and a report that says so is
- * useless to the one person in a group who always picks up the tab — which is exactly the
- * person most likely to open this screen. The tooltip beside the figure says so out loud,
- * because a number that is not the one you remember handing over needs explaining once.
+ * <p>Deliberately the mirror image of the personal report rather than a copy of it. There the
+ * headline is your own share, because telling somebody they "spent" a bill they were reimbursed
+ * for is no use to them. Here the headline is the group's whole spend, because that is the
+ * question a group answers — and the per-member rows carry paid alongside used, since the gap
+ * between those two is the entire story of a shared ledger.
+ *
+ * <p>Your own share is still on screen, under the total. Without it a group report is about
+ * everybody and nobody.
  */
-export default function TallyReportPage() {
+export default function TallyGroupReportPage() {
   const T = useT();
   const navigate = useNavigate();
+  const { groupId } = useParams();
   const reduce = useReducedMotion();
 
   const [period, setPeriod] = useState('MONTH');
-  // null means "the current period", which is the server's default. Stepping replaces it with
-  // an anchor the server sent us, so the two never disagree about where a month begins.
   const [anchor, setAnchor] = useState(null);
 
-  const { data: report, isPending, isFetching } = useSpendingReport(period, anchor);
+  const { data: group } = useGroup(groupId);
+  const { data: report, isPending, isFetching } = useGroupReport(groupId, period, anchor);
 
   const total = Number(report?.total ?? 0);
   const trend = spendingTrend(total, report?.previousTotal, period);
   const nothingYet = !isPending && report && total === 0;
 
-  /* Switching Week/Month/Year drops the anchor.
-     The anchor is a date inside a period of the old size, and carrying it over lands you on
-     "the week containing the 1st of last September" — technically correct and never what was
-     meant. Going back to the current period is the only unsurprising answer. */
+  // Switching the period size drops the anchor -- see TallyReportPage for why.
   const changePeriod = (next) => {
     setPeriod(next);
     setAnchor(null);
@@ -67,21 +60,36 @@ export default function TallyReportPage() {
       <Box sx={{ maxWidth: 760, mx: 'auto', width: '100%' }}>
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2.5 }}>
           <IconButton
-            onClick={() => navigate(Constants.DB_TALLY_ROUTE)}
-            aria-label="Back to Tally"
+            onClick={() => navigate(Constants.tallyGroupPath(groupId))}
+            aria-label="Back to the group"
             sx={{ color: T.textPrimary, ml: -1 }}
           >
             <ArrowBackRoundedIcon />
           </IconButton>
-          <InsightsRoundedIcon sx={{ fontSize: 20, color: T.teal }} />
-          <Typography component="h1" sx={{
-            fontSize: { xs: 20, sm: 24 }, fontWeight: 800,
-            color: T.textPrimary, letterSpacing: -0.6,
-          }}>
-            Spending
-          </Typography>
+
+          {group && (
+            <Box sx={{
+              width: 32, height: 32, borderRadius: 2, flexShrink: 0,
+              display: 'grid', placeItems: 'center', fontSize: 17,
+              bgcolor: T.glass, border: `1px solid ${T.border}`,
+            }}>
+              {groupIcon(group)}
+            </Box>
+          )}
+
+          <Box sx={{ minWidth: 0 }}>
+            <Typography component="h1" noWrap sx={{
+              fontSize: { xs: 18, sm: 22 }, fontWeight: 800,
+              color: T.textPrimary, letterSpacing: -0.5,
+            }}>
+              {group?.name ?? 'Spending'}
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: T.textFaint, mt: -0.25 }}>
+              Spending report
+            </Typography>
+          </Box>
         </Box>
 
         <ReportPeriodNav
@@ -103,17 +111,12 @@ export default function TallyReportPage() {
             bgcolor: T.tealBg, border: `1px solid ${T.glassBorder}`,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-            <Typography sx={{
-              fontSize: 12, fontWeight: 800, letterSpacing: 0.6,
-              textTransform: 'uppercase', color: T.textFaint,
-            }}>
-              Your share
-            </Typography>
-            <Tooltip enterTouchDelay={0} leaveTouchDelay={4000} title={SHARE_EXPLAINER}>
-              <InfoOutlinedIcon sx={{ fontSize: 14, color: T.textFaint, cursor: 'help' }} />
-            </Tooltip>
-          </Box>
+          <Typography sx={{
+            fontSize: 12, fontWeight: 800, letterSpacing: 0.6,
+            textTransform: 'uppercase', color: T.textFaint, mb: 0.5,
+          }}>
+            Group total
+          </Typography>
 
           {isPending && !report ? (
             <Skeleton variant="text" width={180} height={44} sx={{ bgcolor: T.glass }} />
@@ -143,7 +146,15 @@ export default function TallyReportPage() {
             )}
           </Typography>
 
-          {/* The two figures that give the total meaning: how it compares, and the rate. */}
+          {report && total > 0 && (
+            <Typography sx={{ fontSize: 13.5, color: T.textMuted, mt: 0.75 }}>
+              Your share was{' '}
+              <Box component="span" sx={{ fontWeight: 800, color: T.teal }}>
+                {formatMoney(report.myShare)}
+              </Box>
+            </Typography>
+          )}
+
           {!nothingYet && report && (
             <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mt: 1.5 }}>
               {trend && <TrendChip trend={trend} />}
@@ -152,17 +163,26 @@ export default function TallyReportPage() {
                   {formatMoney(report.dailyAverage)} a day
                 </Typography>
               )}
+              {Number(report.settled) > 0 && (
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                  <HandshakeRoundedIcon sx={{ fontSize: 15, color: T.textMuted }} />
+                  <Typography sx={{ fontSize: 12.5, color: T.textMuted, fontWeight: 600 }}>
+                    {formatMoney(report.settled)} settled
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
         </Box>
 
-        {/* ── Everything below needs something to have been spent ──────────── */}
-        {isPending && !report && <Skeleton variant="rounded" height={200} sx={{ bgcolor: T.glass, borderRadius: 3 }} />}
+        {isPending && !report && (
+          <Skeleton variant="rounded" height={200} sx={{ bgcolor: T.glass, borderRadius: 3 }} />
+        )}
 
         {nothingYet && (
           <NothingSpent
             period={period}
-            hint="Add an expense in any of your ledgers and it will show up here."
+            hint="Step back to an earlier one, or add an expense to this group."
           />
         )}
 
@@ -174,6 +194,8 @@ export default function TallyReportPage() {
             }}>
               <SpendingChart period={period} buckets={report.buckets} />
             </Box>
+
+            <GroupMemberSpending rows={report.members ?? []} />
 
             <SpendingBreakdown
               title="Where it went"
@@ -187,20 +209,8 @@ export default function TallyReportPage() {
               }))}
             />
 
-            <SpendingBreakdown
-              title="Who with"
-              total={total}
-              emptyText="No ledgers yet"
-              rows={(report.ledgers ?? []).map((l) => ({
-                key: l.groupId,
-                emoji: groupIcon(l),
-                label: l.name,
-                amount: l.amount,
-              }))}
-            />
-
             {report.biggest && (
-              <BiggestExpense expense={report.biggest} label="BIGGEST SINGLE SHARE" />
+              <BiggestExpense expense={report.biggest} label="BIGGEST EXPENSE" />
             )}
           </>
         )}

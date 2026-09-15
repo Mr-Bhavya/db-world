@@ -22,6 +22,7 @@ const keys = {
   activity: (id) => ['tally', 'activity', id],
   reports: ['tally', 'report'],
   report: (period, anchor) => ['tally', 'report', period, anchor ?? 'current'],
+  groupReport: (id, period, anchor) => ['tally', 'report', 'group', id, period, anchor ?? 'current'],
 };
 
 /**
@@ -115,6 +116,21 @@ export function useSpendingReport(period, anchor) {
   return useQuery({
     queryKey: keys.report(period, anchor),
     queryFn: () => api.fetchSpendingReport({ period, anchor }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * One group's report. Same placeholder trick as the personal one, for the same reason.
+ *
+ * Its key sits under `keys.reports`, so a write to any group invalidates it along with the
+ * cross-ledger report -- the group report is a view of the same expenses.
+ */
+export function useGroupReport(groupId, period, anchor) {
+  return useQuery({
+    queryKey: keys.groupReport(groupId, period, anchor),
+    queryFn: () => api.fetchGroupReport(groupId, { period, anchor }),
+    enabled: Boolean(groupId),
     placeholderData: (previous) => previous,
   });
 }

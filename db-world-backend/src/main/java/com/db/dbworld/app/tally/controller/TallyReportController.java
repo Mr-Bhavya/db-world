@@ -1,5 +1,6 @@
 package com.db.dbworld.app.tally.controller;
 
+import com.db.dbworld.app.tally.dto.TallyGroupReportDto;
 import com.db.dbworld.app.tally.dto.TallyReportPeriod;
 import com.db.dbworld.app.tally.dto.TallySpendingReportDto;
 import com.db.dbworld.app.tally.service.TallyReportService;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,5 +47,23 @@ public class TallyReportController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor) {
         return TallyResponses.ok(reports.spending(userContext.userId(), period, anchor));
+    }
+
+    /**
+     * What one group spent, and who carried it.
+     *
+     * <p>Addressed under the group rather than as another query parameter on {@code /spending}:
+     * it is a different report, not the same one narrowed. The figures are the group's whole
+     * spend and a paid-versus-consumed split per member, where {@code /spending} is only ever
+     * the caller's own share — one endpoint answering both would have half its fields null
+     * depending on how it was called.
+     */
+    @GetMapping("/groups/{groupId}")
+    public ResponseEntity<ApiResponse<TallyGroupReportDto>> group(
+            @PathVariable String groupId,
+            @RequestParam(defaultValue = "MONTH") TallyReportPeriod period,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor) {
+        return TallyResponses.ok(reports.group(userContext.userId(), groupId, period, anchor));
     }
 }

@@ -13,6 +13,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
 import Constants from '@shared/constants';
@@ -397,6 +398,15 @@ export default function TallyGroupPage() {
             <DriveFileRenameOutlineRoundedIcon sx={{ fontSize: 18, color: T.textMuted }} />
           </ListItemIcon>
           {group?.kind === 'DIRECT' ? 'Change icon' : 'Edit name, type and icon'}
+        </MenuItem>
+        <MenuItem
+          onClick={() => { setMenuAt(null); navigate(Constants.tallyGroupReportPath(groupId)); }}
+          sx={{ fontSize: 14, color: T.textPrimary }}
+        >
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            <InsightsRoundedIcon sx={{ fontSize: 18, color: T.textMuted }} />
+          </ListItemIcon>
+          Spending report
         </MenuItem>
         <MenuItem
           onClick={() => { setMenuAt(null); setShowHistory(true); }}

@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,30 @@ public interface TallySettlementRepository extends JpaRepository<TallySettlement
                                                                           TallySettlementStatus status);
 
     /** What each member has paid out in settlements. */
+    /**
+     * What was actually handed over inside a period.
+     *
+     * <p>Reported beside the group's spending and never added to it: settling up moves money
+     * that was already counted when the expense was recorded, so adding the two would book
+     * every shared bill twice.
+     *
+     * <p>Bounds are instants because {@code settled_at} is one — the caller converts the
+     * report's dates at the zone the rest of the report uses. Half-open ({@code >= from},
+     * {@code < toExclusive}) so the last day is whole without depending on how precisely the
+     * timestamp was stored.
+     */
+    @Query("""
+            select coalesce(sum(s.amount), 0)
+              from TallySettlementEntity s
+             where s.groupId = :groupId
+               and s.status = com.db.dbworld.app.tally.entity.TallySettlementStatus.ACTIVE
+               and s.settledAt >= :from
+               and s.settledAt < :toExclusive
+            """)
+    BigDecimal sumSettledBetween(@Param("groupId") String groupId,
+                                 @Param("from") Instant from,
+                                 @Param("toExclusive") Instant toExclusive);
+
     @Query("""
             select s.fromMemberId as memberId, sum(s.amount) as total
               from TallySettlementEntity s

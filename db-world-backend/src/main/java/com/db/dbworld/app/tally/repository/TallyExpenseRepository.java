@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +50,30 @@ public interface TallyExpenseRepository extends JpaRepository<TallyExpenseEntity
                                            Limit limit);
 
     /** Subsequent pages: everything strictly older than the cursor. */
+    /**
+     * Every live expense in one group over a date range, for the group's report.
+     *
+     * <p>Matches {@code idx_tally_expense_group_date} on its first three columns
+     * ({@code group_id, status, expense_date}) with a single group id, so this is a plain index
+     * range scan. The rows themselves carry everything the report needs — total, category, date
+     * and description — so the chart, the categories, the count and the largest item come from
+     * this one read rather than four aggregates.
+     */
+    List<TallyExpenseEntity> findByGroupIdAndStatusAndExpenseDateBetween(
+            String groupId, TallyExpenseStatus status, LocalDate from, LocalDate to);
+
+    /** The same total on its own, for the previous period's comparison figure. */
+    @Query("""
+            select coalesce(sum(e.totalAmount), 0)
+              from TallyExpenseEntity e
+             where e.groupId = :groupId
+               and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and e.expenseDate between :from and :to
+            """)
+    BigDecimal sumTotalBetween(@Param("groupId") String groupId,
+                               @Param("from") LocalDate from,
+                               @Param("to") LocalDate to);
+
     @Query("""
             select e from TallyExpenseEntity e
              where e.groupId = :groupId

@@ -45,6 +45,21 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
             """)
     List<TallyLedgerEntryRepository.MemberTotal> sumConsumedByGroup(@Param("groupId") String groupId);
 
+    /** Consumed per member, narrowed to a date range, for the group's report. */
+    @Query("""
+            select s.beneficiaryMemberId as memberId, sum(s.amount) as total
+              from TallyExpenseShareEntity s
+              join TallyExpenseEntity e on e.id = s.expenseId
+             where e.groupId = :groupId
+               and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and e.expenseDate between :from and :to
+             group by s.beneficiaryMemberId
+            """)
+    List<TallyLedgerEntryRepository.MemberTotal> sumConsumedByGroupBetween(
+            @Param("groupId") String groupId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     @Query("select coalesce(sum(s.amount), 0) from TallyExpenseShareEntity s where s.expenseId = :expenseId")
     BigDecimal sumByExpense(@Param("expenseId") String expenseId);
 

@@ -76,6 +76,7 @@ const LazyWallet              = lazy(() => import('@features/wallet'));
 const LazyTally               = lazy(() => import('@features/tally'));
 const LazyTallyGroup          = lazy(() => import('@features/tally/TallyGroupPage'));
 const LazyTallyReport         = lazy(() => import('@features/tally/TallyReportPage'));
+const LazyTallyGroupReport    = lazy(() => import('@features/tally/TallyGroupReportPage'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
@@ -282,6 +283,7 @@ const routeConfig = {
     { path: Constants.DB_TALLY_ROUTE, element: <LazyTally /> },
     // Before the :groupId route, or "report" is matched as a group id and the page never loads.
     { path: Constants.DB_TALLY_REPORT_ROUTE, element: <LazyTallyReport /> },
+    { path: Constants.DB_TALLY_GROUP_REPORT_ROUTE, element: <LazyTallyGroupReport /> },
     { path: Constants.DB_TALLY_GROUP_ROUTE, element: <LazyTallyGroup /> },
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },

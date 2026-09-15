@@ -159,6 +159,10 @@ export const tallyGroupPath = (id) => `${DB_TALLY_ROUTE}/${encodeURIComponent(id
 // Spending across every ledger. Declared before DB_TALLY_GROUP_ROUTE's `:groupId` in the route
 // table (see App.jsx) so `/report` is never swallowed as a group id -- same trap as DB_IPO_MY_ROUTE.
 export const DB_TALLY_REPORT_ROUTE = `${DB_TALLY_ROUTE}/report`;
+// One group's own report. Three segments, so it cannot collide with either of the two above.
+export const DB_TALLY_GROUP_REPORT_ROUTE = `${DB_TALLY_GROUP_ROUTE}/report`;
+export const tallyGroupReportPath = (id) =>
+  `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}/report`;
 
 export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
@@ -317,7 +321,9 @@ export default {
   DB_TALLY_ROUTE,
   DB_TALLY_GROUP_ROUTE,
   DB_TALLY_REPORT_ROUTE,
+  DB_TALLY_GROUP_REPORT_ROUTE,
   tallyGroupPath,
+  tallyGroupReportPath,
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,
   ipoDetailPath,

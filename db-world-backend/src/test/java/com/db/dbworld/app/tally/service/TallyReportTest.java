@@ -7,16 +7,23 @@ import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyReportBucketDto;
 import com.db.dbworld.app.tally.dto.TallyReportCategoryDto;
 import com.db.dbworld.app.tally.dto.TallyReportLedgerDto;
+import com.db.dbworld.app.tally.dto.TallyGroupReportMemberDto;
 import com.db.dbworld.app.tally.dto.TallyReportPeriod;
 import com.db.dbworld.app.tally.dto.TallySpendingReportDto;
+import com.db.dbworld.app.tally.dto.UpdateGroupRequest;
 import com.db.dbworld.app.tally.entity.TallyGroupKind;
 import com.db.dbworld.app.tally.entity.TallyGroupMemberEntity;
 import com.db.dbworld.app.tally.entity.TallyMemberStatus;
 import com.db.dbworld.app.tally.entity.TallyMethod;
+import com.db.dbworld.app.tally.dto.RecordSettlementRequest;
 import com.db.dbworld.app.tally.mapper.TallyMapperImpl;
+import com.db.dbworld.app.tally.repository.TallyExpensePayerRepository;
+import com.db.dbworld.app.tally.repository.TallyExpenseRepository;
 import com.db.dbworld.app.tally.repository.TallyExpenseShareRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupRepository;
+import com.db.dbworld.app.tally.repository.TallySettlementRepository;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.entity.RoleEntity;
 import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.user.entity.UserEntity;
@@ -44,6 +51,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The spending report: what one person consumed, across every ledger they are in.
@@ -58,7 +66,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({TallyAccessService.class, TallyLedgerService.class, TallyExpenseService.class,
          TallyBalanceService.class, TallyGroupService.class, TallyMemberService.class,
-         TallyActivityService.class, TallyReportTest.CacheStubConfig.class, TallyMapperImpl.class})
+         TallyActivityService.class, TallySettlementService.class,
+         TallyReportTest.CacheStubConfig.class, TallyMapperImpl.class})
 @DisplayName("db-tally spending report")
 class TallyReportTest {
 
@@ -80,14 +89,20 @@ class TallyReportTest {
     @Autowired private TallyGroupService groupService;
     @Autowired private TallyMemberService memberService;
     @Autowired private TallyExpenseService expenseService;
+    @Autowired private TallySettlementService settlementService;
+    @Autowired private TallyAccessService access;
     @Autowired private TallyGroupMemberRepository memberRepo;
     @Autowired private TallyGroupRepository groupRepo;
+    @Autowired private TallyExpenseRepository expenseRepo;
     @Autowired private TallyExpenseShareRepository shareRepo;
+    @Autowired private TallyExpensePayerRepository payerRepo;
+    @Autowired private TallySettlementRepository settlementRepo;
 
     private TallyReportService reports;
 
     private Long appaUser;
     private Long ammaUser;
+    private Long outsider;
     private String groupId;
     private String appa;
     private String amma;
@@ -97,13 +112,14 @@ class TallyReportTest {
         // Built by hand rather than @Import-ed so the clock is fixed: half the report is a
         // function of "today", and a test that passes only until the 1st of the month is not a
         // test. The package-private constructor exists for exactly this.
-        reports = new TallyReportService(memberRepo, groupRepo, shareRepo, NOW);
+        reports = reportsAt(NOW);
 
         RoleEntity role = new RoleEntity();
         role.setName(Role.VIEWER);
         em.persist(role);
         appaUser = user(role, "Appa");
         ammaUser = user(role, "Amma");
+        outsider = user(role, "Outsider");
         em.flush();
 
         var group = groupService.create(appaUser, new CreateGroupRequest("Home", "Family", null));
@@ -321,7 +337,7 @@ class TallyReportTest {
         // Seven in the evening UTC on the last of September is half past midnight on the 1st of
         // October in India. Read in the server's own zone this is still September, so somebody
         // opening the app just after midnight would be shown last month and told it was this one.
-        var justAfterMidnightInIndia = new TallyReportService(memberRepo, groupRepo, shareRepo,
+        var justAfterMidnightInIndia = reportsAt(
                 Clock.fixed(Instant.parse("2026-09-30T19:00:00Z"), ZoneOffset.UTC));
 
         // No anchor, so the period is whatever the service thinks today is.
@@ -342,7 +358,147 @@ class TallyReportTest {
         assertThat(report.buckets()).hasSize(7);
     }
 
+    /* ============================== one group ============================== */
+
+    @Test
+    @DisplayName("a group's total is the whole bill, not the caller's slice of it")
+    void groupTotalIsTheWholeBill() {
+        // The same expense the personal report calls 450. Here the question is what the group
+        // spent, so it is 900 -- and getting these two the same way round is the whole reason
+        // there are two reports rather than one with a flag.
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+
+        assertThat(report.total()).isEqualByComparingTo("900.00");
+        assertThat(report.myShare())
+                .as("the caller can still find themselves in it")
+                .isEqualByComparingTo("450.00");
+    }
+
+    @Test
+    @DisplayName("each member's paid and consumed are both reported, and they differ")
+    void paidAndConsumedAreSeparate() {
+        // Appa fronts the lot and eats half. That gap is the whole story of a shared ledger, and
+        // a report showing only one of the two columns hides it.
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+
+        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).members();
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).anySatisfy(row -> {
+            assertThat(row.name()).isEqualTo("Appa");
+            assertThat(row.paid()).isEqualByComparingTo("900.00");
+            assertThat(row.consumed()).isEqualByComparingTo("450.00");
+        });
+        assertThat(rows).anySatisfy(row -> {
+            assertThat(row.name()).isEqualTo("Amma");
+            assertThat(row.paid()).isEqualByComparingTo("0");
+            assertThat(row.consumed()).isEqualByComparingTo("450.00");
+        });
+    }
+
+    @Test
+    @DisplayName("only members who paid or consumed something show up")
+    void quietMembersAreNotPadding() {
+        String ghost = memberService.add(appaUser, groupId,
+                new AddMemberRequest(null, "Guest", null)).id();
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+
+        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).members();
+
+        assertThat(rows).extracting(TallyGroupReportMemberDto::memberId).doesNotContain(ghost);
+    }
+
+    @Test
+    @DisplayName("settling up sits beside the spending, never inside it")
+    void settlementsAreNotSpending() {
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+        settlementService.record(appaUser, groupId,
+                new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null, null));
+
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+
+        // Amma handing 450 back is the dinner being paid for, not another 450 of dinner. Adding
+        // it to the total would book every shared bill twice over.
+        assertThat(report.total()).isEqualByComparingTo("900.00");
+        assertThat(report.settled()).isEqualByComparingTo("450.00");
+    }
+
+    @Test
+    @DisplayName("a settlement on the last day of the period still counts")
+    void settlementsUseTheWholeLastDay() {
+        // settled_at is an instant while the period is a pair of dates, so the last day has to
+        // be widened to its end. A naive `<= to at midnight` drops everything after 00:00 on the
+        // 30th -- which is most of the 30th.
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+        settlementService.record(appaUser, groupId, new RecordSettlementRequest(
+                amma, appa, bd("450.00"), "UPI",
+                Instant.parse("2026-09-30T18:00:00Z"), null));
+
+        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).settled())
+                .isEqualByComparingTo("450.00");
+    }
+
+    @Test
+    @DisplayName("somebody who is not in the group cannot read its report")
+    void nonMembersGetNothing() {
+        // The module's rule everywhere: not a member means the group does not exist, rather than
+        // a 403 that confirms it does.
+        assertThatThrownBy(() -> reports.group(outsider, groupId, TallyReportPeriod.MONTH, TODAY))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    @DisplayName("an archived group is still readable -- a finished trip is the point of a report")
+    void archivedGroupsStillReport() {
+        spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+        groupService.update(appaUser, groupId,
+                new UpdateGroupRequest("Home", "Family", null, null, true));
+
+        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).total())
+                .isEqualByComparingTo("900.00");
+    }
+
+    @Test
+    @DisplayName("the group chart and comparison work off full bills too")
+    void groupChartAndComparison() {
+        spend("August dinner", "600.00", LocalDate.of(2026, 8, 20), "Food", appa, amma);
+        spend("September dinner", "900.00", LocalDate.of(2026, 9, 3), "Food", appa, amma);
+
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+
+        assertThat(report.total()).isEqualByComparingTo("900.00");
+        assertThat(report.previousTotal()).isEqualByComparingTo("600.00");
+        assertThat(report.buckets()).hasSize(30);
+        assertThat(report.buckets().get(2).amount()).isEqualByComparingTo("900.00");
+        assertThat(report.categories()).singleElement()
+                .satisfies(c -> assertThat(c.category()).isEqualTo("Food"));
+        assertThat(report.biggest().amount())
+                .as("the biggest is the bill, not a share of it")
+                .isEqualByComparingTo("900.00");
+        assertThat(report.currency()).isEqualTo("INR");
+    }
+
+    @Test
+    @DisplayName("a group with nothing in the period reports zeroes, not an error")
+    void quietGroup() {
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+
+        assertThat(report.total()).isEqualByComparingTo("0");
+        assertThat(report.myShare()).isEqualByComparingTo("0");
+        assertThat(report.settled()).isEqualByComparingTo("0");
+        assertThat(report.members()).isEmpty();
+        assertThat(report.biggest()).isNull();
+        assertThat(report.buckets()).hasSize(30);
+    }
+
     /* ============================== fixtures ============================== */
+
+    private TallyReportService reportsAt(Clock clock) {
+        return new TallyReportService(access, memberRepo, groupRepo, expenseRepo, shareRepo,
+                payerRepo, settlementRepo, clock);
+    }
 
     private TallySpendingReportDto report(TallyReportPeriod period) {
         return reports.spending(appaUser, period, TODAY);

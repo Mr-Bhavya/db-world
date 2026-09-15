@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -26,6 +27,28 @@ public interface TallyExpensePayerRepository extends JpaRepository<TallyExpenseP
              group by p.memberId
             """)
     List<TallyLedgerEntryRepository.MemberTotal> sumPaidByGroup(@Param("groupId") String groupId);
+
+    /**
+     * The same, narrowed to a date range, for the group's report.
+     *
+     * <p>Kept separate from {@link #sumPaidByGroup} rather than folded into it with nullable
+     * bounds: the all-time version feeds balances, where a date filter would be a bug waiting
+     * to happen, and two named methods cannot be confused at a call site the way two arguments
+     * can.
+     */
+    @Query("""
+            select p.memberId as memberId, sum(p.amount) as total
+              from TallyExpensePayerEntity p
+              join TallyExpenseEntity e on e.id = p.expenseId
+             where e.groupId = :groupId
+               and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and e.expenseDate between :from and :to
+             group by p.memberId
+            """)
+    List<TallyLedgerEntryRepository.MemberTotal> sumPaidByGroupBetween(
+            @Param("groupId") String groupId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 
     @Query("select coalesce(sum(p.amount), 0) from TallyExpensePayerEntity p where p.expenseId = :expenseId")
     BigDecimal sumByExpense(@Param("expenseId") String expenseId);
