@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, Skeleton,
@@ -81,7 +81,10 @@ export default function GroupLayout({ groupId, active, children }) {
     description: 'Shared expenses, balances and settle-up for one Tally ledger.',
   });
 
-  const members = group?.members ?? [];
+  // Memoised because RecordPaymentDialog derives its reset-effect dependencies from this. The
+  // `?? []` mints a new array whenever the field is absent, and an unstable identity there
+  // re-ran that effect on every render and wiped the form as it was being typed into.
+  const members = useMemo(() => group?.members ?? [], [group]);
   const myMemberId = group?.myMemberId ?? null;
   const myBalance = Number(members.find((m) => m.id === myMemberId)?.balance ?? 0);
 

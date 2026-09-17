@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, InputAdornment, useMediaQuery, useTheme,
 } from '@mui/material';
@@ -42,7 +42,17 @@ export default function RecordPaymentDialog({
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const active = members.filter((m) => m.status === 'ACTIVE');
+  /*
+   * Memoised, and that is load-bearing rather than an optimisation.
+   *
+   * `members.filter(...)` returns a new array every render. `pair` is derived from it and sits
+   * in the reset effect's dependency list below, so an unmemoised version re-ran that effect on
+   * EVERY render -- and the effect restores from/to/amount/method from the prefill. Every
+   * keystroke was undone by the render it caused, which reads as a dialog that refuses to be
+   * edited. It also minted a fresh idempotency key each time, quietly voiding the retry
+   * protection the key exists for.
+   */
+  const active = useMemo(() => members.filter((m) => m.status === 'ACTIVE'), [members]);
   const memberOf = (id) => members.find((m) => m.id === id);
 
   /*
@@ -55,7 +65,7 @@ export default function RecordPaymentDialog({
    * empty, there was no control to set it, and the submit button stayed disabled forever. A
    * prefill that turns out wrong has to be correctable, which means the pickers stay.
    */
-  const pair = active.length === 2 ? active : null;
+  const pair = useMemo(() => (active.length === 2 ? active : null), [active]);
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -133,17 +143,44 @@ export default function RecordPaymentDialog({
         </>
       )}
     >
-      {/* Who paid whom, as a sentence rather than two unrelated dropdowns. */}
+      {/*
+        Who paid whom.
+
+        With two people each of them appears ONCE, named, and the swap is the only thing to
+        change -- offering both of them under Paid and again under Received put four avatars on
+        screen for a choice with two outcomes. Three or more and the pickers are back, because
+        then there is a real choice to make.
+
+        Falls back to the pickers if either side is somehow unset, so a prefill that misses can
+        always be corrected. An earlier attempt at this row was read-only and stranded a ghost
+        member in a state with no control to leave it.
+      */}
       <Box sx={{
-        display: 'flex', alignItems: 'center', gap: 1,
+        display: 'flex', flexDirection: 'column', gap: 1,
         p: 1.5, borderRadius: 3, bgcolor: T.glass, border: `1px solid ${T.border}`,
       }}>
-        <PersonPicker label="Paid" value={from} onChange={setFrom} members={active} myMemberId={myMemberId} />
-        <SwapButton onClick={swap} />
-        <PersonPicker label="Received" value={to} onChange={setTo} members={active} myMemberId={myMemberId} />
+        {pair && from && to ? (
+          <>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 1.25, minWidth: 0,
+            }}>
+              <Party member={memberOf(from)} caption="paid" myMemberId={myMemberId} />
+              <ArrowForwardRoundedIcon sx={{ fontSize: 18, color: T.teal, flexShrink: 0 }} />
+              <Party member={memberOf(to)} caption="received" myMemberId={myMemberId} />
+            </Box>
+            <SwapButton onClick={swap} />
+          </>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PersonPicker label="Paid" value={from} onChange={setFrom} members={active} myMemberId={myMemberId} />
+            <SwapButton onClick={swap} compact />
+            <PersonPicker label="Received" value={to} onChange={setTo} members={active} myMemberId={myMemberId} />
+          </Box>
+        )}
       </Box>
 
-      {from && to && (
+      {!pair && from && to && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, justifyContent: 'center' }}>
           <Typography sx={{ fontSize: 13, color: T.textMuted }}>
             {memberOf(from)?.displayName ?? '—'}
@@ -254,23 +291,50 @@ export default function RecordPaymentDialog({
 }
 
 /** A compact person selector: avatars, not a dropdown of names. */
-/** Flips the direction, so neither end has to be re-picked to swap them. */
-function SwapButton({ onClick }) {
+/** One end of the payment: who, and what they did. Named, because an avatar alone is a riddle. */
+function Party({ member, caption, myMemberId }) {
+  const T = useT();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85, minWidth: 0 }}>
+      <MemberAvatar member={member} size={32} />
+      <Box sx={{ minWidth: 0 }}>
+        <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 700, color: T.textPrimary }}>
+          {member ? (member.id === myMemberId ? 'You' : member.displayName) : '—'}
+        </Typography>
+        <Typography sx={{ fontSize: 10.5, color: T.textMuted }}>{caption}</Typography>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * Flips the direction.
+ *
+ * <p>Labelled, and centred under the row it acts on. As a bare 16px glyph wedged between two
+ * identical avatar groups it read as belonging to one side rather than acting on both -- which
+ * is the one thing a swap must not be ambiguous about.
+ */
+function SwapButton({ onClick, compact = false }) {
   const T = useT();
   return (
     <Box
       component={motion.button}
       type="button"
-      whileTap={{ scale: 0.9, rotate: 180 }}
+      whileTap={{ scale: 0.95 }}
       onClick={onClick}
       aria-label="Swap who paid whom"
       sx={{
-        display: 'grid', placeItems: 'center', flexShrink: 0,
-        width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.5,
+        alignSelf: 'center', flexShrink: 0, cursor: 'pointer',
+        ...(compact
+          ? { width: 34, height: 34, borderRadius: '50%', px: 0 }
+          : { px: 1.5, py: 0.6, borderRadius: 2 }),
         bgcolor: T.glassHover, border: `1px solid ${T.border}`, color: T.teal,
+        fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
       }}
     >
       <SwapHorizRoundedIcon sx={{ fontSize: 17 }} />
+      {!compact && 'Swap'}
     </Box>
   );
 }
