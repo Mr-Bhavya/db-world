@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   Box, Typography, Paper, Stack, Chip, TextField, MenuItem, IconButton, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination,
@@ -12,7 +12,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
-import { adminSurface } from '@features/admin/adminUi';
+import { adminSurface, usePagedListTop } from '@features/admin/adminUi';
 import { fetchSessions, fetchActivityUsers } from './activityApi';
 import SessionDetailModal from './SessionDetailModal';
 
@@ -306,6 +306,10 @@ export default function SessionsTab() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(!isMobile);
   const [page, setPage] = useState(0);
+  const listRef = useRef(null);
+  // Page two starts at the top of page two. The rows were replaced, not appended, so staying
+  // where the pager was means opening in the middle of results whose beginning you never saw.
+  usePagedListTop(page, listRef);
   const [size, setSize] = useState(25);
   const [sort, setSort] = useState({ field: 'lastEventAt', dir: 'desc' });
   const [selectedSession, setSelectedSession] = useState(null);
@@ -363,7 +367,7 @@ export default function SessionsTab() {
   };
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
+    <Box ref={listRef} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
       {/* ── Filter bar ── */}
       <Box sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.card, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, flexWrap: 'wrap' }}>

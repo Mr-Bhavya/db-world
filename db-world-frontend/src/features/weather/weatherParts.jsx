@@ -1,7 +1,21 @@
+import SheetDialog from '@shared/components/SheetDialog';
 import React, { useMemo } from 'react';
 import {
-  Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-  IconButton, InputAdornment, Skeleton, TextField, Tooltip, Typography, useMediaQuery, useTheme,
+  Autocomplete,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  DialogActions,
+  DialogContent,
+  IconButton,
+  InputAdornment,
+  Skeleton,
+  TextField,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   AirRounded, CompressRounded, ExploreRounded, GpsFixedRounded, LocationOnRounded,
@@ -725,7 +739,7 @@ export function LocationDialog({ open, reason, onAllow, onDismiss }) {
   const copy = reason ? EXPLANATION[reason] ?? EXPLANATION[LocationError.UNAVAILABLE] : ASK;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onDismiss}
       fullScreen={fullScreen}
@@ -793,7 +807,7 @@ export function LocationDialog({ open, reason, onAllow, onDismiss }) {
           {reason ? 'Search by city instead' : 'Not now'}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

@@ -3,6 +3,7 @@ import {
   AdminPanelSettings as AdminIcon,
   MovieFilter as CinemaIcon,
   Shield as VaultIcon,
+  ReceiptLong as TallyIcon,
   ShowChart as IpoIcon,
   SportsEsports as ArcadeIcon,
   WbSunny as WeatherIcon,
@@ -59,6 +60,19 @@ export const APPS = [
     adminOnly: false,
     accent: '#6366f1',
     gradient: 'linear-gradient(135deg, #818cf8 0%, #4338ca 100%)',
+  },
+  {
+    id: 'tally',
+    label: 'Tally',
+    description: 'Split expenses with anyone — even people without an account.',
+    tagline: 'Shared expenses',
+    Icon: TallyIcon,
+    route: Constants.DB_TALLY_ROUTE,
+    adminOnly: false,
+    // Pink: the seven accents already taken are emerald, red, indigo, teal, purple, sky and
+    // amber, and no two apps may share one.
+    accent: '#ec4899',
+    gradient: 'linear-gradient(135deg, #f472b6 0%, #be185d 100%)',
   },
   {
     id: 'wallet',

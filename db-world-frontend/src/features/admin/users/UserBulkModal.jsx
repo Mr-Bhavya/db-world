@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, Button, Tabs, Tab, Box, TextField, MenuItem, Typography, Alert, CircularProgress, IconButton, Chip } from '@mui/material';
+import { DialogTitle, DialogContent, Button, Tabs, Tab, Box, TextField, MenuItem, Typography, Alert, CircularProgress, IconButton, Chip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
@@ -7,6 +7,7 @@ import { useT } from '@shared/theme';
 import { bulkCreateUsers, deleteUser, updateUserRole } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
 import { getInputSx, getDialogSx, getTabSx } from './constants';
+import SheetDialog from '@shared/components/SheetDialog';
 
 function ImportTab({ onClose }) {
   const T = useT();
@@ -137,7 +138,7 @@ export default function UserBulkModal({ open, onClose }) {
   const T   = useT();
   const [tab, setTab] = useState(0);
   return (
-    <Dialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm">
+    <SheetDialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', pb: 0, color: T.textPrimary }}>
         Bulk Operations
         <IconButton onClick={onClose} sx={{ color: T.textMuted }}><CloseIcon /></IconButton>
@@ -152,6 +153,6 @@ export default function UserBulkModal({ open, onClose }) {
         {tab === 1 && <BulkDeleteTab onClose={onClose} />}
         {tab === 2 && <BulkRoleTab   onClose={onClose} />}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }

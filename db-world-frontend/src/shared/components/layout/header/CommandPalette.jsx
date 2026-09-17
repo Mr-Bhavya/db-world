@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Box,
   CircularProgress,
-  Dialog,
   InputBase,
   Typography,
 } from '@mui/material';
@@ -19,6 +18,7 @@ import { ipoDetailPath } from '@shared/constants';
 import { useT } from '@shared/theme';
 import { clampTextSx } from '@shared/components/layout/home/homeStyles';
 import { recordRoute } from '@shared/components/layout/home/dashboard/recordRoute';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const MIN_QUERY = 2;
 const MAX_PER_GROUP = 5;
@@ -161,7 +161,7 @@ export default function CommandPalette({ open, onClose, apps, onNavigate }) {
   let previousGroup = null;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       fullWidth
@@ -328,6 +328,6 @@ export default function CommandPalette({ open, onClose, apps, onNavigate }) {
           </Typography>
         ))}
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

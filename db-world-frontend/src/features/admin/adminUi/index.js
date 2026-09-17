@@ -17,3 +17,4 @@ export { AdminDataTable } from './AdminDataTable';
 export { useAdminMuiTheme, adminSurface } from './theme';
 export { useAdminHeader, useAdminHeaderValue } from './adminHeader';
 export { useSwipeNav } from './useSwipeNav';
+export { default as usePagedListTop } from './usePagedListTop';

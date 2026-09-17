@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import {
-  Box, Typography, Button, CircularProgress, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox,
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
+  LinearProgress,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Checkbox,
 } from '@mui/material';
 import CheckBoxIcon           from '@mui/icons-material/CheckBox';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
@@ -11,6 +19,7 @@ import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { getRecordsTable, bulkAddTag } from '../api/adminApi';
 import { useTagDefs } from '../records/useTagDefs';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Bulk add dialog ───────────────────────────────────────────────────────────
 export default function BulkAddDialog({ tagType, open, onClose, onDone }) {
@@ -52,7 +61,7 @@ export default function BulkAddDialog({ tagType, open, onClose, onDone }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+    <SheetDialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2 } }}>
       <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>
         Bulk Add — <Box component="span" sx={{ color: tagColor(tagType), fontWeight: 800 }}>{tagLabel(tagType)}</Box>
@@ -98,6 +107,6 @@ export default function BulkAddDialog({ tagType, open, onClose, onDone }) {
           {adding ? <CircularProgress size={18} color="inherit" /> : `Add to ${selected.length} Record${selected.length !== 1 ? 's' : ''}`}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

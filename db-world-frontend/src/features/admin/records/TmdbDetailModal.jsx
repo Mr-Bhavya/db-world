@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import {
-  Dialog, DialogContent, Box, Typography, Chip, Divider,
-  IconButton, CircularProgress, Tab, Tabs, Alert, Avatar,
-  Collapse, useMediaQuery,
+  DialogContent,
+  Box,
+  Typography,
+  Chip,
+  Divider,
+  IconButton,
+  CircularProgress,
+  Tab,
+  Tabs,
+  Alert,
+  Avatar,
+  Collapse,
+  useMediaQuery,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -12,6 +22,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useQuery } from '@tanstack/react-query';
 import { useT } from '@shared/theme';
 import { getTmdbDetail } from '../api/adminApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Utilities ─────────────────────────────────────────────────────
 
@@ -727,7 +738,7 @@ export default function TmdbDetailModal({ record, onClose }) {
   };
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={handleClose}
       fullWidth
@@ -808,7 +819,7 @@ export default function TmdbDetailModal({ record, onClose }) {
           </>
         )}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

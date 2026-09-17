@@ -3,6 +3,7 @@ import Header from '@shared/components/layout/Header';
 import Footer from '@shared/components/layout/Footer';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import ScrollMemory from "./ScrollMemory";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
@@ -73,6 +74,12 @@ const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybri
 const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybrid/PlayerDemo.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 const LazyWallet              = lazy(() => import('@features/wallet'));
+const LazyTally               = lazy(() => import('@features/tally'));
+const LazyTallyGroupShell     = lazy(() => import('@features/tally/TallyGroupShell'));
+const LazyTallyGroup          = lazy(() => import('@features/tally/TallyGroupPage'));
+const LazyTallyReport         = lazy(() => import('@features/tally/TallyReportPage'));
+const LazyTallyGroupReport    = lazy(() => import('@features/tally/TallyGroupReportPage'));
+const LazyTallyGroupHistory   = lazy(() => import('@features/tally/TallyGroupHistoryPage'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
@@ -276,6 +283,11 @@ const routeConfig = {
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
+    { path: Constants.DB_TALLY_ROUTE, element: <LazyTally /> },
+    // Before the :groupId route, or "report" is matched as a group id and the page never loads.
+    { path: Constants.DB_TALLY_REPORT_ROUTE, element: <LazyTallyReport /> },
+    // The three group tabs are NOT here -- they are nested under one layout route below, so the
+    // group's chrome is mounted once instead of rebuilt on every tab click.
     { path: Constants.DB_IPO_MY_ROUTE, element: <LazyMyIposPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
@@ -477,6 +489,9 @@ const ThemedApp = () => {
                 flexDirection: 'column',
               }}
             >
+            {/* A new page starts at the top; Back returns to where you were. React Router does
+                neither, and the browser cannot -- see ScrollMemory for why. */}
+            <ScrollMemory />
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!isPlayerRoute && <Header />}
             {/* `minWidth: 0` alone is not enough here — see the width:100% note on the page shells
@@ -487,6 +502,15 @@ const ThemedApp = () => {
                 {renderRoutes(routeConfig.public)}
                 <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                   {renderRoutes(routeConfig.protected)}
+                  {/* One group, three tabs, one mounted chrome. Written out rather than fed
+                      through renderRoutes because that helper is flat, and the whole point here
+                      is the nesting: the shell holds the header, balance and tab bar, and only
+                      the <Outlet/> inside it changes when you switch tab. */}
+                  <Route path={Constants.DB_TALLY_GROUP_ROUTE} element={<LazyTallyGroupShell />}>
+                    <Route index element={<LazyTallyGroup />} />
+                    <Route path="report" element={<LazyTallyGroupReport />} />
+                    <Route path="history" element={<LazyTallyGroupHistory />} />
+                  </Route>
                 </Route>
                 <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                   {renderRoutes(routeConfig.admin)}
@@ -559,7 +583,11 @@ function App() {
           </AuthProvider>
         </ThemeTokensProvider>
       </ErrorBoundary>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Bottom-LEFT deliberately. The default bottom-right put the devtools bubble exactly
+          where every page's FAB lives, so on a phone-width window it covered "Add expense"
+          and there was nothing to press. Devtools are a no-op in production builds, so this
+          only ever affected development -- which is where it is most confusing. */}
+      <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
     </QueryClientProvider>
   );
 }

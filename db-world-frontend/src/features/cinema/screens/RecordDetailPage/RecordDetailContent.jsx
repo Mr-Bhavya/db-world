@@ -17,6 +17,7 @@ import { loadStreamFileInfoByRecordId, getRecordProgress } from '@shared/service
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
+import { PAGE_MEASURE_SX } from '@shared/layout/pageMeasure';
 import { useRequireAuth } from '@features/auth/useRequireAuth';
 
 import Hero from './Hero';
@@ -608,10 +609,8 @@ export default function RecordDetailContent({
           <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
         </Box>
         <Container maxWidth={false} sx={{
-          py: 4, px: { xs: 2, md: 3, xl: 5 },
-          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
-          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
-          mx: 'auto',
+          py: 4,
+          ...PAGE_MEASURE_SX,
         }}>
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
             {[1, 2, 3, 4, 5].map((i) => (
@@ -697,13 +696,8 @@ export default function RecordDetailContent({
 
       {fullLoaded ? (
         <Container maxWidth={false} sx={{
-          px: { xs: 2, md: 3, xl: 5 },
-          // A fixed lg cap wasted half a 27" monitor and most of a TV, but an
-          // uncapped column runs unreadably long lines — so the ceiling rises
-          // with the viewport instead of being fixed or absent.
-          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
-          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
-          mx: 'auto',
+          // The measure, shared with the hero, the pill nav and the IPO pages.
+          ...PAGE_MEASURE_SX,
           // StickyWatchBar is position:fixed and mobile-only, so it sits OVER
           // the last section unless the page reserves its height (bar + the
           // iOS home indicator it clears).
@@ -777,10 +771,8 @@ export default function RecordDetailContent({
         // Same-layout skeletons for the below-the-fold sections; they fill in when
         // the full record arrives (no subtree swap → no flash).
         <Container maxWidth={false} sx={{
-          px: { xs: 2, md: 3, xl: 5 }, py: 3,
-          maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
-          '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
-          mx: 'auto',
+          py: 3,
+          ...PAGE_MEASURE_SX,
         }}>
           <Skeleton variant="text" width={160} height={32} sx={{ bgcolor: alpha(T.text, 0.08), mb: 1.5 }} />
           <Skeleton variant="text" width="94%" height={18} sx={{ bgcolor: alpha(T.text, 0.06) }} />

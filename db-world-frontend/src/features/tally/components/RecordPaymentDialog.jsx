@@ -1,0 +1,227 @@
+import { useEffect, useState } from 'react';
+import {
+  Box, Typography, TextField, InputAdornment, useMediaQuery, useTheme,
+} from '@mui/material';
+import CurrencyRupeeRoundedIcon from '@mui/icons-material/CurrencyRupeeRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import { motion } from 'framer-motion';
+import { useT } from '@shared/theme';
+import { newIdempotencyKey } from '../api/tallyApi';
+import { settlementSchema, SETTLEMENT_METHODS } from '../schemas/tallySchemas';
+import {
+  TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx, MemberAvatar,
+} from './tallyFormUi';
+
+/**
+ * Recording a payment somebody has already made.
+ *
+ * Past tense throughout — "paid", not "pay". Nothing here moves money; it writes down that
+ * money moved, which is a different act and needs to read like one, or people will wait for a
+ * transfer that is never going to happen.
+ */
+export default function RecordPaymentDialog({
+  open, onClose, onRecord, busy, members = [], myMemberId, prefill = null,
+}) {
+  const T = useT();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const active = members.filter((m) => m.status === 'ACTIVE');
+  const memberOf = (id) => members.find((m) => m.id === id);
+
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('');
+  const [error, setError] = useState(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+
+  useEffect(() => {
+    if (!open) return;
+    // One token per opening. Settlement is one-sided, so a retry that carried a NEW key would
+    // not be a retry -- it would move the balance a second time and look like an overpayment.
+    setIdempotencyKey(newIdempotencyKey());
+    setError(null);
+    setMethod('');
+    setFrom(prefill?.fromMemberId ?? myMemberId ?? '');
+    setTo(prefill?.toMemberId ?? '');
+    setAmount(prefill?.amount ? String(prefill.amount) : '');
+  }, [open, prefill, myMemberId]);
+
+  const submit = () => {
+    const payload = {
+      fromMemberId: from, toMemberId: to, amount, method: method || '', settledAt: undefined,
+    };
+    const parsed = settlementSchema.safeParse(payload);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'Check the details');
+      return;
+    }
+    setError(null);
+    onRecord({ ...payload, method: method || null, idempotencyKey });
+  };
+
+  const swap = () => { setFrom(to); setTo(from); };
+
+  return (
+    <TallyFormDialog
+      open={open}
+      onClose={onClose}
+      busy={busy}
+      fullScreen={fullScreen}
+      title="Record a payment"
+      subtitle="Write down money that has already changed hands"
+      actions={(
+        <>
+          <TallyCancelButton onClick={onClose} disabled={busy} />
+          <TallySubmitButton busy={busy} disabled={!from || !to || !amount} onClick={submit}>
+            Record it
+          </TallySubmitButton>
+        </>
+      )}
+    >
+      {/* Who paid whom, as a sentence rather than two unrelated dropdowns. */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1,
+        p: 1.25, borderRadius: 3, bgcolor: T.glass, border: `1px solid ${T.border}`,
+      }}>
+        <PersonPicker label="Paid" value={from} onChange={setFrom} members={active} myMemberId={myMemberId} />
+        <Box
+          component={motion.button}
+          type="button"
+          whileTap={{ scale: 0.9, rotate: 180 }}
+          onClick={swap}
+          aria-label="Swap who paid whom"
+          sx={{
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+            width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
+            bgcolor: T.glassHover, border: `1px solid ${T.border}`, color: T.textMuted,
+          }}
+        >
+          <SwapHorizRoundedIcon sx={{ fontSize: 16 }} />
+        </Box>
+        <PersonPicker label="Received" value={to} onChange={setTo} members={active} myMemberId={myMemberId} />
+      </Box>
+
+      {from && to && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: 13, color: T.textMuted }}>
+            {memberOf(from)?.displayName ?? '—'}
+          </Typography>
+          <ArrowForwardRoundedIcon sx={{ fontSize: 15, color: T.teal }} />
+          <Typography sx={{ fontSize: 13, color: T.textMuted }}>
+            {memberOf(to)?.displayName ?? '—'}
+          </Typography>
+        </Box>
+      )}
+
+      <TextField
+        fullWidth
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        placeholder="0.00"
+        inputMode="decimal"
+        aria-label="Amount paid"
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <CurrencyRupeeRoundedIcon sx={{ fontSize: 24, color: T.teal }} />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={{
+          ...tallyFieldSx(T),
+          '& .MuiInputBase-input': { fontSize: 28, fontWeight: 800, color: T.textPrimary, py: 1.3 },
+        }}
+      />
+
+      <Box>
+        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted, mb: 1 }}>
+          How? <Box component="span" sx={{ fontWeight: 500 }}>(optional)</Box>
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+          {SETTLEMENT_METHODS.map((option) => {
+            const selected = method === option;
+            return (
+              <Box
+                key={option}
+                component={motion.button}
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setMethod(selected ? '' : option)}
+                sx={{
+                  px: 1.4, py: 0.6, borderRadius: 999, cursor: 'pointer',
+                  fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
+                  bgcolor: selected ? T.tealBg : T.glass,
+                  color: selected ? T.teal : T.textMuted,
+                  border: `1px solid ${selected ? T.glassBorderHover : T.border}`,
+                  transition: 'all .15s ease',
+                }}
+              >
+                {option}
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {prefill?.amount && (
+        <Typography sx={{ fontSize: 12, color: T.textMuted, lineHeight: 1.55 }}>
+          Suggested from the settle-up plan. Change the amount if they paid something else —
+          a part payment is fine, and so is paying more.
+        </Typography>
+      )}
+
+      {error && (
+        <Typography sx={{ fontSize: 12.5, color: '#f59e0b', fontWeight: 600 }}>{error}</Typography>
+      )}
+    </TallyFormDialog>
+  );
+}
+
+/** A compact person selector: avatars, not a dropdown of names. */
+function PersonPicker({ label, value, onChange, members, myMemberId }) {
+  const T = useT();
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: T.textMuted, mb: 0.6, letterSpacing: 0.3 }}>
+        {label.toUpperCase()}
+      </Typography>
+      <Box sx={{
+        display: 'flex', gap: 0.5, overflowX: 'auto', pb: 0.25,
+        scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+      }}>
+        {members.map((member) => {
+          const selected = value === member.id;
+          return (
+            <Box
+              key={member.id}
+              component={motion.button}
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={() => onChange(member.id)}
+              title={member.displayName}
+              aria-label={`${label}: ${member.displayName}`}
+              aria-pressed={selected}
+              sx={{
+                p: 0.25, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
+                border: `2px solid ${selected ? T.teal : 'transparent'}`,
+                background: 'none', transition: 'border-color .15s ease',
+              }}
+            >
+              <MemberAvatar member={member} size={30} dimmed={!selected} />
+            </Box>
+          );
+        })}
+      </Box>
+      <Typography noWrap sx={{ fontSize: 11.5, color: T.textMuted, mt: 0.4 }}>
+        {value
+          ? (value === myMemberId ? 'You' : members.find((m) => m.id === value)?.displayName)
+          : 'Pick somebody'}
+      </Typography>
+    </Box>
+  );
+}

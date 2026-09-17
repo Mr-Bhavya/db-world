@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Box, Button, Dialog, Stack, Typography } from '@mui/material';
+import { Box, Button, Stack, Typography } from '@mui/material';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import FolderIcon from '@mui/icons-material/Folder';
 import { useT } from '@shared/theme';
 import { useAuth } from '@features/auth/context/Authentication';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /** Set once the rationale has been shown (whether the user allowed or skipped). */
 export const PERMISSIONS_ONBOARDED_KEY = 'dbworld_permissions_onboarded';
@@ -45,7 +46,7 @@ export default function PermissionOnboardingGate() {
   if (!open) return null;
 
   return (
-    <Dialog
+    <SheetDialog
       open
       disableEscapeKeyDown
       onClose={(_e, reason) => { if (reason !== 'backdropClick') finish(); }}
@@ -76,7 +77,7 @@ export default function PermissionOnboardingGate() {
           </Button>
         </Box>
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

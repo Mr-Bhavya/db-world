@@ -1,8 +1,9 @@
 import React from 'react';
-import { Box, Button, Chip, Dialog, IconButton, Typography } from '@mui/material';
+import { Box, Button, Chip, IconButton, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import SheetDialog from '@shared/components/SheetDialog';
 
 export default function VideoDialog({ video, onClose }) {
   if (!video) return null;
@@ -12,7 +13,7 @@ export default function VideoDialog({ video, onClose }) {
     : null;
 
   return (
-    <Dialog
+    <SheetDialog
       open
       onClose={onClose}
       maxWidth="lg"
@@ -55,6 +56,6 @@ export default function VideoDialog({ video, onClose }) {
           <Chip label={video.type} size="small" sx={{ mt: 0.5, bgcolor: alpha('#00bcd4', 0.15), color: '#00bcd4', fontSize: '0.65rem', height: 18 }} />
         </Box>
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

@@ -6,6 +6,7 @@ import BookmarkAddedOutlinedIcon from '@mui/icons-material/BookmarkAddedOutlined
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { useT } from '@shared/theme';
+import { PAGE_SX } from '../ipoLayout';
 import Constants from '@shared/constants';
 import { useMyApplications } from '../hooks/useIpo';
 import MyIpoCard from '../components/MyIpoCard';
@@ -32,7 +33,7 @@ export default function MyIposPage() {
   const rows = data ?? [];
 
   return (
-    <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4, color: T.textPrimary }}>
+    <Box sx={{ ...PAGE_SX, color: T.textPrimary }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 2 }}>
         <IconButton
           onClick={backToList}

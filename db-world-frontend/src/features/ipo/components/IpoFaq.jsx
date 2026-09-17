@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { useT } from '@shared/theme';
 import { sectionList } from '@shared/content/siteContent';
+import { PROSE_MAX_W } from '../ipoLayout';
 
 /**
  * Six common questions, answered honestly and briefly (1-3 sentences each). The last
@@ -66,7 +67,7 @@ export default function IpoFaq() {
   const [expandedIndex, setExpandedIndex] = useState(null);
 
   return (
-    <Box sx={{ maxWidth: 780 }}>
+    <Box sx={{ maxWidth: PROSE_MAX_W }}>
       {FAQ_ITEMS.map((item, i) => (
         <FaqItem
           key={item.q}

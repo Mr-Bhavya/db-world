@@ -1,7 +1,12 @@
 import { useState, useCallback } from 'react';
 import {
-  Box, Typography, IconButton, Skeleton,
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Box,
+  Typography,
+  IconButton,
+  Skeleton,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Alert,
 } from '@mui/material';
 import RefreshIcon            from '@mui/icons-material/Refresh';
@@ -22,6 +27,7 @@ import TagCard from './TagCard';
 import TagRecordTable from './TagRecordTable';
 import TagDefinitionsPanel from './TagDefinitionsPanel';
 import CreateTagDialog from './CreateTagDialog';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Tags tab ──────────────────────────────────────────────────────────────────
 
@@ -136,7 +142,7 @@ export default function TagsTab() {
 
       <CreateTagDialog open={creating} onClose={() => setCreating(false)} />
 
-      <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} fullWidth maxWidth="xs"
+      <SheetDialog open={Boolean(deleting)} onClose={() => setDeleting(null)} fullWidth maxWidth="xs"
         PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2 } }}>
         <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>
           Delete &ldquo;{deleting?.displayName ?? deleting?.tagType}&rdquo;?
@@ -155,7 +161,7 @@ export default function TagsTab() {
           <AdminActionButton variant="secondary" onClick={() => setDeleting(null)}>Cancel</AdminActionButton>
           <AdminActionButton variant="danger" loading={deletingTag} onClick={() => doDelete()}>Delete</AdminActionButton>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </>
   );
 }

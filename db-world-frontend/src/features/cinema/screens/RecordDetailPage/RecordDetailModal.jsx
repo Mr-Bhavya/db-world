@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Dialog, IconButton, useMediaQuery } from '@mui/material';
+import { Box, IconButton, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
 import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // Expand transition: when opened from a card or hover popup (originRect supplied by
 // HoverPopup.goDetail / openRecord), the modal starts at that element's exact position
@@ -92,14 +93,26 @@ export default function RecordDetailModal() {
   const handleExited = useCallback(() => {
     const background = location.state?.background;
     if (background) {
-      navigate(background.pathname + (background.search ?? ''), { replace: true });
+      // `restoreScrollKey` names the history entry this is returning to, so the reader lands
+      // back at the row they opened rather than at the top of the page. Every dismissal that is
+      // not the Back button comes through here -- ✕, the backdrop, Escape, the swipe -- and a
+      // replace is otherwise indistinguishable from opening something new.
+      navigate(background.pathname + (background.search ?? ''), {
+        replace: true,
+        state: { restoreScrollKey: background.key },
+      });
     } else {
       navigate(-1);
     }
   }, [navigate, location.state]);
 
   return (
-    <Dialog
+    <SheetDialog
+      // This overlay owns its own history: it is opened by a route with `state.background` and
+      // closed by unwinding that entry. Letting SheetDialog push a second entry for it means Back
+      // pops one of the two and leaves the other, which breaks the close AND loses the scroll
+      // position of the page underneath.
+      disableBack
       open={open}
       onClose={handleClose}
       maxWidth={false}
@@ -182,6 +195,6 @@ export default function RecordDetailModal() {
           preview={location.state?.cardRecord ?? null}
         />
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

@@ -1,10 +1,12 @@
 import React from 'react';
 import {
-  Box, Button, Chip, Divider, Drawer, MenuItem, Popover, Select,
+  Box, Button, Chip, Divider, Drawer, IconButton, MenuItem, Popover, Select,
   Switch, TextField, Typography,
 } from '@mui/material';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
+import useOverlayBack from '@shared/hooks/useOverlayBack';
 import { levelColor, methodColor, statusColor } from './logUtils';
 
 const STANDARD_LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG'];
@@ -171,14 +173,27 @@ export default function LogFiltersSheet({ open, anchorEl, onClose, isMobile, ...
   const T = useT();
   const S = adminSurface(T);
 
+  // Only the mobile branch is a sheet worth owning Back for; the desktop Popover dismisses on
+  // any outside click. Called unconditionally because it is a hook.
+  useOverlayBack(open && isMobile, onClose);
+
   if (isMobile) {
     return (
       <Drawer
         anchor="bottom" open={open} onClose={onClose}
-        PaperProps={{ sx: { bgcolor: S.card, color: T.text, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '82vh', backgroundImage: 'none' } }}
+        // dvh, not vh: with a phone browser's address bar showing, vh overshoots and "Clear all
+        // filters" ends up below the fold.
+        PaperProps={{ sx: { bgcolor: S.card, color: T.text, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '82dvh', backgroundImage: 'none' } }}
       >
         <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: S.border, mx: 'auto', mt: 1.25, mb: 0.5 }} />
-        <Typography sx={{ px: 2, py: 1, fontWeight: 800, fontSize: '1rem' }}>Filters</Typography>
+        {/* A visible way out. The sheet used to offer only a backdrop tap, which is invisible
+            and, with the sheet at 82% of the screen, a small target. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1 }}>
+          <Typography sx={{ flex: 1, fontWeight: 800, fontSize: '1rem' }}>Filters</Typography>
+          <IconButton onClick={onClose} aria-label="Close filters" sx={{ color: T.textMuted, '&:hover': { color: T.text } }}>
+            <CloseRoundedIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Box>
         <FiltersBody {...body} />
       </Drawer>
     );

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Box, Typography, Dialog, IconButton, Button, LinearProgress } from '@mui/material';
+import { Box, Typography, IconButton, Button, LinearProgress } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import { useT } from '@shared/theme';
 import { formatFileSize } from '../utils/walletFormat';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Shared chrome for the two wallet forms.
@@ -38,7 +39,7 @@ export const walletFieldSx = (T) => ({
 export function WalletFormDialog({ open, onClose, title, subtitle, busy, actions, fullScreen, children }) {
   const T = useT();
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={busy ? undefined : onClose}
       fullWidth
@@ -92,7 +93,7 @@ export function WalletFormDialog({ open, onClose, title, subtitle, busy, actions
       }}>
         {actions}
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

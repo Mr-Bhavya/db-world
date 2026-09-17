@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, IconButton, CircularProgress,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  IconButton,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -13,6 +18,7 @@ import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { mkdir } from '../api/fileManagerApi';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const nameSchema = z.object({
   name: z.string().trim()
@@ -50,7 +56,7 @@ export default function NewFolderDialog({ open, onClose, locationId, path }) {
   const handleClose = () => { if (!isPending) onClose?.(); };
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={handleClose}
       maxWidth="xs"
@@ -99,6 +105,6 @@ export default function NewFolderDialog({ open, onClose, locationId, path }) {
           </Button>
         </DialogActions>
       </form>
-    </Dialog>
+    </SheetDialog>
   );
 }

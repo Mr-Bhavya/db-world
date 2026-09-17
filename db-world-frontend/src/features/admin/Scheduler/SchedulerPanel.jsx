@@ -1,10 +1,31 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Box, Typography, Button, Chip,
-  IconButton, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Tooltip,
-  Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Alert,
-  ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack, Grow,
+  Box,
+  Typography,
+  Button,
+  Chip,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  CircularProgress,
+  Tooltip,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  ToggleButton,
+  ToggleButtonGroup,
+  Divider,
+  MenuItem,
+  Stack,
+  Grow,
+  Paper,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Schedule, ScheduleRounded, CheckCircle,
@@ -24,6 +45,7 @@ import RunLogPanel from './RunLogPanel';
 import JobCard from './JobCard';
 import { JOB_META } from './jobMeta';
 import { completionMessage, describeSchedule } from './schedulerUtils';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -352,7 +374,7 @@ function EditCronDialog({ open, job, onClose, onSave }) {
   const meta = JOB_META[job.id] ?? { color: T.teal };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+    <SheetDialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -418,7 +440,7 @@ function EditCronDialog({ open, job, onClose, onSave }) {
           Save Changes
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 
@@ -483,7 +505,7 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   })();
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+    <SheetDialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -556,7 +578,7 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
           Save Changes
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 
@@ -619,16 +641,28 @@ function RunSummary({ summary, message, failed }) {
   );
 }
 
-/** Whether the run came from its schedule or from someone pressing "Run now". */
-function TriggerCell({ row }) {
+/**
+ * Whether the run came from its schedule or from someone pressing "Run now".
+ *
+ * <p>`showUser` writes the name inline instead of hiding it behind a tooltip. Cards use it:
+ * there is room, and a tooltip is a hover, which a phone does not have.
+ */
+function TriggerCell({ row, showUser = false }) {
   const T = useT();
   if (row.triggeredBy === 'MANUAL') {
+    const who = row.triggeredByUser;
+    const body = (
+      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textMuted, minWidth: 0 }}>
+        <PersonRounded sx={{ fontSize: 12, flexShrink: 0 }} />
+        <Typography noWrap sx={{ fontSize: '0.68rem' }}>
+          {showUser && who ? `Manual · ${who}` : 'Manual'}
+        </Typography>
+      </Box>
+    );
+    if (showUser) return body;
     return (
-      <Tooltip title={row.triggeredByUser ? `Run manually by ${row.triggeredByUser}` : 'Run manually'}>
-        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textMuted }}>
-          <PersonRounded sx={{ fontSize: 12 }} />
-          <Typography sx={{ fontSize: '0.68rem' }}>Manual</Typography>
-        </Box>
+      <Tooltip title={who ? `Run manually by ${who}` : 'Run manually'}>
+        {body}
       </Tooltip>
     );
   }
@@ -642,6 +676,26 @@ function TriggerCell({ row }) {
   );
 }
 
+/** A run's outcome as a chip. Shared by the table and the cards so they cannot drift. */
+function StatusChip({ status }) {
+  const T = useT();
+  const S = adminSurface(T);
+  const base = { height: 18, fontSize: '0.62rem', flexShrink: 0 };
+  if (status === 'SUCCESS') {
+    return (
+      <Chip label="Success" size="small" icon={<CheckCircle sx={{ fontSize: 11 }} />}
+        sx={{ ...base, bgcolor: T.successBg, color: T.success, '& .MuiChip-icon': { color: T.success, ml: 0.5 } }} />
+    );
+  }
+  if (status === 'FAILED') {
+    return (
+      <Chip label="Failed" size="small" icon={<ErrorIcon sx={{ fontSize: 11 }} />}
+        sx={{ ...base, bgcolor: T.errorBg, color: T.error, '& .MuiChip-icon': { color: T.error, ml: 0.5 } }} />
+    );
+  }
+  return <Chip label={status ?? '—'} size="small" sx={{ ...base, bgcolor: S.inset, color: T.textMuted }} />;
+}
+
 // ─── Per-job history modal ────────────────────────────────────────────────────
 /**
  * Forwarded-ref wrapper so MUI's transitions can target the motion'd content.
@@ -652,9 +706,106 @@ const GrowTransition = React.forwardRef(function GrowTransition(props, ref) {
   return <Grow ref={ref} timeout={{ enter: 260, exit: 200 }} style={{ transformOrigin: 'center top' }} {...props} />;
 });
 
+/**
+ * The header's own height, in px, named because the sticky table head has to clear it.
+ *
+ * Both the header and the `th` row pin themselves to the top of the dialog's scroll area, so
+ * without this the columns would slide under the title. A constant is honest here: the header
+ * is two lines of type at fixed sizes, and `minHeight` below makes the number true rather than
+ * approximately true.
+ */
+const HEADER_H = 76;
+
+/** "17 Sept 2026, 6:42 pm" — when a run started. */
+const fmtStarted = (iso) => (iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+
+/** "840 ms" / "1.4 s" — plenty of these runs are sub-second, and "0.0 s" would hide that. */
+const fmtRunMs = (ms) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+/** Which run is expanded, keyed by id where the row has one. Shared so the table and the cards
+ *  agree on the identity of a row — they read the same `expandedRun`. */
+const runKey = (row, i) => row.id ?? `${row.startedAt}-${i}`;
+
+/**
+ * One run, as a card. The phone layout.
+ *
+ * <p>A five-column table does not survive a phone-width sheet, and the way it used to cope was
+ * quietly lossy: duration and trigger folded away below `sm` and were meant to reappear on the
+ * summary line underneath, but that line only renders when the run reported a summary or a
+ * message. A run that reported neither showed no duration and no trigger at all. A card has
+ * room for every field, so the layout and the bug have the same fix.
+ */
+function RunCard({ row, expanded, onToggle }) {
+  const T = useT();
+  const S = adminSurface(T);
+  const hasLogs = !!row.runId;
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ borderRadius: 2.5, borderColor: S.border, bgcolor: S.card, overflow: 'hidden' }}
+    >
+      <Box sx={{ p: 1.25 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <StatusChip status={row.status} />
+          <Box sx={{ flex: 1 }} />
+          <Typography noWrap sx={{ fontSize: '0.68rem', color: T.textFaint }}>
+            {fmtStarted(row.startedAt)}
+          </Typography>
+        </Stack>
+
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.75, flexWrap: 'wrap' }} useFlexGap>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.textMuted }}>
+            <Timer sx={{ fontSize: 12, color: T.textFaint }} />
+            <Typography sx={{ fontSize: '0.68rem' }}>{fmtRunMs(row.durationMs)}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: '0.68rem', color: T.textFaint }}>·</Typography>
+          <TriggerCell row={row} showUser />
+        </Stack>
+
+        {(row.summary || row.message) && (
+          <Box sx={{ mt: 0.75 }}>
+            <RunSummary summary={row.summary} message={row.message} failed={row.status === 'FAILED'} />
+          </Box>
+        )}
+      </Box>
+
+      {hasLogs && (
+        <>
+          {/* A labelled, full-width control rather than a chevron: it says what it does without
+              a hover, and it is a thumb-sized target instead of a 16px glyph. */}
+          <Button
+            fullWidth
+            onClick={onToggle}
+            aria-expanded={expanded}
+            endIcon={<ExpandMoreRounded sx={{
+              fontSize: 16, transition: 'transform 160ms ease',
+              transform: expanded ? 'rotate(180deg)' : 'none',
+            }} />}
+            sx={{
+              justifyContent: 'center', textTransform: 'none',
+              fontSize: '0.7rem', fontWeight: 700, color: T.textMuted,
+              borderTop: `1px solid ${S.divider}`, borderRadius: 0, py: 0.75,
+            }}
+          >
+            {expanded ? 'Hide logs' : 'Show logs'}
+          </Button>
+          {expanded && (
+            <Box sx={{ px: 1, pb: 1 }}>
+              <RunLogPanel runId={row.runId} startedAt={row.startedAt} />
+            </Box>
+          )}
+        </>
+      )}
+    </Paper>
+  );
+}
+
 function HistoryModal({ job, onClose }) {
   const T = useT();
   const S = adminSurface(T);
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const open = !!job;
   // One row open at a time — stacking several log panels in a capped-height dialog just
   // pushes the row you were reading off screen.
@@ -669,16 +820,20 @@ function HistoryModal({ job, onClose }) {
   useEffect(() => { setExpandedRun(null); }, [job?.id]);
 
   const meta = JOB_META[job?.id] ?? { color: T.teal };
-  const fmt   = (iso) => iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
-  const fmtMs = (ms)  => ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      TransitionComponent={GrowTransition}
+      /*
+       * Grow on a pointer device only. SheetDialog spreads the caller's props last, so naming
+       * TransitionComponent unconditionally beats its own SlideUp — and the result was a dialog
+       * anchored to the bottom edge of a phone that popped out of the middle of the screen.
+       * The key has to be absent rather than undefined; spreading `undefined` still wins.
+       */
+      {...(isPhone ? {} : { TransitionComponent: GrowTransition })}
       PaperProps={{
         sx: {
           bgcolor: S.card, color: T.text,
@@ -701,13 +856,19 @@ function HistoryModal({ job, onClose }) {
     >
       {!!job && (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 240 }}>
-          {/* Header */}
+          {/*
+            Header. Pinned, because the dialog's paper is the scroll area — on a phone the sheet
+            is tall and a hundred runs scroll a long way, and the ✕ used to leave with the title.
+            An opaque background is load-bearing: the rows scroll behind this.
+          */}
           <Box sx={{
             p: 2,
+            minHeight: HEADER_H, boxSizing: 'border-box',
+            bgcolor: S.card,
             borderBottom: `1px solid ${S.divider}`,
             display: 'flex', alignItems: 'center', gap: 1.5,
+            position: 'sticky', top: 0, zIndex: 2,
             // Faint accent stripe at top to echo the job color.
-            position: 'relative',
             '&::before': {
               content: '""',
               position: 'absolute', left: 0, right: 0, top: 0, height: 2,
@@ -728,8 +889,14 @@ function HistoryModal({ job, onClose }) {
             </IconButton>
           </Box>
 
-          {/* Body */}
-          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+          {/*
+            Body. Deliberately NOT a scroll region of its own: the paper already is one, and the
+            `flex: 1, overflow: auto` that used to live here never worked anyway -- nothing in
+            the chain constrained its height. What it did achieve was a third nested scroller
+            (paper -> body -> log panel), so a swipe on a phone moved whichever one the browser
+            picked. One scroll region, one pinned header.
+          */}
+          <Box>
             {isLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                 <CircularProgress size={20} sx={{ color: meta.color }} />
@@ -741,6 +908,20 @@ function HistoryModal({ job, onClose }) {
                   No runs recorded for this job yet
                 </Typography>
               </Box>
+            ) : isPhone ? (
+              <Stack spacing={1} sx={{ p: 1.25 }}>
+                {rows.map((row, i) => {
+                  const key = runKey(row, i);
+                  return (
+                    <RunCard
+                      key={key}
+                      row={row}
+                      expanded={expandedRun === key}
+                      onToggle={() => setExpandedRun(expandedRun === key ? null : key)}
+                    />
+                  );
+                })}
+              </Stack>
             ) : (
               <Table size="small">
                 <TableHead>
@@ -750,28 +931,27 @@ function HistoryModal({ job, onClose }) {
                       fontSize: '0.66rem', fontWeight: 700,
                       textTransform: 'uppercase', letterSpacing: '0.08em',
                       borderColor: S.divider, py: 1.25,
-                      position: 'sticky', top: 0, zIndex: 1,
+                      // Clears the pinned header rather than sliding under it.
+                      position: 'sticky', top: HEADER_H, zIndex: 1,
                     },
                   }}>
                     <TableCell>Started</TableCell>
-                    {/* Five columns do not fit a phone-width dialog. Duration and
-                        trigger fold away there and reappear on the summary line
-                        below the row, so nothing is actually lost. */}
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Duration</TableCell>
+                    <TableCell>Duration</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Trigger</TableCell>
-                    <TableCell sx={{ width: 36 }} />
+                    <TableCell>Trigger</TableCell>
+                    <TableCell sx={{ width: 44 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {rows.map((row, i) => {
-                    const key      = row.id ?? `${row.startedAt}-${i}`;
+                    const key      = runKey(row, i);
                     const expanded = expandedRun === key;
                     const hasLogs  = !!row.runId;
+                    const toggle   = () => setExpandedRun(expanded ? null : key);
                     return (
                     <React.Fragment key={key}>
                       <TableRow
-                        onClick={hasLogs ? () => setExpandedRun(expanded ? null : key) : undefined}
+                        onClick={hasLogs ? toggle : undefined}
                         sx={{
                           '& td': {
                             color: T.textMuted, fontSize: '0.78rem',
@@ -782,56 +962,51 @@ function HistoryModal({ job, onClose }) {
                         }}
                       >
                         <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.72rem !important' }}>
-                          {fmt(row.startedAt)}
+                          {fmtStarted(row.startedAt)}
                         </TableCell>
-                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                        <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Timer sx={{ fontSize: 12, color: T.textFaint }} />
                             <Typography sx={{ fontSize: '0.74rem', color: T.textMuted }}>
-                              {fmtMs(row.durationMs)}
+                              {fmtRunMs(row.durationMs)}
                             </Typography>
                           </Box>
                         </TableCell>
                         <TableCell>
-                          {row.status === 'SUCCESS' ? (
-                            <Chip label="Success" size="small" icon={<CheckCircle sx={{ fontSize: 11 }} />}
-                              sx={{ bgcolor: T.successBg, color: T.success, height: 18, fontSize: '0.62rem',
-                                '& .MuiChip-icon': { color: T.success, ml: 0.5 } }} />
-                          ) : row.status === 'FAILED' ? (
-                            <Chip label="Failed" size="small" icon={<ErrorIcon sx={{ fontSize: 11 }} />}
-                              sx={{ bgcolor: T.errorBg, color: T.error, height: 18, fontSize: '0.62rem',
-                                '& .MuiChip-icon': { color: T.error, ml: 0.5 } }} />
-                          ) : (
-                            <Chip label={row.status ?? '—'} size="small"
-                              sx={{ bgcolor: S.inset, color: T.textMuted, height: 18, fontSize: '0.62rem' }} />
-                          )}
+                          <StatusChip status={row.status} />
                         </TableCell>
-                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                        <TableCell>
                           <TriggerCell row={row} />
                         </TableCell>
                         <TableCell sx={{ pr: 1 }}>
                           {hasLogs && (
-                            <Tooltip title={expanded ? 'Hide logs' : 'Show this run\u2019s logs'}>
-                              <ExpandMoreRounded sx={{
-                                fontSize: 16, color: T.textFaint, display: 'block',
-                                transition: 'transform 160ms ease',
-                                transform: expanded ? 'rotate(180deg)' : 'none',
-                              }} />
+                            <Tooltip title={expanded ? 'Hide logs' : 'Show this run’s logs'}>
+                              {/* A real button, for a name in the accessibility tree and a
+                                  target bigger than a 16px glyph. The click has to stop here:
+                                  letting it reach the row toggles a second time, which is a
+                                  no-op that looks like a dead control. */}
+                              <IconButton
+                                size="small"
+                                aria-label={expanded ? 'Hide logs' : 'Show logs'}
+                                aria-expanded={expanded}
+                                onClick={(e) => { e.stopPropagation(); toggle(); }}
+                                sx={{ color: T.textFaint }}
+                              >
+                                <ExpandMoreRounded sx={{
+                                  fontSize: 16,
+                                  transition: 'transform 160ms ease',
+                                  transform: expanded ? 'rotate(180deg)' : 'none',
+                                }} />
+                              </IconButton>
                             </Tooltip>
                           )}
                         </TableCell>
                       </TableRow>
 
-                      {/* What the run actually did — the counters the job reported. */}
+                      {/* What the run actually did - the counters the job reported. */}
                       {(row.summary || row.message) && (
                         <TableRow sx={{ '& td': { borderColor: expanded ? 'transparent' : S.divider, py: 0.5, pl: 3 } }}>
                           <TableCell colSpan={5}>
-                            <Box sx={{ display: { xs: 'flex', sm: 'none' }, gap: 1, mb: 0.5 }}>
-                              <Typography sx={{ fontSize: '0.68rem', color: T.textFaint }}>
-                                {fmtMs(row.durationMs)}
-                              </Typography>
-                              <TriggerCell row={row} />
-                            </Box>
                             <RunSummary summary={row.summary} message={row.message} failed={row.status === 'FAILED'} />
                           </TableCell>
                         </TableRow>
@@ -853,7 +1028,7 @@ function HistoryModal({ job, onClose }) {
           </Box>
         </Box>
       )}
-    </Dialog>
+    </SheetDialog>
   );
 }
 

@@ -1,10 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import SheetDialog from '@shared/components/SheetDialog';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Box, Typography, Button, Chip,
-  IconButton, Tooltip, CircularProgress, LinearProgress,
-  TextField, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TablePagination, Checkbox, Dialog,
-  DialogTitle, DialogContent, DialogActions, InputAdornment, Divider,
+  Box,
+  Typography,
+  Button,
+  Chip,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  LinearProgress,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  Checkbox,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  Divider,
 } from '@mui/material';
 import {
   Storage, MemoryRounded, Add, Delete, DeleteSweep, Search,
@@ -13,9 +31,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import {
-  AdminPage, SectionCard, StatCard, StatGrid, EmptyState, adminSurface, AdminActionButton,
-} from '@features/admin/adminUi';
+import { AdminPage, SectionCard, StatCard, StatGrid, EmptyState, adminSurface, AdminActionButton, usePagedListTop } from '@features/admin/adminUi';
 import {
   getRedisInfo,
   getRedisKeys,
@@ -83,6 +99,10 @@ export default function RedisCachePage() {
   /* ── Key browser state ── */
   const [pattern, setPattern]           = useState('*');
   const [page, setPage]                 = useState(0);
+  const listRef = useRef(null);
+  // Page two starts at the top of page two. The rows were replaced, not appended, so staying
+  // where the pager was means opening in the middle of results whose beginning you never saw.
+  usePagedListTop(page, listRef);
   const [rowsPerPage, setRowsPerPage]   = useState(20);
   const [selected, setSelected]         = useState(new Set());
 
@@ -328,7 +348,7 @@ export default function RedisCachePage() {
           )}
 
           {/* Keys table */}
-          <TableContainer sx={{ maxHeight: 'calc(100vh - 420px)', minHeight: 200 }}>
+          <TableContainer ref={listRef} sx={{ maxHeight: 'calc(100vh - 420px)', minHeight: 200 }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ '& th': { bgcolor: S.inset, color: T.textMuted, fontSize: '0.68rem',
@@ -575,7 +595,7 @@ export default function RedisCachePage() {
       </Box>
 
       {/* Flush dialog */}
-      <Dialog
+      <SheetDialog
         open={flushOpen}
         onClose={() => setFlushOpen(false)}
         PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2, minWidth: 420 } }}
@@ -614,7 +634,7 @@ export default function RedisCachePage() {
             Flush
           </Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </AdminPage>
   );
 }

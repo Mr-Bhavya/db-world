@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box, Typography, Chip, LinearProgress,
   IconButton, Skeleton, useTheme, useMediaQuery, Checkbox,
@@ -11,7 +11,7 @@ import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
+import { SectionCard, AdminActionButton, adminSurface, usePagedListTop } from '@features/admin/adminUi';
 import { getRecordsByTag, bulkRemoveTag } from '../api/adminApi';
 import { useTagDefs } from '../records/useTagDefs';
 import PaginationBar from './PaginationBar';
@@ -25,6 +25,10 @@ export default function TagRecordTable({ tagType }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [page, setPage]         = useState(0);
+  const listRef = useRef(null);
+  // Page two starts at the top of page two. The rows were replaced, not appended, so staying
+  // where the pager was means opening in the middle of results whose beginning you never saw.
+  usePagedListTop(page, listRef);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -76,6 +80,9 @@ export default function TagRecordTable({ tagType }) {
   );
 
   return (
+    // The ref goes on a wrapper, not on SectionCard: this is React 18, where a plain function
+    // component silently drops a ref rather than forwarding it.
+    <Box ref={listRef}>
     <SectionCard title={`${tagLabel(tagType)} · ${totalEl} records`} action={toolbar} padding={false} sx={{ mt: 2 }}>
       {isFetching && !isLoading && (
         <LinearProgress sx={{ height: 2, flexShrink: 0, bgcolor: T.tealBg, '& .MuiLinearProgress-bar': { bgcolor: T.teal } }} />
@@ -165,5 +172,6 @@ export default function TagRecordTable({ tagType }) {
       <BulkAddDialog tagType={tagType} open={bulkAddOpen}
         onClose={() => setBulkAddOpen(false)} onDone={() => setBulkAddOpen(false)} />
     </SectionCard>
+    </Box>
   );
 }

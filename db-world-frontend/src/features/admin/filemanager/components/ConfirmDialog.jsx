@@ -1,12 +1,18 @@
 import { forwardRef } from 'react';
 import {
-  Box, Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography, IconButton,
+  Box,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  IconButton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /** Fade + scale entrance/exit, wired into MUI's Dialog transition lifecycle. */
 const Transition = forwardRef(function Transition(props, ref) {
@@ -37,7 +43,7 @@ export default function ConfirmDialog({
   const accent = danger ? T.error : T.teal;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       TransitionComponent={Transition}
@@ -83,6 +89,6 @@ export default function ConfirmDialog({
           {confirmLabel}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

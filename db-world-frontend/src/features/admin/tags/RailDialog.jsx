@@ -1,9 +1,23 @@
 import { useState, useEffect } from 'react';
 import {
-  Box, Typography, Button, Chip, CircularProgress,
-  IconButton, Select, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Alert, Switch, FormControl, InputLabel, Divider, FormHelperText,
+  Box,
+  Typography,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Select,
+  MenuItem,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Switch,
+  FormControl,
+  InputLabel,
+  Divider,
+  FormHelperText,
 } from '@mui/material';
 import AddIcon                from '@mui/icons-material/Add';
 import CloseIcon              from '@mui/icons-material/Close';
@@ -15,6 +29,7 @@ import {
   PAGE_TYPES, BLANK_RULE, BLANK_RAIL, IMAGE_VARIANTS, DISPLAY_TYPES,
 } from './railConstants';
 import { railPageTypes, adminInputSx } from './tagsUtils';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Rail dialog ───────────────────────────────────────────────────────────────
 export default function RailDialog({ open, data, onClose, onSave, saving }) {
@@ -68,7 +83,7 @@ export default function RailDialog({ open, data, onClose, onSave, saving }) {
   const activeRuleType = ruleTypes.find(t => t.value === (rule.type ?? 'tag'));
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+    <SheetDialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2, maxHeight: '92vh' } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         fontWeight: 700, fontSize: '1rem', pb: 1, borderBottom: `1px solid ${S.divider}` }}>
@@ -316,6 +331,6 @@ export default function RailDialog({ open, data, onClose, onSave, saving }) {
           {saving ? <CircularProgress size={18} color="inherit" /> : (form.id ? 'Update' : 'Create')}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

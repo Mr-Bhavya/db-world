@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
+import { DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -13,6 +13,7 @@ import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { createRecord, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 
@@ -89,7 +90,7 @@ export default function RecordCreateModal({ open, onClose }) {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose}
+    <SheetDialog open={open} onClose={handleClose}
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, width: '100%', maxWidth: 580, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: T.textPrimary }}>
         Add record
@@ -189,6 +190,6 @@ export default function RecordCreateModal({ open, onClose }) {
           </Button>
         </DialogActions>
       </form>
-    </Dialog>
+    </SheetDialog>
   );
 }

@@ -1,7 +1,7 @@
 import { Box, Skeleton } from '@mui/material';
 import { useT } from '@shared/theme';
+import { PAGE_SX } from '../ipoLayout';
 
-const PAGE_SX = { pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 4 };
 
 /**
  * Loading placeholder for `IpoDetailPage` while the MAIN `useIpo(id)` query is in flight.
@@ -20,7 +20,7 @@ export default function IpoDetailSkeleton() {
   const block = { bgcolor: T.glassHover };
 
   return (
-    <Box sx={{ ...PAGE_SX, maxWidth: 1100, width: '100%', mx: 'auto' }}>
+    <Box sx={{ ...PAGE_SX }}>
       {/* Back breadcrumb, above the card — same place the loaded page puts it. */}
       <Skeleton variant="text" width={104} height={22} sx={{ ...block, mb: 1.25 }} />
 

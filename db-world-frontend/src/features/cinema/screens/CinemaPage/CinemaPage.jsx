@@ -119,35 +119,11 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
   // Genre pages get their own saved scroll position — otherwise picking a genre
   // off a section scrolled halfway down would land you halfway down the new one.
-  const scrollKey = `cinema_scroll_${apiPage}${category ? `_g${category}` : ''}`;
-  const scrollRestored = React.useRef(false);
 
-  useEffect(() => {
-    scrollRestored.current = false;
-    return () => {
-      sessionStorage.setItem(scrollKey, String(window.scrollY));
-    };
-  }, [scrollKey]);
-
-  // A never-seen page (picking a genre off a scrolled section) must open at the
-  // top — the router keeps the previous scroll offset otherwise. Done before
-  // paint, and only when there is nothing to restore, so it can never yank a
-  // user who started scrolling while the rails were still loading.
-  React.useLayoutEffect(() => {
-    if (sessionStorage.getItem(scrollKey) === null) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    }
-  }, [scrollKey]);
-
-  useEffect(() => {
-    if (railsLoading || rails.length === 0 || scrollRestored.current) return;
-    const saved = parseInt(sessionStorage.getItem(scrollKey) || '0', 10);
-    if (saved > 0) {
-      scrollRestored.current = true;
-      const t = setTimeout(() => window.scrollTo({ top: saved, behavior: 'instant' }), 80);
-      return () => clearTimeout(t);
-    }
-  }, [railsLoading, rails.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // This page used to keep scroll positions in sessionStorage and replay them 80ms after
+  // the rails loaded. `ScrollMemory` does it for every page now, waiting for the content
+  // rather than guessing at a delay -- see there for why four private copies of this was
+  // the reason it worked on some screens and not others.
 
   // Continue Watching is rendered by its own component (lower down), so it can't be
   // the hero banner — the hero is the highest-priority rail that isn't it.
