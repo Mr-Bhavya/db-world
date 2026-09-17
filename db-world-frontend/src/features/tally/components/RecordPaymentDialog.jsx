@@ -169,6 +169,16 @@ export default function RecordPaymentDialog({
             */}
             <Box sx={{
               display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1,
+              /*
+               * Spread across the row on a phone, compact on a desktop.
+               *
+               * The difference is where the swap ends up. From sm it sits at the end of this
+               * same row and takes the leftover width, so the sentence wants to stay together
+               * at the start. On a phone the row wraps and the swap drops to its own line,
+               * which leaves the sentence alone on line one -- clumped at the left with the
+               * whole right half of the box empty.
+               */
+              justifyContent: { xs: 'space-between', sm: 'flex-start' },
             }}>
               <Party member={memberOf(from)} caption="paid" myMemberId={myMemberId} />
               <ArrowForwardRoundedIcon sx={{ fontSize: 18, color: T.teal, flexShrink: 0 }} />
