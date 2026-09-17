@@ -6,6 +6,7 @@ import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useT } from '@shared/theme';
+import { PROSE_MAX_W } from '../ipoLayout';
 import SectionCard from './SectionCard';
 
 /**
@@ -96,7 +97,9 @@ export default function AllotmentGuide() {
       defaultOpen={false}
       icon={<AssignmentTurnedInOutlinedIcon sx={{ fontSize: 15, color: T.teal }} />}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      {/* The only running prose on this page, so it carries the prose measure itself. The
+          page is bounded for an ultrawide window, not for reading — see ipoLayout. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', maxWidth: PROSE_MAX_W }}>
         {STEPS.map((step, i) => (
           <StepRow key={step.title} step={step} index={i} isLast={i === STEPS.length - 1} />
         ))}

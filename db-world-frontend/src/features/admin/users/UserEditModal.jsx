@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, Box, Button, GridLegacy as Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab, InputAdornment, Tooltip, Typography, useMediaQuery, useTheme as useMuiTheme } from '@mui/material';
+import { DialogTitle, DialogContent, Box, Button, GridLegacy as Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab, InputAdornment, Tooltip, Typography, useMediaQuery, useTheme as useMuiTheme } from '@mui/material';
 import CloseIcon        from '@mui/icons-material/Close';
 import VisibilityIcon   from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -14,6 +14,7 @@ import { updateUser, getUserById, updateUserRole, adminSetPassword } from '../ap
 import { updateUserSchema, adminPasswordSchema } from '../schemas/userSchemas';
 import { getInputSx, getDialogSx, getTabSx } from './constants';
 import { TextInput, SelectInput, GENDER_OPTIONS, ROLE_OPTIONS, canonicalGender } from './formFields';
+import SheetDialog from '@shared/components/SheetDialog';
 
 function ProfileTab({ userId, onClose }) {
   const T  = useT();
@@ -213,7 +214,7 @@ export default function UserEditModal({ open, userId, onClose }) {
   const name = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : '';
 
   return (
-    <Dialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm" fullScreen={mobile}>
+    <SheetDialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm" fullScreen={mobile}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pb: 0.5, color: T.textPrimary }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 16, color: T.textPrimary }}>Edit User</Typography>
@@ -231,6 +232,6 @@ export default function UserEditModal({ open, userId, onClose }) {
         {tab === 1 && <PasswordTab userId={userId} onClose={onClose} />}
         {tab === 2 && <RoleTab     userId={userId} onClose={onClose} />}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }

@@ -4,9 +4,9 @@
     {
       "name": "frontend-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "db-world-frontend", "run", "dev", "--", "--port", "3017", "--strictPort"],
+      "runtimeArgs": ["--prefix", "db-world-frontend", "run", "dev:local"],
       "autoPort": false,
-      "port": 3017
+      "port": 3000
     }
   ]
 }

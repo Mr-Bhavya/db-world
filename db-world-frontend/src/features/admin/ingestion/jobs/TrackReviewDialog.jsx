@@ -1,7 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  alpha, Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions,
-  DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, Radio, Stack, Tooltip,
+  alpha,
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  CircularProgress,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  IconButton,
+  Radio,
+  Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import {
@@ -12,6 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 
 import { getJobTracks, submitJobTracks } from '../services/ingestionApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -198,7 +213,7 @@ export default function TrackReviewDialog({ jobId, open, onClose, onSubmitted })
   };
 
   return (
-    <Dialog open={!!open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
+    <SheetDialog open={!!open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ pr: 6 }}>
         <Stack direction="row" spacing={1.25} alignItems="center">
           <Box sx={{
@@ -328,6 +343,6 @@ export default function TrackReviewDialog({ jobId, open, onClose, onSubmitted })
           Apply &amp; continue
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

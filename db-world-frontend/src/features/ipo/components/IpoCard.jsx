@@ -14,7 +14,6 @@ import {
   formatShortDate, formatPriceBand, formatPct, formatCurrency, formatExchange,
   statusMeta, ipoTypeMeta, daysLeftLabel, subscriptionMeta, isClosingToday,
 } from '../utils/format';
-import { saveListScrollForBack } from '../utils/listScrollRestore';
 import CompanyLogo from './CompanyLogo';
 
 /**
@@ -400,9 +399,7 @@ export default function IpoCard({ ipo, index = 0 }) {
 
   // Remember the list's current scroll position before leaving it for this IPO's detail page, so a
   // subsequent in-app "back" (see `IpoDetailPage`'s back action) can restore it — see
-  // `listScrollRestore.js` for why this has to be scoped to this exact navigation.
   const goToDetail = () => {
-    saveListScrollForBack();
     navigate(Constants.ipoDetailPath(ipo.id));
   };
 

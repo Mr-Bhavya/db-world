@@ -84,19 +84,19 @@ public abstract class ServerInfoCollector {
     }
 
     public MemoryInfo getBasicMemoryInfo() {
-        long total  = runtime.totalMemory();
-        long free   = runtime.freeMemory();
-        long max    = runtime.maxMemory();
-        long used   = total - free;
-        double pct  = max > 0 ? (used * 100.0) / max : 0.0;
+        // With no OS-level source in the base collector, the "generic" totals ARE the heap, so
+        // the one snapshot feeds both halves and totalBytes cannot drift from javaTotalMemory.
+        HeapSnapshot heap = readHeap();
+        long used   = heap.used();
+        double pct  = heap.max() > 0 ? (used * 100.0) / heap.max() : 0.0;
 
-        return MemoryInfo.builder()
-                .totalBytes(total).freeBytes(free).usedBytes(used)
-                .totalFormatted(formatBytes(total)).freeFormatted(formatBytes(free)).usedFormatted(formatBytes(used))
+        MemoryInfo info = MemoryInfo.builder()
+                .totalBytes(heap.total()).freeBytes(heap.free()).usedBytes(used)
+                .totalFormatted(formatBytes(heap.total())).freeFormatted(formatBytes(heap.free())).usedFormatted(formatBytes(used))
                 .usedPercent(String.format("%.1f", pct))
-                .javaTotalMemory(total).javaFreeMemory(free).javaMaxMemory(max)
-                .javaTotalFormatted(formatBytes(total)).javaFreeFormatted(formatBytes(free)).javaMaxFormatted(formatBytes(max))
                 .build();
+        addJavaMemoryInfo(info, heap);
+        return info;
     }
 
     protected Map<String, Object> getJvmInfo() {
@@ -498,10 +498,42 @@ public abstract class ServerInfoCollector {
         return false;
     }
 
+    /**
+     * One reading of the JVM heap.
+     *
+     * <p>The heap moves constantly, so asking {@link Runtime} for the same figure twice gives two
+     * different answers. Code that reads it once for the number and again for the formatted
+     * string produces a {@link MemoryInfo} that contradicts itself: a {@code javaUsedMemory} of
+     * 313.9 MB sitting next to a {@code javaUsedFormatted} of "314.9 MB", and a used figure that
+     * is not total minus free. Passing a snapshot around instead of re-reading makes that
+     * impossible by construction, rather than by every caller remembering to use a local.
+     */
+    protected record HeapSnapshot(long total, long free, long max) {
+        public long used() { return total - free; }
+    }
+
+    /** Reads the heap once. Every {@code java*} figure should trace back to one of these. */
+    protected HeapSnapshot readHeap() {
+        return new HeapSnapshot(runtime.totalMemory(), runtime.freeMemory(), runtime.maxMemory());
+    }
+
+    /** Fills the {@code java*} fields from a fresh snapshot. */
     protected void addJavaMemoryInfo(MemoryInfo m) {
-        Runtime rt = Runtime.getRuntime();
-        m.setJavaTotalMemory(rt.totalMemory());  m.setJavaTotalFormatted(formatBytes(rt.totalMemory()));
-        m.setJavaFreeMemory(rt.freeMemory());    m.setJavaFreeFormatted(formatBytes(rt.freeMemory()));
-        m.setJavaMaxMemory(rt.maxMemory());      m.setJavaMaxFormatted(formatBytes(rt.maxMemory()));
+        addJavaMemoryInfo(m, readHeap());
+    }
+
+    /**
+     * Fills all eight {@code java*} fields from the snapshot given.
+     *
+     * <p>Take the overload when the rest of the object describes <em>system</em> memory (the
+     * Linux collector reads {@code /proc/meminfo}); pass your own snapshot when the generic
+     * totals are themselves the heap, so both halves agree.
+     */
+    protected void addJavaMemoryInfo(MemoryInfo m, HeapSnapshot heap) {
+        long used = heap.used();
+        m.setJavaTotalMemory(heap.total()); m.setJavaTotalFormatted(formatBytes(heap.total()));
+        m.setJavaFreeMemory(heap.free());   m.setJavaFreeFormatted(formatBytes(heap.free()));
+        m.setJavaMaxMemory(heap.max());     m.setJavaMaxFormatted(formatBytes(heap.max()));
+        m.setJavaUsedMemory(used);          m.setJavaUsedFormatted(formatBytes(used));
     }
 }

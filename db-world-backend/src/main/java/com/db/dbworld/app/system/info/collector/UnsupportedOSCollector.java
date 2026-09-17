@@ -62,15 +62,17 @@ public class UnsupportedOSCollector extends ServerInfoCollector {
 
     @Override
     public MemoryInfo getMemoryInfo() {
-        long total = runtime.totalMemory(), free = runtime.freeMemory(),
-             max   = runtime.maxMemory(),  used = total - free;
-        return MemoryInfo.builder()
-                .totalBytes(total).freeBytes(free).usedBytes(used)
-                .totalFormatted(formatBytes(total)).freeFormatted(formatBytes(free)).usedFormatted(formatBytes(used))
-                .usedPercent(String.format("%.1f", max > 0 ? (used * 100.0 / max) : 0.0))
-                .javaTotalMemory(total).javaFreeMemory(free).javaMaxMemory(max)
-                .javaTotalFormatted(formatBytes(total)).javaFreeFormatted(formatBytes(free)).javaMaxFormatted(formatBytes(max))
+        // No OS source to fall back on here, so the heap is all there is to report -- and the
+        // generic fields and the java* fields must come from the same reading of it.
+        HeapSnapshot heap = readHeap();
+        long used = heap.used();
+        MemoryInfo info = MemoryInfo.builder()
+                .totalBytes(heap.total()).freeBytes(heap.free()).usedBytes(used)
+                .totalFormatted(formatBytes(heap.total())).freeFormatted(formatBytes(heap.free())).usedFormatted(formatBytes(used))
+                .usedPercent(String.format("%.1f", heap.max() > 0 ? (used * 100.0 / heap.max()) : 0.0))
                 .build();
+        addJavaMemoryInfo(info, heap);
+        return info;
     }
 
     @Override
@@ -128,11 +130,12 @@ public class UnsupportedOSCollector extends ServerInfoCollector {
         try {
             RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
             String[] parts   = rb.getName().split("@");
+            long heapBytes   = runtime.totalMemory();
             return List.of(ProcessInfo.builder()
                     .name("java").pid(Integer.parseInt(parts[0]))
                     .user(System.getProperty("user.name"))
-                    .cpuUsage(0.0).memoryBytes(runtime.totalMemory())
-                    .memoryFormatted(formatBytes(runtime.totalMemory()))
+                    .cpuUsage(0.0).memoryBytes(heapBytes)
+                    .memoryFormatted(formatBytes(heapBytes))
                     .state("Running").commandLine(rb.getClassPath())
                     .build());
         } catch (Exception e) { return List.of(); }
@@ -144,8 +147,9 @@ public class UnsupportedOSCollector extends ServerInfoCollector {
     @Override
     public PerformanceMetrics getPerformanceMetrics() {
         long uptimeMs = ManagementFactory.getRuntimeMXBean().getUptime();
+        HeapSnapshot heap = readHeap();
         return PerformanceMetrics.builder()
-                .memoryLoadPercent(calculatePercentage(runtime.totalMemory() - runtime.freeMemory(), runtime.totalMemory()))
+                .memoryLoadPercent(calculatePercentage(heap.used(), heap.total()))
                 .processCount(1)
                 .uptime(formatUptime(uptimeMs / 1000))
                 .uptimeSeconds(uptimeMs / 1000)

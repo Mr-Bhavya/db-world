@@ -8,7 +8,6 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -39,6 +38,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { getUnassignedFiles, linkFileToRecord, searchRecords } from '../services/ingestionApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -226,7 +226,7 @@ function LinkDialog({ file, open, onClose }) {
   const audioLanguage = getAudioLanguage(file);
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -385,7 +385,7 @@ function LinkDialog({ file, open, onClose }) {
           </Stack>
         </Stack>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

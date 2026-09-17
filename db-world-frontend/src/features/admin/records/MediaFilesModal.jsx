@@ -1,7 +1,17 @@
 import { useState } from 'react';
 import {
-  Box, Typography, IconButton, CircularProgress, Alert, Chip, Tooltip,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
+  Box,
+  Typography,
+  IconButton,
+  CircularProgress,
+  Alert,
+  Chip,
+  Tooltip,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -15,6 +25,7 @@ import Constants from '@shared/constants';
 import { getMediaFiles, deleteMediaFileById, rescanMediaFile } from '../api/adminApi';
 import useIngestionStore from '../ingestion/store/ingestionStore';
 import { useRecordStore } from '../stores/useRecordStore';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '—';
@@ -184,7 +195,7 @@ export function MediaFilesBody({ recordId, record }) {
       })}
 
       {/* Confirm — this now permanently erases the file from disk, not just the DB row. */}
-      <Dialog
+      <SheetDialog
         open={Boolean(confirmFile)}
         onClose={() => setConfirmFile(null)}
         PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.textPrimary, borderRadius: 2, border: `1px solid ${T.glassBorder}`, maxWidth: 420 } }}
@@ -214,7 +225,7 @@ export function MediaFilesBody({ recordId, record }) {
             Delete permanently
           </Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </Box>
   );
 }

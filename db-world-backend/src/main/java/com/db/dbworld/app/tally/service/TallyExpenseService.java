@@ -1,0 +1,482 @@
+package com.db.dbworld.app.tally.service;
+
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest;
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest.ParticipantInput;
+import com.db.dbworld.app.tally.dto.CreateExpenseRequest.PayerInput;
+import com.db.dbworld.app.tally.dto.TallyExpenseDto;
+import com.db.dbworld.app.tally.dto.TallyExpensePageDto;
+import com.db.dbworld.app.tally.entity.*;
+import com.db.dbworld.app.tally.mapper.TallyMapper;
+import com.db.dbworld.app.tally.repository.*;
+import com.db.dbworld.app.tally.entity.TallyActivityAction;
+import com.db.dbworld.app.tally.entity.TallyActivitySubject;
+import org.springframework.data.domain.Limit;
+import com.db.dbworld.core.exception.DbWorldException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * Writing, correcting and voiding expenses.
+ *
+ * <p>Every write here is one transaction covering four tables — the expense, its payers, its
+ * shares and the ledger entries they imply. Splitting that up would let a crash leave an
+ * expense with no ledger rows, which reads as a balance that quietly lost money.
+ */
+@Log4j2
+@Service
+@RequiredArgsConstructor
+public class TallyExpenseService {
+
+    private final TallyAccessService access;
+    private final TallyLedgerService ledgerService;
+    private final TallyExpenseRepository expenses;
+    private final TallyExpensePayerRepository payers;
+    private final TallyExpenseShareRepository shares;
+    private final TallyGroupMemberRepository members;
+    private final TallyActivityService activity;
+    private final TallyActivityRepository activityLog;
+    private final TallyMapper mapper;
+
+    /**
+     * How many expenses one page of the feed holds when the caller does not say.
+     *
+     * <p>Capped rather than unbounded: the feed is the screen people scroll, and a group with
+     * two years of groceries would otherwise serialise every one of them into a phone.
+     */
+    private static final int DEFAULT_PAGE_SIZE = 25;
+    private static final int MAX_PAGE_SIZE = 100;
+
+    /* ============================== create ============================== */
+
+    /**
+     * Records an expense and posts it to the ledger.
+     *
+     * <p>The roster is read <b>inside this transaction</b> and not cached. Delegation is
+     * snapshotted onto each share as it is written, so reading a stale roster would snapshot a
+     * delegation that had already been changed — and snapshots are never revisited, so it would
+     * stay wrong forever.
+     */
+    @Transactional
+    public TallyExpenseDto create(Long userId, String groupId, CreateExpenseRequest request) {
+        var expense = createEntity(userId, groupId, request);
+        activity.expenseAdded(expense, userId);
+        return view(expense);
+    }
+
+    private TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request) {
+        return createEntity(userId, groupId, request, TallyExpenseKind.SPEND, null);
+    }
+
+    /**
+     * The same creation path, told what kind of row it is building.
+     *
+     * <p>Package-private and taken only by {@link TallyLoanService}: a loan has to produce exactly
+     * the payer, share and ledger rows an expense does -- that is what keeps balances, the
+     * settle-up plan, corrections and voiding working on it unchanged -- so it goes through here
+     * rather than assembling its own. The public {@link #create} stays SPEND-only, so no client
+     * can post a loan through the expense endpoint and skip the loan rules.
+     */
+    TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request,
+                                    TallyExpenseKind kind, LocalDate dueDate) {
+        access.requireOpenGroup(userId, groupId);
+
+        // Idempotent replay comes first: a retry must return the original, not validate and
+        // then collide on the unique key with a 500.
+        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
+            var existing = expenses.findByGroupIdAndIdempotencyKey(groupId, request.idempotencyKey());
+            if (existing.isPresent()) {
+                log.debug("Replaying expense {} for idempotency key {}", existing.get().getId(),
+                        request.idempotencyKey());
+                return existing.get();
+            }
+        }
+
+        Map<String, TallyGroupMemberEntity> roster = members.findByGroupIdAndStatus(groupId, TallyMemberStatus.ACTIVE)
+                .stream().collect(Collectors.toMap(TallyGroupMemberEntity::getId, Function.identity()));
+
+        requireKnownMembers(roster, request);
+
+        TallyExpenseEntity expense = new TallyExpenseEntity();
+        expense.setGroupId(groupId);
+        expense.setDescription(request.description().trim());
+        expense.setTotalAmount(request.totalAmount());
+        expense.setDivisionMethod(request.divisionMethod());
+        expense.setCategory(blankToNull(request.category()));
+        expense.setExpenseDate(request.expenseDate());
+        expense.setCreatedByUserId(userId);
+        expense.setNotes(blankToNull(request.notes()));
+        expense.setIdempotencyKey(blankToNull(request.idempotencyKey()));
+        expense.setKind(kind);
+        expense.setDueDate(dueDate);
+        expenses.save(expense);
+
+        List<TallyExpensePayerEntity> payerRows = buildPayers(expense, request.payers());
+        List<TallyExpenseShareEntity> shareRows = buildShares(expense, request, roster);
+
+        payers.saveAll(payerRows);
+        shares.saveAll(shareRows);
+        ledgerService.postExpense(expense, payerRows, shareRows);
+
+        return expense;
+    }
+
+    /* ============================== void ============================== */
+
+    /**
+     * Voids an expense: flags it and reverses its ledger entries.
+     *
+     * <p>Nothing is deleted. The shares and payers stay exactly as written so the expense can
+     * still be opened and read — "who was at that dinner" is a question people ask about
+     * expenses that turned out to be wrong, and it is the reversal that makes the money
+     * disappear, not the row.
+     *
+     * <p>Anyone may void their own; voiding somebody else's needs the owner role.
+     */
+    @Transactional
+    public TallyExpenseDto voidExpense(Long userId, String expenseId) {
+        var expense = voidEntity(userId, expenseId);
+        activity.expenseRemoved(expense, userId);
+        return view(expense);
+    }
+
+    private TallyExpenseEntity voidEntity(Long userId, String expenseId) {
+        TallyExpenseEntity expense = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        access.requireOpenGroup(userId, expense.getGroupId());
+
+        if (!expense.getCreatedByUserId().equals(userId)) {
+            access.requireOwner(userId, expense.getGroupId());
+        }
+        if (!expense.isActive()) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "This expense has already been voided");
+        }
+
+        expense.setStatus(TallyExpenseStatus.VOIDED);
+        ledgerService.reverse(TallyLedgerSourceType.EXPENSE, expense.getId());
+        return expense;
+    }
+
+    /**
+     * Corrects an expense by voiding it and posting a replacement.
+     *
+     * <p>Never an UPDATE. The ledger is append-only and already carries entries describing an
+     * allocation of the old total; editing the expense underneath them would leave the two
+     * describing different facts, with no record that anything changed. Void-and-repost keeps
+     * the history honest — the group can see that the number was corrected, and when.
+     */
+    @Transactional
+    public TallyExpenseDto replace(Long userId, String expenseId, CreateExpenseRequest request) {
+        TallyExpenseEntity original = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        voidEntity(userId, expenseId);
+
+        // The replacement cannot reuse the original's idempotency key -- it is still on the
+        // voided row, and the unique key is per group, not per live row.
+        CreateExpenseRequest replacement = request.idempotencyKey() == null ? request
+                : new CreateExpenseRequest(request.description(), request.totalAmount(),
+                        request.divisionMethod(), request.category(), request.expenseDate(),
+                        request.notes(), null, request.payers(), request.participants());
+
+        // createEntity, not create(): the public one logs "added", and a correction is one
+        // event, not a removal plus an addition. The private pair deliberately says nothing so
+        // the caller decides what the log should read.
+        var posted = createEntity(userId, original.getGroupId(), replacement);
+        activity.expenseCorrected(original, posted, userId);
+        return view(posted);
+    }
+
+    /* ============================== restore ============================== */
+
+    /**
+     * Puts a removed expense back, as a fresh copy.
+     *
+     * <p><b>Not an un-void.</b> Voiding wrote a reversal into an append-only ledger and there
+     * is no such thing as un-reversing it, so this re-posts the original's contents as a new
+     * expense and leaves the removed one exactly where it is. The outcome is the same money;
+     * what differs is that the history keeps both, which is the point of having a log at all.
+     *
+     * <p>The copy reproduces the original faithfully — same split method, same weights, same
+     * snapshotted {@code owedBy} — rather than re-deriving anything. Re-deriving would apply
+     * today's delegations to an expense from last month, which is exactly what snapshotting
+     * exists to prevent.
+     *
+     * <p>It can legitimately fail: if somebody in that expense has since left the group, the
+     * usual membership check refuses and names them. That is the honest answer — their balance
+     * was brought to zero so they could leave, and quietly putting a debt back on them would
+     * undo that.
+     */
+    @Transactional
+    public TallyExpenseDto restore(Long userId, String expenseId) {
+        var original = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        access.requireOpenGroup(userId, original.getGroupId());
+
+        if (original.isActive()) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "That expense has not been removed");
+        }
+        if (activityLog.existsBySubjectTypeAndSubjectIdAndAction(
+                TallyActivitySubject.EXPENSE, expenseId, TallyActivityAction.EXPENSE_RESTORED)) {
+            // Restoring posts a copy, so without this a second tap silently creates the
+            // expense twice and the duplicate looks every bit as legitimate as the first.
+            throw new DbWorldException(HttpStatus.CONFLICT, "That expense has already been put back");
+        }
+
+        var posted = createEntity(userId, original.getGroupId(), asRequest(original));
+        activity.expenseRestored(original, posted, userId);
+        return view(posted);
+    }
+
+    /** Rebuilds the request that would recreate an expense exactly as it was recorded. */
+    private CreateExpenseRequest asRequest(TallyExpenseEntity original) {
+        var method = original.getDivisionMethod();
+        return new CreateExpenseRequest(
+                original.getDescription(),
+                original.getTotalAmount(),
+                method,
+                original.getCategory(),
+                original.getExpenseDate(),
+                original.getNotes(),
+                null,   // a restore is a new write, so it gets a new retry token, not the old one
+                payers.findByExpenseId(original.getId()).stream()
+                        .map(p -> new PayerInput(p.getMemberId(), p.getAmount()))
+                        .toList(),
+                shares.findByExpenseId(original.getId()).stream()
+                        .map(share -> new ParticipantInput(
+                                share.getBeneficiaryMemberId(),
+                                method == TallyMethod.EXACT ? share.getAmount() : null,
+                                method == TallyMethod.PERCENT ? share.getSharePercent() : null,
+                                method == TallyMethod.SHARES ? share.getShareWeight() : null,
+                                share.getOwedByMemberId()))
+                        .toList());
+    }
+
+    /* ============================== read ============================== */
+
+    /** One expense with its payers and shares. */
+    @Transactional(readOnly = true)
+    public TallyExpenseDto get(Long userId, String expenseId) {
+        var expense = expenses.findById(expenseId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
+        access.requireVisibleGroup(userId, expense.getGroupId());
+        return view(expense);
+    }
+
+    /**
+     * A page of the group's expense feed, newest first.
+     *
+     * <p>Keyset, not offset. The cursor is the previous page's last {@code (expenseDate, id)}
+     * handed straight back — see {@link TallyExpensePageDto} for why a DATE cannot be paged on
+     * its own.
+     *
+     * <p>One row more than asked for is fetched and then dropped. That extra row is how
+     * {@code hasMore} is answered without a second COUNT query over the whole group, and a count
+     * would be both slower and a different question — it asks how many exist, when all the
+     * caller needs to know is whether to offer a "load more".
+     */
+    @Transactional(readOnly = true)
+    public TallyExpensePageDto list(Long userId, String groupId, LocalDate cursorDate,
+                                    String cursorId, Integer pageSize) {
+        access.requireVisibleGroup(userId, groupId);
+
+        int size = Math.clamp(pageSize == null ? DEFAULT_PAGE_SIZE : pageSize, 1, MAX_PAGE_SIZE);
+        var probe = Limit.of(size + 1);
+
+        List<TallyExpenseEntity> rows = (cursorDate == null || cursorId == null)
+                ? expenses.findFirstPage(groupId, TallyExpenseStatus.ACTIVE, probe)
+                : expenses.findPageAfter(groupId, TallyExpenseStatus.ACTIVE, cursorDate, cursorId, probe);
+
+        boolean hasMore = rows.size() > size;
+        List<TallyExpenseEntity> page = hasMore ? rows.subList(0, size) : rows;
+
+        // Payers and shares for the whole page in two queries rather than two per expense.
+        Map<String, List<TallyExpensePayerEntity>> payersByExpense =
+                payers.findByExpenseIdIn(page.stream().map(TallyExpenseEntity::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(TallyExpensePayerEntity::getExpenseId));
+        Map<String, List<TallyExpenseShareEntity>> sharesByExpense =
+                shares.findByExpenseIdIn(page.stream().map(TallyExpenseEntity::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(TallyExpenseShareEntity::getExpenseId));
+
+        List<TallyExpenseDto> items = page.stream()
+                .map(e -> mapper.toExpenseDto(e,
+                        mapper.toPayerDtos(payersByExpense.getOrDefault(e.getId(), List.of())),
+                        mapper.toShareDtos(sharesByExpense.getOrDefault(e.getId(), List.of()))))
+                .toList();
+
+        TallyExpenseEntity last = hasMore ? page.getLast() : null;
+        return new TallyExpensePageDto(items,
+                last == null ? null : last.getExpenseDate(),
+                last == null ? null : last.getId(),
+                hasMore);
+    }
+
+    private TallyExpenseDto view(TallyExpenseEntity expense) {
+        return mapper.toExpenseDto(expense,
+                mapper.toPayerDtos(payers.findByExpenseId(expense.getId())),
+                mapper.toShareDtos(shares.findByExpenseId(expense.getId())));
+    }
+
+    /* ============================== building rows ============================== */
+
+    private List<TallyExpensePayerEntity> buildPayers(TallyExpenseEntity expense, List<PayerInput> inputs) {
+        Set<String> seen = new HashSet<>();
+        List<TallyExpensePayerEntity> rows = new ArrayList<>(inputs.size());
+        for (PayerInput in : inputs) {
+            if (!seen.add(in.memberId())) {
+                // The unique key would catch this, but as a 500 from a constraint violation.
+                throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                        "The same person is listed twice as a payer");
+            }
+            TallyExpensePayerEntity p = new TallyExpensePayerEntity();
+            p.setExpenseId(expense.getId());
+            p.setMemberId(in.memberId());
+            p.setAmount(in.amount());
+            rows.add(p);
+        }
+        return rows;
+    }
+
+    /**
+     * Turns the split method into exact amounts, then snapshots who is liable for each.
+     *
+     * <p>All four methods go through {@link TallyAllocator} — including EXACT, which might look
+     * like it needs no arithmetic. It does not need dividing, but it does need the same
+     * validation, and routing it down a separate path is how the one method that skips the
+     * "does this add up" check gets written.
+     */
+    private List<TallyExpenseShareEntity> buildShares(TallyExpenseEntity expense,
+                                                      CreateExpenseRequest request,
+                                                      Map<String, TallyGroupMemberEntity> roster) {
+        List<ParticipantInput> participants = request.participants();
+        Set<String> seen = new HashSet<>();
+        for (ParticipantInput p : participants) {
+            if (!seen.add(p.memberId())) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                        "The same person is listed twice in the split");
+            }
+        }
+
+        BigDecimal total = expense.getTotalAmount();
+        List<TallyAllocator.Allocation> amounts = switch (request.divisionMethod()) {
+            case EQUAL -> TallyAllocator.allocateEqually(total,
+                    participants.stream().map(ParticipantInput::memberId).toList());
+
+            case EXACT -> {
+                // Nothing is divided here, so the "do these add up" check is the only thing
+                // standing between a typo and an expense whose parts do not equal its whole.
+                BigDecimal sum = participants.stream()
+                        .map(p -> requirePresent(p.exactAmount(), "an amount", p.memberId()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (sum.compareTo(total) != 0) {
+                    throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                            "The amounts add up to %s, but the expense is %s".formatted(sum, total));
+                }
+                yield participants.stream()
+                        .map(p -> new TallyAllocator.Allocation(p.memberId(), p.exactAmount()))
+                        .toList();
+            }
+
+            case PERCENT -> {
+                BigDecimal sum = participants.stream()
+                        .map(p -> requirePresent(p.percent(), "a percentage", p.memberId()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (sum.compareTo(new BigDecimal("100")) != 0) {
+                    throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                            "Percentages must add up to 100, not " + sum.stripTrailingZeros().toPlainString());
+                }
+                // Percentages are weights: the allocator turns them into rupees that sum
+                // exactly, which multiplying each share out separately would not.
+                yield TallyAllocator.allocate(total, participants.stream()
+                        .map(p -> new TallyAllocator.Weight(p.memberId(), p.percent()))
+                        .toList());
+            }
+
+            case SHARES -> yieldShares(total, participants);
+        };
+
+        Map<String, BigDecimal> byMember = amounts.stream()
+                .collect(Collectors.toMap(TallyAllocator.Allocation::memberId, TallyAllocator.Allocation::amount));
+
+        List<TallyExpenseShareEntity> rows = new ArrayList<>(participants.size());
+        for (ParticipantInput p : participants) {
+            TallyExpenseShareEntity s = new TallyExpenseShareEntity();
+            s.setExpenseId(expense.getId());
+            s.setBeneficiaryMemberId(p.memberId());
+            s.setOwedByMemberId(resolveLiability(p, roster));
+            s.setAmount(byMember.get(p.memberId()));
+            s.setSharePercent(p.percent());
+            s.setShareWeight(p.shareWeight());
+            rows.add(s);
+        }
+        return rows;
+    }
+
+    private static List<TallyAllocator.Allocation> yieldShares(BigDecimal total, List<ParticipantInput> participants) {
+        List<TallyAllocator.Weight> weights = participants.stream()
+                .map(p -> new TallyAllocator.Weight(p.memberId(),
+                        requirePresent(p.shareWeight(), "a number of shares", p.memberId())))
+                .toList();
+        return TallyAllocator.allocate(total, weights);
+    }
+
+    /**
+     * Who owes this share: the explicit override if one was sent, otherwise the member's
+     * standing delegation, otherwise themselves.
+     *
+     * <p>This is the snapshot. Once written it is never revisited, which is what makes changing
+     * a standing delegation safe — last month's groceries keep the answer that was true when
+     * they were bought.
+     */
+    private String resolveLiability(ParticipantInput p, Map<String, TallyGroupMemberEntity> roster) {
+        if (p.owedByMemberId() != null && !p.owedByMemberId().isBlank()) {
+            if (!roster.containsKey(p.owedByMemberId())) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                        "Cannot make somebody outside this group liable for a share");
+            }
+            return p.owedByMemberId();
+        }
+        String standing = roster.get(p.memberId()).getPaidForByMemberId();
+        return standing != null ? standing : p.memberId();
+    }
+
+    /* ============================== validation ============================== */
+
+    private static void requireKnownMembers(Map<String, TallyGroupMemberEntity> roster,
+                                            CreateExpenseRequest request) {
+        // Plain id columns mean Hibernate emits no foreign keys, so nothing below this line
+        // would stop an expense referencing a member of somebody else's group.
+        List<String> referenced = new ArrayList<>();
+        request.payers().forEach(p -> referenced.add(p.memberId()));
+        request.participants().forEach(p -> referenced.add(p.memberId()));
+
+        List<String> unknown = referenced.stream().distinct().filter(id -> !roster.containsKey(id)).sorted().toList();
+        if (!unknown.isEmpty()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                    "Not an active member of this group: " + String.join(", ", unknown));
+        }
+    }
+
+    private static BigDecimal requirePresent(BigDecimal value, String what, String memberId) {
+        if (value == null) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                    "This split needs %s for every person, and one is missing for %s".formatted(what, memberId));
+        }
+        return value;
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+}

@@ -1,7 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
-  Box, Drawer, Dialog, IconButton, Typography, Tooltip, CircularProgress, Button,
-  useMediaQuery, useTheme,
+  Box,
+  Drawer,
+  IconButton,
+  Typography,
+  Tooltip,
+  CircularProgress,
+  Button,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -11,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useT } from '@shared/theme';
 import { downloadTicketUrl, fetchTextPreview } from '../api/fileManagerApi';
 import { getFileColor, getFileEmoji } from './fileIcons';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const PdfViewer = lazy(() => import('@shared/components/pdf/PdfViewer'));
 
@@ -313,9 +321,9 @@ export default function PreviewPanel({ open, item, items = [], onClose, onNaviga
 
   if (isMobile) {
     return (
-      <Dialog fullScreen open={Boolean(open && item)} onClose={onClose} PaperProps={{ sx: { bgcolor: T.sidebar } }}>
+      <SheetDialog fullScreen open={Boolean(open && item)} onClose={onClose} PaperProps={{ sx: { bgcolor: T.sidebar } }}>
         {body}
-      </Dialog>
+      </SheetDialog>
     );
   }
 

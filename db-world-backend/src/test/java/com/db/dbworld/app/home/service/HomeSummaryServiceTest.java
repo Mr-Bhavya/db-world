@@ -18,6 +18,9 @@ import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.service.IpoQueryService;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
+import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
+import com.db.dbworld.app.tally.service.TallyGroupService;
 import com.db.dbworld.app.wallet.entity.WalletDocumentEntity;
 import com.db.dbworld.app.wallet.repository.WalletDocumentRepository;
 import com.db.dbworld.core.context.UserContext;
@@ -68,6 +71,7 @@ class HomeSummaryServiceTest {
     @Mock private WatchProgressService watchProgressService;
     @Mock private WalletDocumentRepository walletDocumentRepository;
     @Mock private PasswordManagerRepository passwordManagerRepository;
+    @Mock private TallyGroupService tallyGroupService;
     @Mock private UserNotificationRepository notificationRepository;
     @Mock private MediaRequestService mediaRequestService;
     @Mock private CatalogIngestRequestService catalogIngestRequestService;
@@ -78,8 +82,9 @@ class HomeSummaryServiceTest {
     @BeforeEach
     void setUp() {
         service = new HomeSummaryService(ipoQueryService, recordRepository, watchProgressService,
-                walletDocumentRepository, passwordManagerRepository, notificationRepository,
-                mediaRequestService, catalogIngestRequestService, userContext, FIXED_CLOCK);
+                walletDocumentRepository, passwordManagerRepository, tallyGroupService,
+                notificationRepository, mediaRequestService, catalogIngestRequestService,
+                userContext, FIXED_CLOCK);
 
         when(ipoQueryService.list(any(), any(), any()))
                 .thenReturn(new IpoListResponse(List.of(), Instant.now(FIXED_CLOCK)));
@@ -100,6 +105,7 @@ class HomeSummaryServiceTest {
         assertThat(summary.cinema()).isNotNull();
         assertThat(summary.wallet()).isNull();
         assertThat(summary.vault()).isNull();
+        assertThat(summary.tally()).isNull();
         assertThat(summary.notifications()).isNull();
         assertThat(summary.admin()).isNull();
     }
@@ -115,6 +121,7 @@ class HomeSummaryServiceTest {
         verify(passwordManagerRepository, never()).countByUserEntityUserId(anyLong());
         verify(notificationRepository, never()).countByRecipientUserIdAndReadFalse(anyLong());
         verify(watchProgressService, never()).getContinueWatching(anyLong());
+        verify(tallyGroupService, never()).listMine(anyLong());
     }
 
     @Test
@@ -411,5 +418,75 @@ class HomeSummaryServiceTest {
         doc.setLabel(label);
         doc.setExpiryDate(expiryDate);
         return doc;
+    }
+
+    /* -- Tally ------------------------------------------------------------------------------- */
+
+    @Test
+    void tallySectionSumsOnlyLiveSharedLedgers() {
+        signedInAs("VIEWER");
+        when(tallyGroupService.listMine(USER_ID)).thenReturn(List.of(
+                ledger("g1", "Goa trip",  TallyGroupKind.GROUP,    false, "2450.00"),
+                ledger("g2", "Riya",      TallyGroupKind.DIRECT,   false, "-300.50"),
+                ledger("g3", "Flatmates", TallyGroupKind.GROUP,    false, "0.00"),
+                // Neither of these may reach the headline figure: a personal ledger has no
+                // counterparty, and an archived one is a finished trip whose number is history.
+                ledger("g4", "Me",        TallyGroupKind.PERSONAL, false, "999.00"),
+                ledger("g5", "Manali",    TallyGroupKind.GROUP,    true,  "500.00")));
+
+        HomeSummaryDto.TallySection tally = service.summary().tally();
+
+        assertThat(tally.net()).isEqualByComparingTo("2149.50");
+        assertThat(tally.ledgers()).isEqualTo(3L);
+        assertThat(tally.outstanding()).isEqualTo(2L);
+        assertThat(tally.top().id()).isEqualTo("g1");
+    }
+
+    /** The named ledger is the biggest by ABSOLUTE balance, so a debt can outrank a credit. */
+    @Test
+    void tallyTopLedgerIsTheLargestDebtOrCredit() {
+        signedInAs("VIEWER");
+        when(tallyGroupService.listMine(USER_ID)).thenReturn(List.of(
+                ledger("g1", "Goa trip", TallyGroupKind.GROUP,  false, "120.00"),
+                ledger("g2", "Riya",     TallyGroupKind.DIRECT, false, "-4000.00")));
+
+        HomeSummaryDto.TallySection tally = service.summary().tally();
+
+        assertThat(tally.top().id()).isEqualTo("g2");
+        assertThat(tally.net()).isEqualByComparingTo("-3880.00");
+    }
+
+    @Test
+    void tallySectionNamesNoLedgerWhenEverythingIsSquare() {
+        signedInAs("VIEWER");
+        when(tallyGroupService.listMine(USER_ID)).thenReturn(List.of(
+                ledger("g1", "Flatmates", TallyGroupKind.GROUP, false, "0.00")));
+
+        HomeSummaryDto.TallySection tally = service.summary().tally();
+
+        assertThat(tally.net()).isEqualByComparingTo("0.00");
+        assertThat(tally.outstanding()).isZero();
+        assertThat(tally.top()).isNull();
+    }
+
+    /** A ledger with no balance recorded yet must not take the sum down with it. */
+    @Test
+    void tallySectionTreatsAMissingBalanceAsZero() {
+        signedInAs("VIEWER");
+        when(tallyGroupService.listMine(USER_ID)).thenReturn(List.of(
+                ledger("g1", "Goa trip", TallyGroupKind.GROUP, false, "75.00"),
+                ledger("g2", "New one",  TallyGroupKind.GROUP, false, null)));
+
+        HomeSummaryDto.TallySection tally = service.summary().tally();
+
+        assertThat(tally.net()).isEqualByComparingTo("75.00");
+        assertThat(tally.outstanding()).isEqualTo(1L);
+    }
+
+    /** Icon, category and currency play no part in these sums, so they carry placeholders. */
+    private static TallyGroupSummaryDto ledger(String id, String name, TallyGroupKind kind,
+                                               boolean archived, String balance) {
+        return new TallyGroupSummaryDto(id, name, kind, "*", "travel", "INR",
+                archived, 3, balance == null ? null : new BigDecimal(balance), null);
     }
 }

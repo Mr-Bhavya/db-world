@@ -4,7 +4,6 @@ import {
   Alert,
   Box,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -18,6 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import IngestionForm from '../form/IngestionForm';
 import { getJobParams, rerunJob } from '../services/ingestionApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Map the backend {@code JobParamsDto} snapshot onto the ingestion form's value shape.
@@ -75,7 +75,7 @@ export default function RerunEditDialog({ jobId, open, onClose }) {
     null;
 
   return (
-    <Dialog
+    <SheetDialog
       open={!!open}
       onClose={onClose}
       fullWidth
@@ -141,6 +141,6 @@ export default function RerunEditDialog({ jobId, open, onClose }) {
           />
         ) : null}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }

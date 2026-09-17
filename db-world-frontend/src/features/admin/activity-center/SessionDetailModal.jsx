@@ -1,7 +1,15 @@
 import React from 'react';
 import {
-  Box, Typography, Dialog, DialogContent, IconButton, Chip, Stack, Skeleton,
-  useMediaQuery, useTheme as useMuiTheme, alpha,
+  Box,
+  Typography,
+  DialogContent,
+  IconButton,
+  Chip,
+  Stack,
+  Skeleton,
+  useMediaQuery,
+  useTheme as useMuiTheme,
+  alpha,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DevicesIcon from '@mui/icons-material/Devices';
@@ -18,6 +26,7 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import { useQuery } from '@tanstack/react-query';
 import { useT } from '@shared/theme/ThemeContext';
 import { fetchSessionEvents } from './activityApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ─── formatting helpers (mirrors SessionsTab's — kept local per-tab convention) ─
 
@@ -336,7 +345,7 @@ export default function SessionDetailModal({ session, onClose }) {
   const open = !!session;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={mobile}
+    <SheetDialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={mobile}
       PaperProps={{ sx: { height: mobile ? '100%' : '85vh', maxHeight: mobile ? '100%' : '85vh', display: 'flex', flexDirection: 'column', bgcolor: T.bg } }}>
       {session && (
         <>
@@ -369,6 +378,6 @@ export default function SessionDetailModal({ session, onClose }) {
           </DialogContent>
         </>
       )}
-    </Dialog>
+    </SheetDialog>
   );
 }

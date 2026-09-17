@@ -1,9 +1,22 @@
 import { useState } from 'react';
 import {
-  Box, Typography, Button, Chip, CircularProgress,
-  IconButton, Tooltip, Select, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Switch, FormControl, InputLabel, Divider,
+  Box,
+  Typography,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Tooltip,
+  Select,
+  MenuItem,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Switch,
+  FormControl,
+  InputLabel,
+  Divider,
 } from '@mui/material';
 import CloseIcon              from '@mui/icons-material/Close';
 import TuneIcon               from '@mui/icons-material/Tune';
@@ -16,6 +29,7 @@ import { getTagDefinitions, updateTagDefinition } from '../api/adminApi';
 import { useTagDefs } from '../records/useTagDefs';
 import { useRailMeta } from './useRailMeta';
 import { adminInputSx, fmtLastRefreshed } from './tagsUtils';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Tag definitions panel ─────────────────────────────────────────────────────
 export default function TagDefinitionsPanel() {
@@ -109,7 +123,7 @@ export default function TagDefinitionsPanel() {
 
       {/* Edit dialog */}
       {editDef && (
-        <Dialog open onClose={() => setEditDef(null)} maxWidth="sm" fullWidth
+        <SheetDialog open onClose={() => setEditDef(null)} maxWidth="sm" fullWidth
           PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2 } }}>
           <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             fontWeight: 700, fontSize: '0.95rem', pb: 1, borderBottom: `1px solid ${S.divider}` }}>
@@ -178,7 +192,7 @@ export default function TagDefinitionsPanel() {
               {savingDef ? <CircularProgress size={18} color="inherit" /> : 'Save'}
             </Button>
           </DialogActions>
-        </Dialog>
+        </SheetDialog>
       )}
     </SectionCard>
   );

@@ -16,6 +16,9 @@ import com.db.dbworld.app.home.dto.HomeSummaryDto;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.service.IpoQueryService;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
+import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
+import com.db.dbworld.app.tally.entity.TallyGroupKind;
+import com.db.dbworld.app.tally.service.TallyGroupService;
 import com.db.dbworld.app.wallet.entity.WalletDocumentEntity;
 import com.db.dbworld.app.wallet.repository.WalletDocumentRepository;
 import com.db.dbworld.config.AppConstants;
@@ -27,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -78,6 +82,7 @@ public class HomeSummaryService {
     private final WatchProgressService watchProgressService;
     private final WalletDocumentRepository walletDocumentRepository;
     private final PasswordManagerRepository passwordManagerRepository;
+    private final TallyGroupService tallyGroupService;
     private final UserNotificationRepository notificationRepository;
     private final MediaRequestService mediaRequestService;
     private final CatalogIngestRequestService catalogIngestRequestService;
@@ -90,13 +95,14 @@ public class HomeSummaryService {
                               WatchProgressService watchProgressService,
                               WalletDocumentRepository walletDocumentRepository,
                               PasswordManagerRepository passwordManagerRepository,
+                              TallyGroupService tallyGroupService,
                               UserNotificationRepository notificationRepository,
                               MediaRequestService mediaRequestService,
                               CatalogIngestRequestService catalogIngestRequestService,
                               UserContext userContext) {
         this(ipoQueryService, recordRepository, watchProgressService, walletDocumentRepository,
-                passwordManagerRepository, notificationRepository, mediaRequestService,
-                catalogIngestRequestService, userContext, Clock.systemUTC());
+                passwordManagerRepository, tallyGroupService, notificationRepository,
+                mediaRequestService, catalogIngestRequestService, userContext, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for a deterministic "today" (IST). */
@@ -105,6 +111,7 @@ public class HomeSummaryService {
                        WatchProgressService watchProgressService,
                        WalletDocumentRepository walletDocumentRepository,
                        PasswordManagerRepository passwordManagerRepository,
+                       TallyGroupService tallyGroupService,
                        UserNotificationRepository notificationRepository,
                        MediaRequestService mediaRequestService,
                        CatalogIngestRequestService catalogIngestRequestService,
@@ -115,6 +122,7 @@ public class HomeSummaryService {
         this.watchProgressService = watchProgressService;
         this.walletDocumentRepository = walletDocumentRepository;
         this.passwordManagerRepository = passwordManagerRepository;
+        this.tallyGroupService = tallyGroupService;
         this.notificationRepository = notificationRepository;
         this.mediaRequestService = mediaRequestService;
         this.catalogIngestRequestService = catalogIngestRequestService;
@@ -134,6 +142,7 @@ public class HomeSummaryService {
                 section("cinema", () -> cinemaSection(userId)),
                 userId == null ? null : section("wallet", () -> walletSection(userId)),
                 userId == null ? null : section("vault", () -> vaultSection(userId)),
+                userId == null ? null : section("tally", () -> tallySection(userId)),
                 userId == null ? null : section("notifications", () -> notificationSection(userId)),
                 isAdmin(user) ? section("admin", this::adminSection) : null
         );
@@ -227,6 +236,45 @@ public class HomeSummaryService {
     private HomeSummaryDto.VaultSection vaultSection(Long userId) {
         return new HomeSummaryDto.VaultSection(
                 passwordManagerRepository.countByUserEntityUserId(userId));
+    }
+
+    /**
+     * Tally's tile.
+     *
+     * <p>Goes through {@link TallyGroupService#listMine} rather than querying balances here: that
+     * method already owns the per-ledger balance read, and a second implementation of "what does
+     * this user owe" is the kind of duplicate that drifts silently until the tile and the page
+     * disagree about money.
+     *
+     * <p>The filtering mirrors {@code splitLedgers()} in {@code tallyFormat.js}, which is what the
+     * landing page draws its own headline from.
+     */
+    private HomeSummaryDto.TallySection tallySection(Long userId) {
+        List<TallyGroupSummaryDto> live = tallyGroupService.listMine(userId).stream()
+                .filter(g -> g.kind() != TallyGroupKind.PERSONAL)
+                .filter(g -> !g.archived())
+                .toList();
+
+        BigDecimal net = live.stream()
+                .map(g -> g.myBalance() == null ? BigDecimal.ZERO : g.myBalance())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<TallyGroupSummaryDto> owing = live.stream()
+                .filter(g -> g.myBalance() != null && g.myBalance().signum() != 0)
+                .toList();
+
+        // Biggest by absolute balance, so the tile names the ledger worth opening first -- the
+        // same ordering the landing page gives its rows.
+        TallyGroupSummaryDto top = owing.stream()
+                .max(Comparator.comparing((TallyGroupSummaryDto g) -> g.myBalance().abs()))
+                .orElse(null);
+
+        return new HomeSummaryDto.TallySection(
+                net,
+                live.size(),
+                owing.size(),
+                top == null ? null : new HomeSummaryDto.TallyLedger(
+                        top.id(), top.name(), top.icon(), top.myBalance()));
     }
 
     private HomeSummaryDto.NotificationSection notificationSection(Long userId) {

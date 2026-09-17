@@ -272,7 +272,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         double usedPct  = calculatePercentage(usedKb, totalKb);
         double swapPct  = calculatePercentage(swapUsedKb, swapTotalKb);
 
-        return MemoryInfo.builder()
+        MemoryInfo info = MemoryInfo.builder()
                 .totalBytes(total).freeBytes(free).usedBytes(used)
                 .totalFormatted(formatBytes(total)).freeFormatted(formatBytes(free)).usedFormatted(formatBytes(used))
                 .availableFormatted(formatBytes(avail))
@@ -283,13 +283,12 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .swapTotalFormatted(formatBytes(swapTotal)).swapFreeFormatted(formatBytes(swapFree))
                 .swapUsedFormatted(formatBytes(swapUsed))
                 .swapUsedPercent(String.format("%.1f", swapPct))
-                .javaTotalMemory(runtime.totalMemory()).javaFreeMemory(runtime.freeMemory()).javaMaxMemory(runtime.maxMemory())
-                .javaUsedMemory(runtime.totalMemory() - runtime.freeMemory())
-                .javaTotalFormatted(formatBytes(runtime.totalMemory()))
-                .javaFreeFormatted(formatBytes(runtime.freeMemory()))
-                .javaMaxFormatted(formatBytes(runtime.maxMemory()))
-                .javaUsedFormatted(formatBytes(runtime.totalMemory() - runtime.freeMemory()))
                 .build();
+        // Everything above is system memory from /proc/meminfo; the heap is a separate reading,
+        // taken once. This used to be eight inline calls to Runtime, which is how the used figure
+        // and its own formatted string ended up derived from different instants.
+        addJavaMemoryInfo(info);
+        return info;
     }
 
     @Override
@@ -301,25 +300,16 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         long total = totalKb * 1024L, avail = availKb * 1024L, used = usedKb * 1024L;
         double pct = calculatePercentage(usedKb, totalKb);
 
-        long javaTotal = runtime.totalMemory(), javaFree = runtime.freeMemory(), javaMax = runtime.maxMemory();
-        long javaUsed  = javaTotal - javaFree;
-
-        return MemoryInfo.builder()
+        MemoryInfo info = MemoryInfo.builder()
                 .totalBytes(total).usedBytes(used).freeBytes(avail)
                 .totalFormatted(formatBytes(total))
                 .usedFormatted(formatBytes(used))
                 .freeFormatted(formatBytes(avail))
                 .availableFormatted(formatBytes(avail))
                 .usedPercent(String.format("%.1f", pct))
-                .javaTotalMemory(javaTotal)
-                .javaFreeMemory(javaFree)
-                .javaMaxMemory(javaMax)
-                .javaUsedMemory(javaUsed)
-                .javaTotalFormatted(formatBytes(javaTotal))
-                .javaFreeFormatted(formatBytes(javaFree))
-                .javaMaxFormatted(formatBytes(javaMax))
-                .javaUsedFormatted(formatBytes(javaUsed))
                 .build();
+        addJavaMemoryInfo(info);
+        return info;
     }
 
     private Map<String, Long> parseMeminfo() {

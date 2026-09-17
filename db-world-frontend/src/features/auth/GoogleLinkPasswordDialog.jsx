@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -18,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
 import { linkGoogleWithPassword } from './api/recoveryApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Asks for the account password so a Google identity can be attached to it.
@@ -63,7 +63,7 @@ export default function GoogleLinkPasswordDialog({ open, idToken, email, onClose
   }, [idToken, loading, onLinked, password]);
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={loading ? undefined : onClose}
       maxWidth="xs"
@@ -153,6 +153,6 @@ export default function GoogleLinkPasswordDialog({ open, idToken, email, onClose
           </Button>
         </DialogActions>
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

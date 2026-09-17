@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import {
-  Chip, Menu, MenuItem, ListItemText, Box, Typography,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
+  Chip,
+  Menu,
+  MenuItem,
+  ListItemText,
+  Box,
+  Typography,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import { useRecordVisibility } from './useRecordVisibility';
 import { VISIBILITY_ORDER, visibilityMeta } from './visibilityConstants';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Inline visibility control shared by the records table, mobile list and the detail drawer
@@ -78,7 +88,7 @@ export default function VisibilityControl({ row, size = 'small' }) {
         })}
       </Menu>
 
-      <Dialog
+      <SheetDialog
         open={confirmPublish}
         onClose={() => setConfirmPublish(false)}
         PaperProps={{ sx: { bgcolor: T.sidebar, color: T.textPrimary, border: `1px solid ${T.glassBorder}`, borderRadius: 2 } }}
@@ -97,7 +107,7 @@ export default function VisibilityControl({ row, size = 'small' }) {
             Publish anyway
           </Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </>
   );
 }

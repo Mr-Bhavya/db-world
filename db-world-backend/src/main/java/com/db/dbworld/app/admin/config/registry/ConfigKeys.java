@@ -92,4 +92,8 @@ public final class ConfigKeys {
     public static final String INGESTION_PROCESSING_THREADS           = "ingestion.processing-threads";
     // Master switch for scrub-preview storyboard generation during ingestion.
     public static final String INGESTION_STORYBOARD_ENABLED           = "ingestion.storyboard.enabled";
+
+    // Scheduler — how long scheduler_job_history rows are kept before the nightly prune.
+    public static final String SCHEDULER_HISTORY_RETENTION_DAYS        = "scheduler.history.retention-days";
+    public static final String SCHEDULER_HISTORY_RETENTION_DAYS_FREQUENT = "scheduler.history.retention-days-frequent";
 }

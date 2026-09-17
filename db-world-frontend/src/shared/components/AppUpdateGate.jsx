@@ -17,6 +17,32 @@ function formatSize(bytes) {
 }
 
 /**
+ * What to do with an update that targets the "admin" audience, given the current auth snapshot.
+ *
+ * <p>Three outcomes, and the third is the one whose absence caused the bug:
+ * <ul>
+ *   <li>{@code 'show'} — a confirmed ADMIN/OWNER.</li>
+ *   <li>{@code 'discard'} — a confirmed non-admin. A real answer, so stop holding the update.</li>
+ *   <li>{@code 'wait'} — no answer YET. Either the initial verify is still running, or the app is
+ *       biometric-locked, or nobody is signed in and still might be.</li>
+ * </ul>
+ *
+ * <p>`locked` matters as much as `loading`. With biometric unlock enabled the auth context starts
+ * at <code>{ ...INITIAL_AUTH, loading: false, locked: true }</code> — loading is already false
+ * while role is still null, because the fingerprint prompt has not been answered. Treating that as
+ * "resolved, not an admin" discarded the update before the user could possibly have unlocked.
+ *
+ * @param {{loading?: boolean, locked?: boolean, isAuthenticated?: boolean, role?: string}} auth
+ * @returns {'show'|'discard'|'wait'}
+ */
+export function adminAudienceDecision(auth) {
+  if (auth?.loading || auth?.locked) return 'wait';
+  const role = String(auth?.role ?? '').replace(/^ROLE_/i, '').trim().toUpperCase();
+  if (role === 'ADMIN' || role === 'OWNER') return 'show';
+  return auth?.isAuthenticated ? 'discard' : 'wait';
+}
+
+/**
  * Self-update gate for the sideloaded Android app. On launch it asks the
  * backend for the latest published build (GET /api/app/version) and, if newer
  * than the installed versionCode, shows the shared AppPromoDialog. Tapping
@@ -72,16 +98,34 @@ export default function AppUpdateGate() {
     return () => { cancelled = true; };
   }, []);
 
-  // Once auth is ready, evaluate any deferred admin-audience update.
+  /**
+   * Once auth is ready, evaluate any deferred admin-audience update.
+   *
+   * <p>"Ready" has to include `locked`, not just `loading`. When biometric unlock is enabled the
+   * context starts the session at `{ ...INITIAL_AUTH, loading: false, locked: true }` — loading is
+   * ALREADY false while the role is still null, because the user has not unlocked yet. The old
+   * condition read that as "auth resolved, role is not admin", and then consumed the pending
+   * update permanently. The dialog was thrown away before the fingerprint prompt had even been
+   * answered, so an admin on a biometric-locked phone could never see an admin-audience release.
+   *
+   * <p>That is why this looked like a regression after v3.0.26: every release up to it shipped
+   * `releaseAudience: "all"`, which takes the immediate path above and never touches this effect.
+   * v3.0.27 and v3.0.28 were both published admin-only, which routed them straight into the bug.
+   *
+   * <p>Consumption is now tied to getting a real ANSWER. A signed-in non-admin is a definitive no.
+   * An anonymous visitor is not an answer at all — they may still sign in this session — so the
+   * update keeps waiting rather than being discarded, which also covers "use password instead".
+   */
   useEffect(() => {
-    if (!pendingAdminUpdate || auth.loading) return;
-    const role = String(auth.role ?? '').replace(/^ROLE_/i, '').trim().toUpperCase();
-    if (role === 'ADMIN' || role === 'OWNER') {
+    if (!pendingAdminUpdate) return;
+    const decision = adminAudienceDecision(auth);
+    if (decision === 'wait') return;
+    if (decision === 'show') {
       setInfo({ ...pendingAdminUpdate, mandatory: Boolean(pendingAdminUpdate.mandatory) });
       setOpen(true);
     }
-    setPendingAdminUpdate(null); // consumed — don't re-evaluate on later role changes
-  }, [pendingAdminUpdate, auth.loading, auth.role]);
+    setPendingAdminUpdate(null);
+  }, [pendingAdminUpdate, auth]);
 
   // Download progress from the native plugin.
   useEffect(() => {

@@ -28,7 +28,12 @@ export default function PaginationBar({ page, totalPages, totalElements, pageSiz
   }, [page, totalPages]);
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 0.5, sm: 1 },
+    <Box sx={{
+      // Sticky, so the control stays under the cursor wherever the page change leaves the
+      // scroll. Paging through six pages otherwise means scrolling back down six times --
+      // which is the cost of landing at the top of the table, paid back here.
+      position: 'sticky', bottom: 0, zIndex: 2,
+      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 0.5, sm: 1 },
       px: { xs: 1.5, sm: 2.5 }, py: 1, borderTop: `1px solid ${S.divider}`, bgcolor: S.inset, flexShrink: 0 }}>
       <Typography sx={{ fontSize: 12, color: T.textMuted }}>{start}–{end} of {totalElements}</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

@@ -1,8 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
-  alpha, Alert, Box, Button, CircularProgress, Collapse, Dialog, DialogActions,
-  DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem,
-  Stack, Switch, TextField, Typography,
+  alpha,
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Collapse,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
 } from '@mui/material';
 import { Close, Save, Tune, Lock } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
@@ -10,6 +24,7 @@ import { notify } from '@shared/notify';
 
 import { getJobParams, editJobParams } from '../services/ingestionApi';
 import RecordSearch from '../form/RecordSearch';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const TERMINAL = ['SUCCESS', 'FAILED', 'CANCELLED', 'COMPLETED'];
 
@@ -113,7 +128,7 @@ export default function LiveEditDialog({ jobId, status, open, onClose, onSaved }
   const labelSx = { fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 };
 
   return (
-    <Dialog open={!!open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
+    <SheetDialog open={!!open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ pr: 6 }}>
         <Stack direction="row" spacing={1.25} alignItems="center">
           <Box sx={{ width: 34, height: 34, borderRadius: 2, display: 'grid', placeItems: 'center',
@@ -256,6 +271,6 @@ export default function LiveEditDialog({ jobId, status, open, onClose, onSaved }
           Save
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

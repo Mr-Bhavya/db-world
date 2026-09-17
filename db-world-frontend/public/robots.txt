@@ -88,6 +88,9 @@ Disallow: /player
 Disallow: /db-ipo/my
 Disallow: /me/activity
 Disallow: /db-wallet
+# Every tally route is inside PrivateRoute, the group tabs included, so a crawl only
+# ever reaches the login redirect. Not in the sitemap either, for the same reason.
+Disallow: /db-tally
 Disallow: /db-password-manager
 Disallow: /db-file-manager
 

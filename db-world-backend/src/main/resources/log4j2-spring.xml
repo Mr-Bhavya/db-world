@@ -50,16 +50,22 @@
         <Property name="MDC_DURATION">%notEmpty{ [duration=%X{duration}]}</Property>
         <Property name="MDC_MD5">%notEmpty{ [md5=%X{md5}]}</Property>
 
+        <!-- Scheduler run correlation: present only on lines emitted inside a background
+             job run (see JobRunRecorder). The admin Scheduler page stores jobRunId on the
+             history row and filters this log by it to show "the logs for THIS run". -->
+        <Property name="MDC_JOB">%notEmpty{ [job=%X{job}]}</Property>
+        <Property name="MDC_JOB_RUN">%notEmpty{ [jobRunId=%X{jobRunId}]}</Property>
+
         <!-- ╭───────────────── final patterns ───────────────────────────────╮ -->
 
         <!-- Application logs — only correlation IDs in the line. -->
-        <Property name="APP_TEXT_PATTERN">${TS_PATTERN} ${LOC_PATTERN} %-5level %logger{36}${MDC_TRACE}${MDC_REQUEST_ID} - %msg%n%ex</Property>
+        <Property name="APP_TEXT_PATTERN">${TS_PATTERN} ${LOC_PATTERN} %-5level %logger{36}${MDC_TRACE}${MDC_REQUEST_ID}${MDC_JOB}${MDC_JOB_RUN} - %msg%n%ex</Property>
 
         <!-- Request log line — full per-request MDC dump. -->
         <Property name="REQUEST_TEXT_PATTERN">${TS_PATTERN} ${LOC_PATTERN} %-5level %logger{36}${MDC_USER}${MDC_REQUEST_ID}${MDC_TRACE}${MDC_METHOD}${MDC_URI}${MDC_STATUS}${MDC_DURATION}${MDC_MD5} - %msg%n%ex</Property>
 
         <!-- ANSI-coloured console variants (same shape, with styling). -->
-        <Property name="APP_CONSOLE_PATTERN">%style{${TS_PATTERN}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta}%style{${MDC_TRACE}}{yellow}%style{${MDC_REQUEST_ID}}{yellow} - %msg%n%style{%ex}{red}</Property>
+        <Property name="APP_CONSOLE_PATTERN">%style{${TS_PATTERN}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta}%style{${MDC_TRACE}}{yellow}%style{${MDC_REQUEST_ID}}{yellow}%style{${MDC_JOB}}{green}%style{${MDC_JOB_RUN}}{dim} - %msg%n%style{%ex}{red}</Property>
         <Property name="REQUEST_CONSOLE_PATTERN">%style{${TS_PATTERN}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta}%style{${MDC_USER}}{green}%style{${MDC_TRACE}}{yellow}%style{${MDC_URI}}{cyan}%style{${MDC_MD5}}{blue}%style{${MDC_STATUS}}{magenta}%style{${MDC_DURATION}}{magenta} - %msg%n%style{%ex}{red}</Property>
 
         <!-- ╭───────────────── JSON patterns ────────────────────────────────╮
@@ -67,9 +73,9 @@
              leading comma so missing values disappear and the JSON stays
              valid. The 5 unconditional fields (timestamp, level, thread,
              logger, message) anchor the object. -->
-        <Property name="JSON_APP_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"exception":"%enc{%ex}{JSON}"}}%n</Property>
+        <Property name="JSON_APP_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"job":"%X{job}"}%notEmpty{,"jobRunId":"%X{jobRunId}"}%notEmpty{,"exception":"%enc{%ex}{JSON}"}}%n</Property>
         <Property name="JSON_REQUEST_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"user":"%X{user}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"method":"%X{method}"}%notEmpty{,"uri":"%X{uri}"}%notEmpty{,"status":"%X{status}"}%notEmpty{,"duration":"%X{duration}"}%notEmpty{,"md5":"%X{md5}"}%notEmpty{,"exception":"%enc{%ex}{JSON}"}}%n</Property>
-        <Property name="JSON_ERROR_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"},"stacktrace":"%enc{%ex{full}}{JSON}"}%n</Property>
+        <Property name="JSON_ERROR_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"job":"%X{job}"}%notEmpty{,"jobRunId":"%X{jobRunId}"},"stacktrace":"%enc{%ex{full}}{JSON}"}%n</Property>
     </Properties>
 
     <Appenders>

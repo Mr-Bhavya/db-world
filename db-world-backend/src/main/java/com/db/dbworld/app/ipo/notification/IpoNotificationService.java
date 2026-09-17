@@ -150,9 +150,8 @@ public class IpoNotificationService {
      * simultaneous passes could each see the same un-stamped row and push it twice. Single-node app,
      * so intrinsic locking is the whole story here.
      */
-    public void deliverPending() {
-        dispatchPending();
-        notifyClosingSoon();
+    public int deliverPending() {
+        return dispatchPending() + notifyClosingSoon();
     }
 
     /**
@@ -163,12 +162,12 @@ public class IpoNotificationService {
      * hours on a trading day the whole pass is a no-op and the queue is left intact, so the alerts
      * go out at the next in-window pass rather than overnight — or never.
      */
-    public synchronized void dispatchPending() {
+    public synchronized int dispatchPending() {
         List<IpoChangeEventEntity> pending =
                 changeEventRepo.findByEventTypeInAndNotifiedAtIsNullOrderByCreatedAtAsc(
                         IpoLifecycleChange.NOTIFIABLE_EVENT_TYPES);
         if (pending.isEmpty()) {
-            return;
+            return 0;
         }
         // Follow the Indian market calendar: never fire open/listed/allotment/GMP alerts overnight,
         // on a weekend, or on an NSE holiday. Nothing is stamped on this path, so the queue survives
@@ -176,7 +175,7 @@ public class IpoNotificationService {
         if (!marketCalendar.isNotificationWindow(LocalDateTime.now(clock.withZone(IST)))) {
             log.debug("IPO notifications held for {} pending change(s) — outside the "
                     + "market-hours/trading-day window", pending.size());
-            return;
+            return 0;
         }
         Instant now = clock.instant();
         Instant tooOldBefore = now.minus(MAX_PENDING_AGE);
@@ -238,6 +237,7 @@ public class IpoNotificationService {
                         + "suppressed={} droppedByDailyCap={}",
                 pending.size(), sent, announced, retired,
                 pending.size() - deliverable.size() - retired, capped);
+        return sent;
     }
 
     /**
@@ -484,13 +484,13 @@ public class IpoNotificationService {
      * one. Not subject to the daily cap — this is the single most actionable alert the app sends
      * (it is the last moment a user can act at all), and it fires at most once per IPO ever.
      */
-    public synchronized void notifyClosingSoon() {
+    public synchronized int notifyClosingSoon() {
         LocalDateTime nowIst = LocalDateTime.now(clock.withZone(IST));
         // Same market-calendar gate as dispatch(): no reminders overnight, on weekends, or on NSE
         // holidays — only during IST market hours on a trading day. The dedupe marker is only stamped
         // on an actual send, so a reminder suppressed now still goes out at the next in-window poll.
         if (!marketCalendar.isNotificationWindow(nowIst)) {
-            return;
+            return 0;
         }
         LocalDate today = nowIst.toLocalDate();
         // Same date twice — a single-day (inclusive) BETWEEN, reusing the existing derived query.
@@ -502,7 +502,7 @@ public class IpoNotificationService {
                 .filter(ipo -> !IpoStatusCanonicalizer.isPastClose(ipo.getCloseDate(), nowIst))
                 .toList();
         if (stillOpen.isEmpty()) {
-            return;
+            return 0;
         }
         Instant now = clock.instant();
         try {
@@ -532,10 +532,12 @@ public class IpoNotificationService {
             // Nothing is stamped below on this path, so every reminder in this batch stays due and
             // is retried at the next in-window pass.
             log.warn("IPO closing-soon notification failed for {} IPO(s): {}", stillOpen.size(), e.toString());
-            return;
+            return 0;
         }
         stillOpen.forEach(ipo -> ipo.setClosingSoonNotifiedAt(now));
         listingRepo.saveAll(stillOpen);
+        // One digest counts as one push; individual reminders count one each.
+        return stillOpen.size() >= digestThreshold() ? 1 : stillOpen.size();
     }
 
     private static BigDecimal parse(String s) {

@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography, IconButton, CircularProgress,
+  Box,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  IconButton,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
@@ -12,6 +18,7 @@ import { moveItem, copyItem } from '../api/fileManagerApi';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
 import FolderTree from './FolderTree';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Move/copy `items` (within a single `locationId`) to a destination folder
@@ -65,7 +72,7 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
   }
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={isPending ? undefined : handleClose}
       maxWidth="xs"
@@ -110,6 +117,6 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
           {isPending ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : opLabel}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

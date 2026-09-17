@@ -74,19 +74,34 @@ public class TagStrategyExecutor {
      * To actually clear a tag, deactivate it and remove the rows from the admin UI.
      */
     @Transactional
-    public void executeAll() {
+    public TagRefreshReport executeAll() {
+        int run = 0;
+        int skipped = 0;
         for (TagStrategy strategy : strategies) {
             String tagType = strategy.tagType().name();
             if (!tagDefinitionService.getOrDefault(tagType).isActive()) {
                 log.info("Tag strategy skipped — definition is inactive; tagType={}", tagType);
+                skipped++;
                 continue;
             }
             execute(strategy);
+            run++;
         }
-        refreshRuleTags();
+        RuleTagResult rules = refreshRuleTags();
         // Once, after everything — a per-strategy evictAll would clear the cache 10+ times per run.
         publisher.publishEvent(new BulkRecordChangedEvent());
+        return new TagRefreshReport(run, skipped, rules.refreshed(), rules.failed());
     }
+
+    /**
+     * What one full tag refresh did. Surfaced on the admin Scheduler page so a run that
+     * quietly refreshed nothing — every definition deactivated, say — is visible as such
+     * instead of reading as a plain success.
+     */
+    public record TagRefreshReport(int strategiesRun, int strategiesSkipped,
+                                   int ruleTagsRefreshed, int ruleTagsFailed) {}
+
+    private record RuleTagResult(int refreshed, int failed) {}
 
     /**
      * Recomputes every admin-defined rule tag, after the code strategies.
@@ -95,8 +110,10 @@ public class TagStrategyExecutor {
      * single malformed admin rule can't stop TRENDING from refreshing. Tags owned by a strategy are
      * skipped even if they somehow also carry a rule — the strategy is authoritative.
      */
-    private void refreshRuleTags() {
+    private RuleTagResult refreshRuleTags() {
         Set<String> strategyOwned = managedTagTypes();
+        int refreshed = 0;
+        int failed = 0;
 
         for (TagDefinitionEntity def : tagDefinitionService.findAll()) {
             if (def.getRule() == null || def.getRule().isEmpty()) continue;
@@ -111,12 +128,16 @@ public class TagStrategyExecutor {
             try {
                 ruleTagRefresher.refresh(def);
                 tagDefinitionService.markRefreshed(def.getTagType());
+                refreshed++;
             } catch (Exception e) {
                 // Deliberately swallowed: an admin-authored rule is untrusted input, and one broken
-                // rule must not take the whole tag refresh down with it.
+                // rule must not take the whole tag refresh down with it. Counted so the run's
+                // history row shows the failure even though the run itself succeeds.
+                failed++;
                 log.error("Rule tag refresh failed; tagType={}", def.getTagType(), e);
             }
         }
+        return new RuleTagResult(refreshed, failed);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.db.dbworld.security.token;
 
+import com.db.dbworld.core.user.PasswordPolicy;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.mail.MailService;
 import com.db.dbworld.core.user.entity.UserEntity;
@@ -222,9 +223,13 @@ class AccountRecoveryServiceTest {
 
     @Test
     void aTooShortPasswordIsRejectedBeforeTheTokenIsSpent() {
-        assertThatThrownBy(() -> service.resetPassword("reset-token", "abc"))
+        final String oneShort = "x".repeat(PasswordPolicy.MIN_LENGTH - 1);
+        assertThatThrownBy(() -> service.resetPassword("reset-token", oneShort))
                 .isInstanceOf(DbWorldException.class)
-                .hasMessageContaining("at least 6");
+                // Asserted against the constant, not a copy of the number. This test
+                // hard-coded "at least 6" and kept passing while every DTO moved to 8 -
+                // it was pinning the drift in place rather than catching it.
+                .hasMessageContaining(PasswordPolicy.TOO_SHORT_MESSAGE);
 
         verify(tokenRepository, never()).save(any());
         verify(sessionRevocationService, never()).revokeEverything(anyLong(), any());

@@ -142,6 +142,46 @@ public class AdminLogsController {
     }
 
     // =====================================================================
+    // SCHEDULER RUN LOGS
+    // =====================================================================
+
+    /**
+     * The log lines a single scheduler run produced, looked up by the {@code runId} stored on
+     * its {@code scheduler_job_history} row.
+     *
+     * <p>{@code date} is the run's own start date and is what keeps this cheap — it narrows
+     * the search to that day's files instead of every rotated archive. Callers should always
+     * send it; omitting it searches today.
+     */
+    @GetMapping("/run/{runId}")
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
+    public ResponseEntity<ApiResponse<?>> getRunLogs(
+            @PathVariable String runId,
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Integer lines
+    ) {
+        try {
+            LocalDate runDate = (date != null && !date.isBlank()) ? LocalDate.parse(date) : null;
+            LogsService.LogResponse response = logsService.findRunLogs(runId, runDate, lines);
+
+            return ResponseEntity.ok(ApiResponse.success(Map.of(
+                    "entries", response.getData(),
+                    "count", response.getCount(),
+                    "runId", runId,
+                    "date", runDate != null ? runDate.toString() : LocalDate.now().toString()
+            )));
+        } catch (IllegalArgumentException | java.time.format.DateTimeParseException e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage()));
+        } catch (IOException e) {
+            log.error("Error reading run logs [runId={}]: {}", runId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error reading run logs: " + e.getMessage()));
+        }
+    }
+
+    // =====================================================================
     // AVAILABLE DATES (for history picker)
     // =====================================================================
 

@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -24,6 +23,7 @@ import { useT } from '@shared/theme';
 import { notify } from '@shared/notify';
 import { useAuth } from '@features/auth/context/Authentication';
 import { deleteMyAccount } from './api/accountApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Self-service account deletion.
@@ -91,7 +91,7 @@ export default function DeleteAccountDialog({ open, onClose, email, hasPassword 
   }, [canSubmit, confirmEmail, hasPassword, logout, onClose, password]);
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={submitting ? undefined : onClose}
       maxWidth="xs"
@@ -195,6 +195,6 @@ export default function DeleteAccountDialog({ open, onClose, email, hasPassword 
           {submitting ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Delete my account'}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

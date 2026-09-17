@@ -7,6 +7,7 @@ import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
 import { notify } from '@shared/notify';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { useDocuments, useDocumentTypes, useDeleteDocument } from './hooks/useWallet';
 import { fetchContentBlob } from './api/walletApi';
@@ -108,6 +109,10 @@ function EmptyState({ icon: Icon, title, body, action, reduce }) {
  * below `sm` (which is what the Android WebView gets). Motion is opt-out throughout.
  */
 export default function WalletPage() {
+  usePageMeta('Wallet', {
+    description: 'Your encrypted document wallet on DB World, with expiry tracking.',
+  });
+
   const T = useT();
   const confirm = useConfirm();
   const reduce = useReducedMotion();

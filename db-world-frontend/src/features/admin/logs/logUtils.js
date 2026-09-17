@@ -134,7 +134,7 @@ export const shortLogger = (l) => String(l || '').split('.').slice(-2).join('.')
 export const entryText = (e) => (typeof e === 'string' ? e : (() => { try { return JSON.stringify(e); } catch { return ''; } })());
 
 // ── Filtering ────────────────────────────────────────────────────────────────
-// filters: { levels:[], methods:[], statusClasses:[], user, traceId, requestId, slow:bool, search, dedupe:bool }
+// filters: { levels:[], methods:[], statusClasses:[], user, traceId, requestId, jobRunId, slow:bool, search, dedupe:bool }
 export function applyFilters(entries, f = {}) {
   const q = (f.search || '').trim().toLowerCase();
   const hasLevels  = f.levels?.length;
@@ -150,6 +150,8 @@ export function applyFilters(entries, f = {}) {
     if (f.user && e.user !== f.user) return false;
     if (f.traceId && e.traceId !== f.traceId) return false;
     if (f.requestId && e.requestId !== f.requestId) return false;
+    // Scheduler run correlation — set when the Scheduler page deep-links into this viewer.
+    if (f.jobRunId && e.jobRunId !== f.jobRunId) return false;
     if (f.slow && !isSlow(e)) return false;
     return true;
   });

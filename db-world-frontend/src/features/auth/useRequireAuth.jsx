@@ -2,7 +2,7 @@ import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, IconButton, useMediaQuery, useTheme } from '@mui/material';
+import { DialogContent, IconButton, useMediaQuery, useTheme } from '@mui/material';
 import { CloseRounded } from '@mui/icons-material';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -11,6 +11,7 @@ import { useAuth } from '@features/auth/context/Authentication';
 import { addBackInterceptor } from '@platform/android/backInterceptors';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme/ThemeContext';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Sign-in, without leaving the page.
@@ -154,9 +155,13 @@ export const RequireAuthProvider = ({ children }) => {
     <RequireAuthContext.Provider value={value}>
       {children}
 
-      <Dialog
+      <SheetDialog
         open={Boolean(prompt)}
         onClose={close}
+        // Already claims the Android back press through its own interceptor, and must not also
+        // push a history entry: two mechanisms for one dismissal means one of them fires with
+        // nothing left to undo.
+        disableBack
         fullScreen={fullScreen}
         maxWidth="xs"
         fullWidth
@@ -214,7 +219,7 @@ export const RequireAuthProvider = ({ children }) => {
             autoFocus={!fullScreen}
           />
         </DialogContent>
-      </Dialog>
+      </SheetDialog>
     </RequireAuthContext.Provider>
   );
 };

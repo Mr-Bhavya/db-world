@@ -34,6 +34,7 @@ public record HomeSummaryDto(
         CinemaSection cinema,
         WalletSection wallet,
         VaultSection vault,
+        TallySection tally,
         NotificationSection notifications,
         AdminSection admin
 ) {
@@ -125,6 +126,34 @@ public record HomeSummaryDto(
      * land on; that work stays inside the vault itself, behind the app lock.
      */
     public record VaultSection(long total) {}
+
+    /**
+     * Tally's tile, built around the only question the app exists to answer: does somebody owe
+     * you, or do you owe somebody. {@code net} is the sum across every live shared ledger and is
+     * positive when you are owed -- the same figure the app's own balance hero leads with, and
+     * deliberately so, because a tile that disagreed with the page it links to would be worse
+     * than no tile at all.
+     *
+     * <p>Only live SHARED ledgers are counted. A personal ledger has no counterparty, so its
+     * balance is structurally zero; an archived one is a finished trip whose number is history.
+     * Including either would move the headline figure without anybody owing anything.
+     */
+    public record TallySection(
+            BigDecimal net,
+            /** Live shared ledgers, the square ones included. */
+            long ledgers,
+            /** How many of those are not square -- what the tile treats as needing you. */
+            long outstanding,
+            /** The largest outstanding ledger by absolute balance; null when everything is square. */
+            TallyLedger top
+    ) {}
+
+    public record TallyLedger(
+            String id,
+            String name,
+            String icon,
+            BigDecimal balance
+    ) {}
 
     public record NotificationSection(long unread) {}
 

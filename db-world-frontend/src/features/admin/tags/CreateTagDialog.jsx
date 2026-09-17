@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import {
-  Box, Typography, Select, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Alert, Switch, FormControl, InputLabel, Divider,
+  Box,
+  Typography,
+  Select,
+  MenuItem,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Switch,
+  FormControl,
+  InputLabel,
+  Divider,
 } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
@@ -12,6 +22,7 @@ import { createTagDefinition, previewTagRule } from '../api/adminApi';
 import { useRailMeta } from './useRailMeta';
 import { adminInputSx } from './tagsUtils';
 import TagRuleBuilder, { BLANK_TAG_RULE, tagRuleIsEmpty, toTagRulePayload } from './TagRuleBuilder';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * Create an admin-curated tag. Always manual: no strategy computes it, so whatever gets bulk-added
@@ -66,7 +77,7 @@ export default function CreateTagDialog({ open, onClose }) {
   const inputSx = adminInputSx(T, S);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+    <SheetDialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2 } }}>
       <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>New tag</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1 }}>
@@ -153,6 +164,6 @@ export default function CreateTagDialog({ open, onClose }) {
           disabled={!slug || (automatic && ruleEmpty)}
           onClick={() => save()}>Create tag</AdminActionButton>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

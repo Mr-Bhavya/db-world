@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { useT } from '@shared/theme';
-import { AdminPage, EmptyState, ErrorState, TableSkeleton, adminSurface } from '@features/admin/adminUi';
+import { AdminPage, EmptyState, ErrorState, adminSurface } from '@features/admin/adminUi';
 
 import { fetchLogs, fetchAvailableDates, getSourceConfig, LOG_SOURCES_CONFIG } from './logApi';
 import { viewMode, applyFilters, sortEntries, facets, isSlow, numStatus, levelOf } from './logUtils';
@@ -15,12 +16,14 @@ import LogList from './LogList';
 import LogDetailDrawer from './LogDetailDrawer';
 
 const DEFAULT_FILTERS = {
-  levels: [], methods: [], statusClasses: [], user: '', traceId: '', requestId: '',
+  levels: [], methods: [], statusClasses: [], user: '', traceId: '', requestId: '', jobRunId: '',
   slow: false, dedupe: false, search: '',
 };
 const INITIAL_LIMIT = 500;
 const LIMIT_STEP = 500;
 const LIMIT_CAP = 10000;
+/** Tail size when arriving via a ?jobRunId= deep link — see the note at its useState. */
+const DEEP_LINK_LIMIT = 5000;
 
 function Centered({ children }) {
   return <Box sx={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>{children}</Box>;
@@ -32,13 +35,29 @@ export default function LogViewer() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [source, setSource] = useState('app');
-  const [subType, setSubType] = useState('request');
+  // Deep links land here — the admin Scheduler page sends ?jobRunId=&date= to open this
+  // viewer already narrowed to one background-job run. Read once, as the initial state: after
+  // that the controls own it, so changing a filter doesn't fight the URL.
+  const [searchParams] = useSearchParams();
+  const initial = useRef({
+    source:   searchParams.get('source') || 'app',
+    // A run's lines are INFO and above, so land on info rather than the usual request tab.
+    subType:  searchParams.get('type') || (searchParams.get('jobRunId') ? 'info' : 'request'),
+    date:     searchParams.get('date') || '',
+    jobRunId: searchParams.get('jobRunId') || '',
+  }).current;
+
+  const [source, setSource] = useState(initial.source);
+  const [subType, setSubType] = useState(initial.subType);
   const [formatState, setFormatState] = useState('JSON');
-  const [limit, setLimit] = useState(INITIAL_LIMIT);
-  const [date, setDate] = useState('');
+  // A run that happened earlier in the day can sit well beyond the default 500-line tail, so a
+  // deep link starts with a wider window than a manual visit.
+  const [limit, setLimit] = useState(initial.jobRunId ? DEEP_LINK_LIMIT : INITIAL_LIMIT);
+  const [date, setDate] = useState(initial.date);
   const [live, setLive] = useState(false);
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState(
+    initial.jobRunId ? { ...DEFAULT_FILTERS, jobRunId: initial.jobRunId } : DEFAULT_FILTERS,
+  );
   const [sort, setSort] = useState({ key: 'time', dir: 'desc' });
   const [selected, setSelected] = useState(null);
   const [filtersAnchor, setFiltersAnchor] = useState(null);
@@ -96,7 +115,7 @@ export default function LogViewer() {
   const activeFilterCount =
     (filters.levels.length ? 1 : 0) + (filters.methods.length ? 1 : 0) + (filters.statusClasses.length ? 1 : 0) +
     (filters.user ? 1 : 0) + (filters.traceId ? 1 : 0) + (filters.requestId ? 1 : 0) +
-    (filters.slow ? 1 : 0) + (filters.dedupe ? 1 : 0);
+    (filters.jobRunId ? 1 : 0) + (filters.slow ? 1 : 0) + (filters.dedupe ? 1 : 0);
 
   // ── Infinite "load older" on scroll (backend re-tails a bigger window) ────────
   const pendingRef = useRef(false);
@@ -147,29 +166,48 @@ export default function LogViewer() {
 
   const loadingOlder = !live && isFetching && !isLoading && limit > INITIAL_LIMIT;
 
+  /*
+   * The skeleton is the LIST's job, not this component's.
+   *
+   * Rendered here it could only guess a row height, and the 34px bar on a 6px gap it guessed
+   * came to a 40px pitch -- the one-line row height. Under the 72px stacked rows that replace
+   * it, that reads as the old layout flashing up before the new one, because that is exactly
+   * what it looked like. LogList already measures the width the rows are sized from, so it is
+   * the only place that can place a placeholder the rows will line up with.
+   */
+  const firstLoad = !live && isLoading;
+
   let body;
   if (!live && isError) {
     body = <Centered><ErrorState message="Failed to load logs" onRetry={refetch} /></Centered>;
-  } else if (!live && isLoading) {
-    body = <Box sx={{ p: 2 }}><TableSkeleton rows={12} height={34} /></Box>;
-  } else if (!live && fileFound === false) {
+  } else if (!firstLoad && !live && fileFound === false) {
     body = <Centered><EmptyState icon={TerminalRoundedIcon} title="Log file not found" message="This log file doesn't exist yet on the server." /></Centered>;
-  } else if (displayed.length === 0) {
+  } else if (!firstLoad && displayed.length === 0) {
     body = (
       <Centered>
         <EmptyState
           icon={TerminalRoundedIcon}
           title={rawEntries.length ? 'No matching entries' : (live ? 'Waiting for log lines…' : 'No entries')}
-          message={rawEntries.length ? 'Try clearing the filters or search.' : (live ? 'New lines will appear here as they arrive.' : 'Nothing in this log yet.')}
+          message={
+            // A run filter that matches nothing almost always means the run is older than the
+            // tail being read, not that the run produced no output — say so, because "clear
+            // the filters" is the wrong advice here.
+            rawEntries.length && filters.jobRunId
+              ? `No lines from run ${filters.jobRunId} in the last ${limit.toLocaleString()} lines of this log. Load more, or pick the run's own date above.`
+              : rawEntries.length ? 'Try clearing the filters or search.'
+              : (live ? 'New lines will appear here as they arrive.' : 'Nothing in this log yet.')
+          }
           action={rawEntries.length ? <Button onClick={clearFilters} sx={{ color: T.teal, fontWeight: 700, textTransform: 'none' }}>Clear filters</Button> : undefined}
         />
       </Centered>
     );
   } else {
+    // No `compact` prop: the list measures its own width and decides. A viewport breakpoint
+    // could not see the 240px admin sidebar, which is what made 900px worse than 899px.
     body = (
       <LogList
         entries={displayed} mode={mode} sortKey={sort.key} sortDir={sort.dir}
-        onSort={onSort} onSelect={(e) => setSelected(e)} live={live} compact={isMobile}
+        onSort={onSort} onSelect={(e) => setSelected(e)} live={live} loading={firstLoad}
         canLoadMore={canLoadMore} onReachOlderEdge={loadMore}
         viewKey={`${source}|${subType}|${format}|${date}|${live}`}
       />

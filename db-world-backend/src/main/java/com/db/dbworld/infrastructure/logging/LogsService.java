@@ -36,6 +36,16 @@ public class LogsService {
     private static final int DEFAULT_MAX_LINES = 500;
     private static final int BUFFER_SIZE = 8192;
 
+    /** Subtypes searched by {@link #findRunLogs} — see the note there on why error is omitted. */
+    private static final List<String> RUN_LOG_SUBTYPES = List.of("info", "debug");
+
+    /**
+     * Lines examined per file before a run-log search gives up on it. Generous enough to cover
+     * a full day of a chatty job, small enough that an unmatched id can't turn into a
+     * multi-gigabyte read on the Pi.
+     */
+    private static final int RUN_SCAN_LINE_CAP = 400_000;
+
     public LogsService(AppProperties props) {
         this.props = props;
         this.appParsers = initParsers();
@@ -192,6 +202,123 @@ public class LogsService {
         log.debug("stopFollowing sessionId={}", sessionId);
         FollowSession s = followSessions.remove(sessionId);
         if (s != null && s.getThread() != null) s.getThread().interrupt();
+    }
+
+    // =====================================================================
+    // SCHEDULER RUN LOOKUP
+    // =====================================================================
+
+    /**
+     * The log lines emitted by a single scheduler run, newest last.
+     *
+     * <p>This is the one place that searches log CONTENT rather than tailing it. That is
+     * affordable only because the search is doubly bounded: the caller supplies the run's own
+     * start date, so at most two days of files are opened, and each file is abandoned after
+     * {@link #RUN_SCAN_LINE_CAP} lines. Without the date this would be a full-text scan over
+     * 14 days of rotated archives on a Raspberry Pi.
+     *
+     * <p>Only {@code info} and {@code debug} are searched: the info file is written with a
+     * {@code ThresholdFilter} at INFO, so it already contains every WARN and ERROR line, and
+     * the error file is a strict subset of it.
+     *
+     * @param runId   {@code scheduler_job_history.run_id}
+     * @param date    the run's start date; null means today
+     * @param maxLines cap on lines returned
+     */
+    public LogResponse findRunLogs(String runId, LocalDate date, Integer maxLines) throws IOException {
+        int max = (maxLines != null && maxLines > 0) ? maxLines : DEFAULT_MAX_LINES;
+        String needle = "\"jobRunId\":\"" + runId + "\"";
+        LocalDate runDate = (date != null) ? date : LocalDate.now();
+
+        List<String> matches = new ArrayList<>();
+        // A run that starts before midnight finishes writing into the next day's file, so the
+        // day after the run is searched too whenever it exists.
+        for (LocalDate day : datesToSearch(runDate)) {
+            for (String subType : RUN_LOG_SUBTYPES) {
+                if (matches.size() >= max) break;
+                matches.addAll(scanForNeedle(subType, day, needle, max - matches.size()));
+            }
+        }
+
+        // Interleave info and debug back into real time order — they were scanned separately.
+        matches.sort(Comparator.comparing(l -> Objects.requireNonNullElse(extractJsonTimestamp(l), "")));
+
+        List<Object> parsed = new ArrayList<>(matches.size());
+        AppLogParser parser = new AppLogParser();
+        for (String line : matches) {
+            try {
+                parsed.add(parser.parse(line).payload());
+            } catch (Exception e) {
+                log.debug("Skipping unparseable run-log line: {}", e.getMessage());
+            }
+        }
+        return new LogResponse(parsed, parsed.size(), true);
+    }
+
+    /** Today for a same-day run, otherwise the run's day plus the day after it. */
+    private List<LocalDate> datesToSearch(LocalDate runDate) {
+        LocalDate today = LocalDate.now();
+        if (!runDate.isBefore(today)) return List.of(today);
+        LocalDate next = runDate.plusDays(1);
+        return next.isAfter(today) ? List.of(runDate) : List.of(runDate, next);
+    }
+
+    /**
+     * Lines containing {@code needle} in one subtype's file for one day.
+     *
+     * <p>The live file is read backwards: a run being looked up is almost always recent, so
+     * its lines sit near the tail and the scan usually stops within a few thousand lines of
+     * a file that can be 100&nbsp;MB. Rotated archives are gzip and can only be read forward.
+     */
+    private List<String> scanForNeedle(String subType, LocalDate day, String needle, int max)
+            throws IOException {
+        List<String> found = new ArrayList<>();
+        if (!day.isBefore(LocalDate.now())) {
+            Path active = resolveActivePath("app", subType, LogFormat.JSON);
+            if (Files.exists(active)) {
+                scanReversed(active, needle, max, found);
+                Collections.reverse(found); // reverse scan collects newest-first
+            }
+            if (found.size() >= max) return found;
+            // Rotation is size-based as well as daily (100MB), so part of TODAY can already be
+            // archived. Fall through to today's archives when the live file came up short,
+            // otherwise a run from this morning on a busy day looks like it logged nothing.
+        }
+        List<String> fromArchives = new ArrayList<>();
+        for (Path gz : resolveRotatedPaths("app", subType, LogFormat.JSON, day)) {
+            if (fromArchives.size() + found.size() >= max) break;
+            scanGzip(gz, needle, max - found.size() - fromArchives.size(), fromArchives);
+        }
+        // Archives hold the older half of the day, so they lead.
+        fromArchives.addAll(found);
+        return fromArchives;
+    }
+
+    private void scanReversed(Path path, String needle, int max, List<String> out) throws IOException {
+        try (ReversedLinesFileReader reader = ReversedLinesFileReader.builder()
+                .setPath(path)
+                .setBufferSize(BUFFER_SIZE)
+                .setCharset(StandardCharsets.UTF_8)
+                .get()) {
+            String line;
+            int scanned = 0;
+            while ((line = reader.readLine()) != null && out.size() < max && scanned++ < RUN_SCAN_LINE_CAP) {
+                if (line.contains(needle)) out.add(line);
+            }
+        }
+    }
+
+    private void scanGzip(Path path, String needle, int max, List<String> out) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(
+                        new GZIPInputStream(Files.newInputStream(path)),
+                        StandardCharsets.UTF_8), BUFFER_SIZE)) {
+            String line;
+            int scanned = 0;
+            while ((line = reader.readLine()) != null && out.size() < max && scanned++ < RUN_SCAN_LINE_CAP) {
+                if (line.contains(needle)) out.add(line);
+            }
+        }
     }
 
     // =====================================================================

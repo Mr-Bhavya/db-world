@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, GridLegacy as Grid, MenuItem, IconButton, CircularProgress } from '@mui/material';
+import { DialogTitle, DialogContent, DialogActions, Button, GridLegacy as Grid, MenuItem, IconButton, CircularProgress } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +9,7 @@ import { createUserSchema } from '../schemas/userSchemas';
 import { createUser } from '../api/adminApi';
 import { getDialogSx } from './constants';
 import { TextInput, SelectInput, GENDER_OPTIONS, ROLE_OPTIONS } from './formFields';
+import SheetDialog from '@shared/components/SheetDialog';
 
 export default function UserCreateModal({ open, onClose }) {
   const T  = useT();
@@ -32,7 +33,7 @@ export default function UserCreateModal({ open, onClose }) {
   const fp = { control, errors, T };
 
   return (
-    <Dialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm">
+    <SheetDialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, color: T.textPrimary }}>
         Add User
         <IconButton onClick={onClose} sx={{ color: T.textMuted }}><CloseIcon /></IconButton>
@@ -65,6 +66,6 @@ export default function UserCreateModal({ open, onClose }) {
           </Button>
         </DialogActions>
       </form>
-    </Dialog>
+    </SheetDialog>
   );
 }

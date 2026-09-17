@@ -1,10 +1,11 @@
 import React from 'react';
-import { Box, Button, Dialog, IconButton, LinearProgress, Typography } from '@mui/material';
+import { Box, Button, IconButton, LinearProgress, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { useT } from '@shared/theme';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /**
  * AppPromoDialog — the single "premium glass" popup used for every app-distribution
@@ -57,8 +58,19 @@ export default function AppPromoDialog({
   const cardShadow = dark ? '0 30px 90px rgba(0,0,0,0.6)' : '0 26px 70px rgba(15,23,42,0.18)';
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
+      /*
+       * Centred at every width, not a bottom sheet.
+       *
+       * This is a floating card with a dismiss pill stacked under it -- see the transparent
+       * paper below, which exists so the two read as separate surfaces. As a sheet it lost the
+       * `m: 2` that made it float and the 420px cap that kept it card-shaped, so a fully
+       * rounded card sat flush against the bottom edge with the sheet's top-only radius applied
+       * to a wrapper nobody can see. There are no fields here to strand, which is what the
+       * sheet treatment is for.
+       */
+      asSheet={false}
       disableEscapeKeyDown={!dismissible}
       onClose={(_e, reason) => {
         if (!dismissible) return;
@@ -329,6 +341,6 @@ export default function AppPromoDialog({
           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{dismissLongLabel}</Typography>
         </Box>
       )}
-    </Dialog>
+    </SheetDialog>
   );
 }
