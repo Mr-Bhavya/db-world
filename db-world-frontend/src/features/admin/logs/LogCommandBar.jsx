@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, Button, Chip, CircularProgress, InputAdornment, MenuItem,
   Select, TextField, Tooltip, IconButton, Badge,
@@ -49,6 +49,41 @@ export default function LogCommandBar({
     return () => clearTimeout(t);
   }, [text, onSearch]);
 
+  /*
+   * Which side of the subtype strip is hiding a tab.
+   *
+   * The strip scrolls horizontally with its scrollbar suppressed (`height: 0`), which on a
+   * phone left no sign at all that more tabs existed past the right edge. A fade is drawn only
+   * on a side that genuinely has something behind it — a permanent gradient would advertise
+   * content that isn't there.
+   */
+  const stripRef = useRef(null);
+  const [hidden, setHidden] = useState({ left: false, right: false });
+  const syncHidden = useCallback(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setHidden({ left: el.scrollLeft > 2, right: max - el.scrollLeft > 2 });
+  }, []);
+  useEffect(() => {
+    syncHidden();
+    const el = stripRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(syncHidden);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [subTypes, syncHidden]);
+
+  const FADE = 24;
+  const stripMask = hidden.left && hidden.right
+    ? `linear-gradient(to right, transparent 0, #000 ${FADE}px, #000 calc(100% - ${FADE}px), transparent 100%)`
+    : hidden.right ? `linear-gradient(to right, #000 calc(100% - ${FADE}px), transparent 100%)`
+      : hidden.left ? `linear-gradient(to right, transparent 0, #000 ${FADE}px)`
+        : 'none';
+
+  /** 44px under a thumb, the compact original under a cursor. */
+  const touchTarget = { xs: 44, sm: 34 };
+
   const fieldSx = {
     '& .MuiOutlinedInput-root': {
       bgcolor: S.inset, borderRadius: 2, fontSize: '0.82rem', color: T.text,
@@ -75,15 +110,22 @@ export default function LogCommandBar({
           {sources.map((s) => <MenuItem key={s.id} value={s.id} sx={{ fontSize: '0.85rem' }}>{s.label}</MenuItem>)}
         </Select>
 
-        <Box sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', flex: 1, minWidth: 0, py: 0.25,
-          '&::-webkit-scrollbar': { height: 0 } }}>
+        <Box
+          ref={stripRef}
+          onScroll={syncHidden}
+          sx={{
+            display: 'flex', gap: 0.75, overflowX: 'auto', flex: 1, minWidth: 0, py: 0.25,
+            '&::-webkit-scrollbar': { height: 0 },
+            maskImage: stripMask, WebkitMaskImage: stripMask,
+          }}
+        >
           {subTypes.map((st) => {
             const active = st.id === subType;
             return (
               <Chip
                 key={st.id} label={st.label} size="small" onClick={() => onSubType(st.id)}
                 sx={{
-                  flexShrink: 0, fontWeight: 700, fontSize: '0.74rem', height: 28, borderRadius: 1.5,
+                  flexShrink: 0, fontWeight: 700, fontSize: '0.74rem', height: { xs: 44, sm: 28 }, borderRadius: 1.5,
                   border: `1px solid ${active ? 'transparent' : S.border}`,
                   bgcolor: active ? T.tealBg : 'transparent',
                   color: active ? T.teal : T.textMuted,
@@ -102,7 +144,7 @@ export default function LogCommandBar({
               : live ? <StopRoundedIcon /> : <PlayArrowRoundedIcon />
           }
           sx={{
-            flexShrink: 0, minHeight: 34, px: 1.5, borderRadius: 2, textTransform: 'none', fontWeight: 800,
+            flexShrink: 0, minHeight: touchTarget, px: 1.5, borderRadius: 2, textTransform: 'none', fontWeight: 800,
             fontSize: '0.78rem', color: live ? '#fff' : T.text,
             bgcolor: live ? liveTone(liveStatus, T) : 'transparent',
             border: `1px solid ${live ? 'transparent' : S.border}`,
@@ -129,12 +171,13 @@ export default function LogCommandBar({
         />
 
         {supportsJson && (
-          <Box sx={{ display: 'flex', flexShrink: 0, border: `1px solid ${S.border}`, borderRadius: 2, overflow: 'hidden' }}>
+          <Box sx={{ display: 'flex', flexShrink: 0, minHeight: touchTarget, border: `1px solid ${S.border}`, borderRadius: 2, overflow: 'hidden' }}>
             {['JSON', 'RAW'].map((f) => (
               <Box
                 key={f} component="button" type="button" onClick={() => onFormat(f)}
                 sx={{
                   appearance: 'none', cursor: 'pointer', px: 1.25, py: 0.7, fontSize: '0.74rem', fontWeight: 800,
+                  minHeight: 'inherit',
                   border: 'none', bgcolor: format === f ? T.tealBg : 'transparent', color: format === f ? T.teal : T.textMuted,
                 }}
               >{f}</Box>
@@ -145,7 +188,7 @@ export default function LogCommandBar({
         <Tooltip title={order === 'desc' ? 'Newest first' : 'Oldest first'}>
           <Button
             onClick={() => onOrder(order === 'desc' ? 'asc' : 'desc')} startIcon={<SwapVertRoundedIcon />}
-            sx={{ flexShrink: 0, minHeight: 34, px: 1.25, borderRadius: 2, textTransform: 'none', fontWeight: 700,
+            sx={{ flexShrink: 0, minHeight: touchTarget, px: 1.25, borderRadius: 2, textTransform: 'none', fontWeight: 700,
               fontSize: '0.76rem', color: T.textMuted, border: `1px solid ${S.border}`, '&:hover': { bgcolor: S.inset } }}
           >
             {order === 'desc' ? 'Newest' : 'Oldest'}
@@ -156,7 +199,7 @@ export default function LogCommandBar({
           sx={{ '& .MuiBadge-badge': { bgcolor: T.teal, color: '#fff', fontWeight: 800 } }}>
           <Button
             onClick={onOpenFilters} startIcon={<TuneRoundedIcon />}
-            sx={{ flexShrink: 0, minHeight: 34, px: 1.25, borderRadius: 2, textTransform: 'none', fontWeight: 700,
+            sx={{ flexShrink: 0, minHeight: touchTarget, px: 1.25, borderRadius: 2, textTransform: 'none', fontWeight: 700,
               fontSize: '0.76rem', color: activeFilterCount ? T.teal : T.textMuted,
               border: `1px solid ${activeFilterCount ? T.teal : S.border}`, '&:hover': { bgcolor: S.inset } }}
           >

@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { useT } from '@shared/theme';
-import { AdminPage, EmptyState, ErrorState, TableSkeleton, adminSurface } from '@features/admin/adminUi';
+import { AdminPage, EmptyState, ErrorState, adminSurface } from '@features/admin/adminUi';
 
 import { fetchLogs, fetchAvailableDates, getSourceConfig, LOG_SOURCES_CONFIG } from './logApi';
 import { viewMode, applyFilters, sortEntries, facets, isSlow, numStatus, levelOf } from './logUtils';
@@ -166,14 +166,23 @@ export default function LogViewer() {
 
   const loadingOlder = !live && isFetching && !isLoading && limit > INITIAL_LIMIT;
 
+  /*
+   * The skeleton is the LIST's job, not this component's.
+   *
+   * Rendered here it could only guess a row height, and the 34px bar on a 6px gap it guessed
+   * came to a 40px pitch -- the one-line row height. Under the 72px stacked rows that replace
+   * it, that reads as the old layout flashing up before the new one, because that is exactly
+   * what it looked like. LogList already measures the width the rows are sized from, so it is
+   * the only place that can place a placeholder the rows will line up with.
+   */
+  const firstLoad = !live && isLoading;
+
   let body;
   if (!live && isError) {
     body = <Centered><ErrorState message="Failed to load logs" onRetry={refetch} /></Centered>;
-  } else if (!live && isLoading) {
-    body = <Box sx={{ p: 2 }}><TableSkeleton rows={12} height={34} /></Box>;
-  } else if (!live && fileFound === false) {
+  } else if (!firstLoad && !live && fileFound === false) {
     body = <Centered><EmptyState icon={TerminalRoundedIcon} title="Log file not found" message="This log file doesn't exist yet on the server." /></Centered>;
-  } else if (displayed.length === 0) {
+  } else if (!firstLoad && displayed.length === 0) {
     body = (
       <Centered>
         <EmptyState
@@ -193,10 +202,12 @@ export default function LogViewer() {
       </Centered>
     );
   } else {
+    // No `compact` prop: the list measures its own width and decides. A viewport breakpoint
+    // could not see the 240px admin sidebar, which is what made 900px worse than 899px.
     body = (
       <LogList
         entries={displayed} mode={mode} sortKey={sort.key} sortDir={sort.dir}
-        onSort={onSort} onSelect={(e) => setSelected(e)} live={live} compact={isMobile}
+        onSort={onSort} onSelect={(e) => setSelected(e)} live={live} loading={firstLoad}
         canLoadMore={canLoadMore} onReachOlderEdge={loadMore}
         viewKey={`${source}|${subType}|${format}|${date}|${live}`}
       />

@@ -5,6 +5,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { notify } from '@shared/notify';
+import useOverlayBack from '@shared/hooks/useOverlayBack';
 import {
   fmtDateTime, numStatus, numDuration, levelColor, methodColor, statusColor, parseMd5, isRequestEntry, parseRawLine,
 } from './logUtils';
@@ -145,6 +146,9 @@ export default function LogDetailDrawer({ entry, onClose }) {
   const dark = T.bg === '#000000';
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // Back closes the entry rather than leaving the Log Viewer. On a phone this drawer covers
+  // 86% of the screen, so Back is what people reach for -- and it used to navigate off the page.
+  useOverlayBack(!!entry, onClose);
   const isStr = typeof entry === 'string';
   const req = entry && !isStr && isRequestEntry(entry);
 
@@ -171,7 +175,7 @@ export default function LogDetailDrawer({ entry, onClose }) {
         sx: {
           bgcolor: S.card, color: T.text, backgroundImage: 'none', display: 'flex', flexDirection: 'column',
           width: isMobile ? '100%' : 'min(480px, 92vw)',
-          height: isMobile ? '86vh' : '100%',
+          height: isMobile ? '86dvh' : '100%',
           borderTopLeftRadius: isMobile ? 18 : 0, borderTopRightRadius: isMobile ? 18 : 0,
           borderLeft: isMobile ? 'none' : `1px solid ${S.border}`,
         },
