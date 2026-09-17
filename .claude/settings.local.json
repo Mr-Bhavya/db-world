@@ -220,7 +220,8 @@
       "Bash(npm uninstall *)",
       "Bash(seq 1 40)",
       "Bash(sleep 5)",
-      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/backend-run.log)"
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/backend-run.log)",
+      "Bash(awk '{print \"behind: \"$1\"  ahead: \"$2}')"
     ]
   },
   "enableAllProjectMcpServers": true,

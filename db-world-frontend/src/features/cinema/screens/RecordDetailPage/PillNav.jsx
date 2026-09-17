@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import { AnimatePresence, motion } from 'framer-motion';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useT } from '@shared/theme/ThemeContext';
+import { PAGE_MEASURE_SX, PAGE_PX } from '@shared/layout/pageMeasure';
 
 /**
  * Sticky horizontal pill nav with IntersectionObserver-driven scrollspy.
@@ -145,13 +146,12 @@ export default function PillNav({
       boxShadow: stuck ? `0 2px 16px ${alpha(T.text, 0.06)}` : 'none',
       transition: 'border-color .2s ease, box-shadow .2s ease',
     }}>
-      {/* Width ladder must match RecordDetailContent's content Container, or the
-          pills drift out of alignment with the sections they scroll to. */}
+      {/* The shared measure, or the pills drift out of alignment with the sections they
+          scroll to. Only the phone inset differs: the pills are a horizontal scroller and
+          want the extra 8px of run. */}
       <Container maxWidth={false} sx={{
-        px: { xs: 1, md: 3, xl: 5 },
-        maxWidth: { xs: '100%', lg: 1200, xl: 1560 },
-        '@media (min-width:1920px)': { maxWidth: 1840, px: 8 },
-        mx: 'auto',
+        ...PAGE_MEASURE_SX,
+        px: { ...PAGE_PX, xs: 1 },
         display: 'flex', alignItems: 'center', gap: 1,
       }}>
         {/* Takes over from the hero's close once that has scrolled away. */}

@@ -22,6 +22,9 @@ import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import { tmdbImg } from '../../api/cinemaApi';
 import { formatRuntime } from './helpers';
 import { genrePath } from '../../utils/genreNav';
+import {
+  PAGE_MAX_W, PAGE_MAX_W_ULTRAWIDE, PAGE_PX, PAGE_PX_ULTRAWIDE, ULTRAWIDE,
+} from '@shared/layout/pageMeasure';
 import ShareButton from './shared/ShareButton';
 import ReactionButton from './ReactionButton';
 import HeroTrailer, { HERO_CONTROL_SIZE, HERO_CONTROL_TOP } from './HeroTrailer';
@@ -820,7 +823,12 @@ export default function Hero({
         inert={immersive ? '' : undefined}
         sx={{
           position: 'relative', zIndex: 2, width: '100%',
-          px: { xs: 2, sm: 3, md: 5, xl: 8 },
+          // The page's padding and measure, not its own. The hero ran md:5/xl:8 against the
+          // sections' md:3/xl:5 and capped its column at 1400 against their 1560/1840, so its
+          // title and poster began 104px inside the section headings at xl and 220px inside
+          // them past 1920 -- a hero 440px narrower than the page it heads.
+          px: PAGE_PX,
+          [ULTRAWIDE]: { px: PAGE_PX_ULTRAWIDE },
           pt: { xs: 3, md: 6 },
           pb: { xs: 2, md: 3.5, xl: 5 },
           // Collapse toward the bottom-left rather than the centre, so the block shrinks
@@ -850,8 +858,9 @@ export default function Hero({
           // is why the action rail bunched to the left instead of spreading.
           alignItems: { xs: 'stretch', sm: 'flex-end' },
           width: '100%',
-          maxWidth: { xs: '100%', lg: 1200, xl: 1400 },
+          maxWidth: PAGE_MAX_W,
           mx: 'auto',
+          [ULTRAWIDE]: { maxWidth: PAGE_MAX_W_ULTRAWIDE },
         }}>
 
           {/* Poster column. Hidden on mobile, where the poster IS the hero stage.

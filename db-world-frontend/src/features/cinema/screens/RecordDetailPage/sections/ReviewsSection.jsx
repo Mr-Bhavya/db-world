@@ -233,7 +233,27 @@ export default function ReviewsSection({ record, recordId }) {
       ) : otherReviews.length > 0 ? (
         <>
           <SectionHeading>All Reviews ({otherReviews.length})</SectionHeading>
-          {otherReviews.map((r) => <UserReviewCard key={r.id} review={r} T={T} />)}
+          {/*
+            Two columns from xl, where the page measure reaches 1560 and a single column of
+            review cards runs a line of italic body text to roughly 205 characters. A grid
+            rather than a prose cap on the card: the cards are self-contained, so splitting them
+            USES the width instead of leaving a dead column beside them, and halves the line
+            length as a side effect.
+
+            `columnGap` only. Each card already carries `mb: 1.5`, which is the row rhythm; a
+            `rowGap` on top of it would double the spacing.
+
+            `alignItems: start` so a two-line review keeps its own height instead of being
+            stretched to match a twenty-line one beside it.
+          */}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', xl: 'repeat(2, minmax(0, 1fr))' },
+            columnGap: 2,
+            alignItems: 'start',
+          }}>
+            {otherReviews.map((r) => <UserReviewCard key={r.id} review={r} T={T} />)}
+          </Box>
         </>
       ) : null}
 
@@ -241,7 +261,14 @@ export default function ReviewsSection({ record, recordId }) {
         <>
           <Divider sx={{ borderColor: alpha(T.text, 0.08), my: 3 }} />
           <SectionHeading>TMDB Reviews ({tmdbReviews.length})</SectionHeading>
-          {tmdbReviews.map((r) => <TmdbReviewCard key={r.id} review={r} T={T} />)}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', xl: 'repeat(2, minmax(0, 1fr))' },
+            columnGap: 2,
+            alignItems: 'start',
+          }}>
+            {tmdbReviews.map((r) => <TmdbReviewCard key={r.id} review={r} T={T} />)}
+          </Box>
         </>
       )}
     </Box>
