@@ -59,7 +59,15 @@ export default function RecordPaymentDialog({
       return;
     }
     setError(null);
-    onRecord({ ...payload, method: method || null, idempotencyKey });
+    onRecord({
+      ...payload,
+      method: method || null,
+      // Carried straight through from the prefill. A repayment against a loan is an ordinary
+      // payment plus the name of the loan it clears -- that name is the only thing that makes
+      // per-loan progress recoverable later, and it is not something the reader can type.
+      settlesExpenseId: prefill?.settlesExpenseId ?? null,
+      idempotencyKey,
+    });
   };
 
   const swap = () => { setFrom(to); setTo(from); };
@@ -70,8 +78,10 @@ export default function RecordPaymentDialog({
       onClose={onClose}
       busy={busy}
       fullScreen={fullScreen}
-      title="Record a payment"
-      subtitle="Write down money that has already changed hands"
+      title={prefill?.settlesExpenseId ? 'Record a repayment' : 'Record a payment'}
+      subtitle={prefill?.loanLabel
+        ? `Against ${prefill.loanLabel}`
+        : 'Write down money that has already changed hands'}
       actions={(
         <>
           <TallyCancelButton onClick={onClose} disabled={busy} />

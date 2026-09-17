@@ -63,6 +63,21 @@ export const expenseSchema = z.object({
   })).min(1, 'Pick at least one person to split this with'),
 });
 
+export const loanSchema = z.object({
+  counterpartyMemberId: z.string().min(1, 'Who is this with?'),
+  direction: z.enum(['LENT', 'BORROWED']),
+  amount: money('Amount'),
+  loanDate: z.string().min(1, 'When did the money move?'),
+  dueDate: z.string().optional().or(z.literal('')),
+  note: z.string().trim().max(200).optional().or(z.literal('')),
+}).refine((v) => !v.dueDate || v.dueDate >= v.loanDate, {
+  // Mirrors the server, which refuses it too. Caught here so the reader is told before they
+  // submit rather than after -- and because an already-overdue new loan would arrive flagged
+  // red, which reads as a bug rather than as the backdating it probably was.
+  path: ['dueDate'],
+  message: 'A loan cannot fall due before the money moved',
+});
+
 export const settlementSchema = z.object({
   fromMemberId: z.string().min(1, 'Who paid?'),
   toMemberId: z.string().min(1, 'Who did they pay?'),

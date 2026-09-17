@@ -19,6 +19,8 @@ const keys = {
   group: (id) => ['tally', 'group', id],
   expenses: (id) => ['tally', 'expenses', id],
   settlements: (id) => ['tally', 'settlements', id],
+  loans: ['tally', 'loans'],
+  groupLoans: (id) => ['tally', 'loans', id],
   settleUp: (id) => ['tally', 'settle-up', id],
   activity: (id) => ['tally', 'activity', id],
   reports: ['tally', 'report'],
@@ -44,6 +46,10 @@ function invalidateGroup(qc, groupId) {
   qc.invalidateQueries({ queryKey: keys.expenses(groupId) });
   qc.invalidateQueries({ queryKey: keys.settlements(groupId) });
   qc.invalidateQueries({ queryKey: keys.settleUp(groupId) });
+  // A repayment is a settlement, so ANY settlement can change a loan's progress --
+  // which is why this sits in the shared invalidation rather than only on the loan
+  // mutation. `keys.loans` is a prefix of `keys.groupLoans`, so one call covers both.
+  qc.invalidateQueries({ queryKey: keys.loans });
   // Every write is an event, so the history is stale after all of them.
   qc.invalidateQueries({ queryKey: keys.activity(groupId) });
   // The spending report reads across every group, so a write to any one of them dates it --
@@ -52,6 +58,20 @@ function invalidateGroup(qc, groupId) {
 }
 
 /* ============================== reads ============================== */
+
+/** Every loan the signed-in user is party to, newest and most outstanding first. */
+export function useLoans() {
+  return useQuery({ queryKey: keys.loans, queryFn: api.fetchLoans });
+}
+
+/** The loans in one ledger. */
+export function useGroupLoans(groupId, enabled = true) {
+  return useQuery({
+    queryKey: keys.groupLoans(groupId),
+    queryFn: () => api.fetchGroupLoans(groupId),
+    enabled: !!groupId && enabled,
+  });
+}
 
 export function useGroups() {
   return useQuery({ queryKey: keys.groups, queryFn: api.fetchGroups });
@@ -371,5 +391,24 @@ export function useReverseSettlement(groupId) {
       notify.success('Payment reversed');
     },
     onError: (e) => notify.error(errMsg(e, 'Could not reverse that payment')),
+  });
+}
+
+/**
+ * Records money lent or borrowed.
+ *
+ * <p>There is no matching `useRepayLoan`: a repayment is a payment between two people, which is
+ * `useRecordSettlement` with `settlesExpenseId` set. A second hook would have implied a second
+ * endpoint, and there is deliberately only one way to move a balance.
+ */
+export function useCreateLoan(groupId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api.createLoan(groupId, body),
+    onSuccess: (loan) => {
+      invalidateGroup(qc, groupId);
+      notify.success(loan?.direction === 'BORROWED' ? 'Borrowing recorded' : 'Loan recorded');
+    },
+    onError: (e) => notify.error(errMsg(e, 'Could not record that')),
   });
 }

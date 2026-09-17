@@ -124,6 +124,25 @@ export const voidExpense = (expenseId) =>
 
 /* ============================== settlements ============================== */
 
+/* ============================== loans ============================== */
+
+/**
+ * Every loan across every ledger, not scoped to one.
+ *
+ * "Who owes me money" is asked about everybody at once -- asking it per ledger is how you forget
+ * the one you have not opened in three months.
+ */
+export const fetchLoans = () => axiosInstance.get(`${BASE}/loans`).then(unwrap);
+
+/** The loans in one ledger, for its own tab. */
+export const fetchGroupLoans = (groupId) =>
+  axiosInstance.get(`${BASE}/groups/${groupId}/loans`).then(unwrap);
+
+export const createLoan = (groupId, body) =>
+  axiosInstance.post(`${BASE}/groups/${groupId}/loans`, body).then(unwrap);
+
+/* ============================== settlements ============================== */
+
 export const fetchSettlements = (groupId) =>
   axiosInstance.get(`${BASE}/groups/${groupId}/settlements`).then(unwrap);
 

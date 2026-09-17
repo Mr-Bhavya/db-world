@@ -9,6 +9,7 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRenameOutlineRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
@@ -19,6 +20,7 @@ import {
   useGroup, useSettleUpPlan, useCreateExpense, useReplaceExpense,
   useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
   useRecordSettlement,
+  useCreateLoan,
 } from '../hooks/useTally';
 import GroupBalanceHero, { GROUP_BALANCE_HERO_MIN_H } from './GroupBalanceHero';
 import GroupTabs from './GroupTabs';
@@ -32,6 +34,7 @@ import AddMemberDialog from './AddMemberDialog';
 import MembersSheet from './MembersSheet';
 import SettleUpSheet from './SettleUpSheet';
 import RecordPaymentDialog from './RecordPaymentDialog';
+import LendBorrowDialog from './LendBorrowDialog';
 import EditGroupDialog from './EditGroupDialog';
 
 /**
@@ -85,6 +88,7 @@ export default function GroupLayout({ groupId, active, children }) {
   const [showMembers, setShowMembers] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [lending, setLending] = useState(false);
   const [payment, setPayment] = useState(null);     // null | {} | prefill
   const [editingGroup, setEditingGroup] = useState(false);
   const [menuAt, setMenuAt] = useState(null);
@@ -105,6 +109,7 @@ export default function GroupLayout({ groupId, active, children }) {
   const claimMember = useClaimMember(groupId);
   const updateGroup = useUpdateGroup(groupId);
   const recordSettlement = useRecordSettlement(groupId);
+  const createLoan = useCreateLoan(groupId);
 
   // Drives the other half of the handover to the pinned bar. Applied to a wrapper rather than
   // to the header itself, which has an entry animation on the same two properties.
@@ -139,6 +144,27 @@ export default function GroupLayout({ groupId, active, children }) {
   const openExpense = (expense = null) => {
     setEditingExpense(expense);
     setAddingExpense(true);
+  };
+
+  const openLoan = () => setLending(true);
+
+  /**
+   * Repaying a loan, which is the payment dialog with the loan already named.
+   *
+   * <p>The direction is derived, not asked. On a loan you made, the money comes back FROM the
+   * other person; on one you took, it goes TO them. Leaving that to the reader is asking them to
+   * re-derive the thing they already told us when they recorded the loan -- and getting it
+   * backwards would drive the balance further from zero instead of towards it.
+   */
+  const openRepay = (loan) => {
+    const lent = loan.direction === 'LENT';
+    setPayment({
+      fromMemberId: lent ? loan.counterpartyMemberId : myMemberId,
+      toMemberId: lent ? myMemberId : loan.counterpartyMemberId,
+      amount: loan.outstanding,
+      settlesExpenseId: loan.id,
+      loanLabel: `${loan.counterpartyName} · ${loan.note || (lent ? 'money you lent' : 'money you borrowed')}`,
+    });
   };
 
   const askRemoveMember = (member) => {
@@ -437,7 +463,7 @@ export default function GroupLayout({ groupId, active, children }) {
 
           <Box sx={{ minWidth: 0, order: { xs: 2, md: 1 } }}>
             <GroupChromeCtx.Provider
-              value={{ group, members, myMemberId, isOwner, nameOf, openExpense }}
+              value={{ group, members, myMemberId, isOwner, nameOf, openExpense, openLoan, openRepay }}
             >
               {children}
             </GroupChromeCtx.Provider>
@@ -483,6 +509,17 @@ export default function GroupLayout({ groupId, active, children }) {
           </ListItemIcon>
           {direct ? 'Change icon' : 'Edit group'}
         </MenuItem>
+        {writable && !personal && (
+          <MenuItem
+            onClick={() => { setMenuAt(null); openLoan(); }}
+            sx={{ fontSize: 14, color: T.textPrimary }}
+          >
+            <ListItemIcon sx={{ minWidth: 32 }}>
+              <HandshakeOutlinedIcon sx={{ fontSize: 18, color: T.textMuted }} />
+            </ListItemIcon>
+            Lend or borrow
+          </MenuItem>
+        )}
         {/* The report and the history used to be here. They are tabs now -- they are things
             you look at, and nobody finds a view hidden behind three dots next to Archive. What
             is left are the two actions, which is what a menu is for. */}
@@ -556,6 +593,15 @@ export default function GroupLayout({ groupId, active, children }) {
         myMemberId={myMemberId}
         onRecord={(transfer) => { setSettling(false); setPayment(transfer); }}
         onRecordCustom={() => { setSettling(false); setPayment({}); }}
+      />
+
+      <LendBorrowDialog
+        open={lending}
+        onClose={() => setLending(false)}
+        busy={createLoan.isPending}
+        members={members}
+        myMemberId={myMemberId}
+        onSubmit={(body) => createLoan.mutate(body, { onSuccess: () => setLending(false) })}
       />
 
       <RecordPaymentDialog
