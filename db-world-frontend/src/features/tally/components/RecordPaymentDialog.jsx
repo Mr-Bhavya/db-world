@@ -45,6 +45,18 @@ export default function RecordPaymentDialog({
   const active = members.filter((m) => m.status === 'ACTIVE');
   const memberOf = (id) => members.find((m) => m.id === id);
 
+  /*
+   * With exactly two people, choosing who paid settles who received -- so BOTH sides are filled
+   * in on open rather than leaving the reader to answer a question with one possible answer.
+   *
+   * <p>Filled in, not removed. An earlier version replaced the pickers with a read-only
+   * statement on the grounds that the swap covered every direction, and that was wrong in a way
+   * worth recording: with no `myMemberId` -- a ghost or unclaimed member -- `from` came out
+   * empty, there was no control to set it, and the submit button stayed disabled forever. A
+   * prefill that turns out wrong has to be correctable, which means the pickers stay.
+   */
+  const pair = active.length === 2 ? active : null;
+
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
@@ -63,10 +75,21 @@ export default function RecordPaymentDialog({
     setIdempotencyKey(newIdempotencyKey());
     setError(null);
     setMethod('');
-    setFrom(prefill?.fromMemberId ?? myMemberId ?? '');
-    setTo(prefill?.toMemberId ?? '');
+    /*
+     * Both sides, and on a pair never empty.
+     *
+     * `myMemberId` is nullable -- a ghost member, or one nobody has claimed -- so it cannot be
+     * the only source for "me". On a pair, fall back to the two people in order; the direction
+     * may then be the wrong way round, which is what the swap is for, but neither side is ever
+     * blank and neither is ever unsettable.
+     */
+    const first = prefill?.fromMemberId ?? myMemberId ?? pair?.[0]?.id ?? '';
+    const second = prefill?.toMemberId
+      ?? (pair ? pair.find((m) => m.id !== first)?.id ?? '' : '');
+    setFrom(first);
+    setTo(second);
     setAmount(prefill?.amount ? String(prefill.amount) : '');
-  }, [open, prefill, myMemberId]);
+  }, [open, prefill, myMemberId, pair]);
 
   const submit = () => {
     const payload = {
@@ -113,23 +136,10 @@ export default function RecordPaymentDialog({
       {/* Who paid whom, as a sentence rather than two unrelated dropdowns. */}
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 1,
-        p: 1.25, borderRadius: 3, bgcolor: T.glass, border: `1px solid ${T.border}`,
+        p: 1.5, borderRadius: 3, bgcolor: T.glass, border: `1px solid ${T.border}`,
       }}>
         <PersonPicker label="Paid" value={from} onChange={setFrom} members={active} myMemberId={myMemberId} />
-        <Box
-          component={motion.button}
-          type="button"
-          whileTap={{ scale: 0.9, rotate: 180 }}
-          onClick={swap}
-          aria-label="Swap who paid whom"
-          sx={{
-            display: 'grid', placeItems: 'center', flexShrink: 0,
-            width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
-            bgcolor: T.glassHover, border: `1px solid ${T.border}`, color: T.textMuted,
-          }}
-        >
-          <SwapHorizRoundedIcon sx={{ fontSize: 16 }} />
-        </Box>
+        <SwapButton onClick={swap} />
         <PersonPicker label="Received" value={to} onChange={setTo} members={active} myMemberId={myMemberId} />
       </Box>
 
@@ -244,6 +254,27 @@ export default function RecordPaymentDialog({
 }
 
 /** A compact person selector: avatars, not a dropdown of names. */
+/** Flips the direction, so neither end has to be re-picked to swap them. */
+function SwapButton({ onClick }) {
+  const T = useT();
+  return (
+    <Box
+      component={motion.button}
+      type="button"
+      whileTap={{ scale: 0.9, rotate: 180 }}
+      onClick={onClick}
+      aria-label="Swap who paid whom"
+      sx={{
+        display: 'grid', placeItems: 'center', flexShrink: 0,
+        width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
+        bgcolor: T.glassHover, border: `1px solid ${T.border}`, color: T.teal,
+      }}
+    >
+      <SwapHorizRoundedIcon sx={{ fontSize: 17 }} />
+    </Box>
+  );
+}
+
 function PersonPicker({ label, value, onChange, members, myMemberId }) {
   const T = useT();
   return (
