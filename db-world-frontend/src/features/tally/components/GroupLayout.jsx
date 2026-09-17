@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, Skeleton,
+  SpeedDial, SpeedDialAction, SpeedDialIcon,
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -21,6 +22,7 @@ import {
   useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
   useRecordSettlement,
   useCreateLoan,
+  useGroupLoans,
 } from '../hooks/useTally';
 import GroupBalanceHero, { GROUP_BALANCE_HERO_MIN_H } from './GroupBalanceHero';
 import GroupTabs from './GroupTabs';
@@ -124,6 +126,10 @@ export default function GroupLayout({ groupId, active, children }) {
   // one-to-one ledger's are already the hero.
   const sidebar = Boolean(group) && !personal && !direct;
   const writable = Boolean(group) && !group.archived;
+
+  // Read here rather than in the tab: the settle-up sheet needs them to offer allocation, and
+  // the sheet belongs to this component. Below `personal`, which it reads.
+  const { data: loans = [] } = useGroupLoans(groupId, !personal);
   // Your own spending has no report worth a tab and no history anybody else could have written.
   const showTabs = Boolean(group) && !personal;
   const nameOf = (id) => members.find((m) => m.id === id)?.displayName ?? 'Someone';
@@ -407,6 +413,24 @@ export default function GroupLayout({ groupId, active, children }) {
                 Add expense
               </Button>
             )}
+            {writable && direct && (
+              <Button
+                onClick={openLoan}
+                startIcon={<HandshakeOutlinedIcon />}
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
+                  borderRadius: 2.5, py: 1.1, px: 2,
+                  // Teal, like every other secondary action in this feature -- the settle-up
+                  // sheet's "Something else", the loan row's repay. It was T.textPrimary over a
+                  // 0.08-alpha border, which next to a filled teal primary read as disabled.
+                  color: T.teal, border: `1px solid ${T.teal}55`,
+                  '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
+                }}
+              >
+                Lend or borrow
+              </Button>
+            )}
           </Box>
         )}
 
@@ -472,7 +496,52 @@ export default function GroupLayout({ groupId, active, children }) {
       </Box>
 
       {/* ── Chrome ───────────────────────────────────────────────────────── */}
-      {writable && (
+      {/*
+        Two actions on a one-to-one ledger, one everywhere else.
+
+        The desktop pair above is `xs: 'none'`, so on a phone this is the only way in -- and it
+        went straight to the expense form, which left lending reachable only from the three-dot
+        menu on exactly the ledgers where it is most common. A group of five keeps the plain
+        button: a loan there genuinely is the rarer thing, and it is still in the menu.
+
+        `tooltipOpen` because a tooltip is a hover, and a phone has none: without it the two
+        actions are a pair of unlabelled circles.
+      */}
+      {writable && direct && (
+        <SpeedDial
+          ariaLabel="Add to this ledger"
+          icon={<SpeedDialIcon />}
+          sx={{
+            display: { xs: 'flex', sm: 'none' },
+            position: 'fixed', right: 18,
+            bottom: 'calc(18px + env(safe-area-inset-bottom))',
+            '& .MuiFab-primary': {
+              bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
+            },
+            '& .MuiSpeedDialAction-staticTooltipLabel': {
+              whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700,
+              bgcolor: T.bg, color: T.textPrimary,
+              border: `1px solid ${T.border}`,
+            },
+          }}
+        >
+          {/* Nearest the button first: adding an expense is still the commoner of the two. */}
+          <SpeedDialAction
+            icon={<AddRoundedIcon />}
+            tooltipTitle="Add expense"
+            tooltipOpen
+            onClick={() => openExpense(null)}
+          />
+          <SpeedDialAction
+            icon={<HandshakeOutlinedIcon />}
+            tooltipTitle="Lend or borrow"
+            tooltipOpen
+            onClick={openLoan}
+          />
+        </SpeedDial>
+      )}
+
+      {writable && !direct && (
         <Fab
           onClick={() => openExpense(null)}
           aria-label="Add expense"
@@ -509,7 +578,10 @@ export default function GroupLayout({ groupId, active, children }) {
           </ListItemIcon>
           {direct ? 'Change icon' : 'Edit group'}
         </MenuItem>
-        {writable && !personal && (
+        {/* Group ledgers only. A one-to-one ledger has this beside Add expense and in the
+            phone's speed dial, so here it would be the third copy of one action -- but a group
+            has neither, and dropping it outright would make lending unreachable there. */}
+        {writable && !personal && !direct && (
           <MenuItem
             onClick={() => { setMenuAt(null); openLoan(); }}
             sx={{ fontSize: 14, color: T.textPrimary }}
@@ -591,7 +663,9 @@ export default function GroupLayout({ groupId, active, children }) {
         plan={plan}
         loading={loadingPlan}
         myMemberId={myMemberId}
+        loans={loans}
         onRecord={(transfer) => { setSettling(false); setPayment(transfer); }}
+        onRecordLoan={(loan) => { setSettling(false); openRepay(loan); }}
         onRecordCustom={() => { setSettling(false); setPayment({}); }}
       />
 

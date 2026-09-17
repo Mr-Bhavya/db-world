@@ -19,11 +19,33 @@ import { TallyFormDialog, TallyCancelButton } from './tallyFormUi';
  * fewer transfer than there are people, which in a family group is two or three payments.
  */
 export default function SettleUpSheet({
-  open, onClose, plan = [], loading, onRecord, onRecordCustom, myMemberId,
+  open, onClose, plan = [], loans = [], loading, onRecord, onRecordLoan, onRecordCustom,
+  myMemberId,
 }) {
   const T = useT();
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+  /**
+   * The outstanding loans a given transfer would repay.
+   *
+   * <p>Direction matters and is easy to get backwards. A payment coming TO me can only repay
+   * something I LENT; one going FROM me can only repay something I BORROWED. Matching on the
+   * counterparty alone would offer to clear a loan with the payment running the wrong way.
+   *
+   * <p>Only loans I am party to, because those are the only ones the server tells me about --
+   * a transfer between two other members has nothing here to offer.
+   */
+  const loansFor = (transfer) => {
+    if (!myMemberId) return [];
+    const incoming = transfer.toMemberId === myMemberId;
+    const outgoing = transfer.fromMemberId === myMemberId;
+    if (!incoming && !outgoing) return [];
+    const otherId = incoming ? transfer.fromMemberId : transfer.toMemberId;
+    return loans.filter((l) => !l.settled
+      && l.counterpartyMemberId === otherId
+      && (l.direction === 'LENT') === incoming);
+  };
 
   return (
     <TallyFormDialog
@@ -69,6 +91,7 @@ export default function SettleUpSheet({
 
       {!loading && plan.map((transfer, i) => {
         const mine = transfer.fromMemberId === myMemberId || transfer.toMemberId === myMemberId;
+        const matches = loansFor(transfer);
         return (
           <Box
             key={`${transfer.fromMemberId}-${transfer.toMemberId}-${i}`}
@@ -126,9 +149,45 @@ export default function SettleUpSheet({
                     : { color: T.teal }),
                 }}
               >
-                Record
+                {matches.length > 0 ? 'Just settle' : 'Record'}
               </Button>
             </Box>
+
+            {/*
+              Part of this balance is a LOAN, so say which and offer to record it as a repayment.
+
+              Recording it as a plain settlement is not wrong -- the balance ends up correct
+              either way -- but it leaves the loan reading "500 due" against a ledger that is
+              square, because an unallocated payment repays no particular thing. That is right
+              for a balance built from a dozen dinners and wrong when the balance IS the loan,
+              and the reader is the only one who knows which.
+            */}
+            {matches.map((loan) => (
+              <Box
+                key={loan.id}
+                sx={{
+                  flex: '1 0 100%', minWidth: 0,
+                  display: 'flex', alignItems: 'center', gap: 1,
+                  pl: 1, pt: 0.75, mt: 0.25,
+                  borderTop: `1px dashed ${T.glassBorder}`,
+                }}
+              >
+                <Typography noWrap sx={{ fontSize: 11.5, color: T.textMuted, flex: 1, minWidth: 0 }}>
+                  {formatMoney(loan.outstanding)} of this is
+                  {loan.note ? ` "${loan.note}"` : ' a loan'}
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={() => onRecordLoan?.(loan)}
+                  sx={{
+                    flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 12,
+                    color: T.teal, minWidth: 0, px: 1,
+                  }}
+                >
+                  Apply to the loan
+                </Button>
+              </Box>
+            ))}
           </Box>
         );
       })}

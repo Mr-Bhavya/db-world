@@ -42,6 +42,19 @@ const RESIZE_MS = 220;
  */
 export default function SheetDialog({
   open, onClose, children, disableBack = false, sheetBreakpoint = 'sm',
+  /*
+   * Opt out of the sheet and stay a centred dialog at every width.
+   *
+   * <p>The rationale above is about FORMS: fields stranded at the top of an 812px screen, and
+   * Back losing what you typed. An overlay that is not a form does not always share it -- a
+   * promo card built as a floating card with a detached dismiss pill below it has no fields to
+   * strand, and flattening it against the bottom edge puts its own all-round corner radius
+   * against the screen while the sheet's top-only radius lands on a transparent wrapper nobody
+   * can see.
+   *
+   * <p>Back is still handled, so opting out costs nothing but the geometry.
+   */
+  asSheet = true,
   sx, slotProps, PaperProps,
   // Swallowed, not forwarded. Callers wrote it as "is this a phone", which is the question this
   // component now answers for itself -- and letting it through would put a dialog back to
@@ -50,7 +63,9 @@ export default function SheetDialog({
   ...rest
 }) {
   const theme = useTheme();
-  const sheet = useMediaQuery(theme.breakpoints.down(sheetBreakpoint));
+  // The hook runs either way -- it cannot be conditional -- and `asSheet` gates the result.
+  const narrow = useMediaQuery(theme.breakpoints.down(sheetBreakpoint));
+  const sheet = asSheet && narrow;
 
   useOverlayBack(open && !disableBack, onClose);
 

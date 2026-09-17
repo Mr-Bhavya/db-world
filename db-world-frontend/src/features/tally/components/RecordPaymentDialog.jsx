@@ -13,6 +13,21 @@ import {
   TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx, MemberAvatar,
 } from './tallyFormUi';
 
+/** Two decimals, because the server rejects a third and MySQL in strict mode rejects it twice. */
+const money = (n) => (Math.round(n * 100) / 100).toFixed(2);
+
+/**
+ * Fractions of the suggested figure.
+ *
+ * <p>Half is the one people actually ask for; a quarter covers "I can only do a bit now"; all of
+ * it is there so the chips are also a way BACK after experimenting, rather than a one-way door.
+ */
+const AMOUNT_PRESETS = [
+  { label: 'Quarter', of: 0.25 },
+  { label: 'Half', of: 0.5 },
+  { label: 'All of it', of: 1 },
+];
+
 /**
  * Recording a payment somebody has already made.
  *
@@ -36,6 +51,10 @@ export default function RecordPaymentDialog({
   const [method, setMethod] = useState('');
   const [error, setError] = useState(null);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+
+  // Of the SUGGESTION, not of whatever is in the box -- otherwise tapping Half twice would
+  // quarter it, and the chips would stop meaning what they say.
+  const suggested = Number(prefill?.amount ?? 0);
 
   useEffect(() => {
     if (!open) return;
@@ -133,6 +152,10 @@ export default function RecordPaymentDialog({
         placeholder="0.00"
         inputMode="decimal"
         aria-label="Amount paid"
+        // Selects the whole suggested figure, so typing replaces it. Without this, changing
+        // 12,450.75 to 6,000 meant tapping into the middle of the number and backspacing
+        // through eight characters -- on a phone, with a 28px font, aiming at a caret.
+        onFocus={(e) => e.target.select()}
         slotProps={{
           input: {
             startAdornment: (
@@ -147,6 +170,34 @@ export default function RecordPaymentDialog({
           '& .MuiInputBase-input': { fontSize: 28, fontWeight: 800, color: T.textPrimary, py: 1.3 },
         }}
       />
+
+      {/* Part payments are the normal case, not the exception -- the settle-up sheet says so in
+          as many words -- so the fractions get a tap each rather than a retype. Offered only
+          when there is a suggested figure to take a fraction OF. */}
+      {suggested > 0 && (
+        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+          {AMOUNT_PRESETS.map(({ label, of }) => {
+            const value = money(suggested * of);
+            return (
+              <Box
+                key={label}
+                component="button"
+                type="button"
+                onClick={() => setAmount(value)}
+                sx={{
+                  appearance: 'none', cursor: 'pointer', px: 1.25, py: 0.5,
+                  borderRadius: 2, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+                  border: `1px solid ${amount === value ? T.teal : T.border}`,
+                  bgcolor: amount === value ? T.tealBg : 'transparent',
+                  color: amount === value ? T.teal : T.textMuted,
+                }}
+              >
+                {label}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
 
       <Box>
         <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted, mb: 1 }}>
