@@ -42,6 +42,7 @@ public interface TallyExpensePayerRepository extends JpaRepository<TallyExpenseP
               join TallyExpenseEntity e on e.id = p.expenseId
              where e.groupId = :groupId
                and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and (e.kind is null or e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.SPEND)
                and e.expenseDate between :from and :to
              group by p.memberId
             """)

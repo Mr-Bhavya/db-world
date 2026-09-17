@@ -41,6 +41,7 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
               join TallyExpenseEntity e on e.id = s.expenseId
              where e.groupId = :groupId
                and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and (e.kind is null or e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.SPEND)
              group by s.beneficiaryMemberId
             """)
     List<TallyLedgerEntryRepository.MemberTotal> sumConsumedByGroup(@Param("groupId") String groupId);
@@ -52,6 +53,7 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
               join TallyExpenseEntity e on e.id = s.expenseId
              where e.groupId = :groupId
                and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and (e.kind is null or e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.SPEND)
                and e.expenseDate between :from and :to
              group by s.beneficiaryMemberId
             """)
@@ -134,6 +136,7 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
               join TallyExpenseEntity e on e.id = s.expenseId
              where e.groupId in :groupIds
                and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and (e.kind is null or e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.SPEND)
                and e.expenseDate between :from and :to
                and s.beneficiaryMemberId in :memberIds
             """)
@@ -149,6 +152,7 @@ public interface TallyExpenseShareRepository extends JpaRepository<TallyExpenseS
               join TallyExpenseEntity e on e.id = s.expenseId
              where e.groupId in :groupIds
                and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+               and (e.kind is null or e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.SPEND)
                and e.expenseDate between :from and :to
                and s.beneficiaryMemberId in :memberIds
             """)

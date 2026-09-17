@@ -17,6 +17,30 @@ export function formatMoney(amount) {
   return Number.isFinite(value) ? INR.format(value) : INR.format(0);
 }
 
+/**
+ * What a rupee field is allowed to contain, applied as it is typed.
+ *
+ * <p>The amount inputs took raw text, so "sf" went in happily and sat there under a rupee sign.
+ * The schema caught it on submit -- it could never have been saved -- but refusing at the
+ * keystroke is the difference between a field that cannot be got wrong and one that tells you
+ * off afterwards.
+ *
+ * <p>Permissive about INTERMEDIATE states, which is the part that is easy to get wrong: "12."
+ * has to survive, or the decimal point can never be typed. So the rule is "could this still
+ * become a valid amount", not "is this one".
+ *
+ * <p>Two decimals, ten digits: the same bounds the zod schema and the server's
+ * `@Digits(integer = 10, fraction = 2)` enforce, so the three cannot disagree.
+ */
+export function sanitiseAmountInput(raw) {
+  let v = String(raw ?? '').replace(/[^\d.]/g, '');
+  const dot = v.indexOf('.');
+  if (dot === -1) return v.slice(0, 10);
+  const whole = v.slice(0, dot).slice(0, 10);
+  const frac = v.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  return `${whole}.${frac}`;
+}
+
 /** The same, minus trailing `.00`, for tight spots like a chip. */
 export function formatMoneyCompact(amount) {
   const text = formatMoney(amount);

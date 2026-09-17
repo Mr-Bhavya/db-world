@@ -9,6 +9,7 @@ import com.db.dbworld.app.tally.entity.TallyLedgerSourceType;
 import com.db.dbworld.app.tally.entity.TallySettlementEntity;
 import com.db.dbworld.app.tally.entity.TallySettlementStatus;
 import com.db.dbworld.app.tally.mapper.TallyMapper;
+import com.db.dbworld.app.tally.repository.TallyExpenseRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
 import com.db.dbworld.app.tally.repository.TallySettlementRepository;
 import com.db.dbworld.core.exception.DbWorldException;
@@ -37,6 +38,8 @@ public class TallySettlementService {
     private final TallyBalanceService balances;
     private final TallyLedgerService ledgerService;
     private final TallySettlementRepository settlements;
+    /** Only to check the loan a repayment claims to settle -- see loanIdFor. */
+    private final TallyExpenseRepository expenses;
     private final TallyGroupMemberRepository members;
     private final TallyActivityService activity;
     private final TallyMapper mapper;
@@ -87,6 +90,7 @@ public class TallySettlementService {
         settlement.setSettledAt(request.settledAt() == null ? Instant.now() : request.settledAt());
         settlement.setRecordedByUserId(userId);
         settlement.setIdempotencyKey(blankToNull(request.idempotencyKey()));
+        settlement.setSettlesExpenseId(loanIdFor(request, groupId));
         settlements.save(settlement);
 
         ledgerService.postSettlement(settlement);
@@ -182,5 +186,36 @@ public class TallySettlementService {
 
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    /**
+     * Validates the loan a repayment claims to settle, and returns its id.
+     *
+     * <p>Three things are checked, because each one produces a differently wrong answer if it is
+     * not: the row has to exist (or the repayment is allocated to nothing and the loan never
+     * shows progress), it has to be in THIS group (or one ledger's payment credits another's
+     * loan), and it has to be a LOAN (or an ordinary expense acquires a repayment total that
+     * nothing will ever display).
+     *
+     * <p>Overpayment is deliberately allowed. Somebody rounding 490 up to 500 when paying back is
+     * ordinary, and refusing it would send them to record a payment they actually made as
+     * something else.
+     */
+    private String loanIdFor(RecordSettlementRequest request, String groupId) {
+        String loanId = blankToNull(request.settlesExpenseId());
+        if (loanId == null) return null;
+
+        var loan = expenses.findById(loanId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND,
+                        "That loan is not here any more"));
+        if (!loan.getGroupId().equals(groupId)) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                    "That loan belongs to a different ledger");
+        }
+        if (!loan.isLoan()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                    "That is a shared expense, not a loan - settle up against the balance instead");
+        }
+        return loanId;
     }
 }

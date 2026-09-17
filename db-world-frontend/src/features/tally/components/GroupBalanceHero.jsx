@@ -103,8 +103,13 @@ export default function GroupBalanceHero({ balance, plan = [], myMemberId, onSet
           whileTap={{ scale: 0.97 }}
           onClick={onSettleUp}
           sx={{
-            display: 'inline-flex', alignItems: 'center', gap: 0.75, flexShrink: 0,
-            px: 2, py: 1, borderRadius: 2.5, cursor: 'pointer',
+            // Full width on a phone, where the card is a column and an inline pill ends up
+            // orphaned in the bottom-left corner looking like an afterthought. From sm the card
+            // is a row and it sits beside the figure, where inline is right.
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            gap: 0.75, flexShrink: 0,
+            width: { xs: '100%', sm: 'auto' },
+            px: 2, py: { xs: 1.25, sm: 1 }, borderRadius: 2.5, cursor: 'pointer',
             fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit',
             color, bgcolor: 'transparent', border: `1px solid ${color}66`,
             transition: 'background-color .18s ease',

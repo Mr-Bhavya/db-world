@@ -69,6 +69,21 @@ public class TallyExpenseEntity {
 
     @Column(length = 60) private String category;
 
+    /**
+     * Spending, or a loan. Nullable because every row that predates the enum is a SPEND and the
+     * schema is managed by ddl-auto -- see {@link TallyExpenseKind}. Read it through
+     * {@link #kindOrSpend()} rather than directly.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private TallyExpenseKind kind = TallyExpenseKind.SPEND;
+
+    /**
+     * When a LOAN is expected back. Null on spending, and null on a loan with no agreed date --
+     * plenty of them do not have one, and inventing a deadline would invent a nudge to go with it.
+     */
+    @Column(name = "due_date") private LocalDate dueDate;
+
     /** The day the money was spent, which is not the day the row was written. */
     @Column(name = "expense_date", nullable = false) private LocalDate expenseDate;
 
@@ -88,5 +103,15 @@ public class TallyExpenseEntity {
 
     public boolean isActive() {
         return status == TallyExpenseStatus.ACTIVE;
+    }
+
+    /** The kind, with a legacy null read as SPEND. Use this, never the raw field. */
+    public TallyExpenseKind kindOrSpend() {
+        return kind == null ? TallyExpenseKind.SPEND : kind;
+    }
+
+    /** Whether this row is money lent or borrowed rather than money spent. */
+    public boolean isLoan() {
+        return kindOrSpend() == TallyExpenseKind.LOAN;
     }
 }

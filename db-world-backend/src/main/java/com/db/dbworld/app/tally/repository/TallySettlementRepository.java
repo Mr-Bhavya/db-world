@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -75,4 +76,23 @@ public interface TallySettlementRepository extends JpaRepository<TallySettlement
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update TallySettlementEntity s set s.toMemberId = :survivorId where s.toMemberId = :loserId")
     int repointTo(@Param("survivorId") String survivorId, @Param("loserId") String loserId);
+
+    /**
+     * How much has come back against each loan, keyed by the loan's id.
+     *
+     * <p>Only ACTIVE settlements count: a reversed payment is one that turned out not to have
+     * happened, and leaving it in would show a loan as repaid on the strength of a correction.
+     *
+     * <p>Batched over a collection rather than queried per loan, because the loans list asks
+     * this for every loan the caller has at once.
+     */
+    @Query("""
+            select s.settlesExpenseId as memberId, sum(s.amount) as total
+              from TallySettlementEntity s
+             where s.settlesExpenseId in :loanIds
+               and s.status = com.db.dbworld.app.tally.entity.TallySettlementStatus.ACTIVE
+             group by s.settlesExpenseId
+            """)
+    List<TallyLedgerEntryRepository.MemberTotal> sumRepaidByLoan(
+            @Param("loanIds") Collection<String> loanIds);
 }

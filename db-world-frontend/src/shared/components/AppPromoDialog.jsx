@@ -60,6 +60,17 @@ export default function AppPromoDialog({
   return (
     <SheetDialog
       open={open}
+      /*
+       * Centred at every width, not a bottom sheet.
+       *
+       * This is a floating card with a dismiss pill stacked under it -- see the transparent
+       * paper below, which exists so the two read as separate surfaces. As a sheet it lost the
+       * `m: 2` that made it float and the 420px cap that kept it card-shaped, so a fully
+       * rounded card sat flush against the bottom edge with the sheet's top-only radius applied
+       * to a wrapper nobody can see. There are no fields here to strand, which is what the
+       * sheet treatment is for.
+       */
+      asSheet={false}
       disableEscapeKeyDown={!dismissible}
       onClose={(_e, reason) => {
         if (!dismissible) return;

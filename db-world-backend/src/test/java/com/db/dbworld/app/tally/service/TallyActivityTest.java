@@ -172,7 +172,7 @@ class TallyActivityTest {
     void settlementsAreRecorded() {
         spend("Groceries", "100.00");
         var payment = settlementService.record(ammaUser, groupId,
-                new RecordSettlementRequest(amma, appa, bd("50.00"), "UPI", null, null));
+                new RecordSettlementRequest(amma, appa, bd("50.00"), "UPI", null, null, null));
 
         assertThat(feed().getFirst().summary()).isEqualTo("Amma paid Appa ₹50.00");
 

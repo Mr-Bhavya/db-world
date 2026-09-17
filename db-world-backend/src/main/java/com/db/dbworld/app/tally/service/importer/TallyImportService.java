@@ -251,6 +251,9 @@ public class TallyImportService {
                 memberIds.get(to),
                 entry.cost(),
                 "Imported",
+                // Splitwise exports a payment, not which loan it repaid -- it has no such
+                // concept -- so an imported settlement is unallocated like any settle-up.
+                null,
                 entry.date().atStartOfDay(ZONE).toInstant(),
                 "sw-%d".formatted(row)));
     }

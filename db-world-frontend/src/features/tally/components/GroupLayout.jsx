@@ -1,7 +1,8 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, Skeleton,
+  SpeedDial, SpeedDialAction, SpeedDialIcon,
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -9,6 +10,7 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRenameOutlineRounded';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
@@ -19,6 +21,8 @@ import {
   useGroup, useSettleUpPlan, useCreateExpense, useReplaceExpense,
   useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
   useRecordSettlement,
+  useCreateLoan,
+  useGroupLoans,
 } from '../hooks/useTally';
 import GroupBalanceHero, { GROUP_BALANCE_HERO_MIN_H } from './GroupBalanceHero';
 import GroupTabs from './GroupTabs';
@@ -32,6 +36,7 @@ import AddMemberDialog from './AddMemberDialog';
 import MembersSheet from './MembersSheet';
 import SettleUpSheet from './SettleUpSheet';
 import RecordPaymentDialog from './RecordPaymentDialog';
+import LendBorrowDialog from './LendBorrowDialog';
 import EditGroupDialog from './EditGroupDialog';
 
 /**
@@ -76,7 +81,10 @@ export default function GroupLayout({ groupId, active, children }) {
     description: 'Shared expenses, balances and settle-up for one Tally ledger.',
   });
 
-  const members = group?.members ?? [];
+  // Memoised because RecordPaymentDialog derives its reset-effect dependencies from this. The
+  // `?? []` mints a new array whenever the field is absent, and an unstable identity there
+  // re-ran that effect on every render and wiped the form as it was being typed into.
+  const members = useMemo(() => group?.members ?? [], [group]);
   const myMemberId = group?.myMemberId ?? null;
   const myBalance = Number(members.find((m) => m.id === myMemberId)?.balance ?? 0);
 
@@ -85,6 +93,7 @@ export default function GroupLayout({ groupId, active, children }) {
   const [showMembers, setShowMembers] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [lending, setLending] = useState(false);
   const [payment, setPayment] = useState(null);     // null | {} | prefill
   const [editingGroup, setEditingGroup] = useState(false);
   const [menuAt, setMenuAt] = useState(null);
@@ -105,6 +114,7 @@ export default function GroupLayout({ groupId, active, children }) {
   const claimMember = useClaimMember(groupId);
   const updateGroup = useUpdateGroup(groupId);
   const recordSettlement = useRecordSettlement(groupId);
+  const createLoan = useCreateLoan(groupId);
 
   // Drives the other half of the handover to the pinned bar. Applied to a wrapper rather than
   // to the header itself, which has an entry animation on the same two properties.
@@ -119,6 +129,10 @@ export default function GroupLayout({ groupId, active, children }) {
   // one-to-one ledger's are already the hero.
   const sidebar = Boolean(group) && !personal && !direct;
   const writable = Boolean(group) && !group.archived;
+
+  // Read here rather than in the tab: the settle-up sheet needs them to offer allocation, and
+  // the sheet belongs to this component. Below `personal`, which it reads.
+  const { data: loans = [] } = useGroupLoans(groupId, !personal);
   // Your own spending has no report worth a tab and no history anybody else could have written.
   const showTabs = Boolean(group) && !personal;
   const nameOf = (id) => members.find((m) => m.id === id)?.displayName ?? 'Someone';
@@ -139,6 +153,27 @@ export default function GroupLayout({ groupId, active, children }) {
   const openExpense = (expense = null) => {
     setEditingExpense(expense);
     setAddingExpense(true);
+  };
+
+  const openLoan = () => setLending(true);
+
+  /**
+   * Repaying a loan, which is the payment dialog with the loan already named.
+   *
+   * <p>The direction is derived, not asked. On a loan you made, the money comes back FROM the
+   * other person; on one you took, it goes TO them. Leaving that to the reader is asking them to
+   * re-derive the thing they already told us when they recorded the loan -- and getting it
+   * backwards would drive the balance further from zero instead of towards it.
+   */
+  const openRepay = (loan) => {
+    const lent = loan.direction === 'LENT';
+    setPayment({
+      fromMemberId: lent ? loan.counterpartyMemberId : myMemberId,
+      toMemberId: lent ? myMemberId : loan.counterpartyMemberId,
+      amount: loan.outstanding,
+      settlesExpenseId: loan.id,
+      loanLabel: `${loan.counterpartyName} · ${loan.note || (lent ? 'money you lent' : 'money you borrowed')}`,
+    });
   };
 
   const askRemoveMember = (member) => {
@@ -381,6 +416,24 @@ export default function GroupLayout({ groupId, active, children }) {
                 Add expense
               </Button>
             )}
+            {writable && direct && (
+              <Button
+                onClick={openLoan}
+                startIcon={<HandshakeOutlinedIcon />}
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
+                  borderRadius: 2.5, py: 1.1, px: 2,
+                  // Teal, like every other secondary action in this feature -- the settle-up
+                  // sheet's "Something else", the loan row's repay. It was T.textPrimary over a
+                  // 0.08-alpha border, which next to a filled teal primary read as disabled.
+                  color: T.teal, border: `1px solid ${T.teal}55`,
+                  '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
+                }}
+              >
+                Lend or borrow
+              </Button>
+            )}
           </Box>
         )}
 
@@ -437,7 +490,7 @@ export default function GroupLayout({ groupId, active, children }) {
 
           <Box sx={{ minWidth: 0, order: { xs: 2, md: 1 } }}>
             <GroupChromeCtx.Provider
-              value={{ group, members, myMemberId, isOwner, nameOf, openExpense }}
+              value={{ group, members, myMemberId, isOwner, nameOf, openExpense, openLoan, openRepay }}
             >
               {children}
             </GroupChromeCtx.Provider>
@@ -446,7 +499,52 @@ export default function GroupLayout({ groupId, active, children }) {
       </Box>
 
       {/* ── Chrome ───────────────────────────────────────────────────────── */}
-      {writable && (
+      {/*
+        Two actions on a one-to-one ledger, one everywhere else.
+
+        The desktop pair above is `xs: 'none'`, so on a phone this is the only way in -- and it
+        went straight to the expense form, which left lending reachable only from the three-dot
+        menu on exactly the ledgers where it is most common. A group of five keeps the plain
+        button: a loan there genuinely is the rarer thing, and it is still in the menu.
+
+        `tooltipOpen` because a tooltip is a hover, and a phone has none: without it the two
+        actions are a pair of unlabelled circles.
+      */}
+      {writable && direct && (
+        <SpeedDial
+          ariaLabel="Add to this ledger"
+          icon={<SpeedDialIcon />}
+          sx={{
+            display: { xs: 'flex', sm: 'none' },
+            position: 'fixed', right: 18,
+            bottom: 'calc(18px + env(safe-area-inset-bottom))',
+            '& .MuiFab-primary': {
+              bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
+            },
+            '& .MuiSpeedDialAction-staticTooltipLabel': {
+              whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700,
+              bgcolor: T.bg, color: T.textPrimary,
+              border: `1px solid ${T.border}`,
+            },
+          }}
+        >
+          {/* Nearest the button first: adding an expense is still the commoner of the two. */}
+          <SpeedDialAction
+            icon={<AddRoundedIcon />}
+            tooltipTitle="Add expense"
+            tooltipOpen
+            onClick={() => openExpense(null)}
+          />
+          <SpeedDialAction
+            icon={<HandshakeOutlinedIcon />}
+            tooltipTitle="Lend or borrow"
+            tooltipOpen
+            onClick={openLoan}
+          />
+        </SpeedDial>
+      )}
+
+      {writable && !direct && (
         <Fab
           onClick={() => openExpense(null)}
           aria-label="Add expense"
@@ -483,6 +581,20 @@ export default function GroupLayout({ groupId, active, children }) {
           </ListItemIcon>
           {direct ? 'Change icon' : 'Edit group'}
         </MenuItem>
+        {/* Group ledgers only. A one-to-one ledger has this beside Add expense and in the
+            phone's speed dial, so here it would be the third copy of one action -- but a group
+            has neither, and dropping it outright would make lending unreachable there. */}
+        {writable && !personal && !direct && (
+          <MenuItem
+            onClick={() => { setMenuAt(null); openLoan(); }}
+            sx={{ fontSize: 14, color: T.textPrimary }}
+          >
+            <ListItemIcon sx={{ minWidth: 32 }}>
+              <HandshakeOutlinedIcon sx={{ fontSize: 18, color: T.textMuted }} />
+            </ListItemIcon>
+            Lend or borrow
+          </MenuItem>
+        )}
         {/* The report and the history used to be here. They are tabs now -- they are things
             you look at, and nobody finds a view hidden behind three dots next to Archive. What
             is left are the two actions, which is what a menu is for. */}
@@ -554,8 +666,32 @@ export default function GroupLayout({ groupId, active, children }) {
         plan={plan}
         loading={loadingPlan}
         myMemberId={myMemberId}
-        onRecord={(transfer) => { setSettling(false); setPayment(transfer); }}
-        onRecordCustom={() => { setSettling(false); setPayment({}); }}
+        loans={loans}
+        /*
+          The sheet stays OPEN behind the payment dialog, deliberately.
+
+          Closing it in the same tick as opening the other was a navigation bug, not a tidiness
+          choice: useOverlayBack gives each overlay a history entry and pops it with
+          navigate(-1) on close, so two overlays changing state together fire two depth
+          operations at once, one entry too many comes off, and Cancel landed the reader on the
+          tally list instead of back here.
+
+          Nesting is the case that hook is built for -- "a sheet opened over a sheet closes one
+          at a time" -- and it reads better anyway: cancelling a payment returns you to the list
+          of suggestions you picked it from rather than dumping you on the page.
+        */
+        onRecord={(transfer) => setPayment(transfer)}
+        onRecordLoan={(loan) => openRepay(loan)}
+        onRecordCustom={() => setPayment({})}
+      />
+
+      <LendBorrowDialog
+        open={lending}
+        onClose={() => setLending(false)}
+        busy={createLoan.isPending}
+        members={members}
+        myMemberId={myMemberId}
+        onSubmit={(body) => createLoan.mutate(body, { onSuccess: () => setLending(false) })}
       />
 
       <RecordPaymentDialog
@@ -565,7 +701,9 @@ export default function GroupLayout({ groupId, active, children }) {
         members={members}
         myMemberId={myMemberId}
         prefill={payment}
-        onRecord={(body) => recordSettlement.mutate(body, { onSuccess: () => setPayment(null) })}
+        onRecord={(body) => recordSettlement.mutate(body, {
+          onSuccess: () => { setPayment(null); setSettling(false); },
+        })}
       />
 
       <EditGroupDialog
