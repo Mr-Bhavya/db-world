@@ -45,7 +45,7 @@
       ],
       "h1": "Everything you use, in one hub",
       "title": "DB World - movies, live IPO tracking, weather and games",
-      "description": "A self-hosted suite of small, focused web apps: a media library, live Indian IPO tracking, weather, six browser games and an encrypted vault.",
+      "description": "A self-hosted suite of small, focused web apps: a media library, live Indian IPO tracking, shared expenses, weather, six browser games and an encrypted vault.",
       "lead": "DB World is a self-hosted suite of small, focused web apps that grew out of one problem at a time. Nothing here is a wrapper around somebody else's product - each app was built because an existing tool was heavier, noisier or more expensive than the job needed.",
       "sections": [
         {
@@ -74,6 +74,10 @@
             {
               "term": "Document wallet",
               "text": "An encrypted store for government documents, with expiry tracking and revocable share links."
+            },
+            {
+              "term": "Shared expenses",
+              "text": "Tally splits a bill with one person or a whole group and keeps the running balance, including with people who never sign up. Settle-up works out who pays whom in the fewest transfers, and every change is logged so a corrected expense can be traced."
             }
           ]
         },
@@ -89,7 +93,7 @@
           "heading": "What needs an account",
           "paragraphs": [
             "Reading is open. You can browse the film and TV catalogue, track IPOs, check the weather, play every game and use the password generator without signing in or handing over an email address.",
-            "An account is only required to act on something: to play or download a title, to save an IPO to a watchlist, to store a password or a document, or to keep preferences across devices. Accounts can be deleted from the profile page, and deletion removes the stored data rather than flagging it."
+            "An account is only required to act on something: to play or download a title, to save an IPO to a watchlist, to store a password or a document, to split a bill, or to keep preferences across devices. Accounts can be deleted from the profile page, and deletion removes the stored data rather than flagging it."
           ]
         }
       ]

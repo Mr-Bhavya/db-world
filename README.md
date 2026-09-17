@@ -1,7 +1,7 @@
 # DB World
 
-A full-stack web + Android application — cinema streaming, password manager, weather,
-games, and an admin console.
+A full-stack web + Android application — cinema streaming, live IPO tracking, shared
+expenses, a password manager, a document wallet, weather, games, and an admin console.
 
 **Live:** [https://db-world.in](https://db-world.in) · **API:** [https://api.db-world.in](https://api.db-world.in) · **Version:** `3.0.0`
 
@@ -100,7 +100,10 @@ GitHub Release's `version.json`) and installs the newer signed APK.
 | Feature | Description |
 |---|---|
 | Cinema | Browse + stream movies/series (TMDB metadata), continue-watching, downloads, watchlist; Netflix-style UI on web + Android |
+| IPO Radar | Live Indian mainboard + SME IPOs: dates, price band, lot size, GMP, subscription and listing gain, reconciled from several sources |
+| Tally | Split expenses with people and groups, including people without an account; balances, settle-up, per-ledger reports and Splitwise import |
 | Password Manager | Encrypted credential storage |
+| Document Wallet | Encrypted store for government documents, with expiry tracking and revocable share links |
 | Weather | Location-based weather |
 | Games | Built-in browser games |
 | Admin Console | User management, TMDB sync, media ingestion pipeline, log viewer, scheduler |

@@ -12,6 +12,7 @@ import CinemaWidget from './widgets/CinemaWidget';
 import IpoWidget from './widgets/IpoWidget';
 import QuickLaunchWidget from './widgets/QuickLaunchWidget';
 import RecentWidget from './widgets/RecentWidget';
+import TallyWidget from './widgets/TallyWidget';
 import VaultWidget from './widgets/VaultWidget';
 import WalletWidget from './widgets/WalletWidget';
 import WeatherWidget from './widgets/WeatherWidget';
@@ -42,6 +43,15 @@ const APP_WIDGETS = {
     defaultSize: 'md',
     sizes: ['sm', 'md'],
     resolveSize: contentAwareSize((summary) => (summary.vault?.total ?? 0) === 0),
+  },
+  tally: {
+    Component: TallyWidget,
+    defaultSize: 'md',
+    sizes: ['sm', 'md'],
+    // Shrinks when nothing is outstanding. The medium tile's second column names the ledger
+    // worth opening, and with every ledger square there is no such ledger -- the extra width
+    // would go to "Every ledger is settled" and nothing else.
+    resolveSize: contentAwareSize((summary) => (summary.tally?.outstanding ?? 0) === 0),
   },
   weather: { Component: WeatherWidget, defaultSize: 'sm', sizes: ['sm', 'md'] },
   games: { Component: ArcadeWidget, defaultSize: 'sm', sizes: ['sm', 'md'] },

@@ -6,6 +6,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { useSpendingReport } from './hooks/useTally';
 import {
@@ -34,6 +35,10 @@ const SHARE_EXPLAINER = 'What you consumed, not what you paid out. Money you fro
  * because a number that is not the one you remember handing over needs explaining once.
  */
 export default function TallyReportPage() {
+  usePageMeta('Spending report', {
+    description: 'What you have spent across every Tally ledger, by period and category.',
+  });
+
   const T = useT();
   const navigate = useNavigate();
   const reduce = useReducedMotion();

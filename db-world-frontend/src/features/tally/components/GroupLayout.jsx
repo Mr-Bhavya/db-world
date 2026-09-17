@@ -13,6 +13,7 @@ import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import {
   useGroup, useSettleUpPlan, useCreateExpense, useReplaceExpense,
@@ -67,6 +68,13 @@ export default function GroupLayout({ groupId, active, children }) {
   const reduce = useReducedMotion();
 
   const { data: group, isLoading, isError } = useGroup(groupId);
+
+  // Named after the ledger once it has loaded. Called here rather than in any of the three tab
+  // components: this layout is mounted once and survives a tab switch, so the tab title does not
+  // flicker back to a default between views. Above the early returns, because it is a hook.
+  usePageMeta(group?.name ?? 'Tally', {
+    description: 'Shared expenses, balances and settle-up for one Tally ledger.',
+  });
 
   const members = group?.members ?? [];
   const myMemberId = group?.myMemberId ?? null;

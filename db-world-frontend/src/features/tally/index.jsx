@@ -9,6 +9,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { useGroups, useCreateGroup, useCreateDirect, usePersonalLedger } from './hooks/useTally';
 import { splitLedgers } from './utils/tallyFormat';
@@ -36,6 +37,10 @@ import NewLedgerMenu from './components/NewLedgerMenu';
  * People-or-Groups is gone — that was never the question anybody opened this with.
  */
 export default function TallyPage() {
+  usePageMeta('Tally', {
+    description: 'Split expenses with anyone on DB World, including people without an account.',
+  });
+
   const T = useT();
   const navigate = useNavigate();
   const reduce = useReducedMotion();
