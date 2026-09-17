@@ -1,4 +1,4 @@
-import { Box, Typography, Button, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, Button, Skeleton } from '@mui/material';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -13,7 +13,6 @@ import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
-import { TallyFormDialog, TallyCancelButton } from './tallyFormUi';
 
 /** One icon and one colour per kind of event, so the feed can be scanned rather than read. */
 const LOOK = {
@@ -55,29 +54,63 @@ const when = (iso) => {
  * amounts included — renaming somebody does not re-narrate what they did last week. So this
  * component renders text rather than composing it, which is the whole point.
  */
-export default function HistorySheet({ open, onClose, entries = [], loading, onRestore, restoring }) {
+/**
+ * The shape of the timeline while it loads.
+ *
+ * <p>This was a centred spinner, the last one in tally standing in for content rather than for
+ * an action. A spinner claims a fixed ~90px wherever the list is about to be and says nothing
+ * about it, so the entries always arrived by shoving the page around. Same spine, same two
+ * lines of type, so they no longer do.
+ */
+function HistorySkeleton({ T, rows = 4 }) {
+  const base = { bgcolor: T.glassHover, borderRadius: 1 };
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      {Array.from({ length: rows }, (_, i) => {
+        const last = i === rows - 1;
+        return (
+          <Box key={i} sx={{ display: 'flex', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <Skeleton variant="circular" width={30} height={30} sx={base} />
+              {!last && <Box sx={{ flex: 1, width: '1px', bgcolor: T.border, my: 0.5 }} />}
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1, pb: last ? 0 : 2 }}>
+              <Typography sx={{ fontSize: 14, lineHeight: 1.4 }}>
+                <Skeleton variant="text" width={`${70 - i * 6}%`} sx={base} />
+              </Typography>
+              <Typography sx={{ fontSize: 11.5, mt: 0.2 }}>
+                <Skeleton variant="text" width="40%" sx={base} />
+              </Typography>
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
+/**
+ * Everything that has happened in this group.
+ *
+ * <p>Extracted out of a dialog and onto its own tab. It was reachable only through the overflow
+ * menu, which is the wrong home for it twice over: a change log is something you read, not an
+ * action you take, and a full audit trail inside a modal means scrolling a list in a box inside
+ * a page that also scrolls.
+ *
+ * <p>The wording of each entry is whatever was recorded at the time -- see the server-side
+ * TallyActivityEntity. Nothing here is composed from live data, deliberately, so an old entry
+ * still says what it said when it was written.
+ */
+export default function GroupHistoryView({ entries = [], loading, onRestore, restoring }) {
   const T = useT();
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const colorFor = (tone) => ({
     teal: T.teal, warn: '#f59e0b', danger: '#ef4444', muted: T.textMuted,
   }[tone] ?? T.textMuted);
 
   return (
-    <TallyFormDialog
-      open={open}
-      onClose={onClose}
-      fullScreen={fullScreen}
-      title="History"
-      subtitle={entries.length ? 'Everything that has happened here' : undefined}
-      actions={<TallyCancelButton onClick={onClose}>Close</TallyCancelButton>}
-    >
-      {loading && (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 4 }}>
-          <CircularProgress size={22} sx={{ color: T.teal }} />
-        </Box>
-      )}
+    <Box>
+      {loading && <HistorySkeleton T={T} />}
 
       {!loading && entries.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -166,6 +199,6 @@ export default function HistorySheet({ open, onClose, entries = [], loading, onR
           history, so this list always shows what actually happened.
         </Typography>
       )}
-    </TallyFormDialog>
+    </Box>
   );
 }

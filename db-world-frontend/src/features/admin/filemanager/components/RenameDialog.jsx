@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, IconButton, CircularProgress,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  IconButton,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
@@ -13,6 +18,7 @@ import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { renameItem } from '../api/fileManagerApi';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const nameSchema = z.object({
   name: z.string().trim()
@@ -54,7 +60,7 @@ export default function RenameDialog({ open, onClose, item }) {
   const handleClose = () => { if (!isPending) onClose?.(); };
 
   return (
-    <Dialog
+    <SheetDialog
       open={Boolean(open && item)}
       onClose={handleClose}
       maxWidth="xs"
@@ -105,6 +111,6 @@ export default function RenameDialog({ open, onClose, item }) {
           </DialogActions>
         </form>
       )}
-    </Dialog>
+    </SheetDialog>
   );
 }

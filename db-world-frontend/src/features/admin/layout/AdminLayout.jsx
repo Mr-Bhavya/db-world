@@ -1,4 +1,4 @@
-import React, { useState, useCallback, Suspense } from 'react';
+import React, { useState, useCallback, useRef, Suspense } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, SwipeableDrawer, List, ListItemButton, ListItemIcon, ListItemText,
@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import { AdminThemeProvider, useThemeMode, useT } from '@shared/theme';
+import { registerScrollContainer } from '../../../app/scrollContainer';
 import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -67,6 +68,14 @@ const AdminLayoutInner = () => {
 
   const [open,       setOpen]      = useState(!isMobile);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // A callback ref rather than an effect: React hands it the node on mount and null on unmount,
+  // which is exactly the register/unregister pair, with no dependency array to get wrong.
+  const unregisterScroller = useRef(null);
+  const registerScroller = useCallback((element) => {
+    unregisterScroller.current?.();
+    unregisterScroller.current = element ? registerScrollContainer(element) : null;
+  }, []);
   const [collapsed,  setCollapsed]  = useState({});
 
   // On mobile the drawer always shows the full sidebar regardless of `open`
@@ -400,7 +409,11 @@ const AdminLayoutInner = () => {
         )}
 
         {/* Page content */}
-        <Box sx={{
+        {/* Admin scrolls HERE, not the document -- a full-height flex shell whose main pane owns
+            the overflow. So `window.scrollY` is permanently zero in this section, and anything
+            remembering a position has to be told which element to read. ScrollMemory follows
+            whatever is registered; without this line every admin page silently forgets. */}
+        <Box ref={registerScroller} sx={{
           flex: 1, overflowY: 'auto', overflowX: 'hidden',
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 },

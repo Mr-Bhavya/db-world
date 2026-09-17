@@ -1,12 +1,44 @@
+import SheetDialog from '@shared/components/SheetDialog';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { notify } from '@shared/notify';
 import {
-  Box, Typography, Stack, Chip, Tooltip, Checkbox, IconButton,
-  Button, TextField, InputAdornment, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Select, MenuItem, FormControl,
-  InputLabel, Dialog, DialogTitle, DialogContent, DialogActions, Divider,
-  Alert, CircularProgress, alpha, useMediaQuery, useTheme as useMuiTheme,
-  Menu, ListItemIcon, ListItemText, Tab, Tabs, Skeleton, LinearProgress, Collapse,
+  Box,
+  Typography,
+  Stack,
+  Chip,
+  Tooltip,
+  Checkbox,
+  IconButton,
+  Button,
+  TextField,
+  InputAdornment,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  Alert,
+  CircularProgress,
+  alpha,
+  useMediaQuery,
+  useTheme as useMuiTheme,
+  Menu,
+  ListItemIcon,
+  ListItemText,
+  Tab,
+  Tabs,
+  Skeleton,
+  LinearProgress,
+  Collapse,
 } from '@mui/material';
 import {
   SearchRounded, DeleteOutlineRounded, RefreshRounded, LinkOffRounded, LinkRounded,
@@ -712,7 +744,7 @@ function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyP
   });
 
   return (
-    <Dialog open={!!fileId} onClose={onClose} maxWidth="md" fullWidth fullScreen={mobile}
+    <SheetDialog open={!!fileId} onClose={onClose} maxWidth="md" fullWidth fullScreen={mobile}
       slotProps={{ paper: { sx: { bgcolor: S.card, backgroundImage: 'none', border: mobile ? 'none' : `1px solid ${S.border}`, borderRadius: mobile ? 0 : 3, height: mobile ? '100%' : '82vh', maxHeight: mobile ? '100%' : '82vh', display: 'flex', flexDirection: 'column' } } }}>
       {/* Compact header — filename, path, actions. Kept small so the tabs sit high. */}
       <Box sx={{ px: { xs: 2, sm: 3 }, pt: 2, pb: 1, flexShrink: 0 }}>
@@ -816,7 +848,7 @@ function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyP
           })
         )}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }
 
@@ -858,7 +890,7 @@ function DeleteDialog({ open, count, onClose, onConfirm }) {
     transition: 'border-color .15s, background .15s',
   });
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth
+    <SheetDialog open={open} onClose={handleClose} maxWidth="xs" fullWidth
       slotProps={{ paper: { sx: { bgcolor: S.card, backgroundImage: 'none', border: `1px solid ${S.border}`, borderRadius: 3 } } }}>
       <DialogTitle sx={{ color: T.text, fontWeight: 700 }}>Delete {count > 1 ? `${count} files` : 'file'}?</DialogTitle>
       <DialogContent>
@@ -895,7 +927,7 @@ function DeleteDialog({ open, count, onClose, onConfirm }) {
           {purge ? 'Delete permanently' : 'Remove from library'}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 
@@ -926,7 +958,7 @@ function LinkRecordDialog({ open, fileId, onClose }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+    <SheetDialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       slotProps={{ paper: { sx: { bgcolor: S.card, backgroundImage: 'none', border: `1px solid ${S.border}`, borderRadius: 3 } } }}>
       <DialogTitle sx={{ color: T.text, fontWeight: 700 }}>Link to Record</DialogTitle>
       <DialogContent><Box pt={1}><RecordSearch value={record} onChange={setRecord} /></Box></DialogContent>
@@ -936,7 +968,7 @@ function LinkRecordDialog({ open, fileId, onClose }) {
           startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <LinkRounded />} onClick={handleLink}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Link</Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

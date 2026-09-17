@@ -11,6 +11,7 @@ import { useSpendingReport } from './hooks/useTally';
 import {
   categoryEmoji, formatMoney, groupIcon, reportCaption, spendingTrend,
 } from './utils/tallyFormat';
+import { DEFAULT_WINDOW } from './utils/reportWindow';
 import ReportPeriodNav from './components/ReportPeriodNav';
 import SpendingChart from './components/SpendingChart';
 import SpendingBreakdown from './components/SpendingBreakdown';
@@ -37,25 +38,13 @@ export default function TallyReportPage() {
   const navigate = useNavigate();
   const reduce = useReducedMotion();
 
-  const [period, setPeriod] = useState('MONTH');
-  // null means "the current period", which is the server's default. Stepping replaces it with
-  // an anchor the server sent us, so the two never disagree about where a month begins.
-  const [anchor, setAnchor] = useState(null);
+  const [window, setWindow] = useState(DEFAULT_WINDOW);
 
-  const { data: report, isPending, isFetching } = useSpendingReport(period, anchor);
+  const { data: report, isPending, isFetching } = useSpendingReport(window);
 
   const total = Number(report?.total ?? 0);
-  const trend = spendingTrend(total, report?.previousTotal, period);
+  const trend = spendingTrend(total, report?.previousTotal, report?.period);
   const nothingYet = !isPending && report && total === 0;
-
-  /* Switching Week/Month/Year drops the anchor.
-     The anchor is a date inside a period of the old size, and carrying it over lands you on
-     "the week containing the 1st of last September" — technically correct and never what was
-     meant. Going back to the current period is the only unsurprising answer. */
-  const changePeriod = (next) => {
-    setPeriod(next);
-    setAnchor(null);
-  };
 
   return (
     <Box sx={{
@@ -85,10 +74,9 @@ export default function TallyReportPage() {
         </Box>
 
         <ReportPeriodNav
-          period={period}
-          onPeriodChange={changePeriod}
+          window={window}
+          onChange={setWindow}
           report={report}
-          onStep={setAnchor}
           busy={isFetching}
         />
 
@@ -116,7 +104,11 @@ export default function TallyReportPage() {
           </Box>
 
           {isPending && !report ? (
-            <Skeleton variant="text" width={180} height={44} sx={{ bgcolor: T.glass }} />
+            /* Wrapped in the type it replaces so it is one line box of the same font. The
+               flat 44px was ~9px taller than the 32px/1.1 figure on a phone. */
+            <Typography sx={{ fontSize: { xs: 32, sm: 38 }, lineHeight: 1.1 }}>
+              <Skeleton variant="text" width={180} sx={{ bgcolor: T.glass }} />
+            </Typography>
           ) : (
             <AnimatePresence mode="wait" initial={false}>
               <Typography
@@ -161,7 +153,7 @@ export default function TallyReportPage() {
 
         {nothingYet && (
           <NothingSpent
-            period={period}
+            period={report?.period}
             hint="Add an expense in any of your ledgers and it will show up here."
           />
         )}
@@ -172,7 +164,7 @@ export default function TallyReportPage() {
               p: { xs: 1.5, sm: 2 }, mb: 3, borderRadius: 3.5,
               bgcolor: T.glass, border: `1px solid ${T.border}`,
             }}>
-              <SpendingChart period={period} buckets={report.buckets} />
+              <SpendingChart unit={report.bucketUnit} buckets={report.buckets} />
             </Box>
 
             <SpendingBreakdown

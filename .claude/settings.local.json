@@ -216,7 +216,11 @@
       "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);[print\\(b['name'],'| main='+str\\(b.get\\('isMain'\\)\\),'|',b.get\\('status',{}\\)\\)for b in d.get\\('branches',[]\\)]\")",
       "Bash(python -)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data'],indent=1\\)[:900]\\)\")",
-      "Bash(awk -F/ '{print \"/\"$2\"/\"$3\"/\"$4}')"
+      "Bash(awk -F/ '{print \"/\"$2\"/\"$3\"/\"$4}')",
+      "Bash(npm uninstall *)",
+      "Bash(seq 1 40)",
+      "Bash(sleep 5)",
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/backend-run.log)"
     ]
   },
   "enableAllProjectMcpServers": true,

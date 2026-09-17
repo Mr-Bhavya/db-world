@@ -173,7 +173,11 @@ public class TallyGroupService {
         }
 
         var group = new TallyGroupEntity();
-        group.setName("My spending");
+        // Second person, like every other label the user reads -- "Your share", "you owe",
+        // "Needs you". The UI speaks about the reader, not as them. Ledgers created before this
+        // keep the old name, since renaming somebody's data to fix our own copy would be worse
+        // than the inconsistency.
+        group.setName("Your spending");
         group.setKind(TallyGroupKind.PERSONAL);
         group.setIcon(TallyIcons.DEFAULT_PERSONAL);
         group.setCreatedByUserId(userId);

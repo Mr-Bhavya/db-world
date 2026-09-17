@@ -1,8 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography,
-  CircularProgress, IconButton, Chip, Divider, Alert,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Box,
+  Typography,
+  CircularProgress,
+  IconButton,
+  Chip,
+  Divider,
+  Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,6 +31,7 @@ import { updateRecord, addRecordTag, removeRecordTag, searchTmdb } from '../api/
 import { createRecordSchema } from '../schemas/recordSchemas';
 import { useTagDefs } from './useTagDefs';
 import { VISIBILITY_ORDER, visibilityMeta } from './visibilityConstants';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 
@@ -134,7 +146,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   if (!record) return null;
 
   return (
-    <Dialog open={open} onClose={onClose}
+    <SheetDialog open={open} onClose={onClose}
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, width: '100%', maxWidth: 580, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: T.textPrimary }}>
         Edit record
@@ -302,6 +314,6 @@ export default function RecordEditModal({ open, record, onClose }) {
           </Button>
         </DialogActions>
       </form>
-    </Dialog>
+    </SheetDialog>
   );
 }

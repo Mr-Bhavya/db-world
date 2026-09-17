@@ -508,7 +508,7 @@ class TallyRosterTest {
         var mine = groupService.personalLedger(appaUser);
 
         assertThat(mine.kind()).isEqualTo(TallyGroupKind.PERSONAL);
-        assertThat(mine.name()).isEqualTo("My spending");
+        assertThat(mine.name()).isEqualTo("Your spending");
         assertThat(mine.members()).singleElement()
                 .satisfies(m -> assertThat(m.userId()).isEqualTo(appaUser));
     }
@@ -560,7 +560,7 @@ class TallyRosterTest {
     @DisplayName("nobody else can be added to it")
     void personalLedgerTakesNoMembers() {
         // A direct ledger is promoted when a third joins, because "you and Amma" does become
-        // "the flat". "My spending" has no such reading -- it would just be a shared ledger
+        // "the flat". "Your spending" has no such reading -- it would just be a shared ledger
         // with a misleading name.
         var mine = groupService.personalLedger(appaUser);
 

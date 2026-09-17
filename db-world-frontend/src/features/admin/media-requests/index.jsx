@@ -1,9 +1,26 @@
 import { useMemo, useState } from 'react';
 import {
-  Box, Typography, Chip, IconButton, Tooltip, CircularProgress,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  ToggleButton, ToggleButtonGroup, useMediaQuery,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
+  Box,
+  Typography,
+  Chip,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  ToggleButton,
+  ToggleButtonGroup,
+  useMediaQuery,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -21,6 +38,7 @@ import {
   fetchAdminMediaRequests, fulfillMediaRequest, dismissMediaRequest, reopenMediaRequest,
 } from '@features/cinema/api/cinemaApi';
 import VotersPopover from '@features/admin/requests/components/VotersPopover';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const STATUS_META = {
   PENDING:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: <HourglassEmptyRounded sx={{ fontSize: 13 }} />, label: 'Pending' },
@@ -385,7 +403,7 @@ export default function MediaRequestsAdminPage() {
       )}
 
       {/* Dismiss dialog */}
-      <Dialog
+      <SheetDialog
         open={Boolean(dismissTarget)}
         onClose={() => { if (!dismissMut.isPending) setDismissTarget(null); }}
         fullWidth
@@ -435,7 +453,7 @@ export default function MediaRequestsAdminPage() {
             Dismiss & notify
           </Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </Box>
   );
 }

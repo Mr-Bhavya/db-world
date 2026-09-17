@@ -1,7 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Box, Chip, CircularProgress, Dialog, Drawer, IconButton, MenuItem, Select, Tooltip,
-  Typography, useMediaQuery,
+  Box,
+  Chip,
+  CircularProgress,
+  Drawer,
+  IconButton,
+  MenuItem,
+  Select,
+  Tooltip,
+  Typography,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
@@ -22,6 +30,7 @@ import { getCodec, getHdrTags, getQuality, qualityRank } from '../../media/helpe
 import { QUALITY_META } from '../../media/constants';
 import { pickAutoQuality } from '../../media/pickAutoQuality';
 import { episodeRefOf } from '../../utils/episodeUtils';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const DbWorldDownload = registerPlugin('DbWorldDownload');
 
@@ -658,7 +667,7 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
   }
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       maxWidth="sm"
@@ -671,6 +680,6 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
       slotProps={{ backdrop: { sx: { bgcolor: alpha('#000', 0.7), backdropFilter: 'blur(4px)' } } }}
     >
       {body}
-    </Dialog>
+    </SheetDialog>
   );
 }

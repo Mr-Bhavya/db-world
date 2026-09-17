@@ -157,7 +157,7 @@ class TallyReportTest {
         assertThat(report(TallyReportPeriod.MONTH).total())
                 .as("Appa is liable for ₹900 but ate ₹450")
                 .isEqualByComparingTo("450.00");
-        assertThat(reports.spending(ammaUser, TallyReportPeriod.MONTH, TODAY).total())
+        assertThat(reports.spending(ammaUser, TallyReportPeriod.MONTH, TODAY, null, null).total())
                 .as("Amma pays nothing and still ate ₹450")
                 .isEqualByComparingTo("450.00");
     }
@@ -264,7 +264,7 @@ class TallyReportTest {
         assertThat(report(TallyReportPeriod.MONTH).previousAnchor())
                 .isEqualTo(LocalDate.of(2026, 8, 1));
 
-        var august = reports.spending(appaUser, TallyReportPeriod.MONTH, LocalDate.of(2026, 8, 10));
+        var august = reports.spending(appaUser, TallyReportPeriod.MONTH, LocalDate.of(2026, 8, 10), null, null);
         assertThat(august.nextAnchor()).isEqualTo(LocalDate.of(2026, 9, 1));
     }
 
@@ -305,7 +305,7 @@ class TallyReportTest {
         Long newcomer = user(firstRole(), "Newcomer");
         em.flush();
 
-        var report = reports.spending(newcomer, TallyReportPeriod.MONTH, TODAY);
+        var report = reports.spending(newcomer, TallyReportPeriod.MONTH, TODAY, null, null);
 
         assertThat(report.total()).isEqualByComparingTo("0");
         assertThat(report.previousTotal()).isEqualByComparingTo("0");
@@ -341,7 +341,7 @@ class TallyReportTest {
                 Clock.fixed(Instant.parse("2026-09-30T19:00:00Z"), ZoneOffset.UTC));
 
         // No anchor, so the period is whatever the service thinks today is.
-        var report = justAfterMidnightInIndia.spending(appaUser, TallyReportPeriod.MONTH, null);
+        var report = justAfterMidnightInIndia.spending(appaUser, TallyReportPeriod.MONTH, null, null, null);
 
         assertThat(report.from()).isEqualTo(LocalDate.of(2026, 10, 1));
         assertThat(report.nextAnchor()).as("October has not finished").isNull();
@@ -368,12 +368,33 @@ class TallyReportTest {
         // there are two reports rather than one with a flag.
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
 
-        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 
         assertThat(report.total()).isEqualByComparingTo("900.00");
         assertThat(report.myShare())
                 .as("the caller can still find themselves in it")
                 .isEqualByComparingTo("450.00");
+    }
+
+    @Test
+    @DisplayName("last month is charted as well as totalled, so it can be drawn behind this one")
+    void previousPeriodIsCharted() {
+        spend("August dinner", "900.00", LocalDate.of(2026, 8, 20), "Food", appa, amma);
+        spend("September dinner", "300.00", TODAY, "Food", appa, amma);
+
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
+
+        // August is 31 days against September's 30. The lengths differing is the point: the
+        // client aligns the two by index, so something has to cope with the overhang, and a
+        // test where both periods are the same size would never say which side that is.
+        assertThat(report.previousBuckets()).hasSize(31);
+        assertThat(report.buckets()).hasSize(30);
+        assertThat(report.previousBuckets().get(19).amount()).isEqualByComparingTo("900.00");
+
+        assertThat(report.previousBuckets().stream().map(TallyReportBucketDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add))
+                .as("the charted previous period adds up to the comparison figure beside it")
+                .isEqualByComparingTo(report.previousTotal());
     }
 
     @Test
@@ -383,7 +404,7 @@ class TallyReportTest {
         // a report showing only one of the two columns hides it.
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
 
-        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).members();
+        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null).members();
 
         assertThat(rows).hasSize(2);
         assertThat(rows).anySatisfy(row -> {
@@ -405,7 +426,7 @@ class TallyReportTest {
                 new AddMemberRequest(null, "Guest", null)).id();
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
 
-        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).members();
+        var rows = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null).members();
 
         assertThat(rows).extracting(TallyGroupReportMemberDto::memberId).doesNotContain(ghost);
     }
@@ -417,7 +438,7 @@ class TallyReportTest {
         settlementService.record(appaUser, groupId,
                 new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null, null));
 
-        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 
         // Amma handing 450 back is the dinner being paid for, not another 450 of dinner. Adding
         // it to the total would book every shared bill twice over.
@@ -436,7 +457,7 @@ class TallyReportTest {
                 amma, appa, bd("450.00"), "UPI",
                 Instant.parse("2026-09-30T18:00:00Z"), null));
 
-        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).settled())
+        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null).settled())
                 .isEqualByComparingTo("450.00");
     }
 
@@ -445,7 +466,7 @@ class TallyReportTest {
     void nonMembersGetNothing() {
         // The module's rule everywhere: not a member means the group does not exist, rather than
         // a 403 that confirms it does.
-        assertThatThrownBy(() -> reports.group(outsider, groupId, TallyReportPeriod.MONTH, TODAY))
+        assertThatThrownBy(() -> reports.group(outsider, groupId, TallyReportPeriod.MONTH, TODAY, null, null))
                 .isInstanceOf(DbWorldException.class);
     }
 
@@ -456,7 +477,7 @@ class TallyReportTest {
         groupService.update(appaUser, groupId,
                 new UpdateGroupRequest("Home", "Family", null, null, true));
 
-        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY).total())
+        assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null).total())
                 .isEqualByComparingTo("900.00");
     }
 
@@ -466,7 +487,7 @@ class TallyReportTest {
         spend("August dinner", "600.00", LocalDate.of(2026, 8, 20), "Food", appa, amma);
         spend("September dinner", "900.00", LocalDate.of(2026, 9, 3), "Food", appa, amma);
 
-        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 
         assertThat(report.total()).isEqualByComparingTo("900.00");
         assertThat(report.previousTotal()).isEqualByComparingTo("600.00");
@@ -483,7 +504,7 @@ class TallyReportTest {
     @Test
     @DisplayName("a group with nothing in the period reports zeroes, not an error")
     void quietGroup() {
-        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY);
+        var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 
         assertThat(report.total()).isEqualByComparingTo("0");
         assertThat(report.myShare()).isEqualByComparingTo("0");
@@ -501,7 +522,7 @@ class TallyReportTest {
     }
 
     private TallySpendingReportDto report(TallyReportPeriod period) {
-        return reports.spending(appaUser, period, TODAY);
+        return reports.spending(appaUser, period, TODAY, null, null);
     }
 
     private String spend(String what, String total, LocalDate on, String category, String... sharedBy) {

@@ -233,18 +233,147 @@ export const categoryEmoji = (category) =>
 export const GROUP_CATEGORIES = ['Home', 'Trip', 'Flatmates', 'Family', 'Friends', 'Other'];
 
 /**
- * Icons offered when changing a group's own.
+ * Icons a ledger can wear, grouped and named.
  *
- * A short curated grid rather than a full emoji keyboard: picking from twelve takes a second,
- * picking from two thousand takes a minute and half of them render differently per platform.
- * The server picks one from the group's name anyway, so this is for disagreeing with it.
+ * <h2>Why they carry names</h2>
+ * An emoji is not searchable. The character is a picture, so a reader typing "temple" or "train"
+ * matches nothing unless somebody has written those words down beside it — which is what the
+ * {@code name} is for, and the only reason the list is data rather than a string of characters.
+ *
+ * <p>Grouped for the same reason the expense categories are: you know you want a travel thing
+ * before you know whether it is a train or a rickshaw.
+ *
+ * <p>Curated rather than a whole emoji keyboard. Picking from eighty takes a second; picking from
+ * three thousand takes a minute, and half of them render differently on every platform — an icon
+ * that is a blank box on somebody else's phone is worse than no icon.
  */
-export const GROUP_ICONS = [
-  '👥', '🏠', '🏘️', '🧳', '🏖️', '🚗',
-  '🏕️', '✈️', '🚆', '💼', '🍽️', '☕',
-  '🎉', '🎬', '💍', '🏏', '🛒', '🧾',
-  '🫂', '🤝', '🪙', '🎓', '🐾', '💡',
+export const GROUP_ICON_GROUPS = [
+  {
+    label: 'Trips & places',
+    items: [
+      { emoji: '🧳', name: 'Trip' },
+      { emoji: '✈️', name: 'Flight' },
+      { emoji: '🏖️', name: 'Beach' },
+      { emoji: '🏕️', name: 'Camping' },
+      { emoji: '🗺️', name: 'Map' },
+      { emoji: '🏔️', name: 'Mountains' },
+      { emoji: '🏝️', name: 'Island' },
+      { emoji: '🏜️', name: 'Desert' },
+      { emoji: '🎢', name: 'Theme park' },
+      { emoji: '🏨', name: 'Hotel' },
+    ],
+  },
+  {
+    label: 'Getting around',
+    items: [
+      { emoji: '🚗', name: 'Car' },
+      { emoji: '🚆', name: 'Train' },
+      { emoji: '🚌', name: 'Bus' },
+      { emoji: '🚕', name: 'Taxi' },
+      { emoji: '🛺', name: 'Rickshaw' },
+      { emoji: '🏍️', name: 'Bike' },
+      { emoji: '🚲', name: 'Cycle' },
+      { emoji: '⛴️', name: 'Ferry' },
+      { emoji: '🚇', name: 'Metro' },
+      { emoji: '⛽', name: 'Fuel' },
+    ],
+  },
+  {
+    label: 'Home & living',
+    items: [
+      { emoji: '🏠', name: 'Home' },
+      { emoji: '🏘️', name: 'Flatmates' },
+      { emoji: '🛋️', name: 'Living room' },
+      { emoji: '🛏️', name: 'Bedroom' },
+      { emoji: '🔑', name: 'Rent' },
+      { emoji: '💡', name: 'Bills' },
+      { emoji: '🚿', name: 'Water' },
+      { emoji: '🪴', name: 'Plants' },
+      { emoji: '🧹', name: 'Chores' },
+      { emoji: '🧾', name: 'Receipts' },
+    ],
+  },
+  {
+    label: 'Food & drink',
+    items: [
+      { emoji: '🍽️', name: 'Food' },
+      { emoji: '☕', name: 'Coffee' },
+      { emoji: '🍛', name: 'Curry' },
+      { emoji: '🍕', name: 'Pizza' },
+      { emoji: '🍜', name: 'Noodles' },
+      { emoji: '🥘', name: 'Cooking' },
+      { emoji: '🎂', name: 'Cake' },
+      { emoji: '🍺', name: 'Drinks' },
+      { emoji: '🍦', name: 'Dessert' },
+      { emoji: '🛒', name: 'Groceries' },
+    ],
+  },
+  {
+    label: 'People',
+    items: [
+      { emoji: '👥', name: 'Group' },
+      { emoji: '🫂', name: 'Friends' },
+      { emoji: '🤝', name: 'One to one' },
+      { emoji: '👨‍👩‍👧', name: 'Family' },
+      { emoji: '🧑‍🤝‍🧑', name: 'Mates' },
+      { emoji: '💍', name: 'Wedding' },
+      { emoji: '🎓', name: 'College' },
+      { emoji: '👶', name: 'Baby' },
+      { emoji: '🐾', name: 'Pets' },
+      { emoji: '🎁', name: 'Gifts' },
+    ],
+  },
+  {
+    label: 'Money & work',
+    items: [
+      { emoji: '💼', name: 'Work' },
+      { emoji: '🪙', name: 'Savings' },
+      { emoji: '💰', name: 'Fund' },
+      { emoji: '💳', name: 'Card' },
+      { emoji: '🏦', name: 'Bank' },
+      { emoji: '📈', name: 'Investments' },
+      { emoji: '🧮', name: 'Accounts' },
+      { emoji: '🏷️', name: 'Shopping' },
+      { emoji: '🛠️', name: 'Repairs' },
+      { emoji: '📊', name: 'Budget' },
+    ],
+  },
+  {
+    label: 'Fun & sport',
+    items: [
+      { emoji: '🎉', name: 'Party' },
+      { emoji: '🎬', name: 'Movies' },
+      { emoji: '🎮', name: 'Games' },
+      { emoji: '🎤', name: 'Music' },
+      { emoji: '🏏', name: 'Cricket' },
+      { emoji: '⚽', name: 'Football' },
+      { emoji: '🏸', name: 'Badminton' },
+      { emoji: '🎨', name: 'Art' },
+      { emoji: '🎸', name: 'Band' },
+      { emoji: '🃏', name: 'Cards' },
+    ],
+  },
+  {
+    label: 'Festivals & faith',
+    items: [
+      { emoji: '🛕', name: 'Temple' },
+      { emoji: '🕉️', name: 'Om' },
+      { emoji: '🪔', name: 'Diya' },
+      { emoji: '📿', name: 'Mala' },
+      { emoji: '🙏', name: 'Puja' },
+      { emoji: '🇮🇳', name: 'India' },
+      { emoji: '🎆', name: 'Diwali' },
+      { emoji: '🎇', name: 'Fireworks' },
+      { emoji: '🪘', name: 'Dhol' },
+      { emoji: '🥻', name: 'Sari' },
+      { emoji: '💐', name: 'Flowers' },
+      { emoji: '🧿', name: 'Nazar' },
+    ],
+  },
 ];
+
+/** Flat, for the places that only need "is this one of ours". */
+export const GROUP_ICONS = GROUP_ICON_GROUPS.flatMap((g) => g.items.map((i) => i.emoji));
 
 /** Fallback when a group predates the icon column. */
 export const groupIcon = (group) => group?.icon || (group?.kind === 'DIRECT' ? '🤝' : '👥');
@@ -311,12 +440,15 @@ const localDate = (iso) => {
 };
 
 /** `Mon`, `3`, or `Jan` — the label under one bar of the spending chart. */
-export function bucketLabel(period, isoStart) {
+export function bucketLabel(unit, isoStart) {
   const date = localDate(isoStart);
   if (!date) return '';
-  if (period === 'YEAR') return date.toLocaleDateString('en-IN', { month: 'short' });
-  if (period === 'WEEK') return date.toLocaleDateString('en-IN', { weekday: 'short' });
-  return String(date.getDate());
+  switch (unit) {
+    case 'YEAR': return String(date.getFullYear());
+    case 'MONTH': return date.toLocaleDateString('en-IN', { month: 'short' });
+    case 'WEEKDAY': return date.toLocaleDateString('en-IN', { weekday: 'short' });
+    default: return String(date.getDate());
+  }
 }
 
 /**
@@ -349,10 +481,27 @@ export function formatReportWindow({ period, from, to } = {}) {
 /** `so far this month`, or `in September 2026` once the period is behind us. */
 export function reportCaption(report) {
   if (!report) return '';
+
+  // A range the reader chose has no name to say "so far this ..." about, and no anchors either,
+  // so the test below would call every one of them "this month". Its length is the honest
+  // description, and it is also the thing the reader is least sure of after picking two dates.
+  if (report.period == null) {
+    const days = daysBetween(report.from, report.to);
+    return days ? `over ${days} ${days === 1 ? 'day' : 'days'}` : '';
+  }
+
   // No next period to step into is the server saying this one has not finished yet.
   const current = report.nextAnchor == null;
   const unit = { WEEK: 'week', MONTH: 'month', YEAR: 'year' }[report.period] ?? 'month';
   return current ? `so far this ${unit}` : `in ${formatReportWindow(report)}`;
+}
+
+/** Whole days from one ISO date to another, both ends counted. */
+function daysBetween(fromIso, toIso) {
+  const start = localDate(fromIso);
+  const end = localDate(toIso);
+  if (!start || !end) return 0;
+  return Math.round((end - start) / 86400000) + 1;
 }
 
 /**
@@ -375,5 +524,53 @@ export function spendingTrend(total, previousTotal, period = 'MONTH') {
     direction: delta > 0 ? 'up' : 'down',
     percent,
     label: `${percent}% ${delta > 0 ? 'more' : 'less'} than last ${unit}`,
+  };
+}
+
+/* ============================== the ledger list ============================== */
+
+/**
+ * How long ago something last moved, in the fewest words that are still true.
+ *
+ * Deliberately coarse. A ledger that was touched on Tuesday is "3 days ago", not "3 days and
+ * 4 hours" — the reader is scanning a list for the one that needs them, and precision they
+ * cannot act on is just more to read.
+ */
+export function lastActivity(iso) {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+
+  const days = Math.floor((Date.now() - then.getTime()) / DAY);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return 'last week';
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.floor(days / 30)} months ago`;
+  const years = Math.floor(days / 365);
+  return years === 1 ? 'a year ago' : `${years} years ago`;
+}
+
+/**
+ * Splits the ledger list into the two groups the screen is built around.
+ *
+ * <p>The old list sorted by recent activity and filtered by kind, which is the wrong axis: with
+ * four of five ledgers settled, "People or groups?" is not the question anybody opens this app
+ * with. "Does anything need me?" is. Anything with a balance comes first, biggest first, and
+ * everything square folds away behind one line.
+ */
+export function splitLedgers(groups = []) {
+  const shared = groups.filter((g) => g.kind !== 'PERSONAL');
+  const live = shared.filter((g) => !g.archived);
+
+  const owing = live.filter((g) => Number(g.myBalance ?? 0) !== 0);
+  return {
+    personal: groups.find((g) => g.kind === 'PERSONAL') ?? null,
+    // Biggest first: at a glance the top row is the one worth acting on.
+    needsYou: owing.sort((a, b) => Math.abs(Number(b.myBalance)) - Math.abs(Number(a.myBalance))),
+    settled: live.filter((g) => Number(g.myBalance ?? 0) === 0),
+    archived: shared.filter((g) => g.archived),
+    net: live.reduce((sum, g) => sum + Number(g.myBalance ?? 0), 0),
   };
 }

@@ -140,6 +140,18 @@ export const fetchSettleUpPlan = (groupId) =>
 /* ============================== reports ============================== */
 
 /**
+ * A period and an anchor, or an explicit range.
+ *
+ * <p>The two are never sent together: the server takes explicit dates over a period when it gets
+ * both, but sending an anchor alongside them would be the client saying two different things and
+ * relying on the server to pick — and the one it picks is not written down anywhere the client
+ * can see.
+ */
+const reportParams = (period, anchor, from, to) => (from && to
+  ? { period, from, to }
+  : { period, ...(anchor ? { anchor } : {}) });
+
+/**
  * What the caller consumed over one week, month or year — across every ledger at once.
  *
  * `anchor` is any date inside the period (`yyyy-MM-dd`), not its first day: the server decides
@@ -147,9 +159,9 @@ export const fetchSettleUpPlan = (groupId) =>
  * than calendar arithmetic done twice, differently, on both sides. Omit it for the current
  * period.
  */
-export const fetchSpendingReport = ({ period = 'MONTH', anchor } = {}) =>
+export const fetchSpendingReport = ({ period = 'MONTH', anchor, from, to } = {}) =>
   axiosInstance
-    .get(`${BASE}/reports/spending`, { params: { period, ...(anchor ? { anchor } : {}) } })
+    .get(`${BASE}/reports/spending`, { params: reportParams(period, anchor, from, to) })
     .then(unwrap);
 
 /**
@@ -159,10 +171,11 @@ export const fetchSpendingReport = ({ period = 'MONTH', anchor } = {}) =>
  * are the group's whole spend and a paid-versus-consumed split per member, where the personal
  * one is only ever your own share.
  */
-export const fetchGroupReport = (groupId, { period = 'MONTH', anchor } = {}) =>
+export const fetchGroupReport = (groupId, { period = 'MONTH', anchor, from, to } = {}) =>
   axiosInstance
-    .get(`${BASE}/reports/groups/${groupId}`, { params: { period, ...(anchor ? { anchor } : {}) } })
+    .get(`${BASE}/reports/groups/${groupId}`, { params: reportParams(period, anchor, from, to) })
     .then(unwrap);
+
 
 /* ============================== Splitwise import ============================== */
 

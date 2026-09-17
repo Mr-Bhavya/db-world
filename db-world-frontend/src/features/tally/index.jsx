@@ -1,40 +1,39 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Fab } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import { Box, Skeleton, Typography } from '@mui/material';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
-import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
 import { useGroups, useCreateGroup, useCreateDirect, usePersonalLedger } from './hooks/useTally';
-import { formatMoney, balanceColor } from './utils/tallyFormat';
-import GroupCard from './components/GroupCard';
-import GroupCardSkeleton from './components/GroupCardSkeleton';
+import { splitLedgers } from './utils/tallyFormat';
 import CreateGroupDialog from './components/CreateGroupDialog';
 import StartDirectDialog from './components/StartDirectDialog';
-import PersonalCard from './components/PersonalCard';
 import ImportSplitwiseDialog from './components/ImportSplitwiseDialog';
-
-const SKELETON_COUNT = 4;
-
-// Tracks follow the available width rather than four guessed breakpoints: a phone gets one, a
-// tablet two, the capped container tops out at three. `min(100%, 320px)` rather than a bare
-// `320px` keeps it safe at the small end — a track's automatic minimum is its content's
-// min-content width, so a long unbroken group name could otherwise push the page wider than
-// the viewport and produce a horizontal scrollbar on a phone.
-const GRID_COLUMNS = 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))';
+import BalanceHero, { BALANCE_HERO_MIN_H } from './components/BalanceHero';
+import LedgerRow, { LEDGER_ROW_MIN_H } from './components/LedgerRow';
+import LedgerAvatar from './components/LedgerAvatar';
+import CollapsedLedgers from './components/CollapsedLedgers';
+import NewLedgerMenu from './components/NewLedgerMenu';
 
 /**
- * The landing screen: every group you are in, and where you stand in each.
+ * The landing screen: what needs you, then everything else.
  *
- * Sorted by the server on recent activity, and split into live and archived rather than
- * filtered by a control — an archived group is still readable, just finished, and hiding it
- * behind a toggle nobody finds is how people lose track of one.
+ * <h2>Why this is not a grid of cards</h2>
+ * It was, and with four of five ledgers settled the one that needed attention was a tile among
+ * identical tiles while the overall balance was a line of subtitle text above them. Nearly every
+ * ledger in a working expense app is square nearly all of the time, so a layout that gives them
+ * all equal weight spends its whole screen on the answer "nothing".
+ *
+ * <p>So the page is ordered by <em>what it asks of you</em>: the overall balance as the subject,
+ * then the ledgers with something outstanding as full-width rows, then your own spending, then
+ * everything square folded behind a single line, then archived behind another. Filtering by
+ * People-or-Groups is gone — that was never the question anybody opened this with.
  */
 export default function TallyPage() {
   const T = useT();
@@ -45,317 +44,207 @@ export default function TallyPage() {
   const createGroup = useCreateGroup();
   const createDirect = useCreateDirect();
   const personal = usePersonalLedger();
+
   const [creating, setCreating] = useState(false);
   const [startingDirect, setStartingDirect] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  /* Filter chips rather than tabs.
-     Opening the app the question is "what needs me", not "show me groups" -- one list ordered
-     by recent activity answers that, where tabs make you choose before you have seen anything.
-     Tabs would also hide half your ledgers behind a tap you might not take, and money you have
-     forgotten about is the exact failure this app exists to prevent. The chips give the
-     filtering without hiding anything by default. */
-  const [filter, setFilter] = useState('ALL');
+  const { personal: personalLedger, needsYou, settled, archived, net } =
+    useMemo(() => splitLedgers(groups), [groups]);
 
-  const { open: liveLedgers, archived, counts, personalLedger } = useMemo(() => {
-    // Personal is pinned above the rest rather than mixed into the grid: it answers "what
-    // have I spent", not "where do I stand with these people", and it has no balance to
-    // compare against the ones that do.
-    const notArchived = groups.filter((g) => !g.archived && g.kind !== 'PERSONAL');
-    return {
-      personalLedger: groups.find((g) => g.kind === 'PERSONAL') ?? null,
-      open: notArchived,
-      archived: groups.filter((g) => g.archived && g.kind !== 'PERSONAL'),
-      counts: {
-        ALL: notArchived.length,
-        DIRECT: notArchived.filter((g) => g.kind === 'DIRECT').length,
-        GROUP: notArchived.filter((g) => g.kind !== 'DIRECT').length,
-      },
-    };
-  }, [groups]);
+  const open = (ledger) => navigate(Constants.tallyGroupPath(ledger.id));
 
-  const shown = useMemo(() => (filter === 'ALL'
-    ? liveLedgers
-    : liveLedgers.filter((g) => (filter === 'DIRECT' ? g.kind === 'DIRECT' : g.kind !== 'DIRECT'))
-  ), [liveLedgers, filter]);
-
-  /**
-   * What the app owes you, net, across every live group.
-   *
-   * One number rather than a per-group list, because the first question on opening the app is
-   * "am I up or down overall" and the grid below answers "in which group" anyway.
-   */
-  const net = useMemo(
-    () => liveLedgers.reduce((sum, g) => sum + Number(g.myBalance ?? 0), 0),
-    [liveLedgers],
-  );
-
-  const handleCreate = (body) => {
-    createGroup.mutate(body, {
-      onSuccess: (group) => {
-        setCreating(false);
-        // Straight into the new group: it is empty, and the next thing anybody wants is to add
-        // the people who are in it.
-        if (group?.id) navigate(Constants.tallyGroupPath(group.id));
-      },
+  const openPersonal = () => {
+    if (personalLedger) { open(personalLedger); return; }
+    personal.mutate(undefined, {
+      onSuccess: (ledger) => ledger?.id && navigate(Constants.tallyGroupPath(ledger.id)),
     });
   };
 
-  // The personal card is always on screen, so "nothing here" means no shared ledgers.
-  const showEmpty = !isLoading && groups.every((g) => g.kind === 'PERSONAL');
+  const nothingAtAll = !isLoading && groups.every((g) => g.kind === 'PERSONAL');
+  // Two columns only when the left one has something in it. An empty main column beside a
+  // full sidebar looks like a failed render rather than a layout.
+  const twoColumn = needsYou.length > 0;
 
   return (
     <Box sx={{
       minHeight: '100dvh', bgcolor: T.bg,
       px: { xs: 2, sm: 3, md: 4 },
-      // Clears the fixed app bar, which is 56px on a phone and 64px from md up.
+      // Clears the fixed app bar: 56px on a phone, 64px from md up.
       pt: { xs: 'calc(56px + 16px)', md: 'calc(64px + 24px)' },
       pb: { xs: 'calc(96px + env(safe-area-inset-bottom))', sm: 6 },
     }}>
-      <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
+      {/* Width follows the content rather than the viewport.
+          With something outstanding there are two columns to fill and 1060px earns its keep.
+          With everything settled the page is four short blocks, and stretching them across a
+          desktop leaves a name at one edge of the screen and its amount at the other — so it
+          stays at reading width instead. A fixed 720px centred on a 1920px display was the
+          original mistake: it read as a phone layout somebody had stretched. */}
+      <Box sx={{ maxWidth: { xs: 720, md: twoColumn ? 1060 : 720 }, mx: 'auto', width: '100%' }}>
 
-        {/* ── Hero ─────────────────────────────────────────────────────────── */}
+        {/* ── Header ───────────────────────────────────────────────────────── */}
         <Box
           component={motion.div}
           initial={reduce ? false : { opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           sx={{
-            display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' },
-            justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2, mb: { xs: 2.5, sm: 3.5 },
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 2, mb: { xs: 2.5, sm: 3 },
           }}
         >
-          <Box sx={{ minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ReceiptLongRoundedIcon sx={{ fontSize: 22, color: T.teal }} />
-              <Typography component="h1" sx={{
-                fontSize: { xs: 24, sm: 30 }, fontWeight: 800,
-                color: T.textPrimary, letterSpacing: -0.8,
-              }}>
-                Tally
-              </Typography>
-            </Box>
-
-            {isLoading ? (
-              <Typography sx={{ fontSize: 14, color: T.textMuted, mt: 0.5 }}>
-                Adding things up…
-              </Typography>
-            ) : (
-              <Typography sx={{ fontSize: { xs: 14, sm: 15 }, color: T.textMuted, mt: 0.5 }}>
-                {groups.length === 0 ? 'Split expenses with anyone — account or not' : (
-                  net === 0 ? 'You are all square everywhere' : (
-                    <>
-                      Overall, you
-                      {' '}
-                      <Box component="span" sx={{ color: balanceColor(net, T), fontWeight: 800 }}>
-                        {net > 0 ? `are owed ${formatMoney(net)}` : `owe ${formatMoney(Math.abs(net))}`}
-                      </Box>
-                    </>
-                  )
-                )}
-              </Typography>
-            )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+            <ReceiptLongRoundedIcon sx={{ fontSize: 24, color: T.teal }} />
+            <Typography component="h1" sx={{
+              fontSize: { xs: 24, sm: 28 }, fontWeight: 800,
+              color: T.textPrimary, letterSpacing: -0.8,
+            }}>
+              Tally
+            </Typography>
           </Box>
 
-          {/* Desktop gets both create actions; phones get the FABs below, where a thumb
-              already is. Splitting with one person comes first because it is the lighter of the
-              two -- no name to invent and nothing to set up.
-
-              Spending is the exception and shows at every size: it is a read, so there is no FAB
-              for it, and it is the only way to reach the one screen that spans every ledger. */}
-          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignSelf: { xs: 'flex-start', sm: 'auto' } }}>
-            <Button
-              onClick={() => setImporting(true)}
-              startIcon={<FileUploadRoundedIcon />}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                textTransform: 'none', fontWeight: 700, fontSize: 14,
-                borderRadius: 2.5, px: 2, py: 1,
-                color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
-                '&:hover': { bgcolor: T.glassHover },
-              }}
-            >
-              Import
-            </Button>
-            <Button
+          {/* Two actions, not four. Spending is a place you go; the rest all create something
+              and live together behind New. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            <Box
+              component={motion.button}
+              type="button"
+              whileTap={{ scale: 0.97 }}
               onClick={() => navigate(Constants.DB_TALLY_REPORT_ROUTE)}
-              startIcon={<InsightsRoundedIcon />}
+              aria-label="Your spending"
               sx={{
-                textTransform: 'none', fontWeight: 700, fontSize: 14,
-                borderRadius: 2.5, px: 2, py: 1,
+                display: 'inline-flex', alignItems: 'center', gap: 0.75,
+                px: { xs: 1.25, sm: 2 }, py: 1, borderRadius: 2.5, cursor: 'pointer',
+                fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
                 color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
+                transition: 'background-color .18s ease',
                 '&:hover': { bgcolor: T.glassHover },
+                '&:focus-visible': { outline: `2px solid ${T.teal}`, outlineOffset: 2 },
               }}
             >
-              Spending
-            </Button>
-            <Button
-              onClick={() => setStartingDirect(true)}
-              startIcon={<PersonRoundedIcon />}
-              variant="contained"
-              disableElevation
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                textTransform: 'none', fontWeight: 700, fontSize: 14,
-                borderRadius: 2.5, px: 2.25, py: 1,
-                bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
-              }}
-            >
-              Split with someone
-            </Button>
-            <Button
-              onClick={() => setCreating(true)}
-              startIcon={<GroupsRoundedIcon />}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                textTransform: 'none', fontWeight: 700, fontSize: 14,
-                borderRadius: 2.5, px: 2, py: 1,
-                color: T.textPrimary, bgcolor: T.glass, border: `1px solid ${T.border}`,
-                '&:hover': { bgcolor: T.glassHover },
-              }}
-            >
-              New group
-            </Button>
+              <InsightsRoundedIcon sx={{ fontSize: 18 }} />
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Spending</Box>
+            </Box>
+
+            <NewLedgerMenu
+              onSplitWithSomeone={() => setStartingDirect(true)}
+              onNewGroup={() => setCreating(true)}
+              onImport={() => setImporting(true)}
+            />
           </Box>
         </Box>
 
-        {/* ── Groups ───────────────────────────────────────────────────────── */}
-        {isLoading && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
-            {Array.from({ length: SKELETON_COUNT }, (_, i) => <GroupCardSkeleton key={i} />)}
-          </Box>
-        )}
-
-        {showEmpty && <EmptyState onCreate={() => setCreating(true)} />}
-
-        {!isLoading && (
-          <PersonalCard
-            ledger={personalLedger}
-            busy={personal.isPending}
-            onOpen={() => {
-              if (personalLedger) { navigate(Constants.tallyGroupPath(personalLedger.id)); return; }
-              personal.mutate(undefined, {
-                onSuccess: (ledger) => ledger?.id && navigate(Constants.tallyGroupPath(ledger.id)),
-              });
-            }}
-          />
-        )}
-
-        {/* Only worth showing once there is something to filter. One chip row over a list of
-            two is noise. */}
-        {!isLoading && liveLedgers.length > 2 && counts.DIRECT > 0 && counts.GROUP > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.75, mb: 2 }}>
-            {[
-              { value: 'ALL', label: 'All' },
-              { value: 'DIRECT', label: 'People' },
-              { value: 'GROUP', label: 'Groups' },
-            ].map((chip) => {
-              const selected = filter === chip.value;
-              return (
-                <Box
-                  key={chip.value}
-                  component={motion.button}
-                  type="button"
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setFilter(chip.value)}
-                  aria-pressed={selected}
-                  sx={{
-                    display: 'flex', alignItems: 'center', gap: 0.6,
-                    px: 1.5, py: 0.6, borderRadius: 999, cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
-                    bgcolor: selected ? T.tealBg : T.glass,
-                    color: selected ? T.teal : T.textMuted,
-                    border: `1px solid ${selected ? T.glassBorderHover : T.border}`,
-                    transition: 'all .15s ease',
-                  }}
-                >
-                  {chip.label}
-                  <Box component="span" sx={{ opacity: 0.7, fontWeight: 600 }}>
-                    {counts[chip.value]}
-                  </Box>
-                </Box>
-              );
-            })}
-          </Box>
-        )}
-
-        {!isLoading && shown.length > 0 && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
-            <AnimatePresence initial={false}>
-              {shown.map((group, i) => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  index={i}
-                  onOpen={() => navigate(Constants.tallyGroupPath(group.id))}
-                />
-              ))}
-            </AnimatePresence>
-          </Box>
-        )}
-
-        {!isLoading && archived.length > 0 && (
-          <Box sx={{ mt: 4 }}>
-            <SectionHeading
-              icon={<Inventory2OutlinedIcon sx={{ fontSize: 16 }} />}
-              label="Archived"
+        {isLoading ? (
+          <LoadingState T={T} />
+        ) : (
+          <>
+            <BalanceHero
+              net={net}
+              ledgerCount={needsYou.length + settled.length}
+              // A way straight there only when there is one place to go; with several
+              // outstanding the list below already is the answer.
+              only={needsYou.length === 1 ? needsYou[0] : null}
+              onOpenOnly={() => needsYou.length === 1 && open(needsYou[0])}
             />
-            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: 2 }}>
-              {archived.map((group, i) => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  index={i}
-                  onOpen={() => navigate(Constants.tallyGroupPath(group.id))}
+
+            {/* One column on a phone, two from md. The DOM order is the mobile order, so what
+                becomes the sidebar on a desktop is simply what comes after the main list —
+                no duplicated markup and no reordering to keep in sync. */}
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                md: twoColumn ? 'minmax(0, 1.55fr) minmax(0, 1fr)' : '1fr',
+              },
+              gap: { xs: 0, md: 3 },
+              alignItems: 'start',
+            }}>
+              <Box sx={{ minWidth: 0 }}>
+                {needsYou.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <SectionLabel
+                      T={T}
+                      icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 15, color: T.warning }} />}
+                      label={`Needs you · ${needsYou.length}`}
+                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                      <AnimatePresence initial={false}>
+                        {needsYou.map((ledger, i) => (
+                          <LedgerRow
+                            key={ledger.id}
+                            ledger={ledger}
+                            index={i}
+                            onOpen={() => open(ledger)}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+              <Box sx={{ minWidth: 0 }}>
+                {/* Your own spending is always here and never has a balance, so it belongs to
+                    neither list -- on a desktop it heads the sidebar. */}
+                <PersonalRow
+                  T={T}
+                  ledger={personalLedger}
+                  busy={personal.isPending}
+                  onOpen={openPersonal}
                 />
-              ))}
+
+                <CollapsedLedgers
+                  ledgers={settled}
+                  label="settled up"
+                  icon={<CheckCircleRoundedIcon sx={{ fontSize: 18 }} />}
+                  onOpen={open}
+                />
+
+                <CollapsedLedgers
+                  ledgers={archived}
+                  label="archived"
+                  tone="muted"
+                  icon={<Inventory2OutlinedIcon sx={{ fontSize: 17 }} />}
+                  onOpen={open}
+                />
+              </Box>
             </Box>
-          </Box>
+
+            {nothingAtAll && <EmptyState T={T} onCreate={() => setStartingDirect(true)} />}
+          </>
         )}
       </Box>
 
-      {/* Thumb-reachable on a phone, and clear of the home indicator. */}
-      <Box sx={{
-        display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 1.25,
-        position: 'fixed', right: 18, bottom: 'calc(18px + env(safe-area-inset-bottom))',
-        alignItems: 'flex-end',
-      }}>
-        <Fab
-          size="small"
-          onClick={() => setCreating(true)}
-          aria-label="New group"
-          sx={{
-            bgcolor: T.glass, color: T.textPrimary, border: `1px solid ${T.border}`,
-            '&:hover': { bgcolor: T.glassHover },
-          }}
-        >
-          <GroupsRoundedIcon sx={{ fontSize: 19 }} />
-        </Fab>
-        <Fab
-          onClick={() => setStartingDirect(true)}
-          aria-label="Split with someone"
-          sx={{ bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover } }}
-        >
-          <AddIcon />
-        </Fab>
+      {/* One thumb-reachable action on a phone, where the header's New menu is a stretch. */}
+      <Box
+        component={motion.button}
+        type="button"
+        whileTap={{ scale: 0.94 }}
+        onClick={() => setStartingDirect(true)}
+        aria-label="Split with someone"
+        sx={{
+          display: { xs: 'grid', sm: 'none' }, placeItems: 'center',
+          position: 'fixed', right: 18, bottom: 'calc(18px + env(safe-area-inset-bottom))',
+          width: 56, height: 56, borderRadius: '50%', cursor: 'pointer',
+          bgcolor: T.teal, color: '#fff', border: 'none',
+          boxShadow: `0 8px 24px ${T.tealGlow}`,
+        }}
+      >
+        <AddRoundedIcon sx={{ fontSize: 26 }} />
       </Box>
 
       <CreateGroupDialog
         open={creating}
         onClose={() => setCreating(false)}
-        onCreate={handleCreate}
         busy={createGroup.isPending}
-      />
-
-      <ImportSplitwiseDialog
-        open={importing}
-        onClose={() => setImporting(false)}
-        onImported={(result) => {
-          // Straight into it: the point of importing is to look at what arrived, and the
-          // reconciliation has already confirmed the balances match the export.
-          if (result?.group?.id) navigate(Constants.tallyGroupPath(result.group.id));
-        }}
+        onCreate={(body) => createGroup.mutate(body, {
+          onSuccess: (group) => {
+            setCreating(false);
+            // Straight into it: a new group is empty, and the next thing anybody wants is to
+            // put the people in it.
+            if (group?.id) navigate(Constants.tallyGroupPath(group.id));
+          },
+        })}
       />
 
       <StartDirectDialog
@@ -369,72 +258,132 @@ export default function TallyPage() {
           },
         })}
       />
+
+      <ImportSplitwiseDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={(result) => {
+          if (result?.group?.id) navigate(Constants.tallyGroupPath(result.group.id));
+        }}
+      />
+    </Box>
+  );
+}
+
+/* ============================== pieces ============================== */
+
+function SectionLabel({ T, icon, label }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
+      {icon}
+      <Typography sx={{
+        fontSize: 11.5, fontWeight: 800, letterSpacing: 0.7,
+        textTransform: 'uppercase', color: T.textFaint,
+      }}>
+        {label}
+      </Typography>
     </Box>
   );
 }
 
 /**
- * The first-run screen.
+ * Your own spending.
  *
- * Says what the app is for in one line and offers the single action that gets you moving.
- * Naming the ghost feature here is deliberate: it is the reason to choose this over Splitwise,
- * and it is invisible until you are already inside a group.
+ * <p>Before it exists this is the invitation to start one, and afterwards the way in — the same
+ * component either way, so the row does not move on the page the moment it is tapped.
  */
-function SectionHeading({ icon, label }) {
-  const T = useT();
+function PersonalRow({ T, ledger, busy, onOpen }) {
+  const started = Boolean(ledger);
+
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, color: T.textMuted }}>
-      {icon}
-      <Typography sx={{ fontSize: 13, fontWeight: 800, color: T.textMuted }}>{label}</Typography>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: T.border }} />
+    <Box
+      component={motion.button}
+      type="button"
+      whileTap={{ scale: 0.995 }}
+      onClick={busy ? undefined : onOpen}
+      aria-label={started ? 'Open your own spending' : 'Start tracking your own spending'}
+      sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5, width: '100%',
+        px: 1.75, py: 1.5, mb: 2.5, borderRadius: 3.5,
+        textAlign: 'left', fontFamily: 'inherit',
+        cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+        bgcolor: T.tealBg,
+        border: `1px ${started ? 'solid' : 'dashed'} ${T.glassBorder}`,
+        transition: 'background-color .18s ease, border-color .18s ease',
+        '&:hover': { bgcolor: T.tealBgHover, borderColor: T.glassBorderHover },
+        '&:focus-visible': { outline: `2px solid ${T.teal}`, outlineOffset: 2 },
+      }}
+    >
+      <LedgerAvatar ledger={ledger ?? { kind: 'PERSONAL' }} size="sm" />
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography noWrap sx={{ fontSize: 14.5, fontWeight: 700, color: T.textPrimary }}>
+          {started ? ledger.name : 'Track your own spending'}
+        </Typography>
+        <Typography noWrap sx={{ fontSize: 12, color: T.textFaint, mt: 0.1 }}>
+          {started
+            ? 'Just for you — nothing shared, nobody to settle with'
+            : 'Keep your own expenses here alongside the shared ones'}
+        </Typography>
+      </Box>
     </Box>
   );
 }
 
-function EmptyState({ onCreate }) {
-  const T = useT();
-  const reduce = useReducedMotion();
+/**
+ * The page's shape while the ledgers load.
+ *
+ * <p>Both heights come from the components being stood in for rather than from numbers typed
+ * here. The hand-written ones had drifted — 104px against a hero that rests at 111 on a phone
+ * and 126 from `sm` up, and 72px against a 74px row — so the whole list stepped down a few
+ * pixels per item the moment the data arrived.
+ */
+function LoadingState({ T }) {
   return (
-    <Box
-      component={motion.div}
-      initial={reduce ? false : { opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      sx={{
-        textAlign: 'center', py: { xs: 6, sm: 9 }, px: 2,
-        borderRadius: 4, bgcolor: T.glass, border: `1px dashed ${T.glassBorder}`,
-      }}
-    >
-      <Box sx={{
-        width: 62, height: 62, borderRadius: '50%', mx: 'auto', mb: 2,
-        display: 'grid', placeItems: 'center',
-        bgcolor: T.tealBg, border: `1px solid ${T.glassBorderHover}`,
-      }}>
-        <ReceiptLongRoundedIcon sx={{ fontSize: 28, color: T.teal }} />
+    <Box>
+      <Skeleton variant="rounded"
+        sx={{ height: BALANCE_HERO_MIN_H, bgcolor: T.glass, borderRadius: 3.5, mb: 3 }} />
+      {/* A flex column with the same gap the real list uses, rather than a margin per item:
+          `mb` also put 10px under the last one, which the list does not have. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {[0, 1].map((i) => (
+          <Skeleton key={i} variant="rounded"
+            sx={{ height: LEDGER_ROW_MIN_H, bgcolor: T.glass, borderRadius: '0 14px 14px 0' }} />
+        ))}
       </Box>
-      <Typography sx={{ fontSize: 18, fontWeight: 800, color: T.textPrimary, letterSpacing: -0.3 }}>
-        No groups yet
+    </Box>
+  );
+}
+
+function EmptyState({ T, onCreate }) {
+  return (
+    <Box sx={{
+      textAlign: 'center', py: 6, px: 3, borderRadius: 3.5,
+      bgcolor: T.glass, border: `1px dashed ${T.glassBorder}`,
+    }}>
+      <ReceiptLongRoundedIcon sx={{ fontSize: 34, color: T.teal, mb: 1 }} />
+      <Typography sx={{ fontSize: 16, fontWeight: 800, color: T.textPrimary, mb: 0.5 }}>
+        Split your first expense
       </Typography>
-      <Typography sx={{
-        fontSize: 14, color: T.textMuted, mt: 0.75, mb: 2.5,
-        maxWidth: 380, mx: 'auto', lineHeight: 1.6,
-      }}>
-        Start one for your household or your next trip. You can add people who will never
-        create an account — they still owe and get paid back like everyone else.
+      <Typography sx={{ fontSize: 13.5, color: T.textMuted, mb: 2.5, maxWidth: 380, mx: 'auto' }}>
+        Keep a running total with one person, or set up a group for a trip or a flat. They do not
+        need an account.
       </Typography>
-      <Button
+      <Box
+        component={motion.button}
+        type="button"
+        whileTap={{ scale: 0.97 }}
         onClick={onCreate}
-        startIcon={<AddIcon />}
-        variant="contained"
-        disableElevation
         sx={{
-          textTransform: 'none', fontWeight: 700, fontSize: 14,
-          borderRadius: 2.5, px: 2.5, py: 1,
-          bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover },
+          display: 'inline-flex', alignItems: 'center', gap: 0.75,
+          px: 2.25, py: 1, borderRadius: 2.5, cursor: 'pointer',
+          fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+          bgcolor: T.teal, color: '#fff', border: 'none',
+          '&:hover': { bgcolor: T.tealHover },
         }}
       >
-        Create your first group
-      </Button>
+        <AddRoundedIcon sx={{ fontSize: 18 }} />
+        Split with someone
+      </Box>
     </Box>
   );
 }

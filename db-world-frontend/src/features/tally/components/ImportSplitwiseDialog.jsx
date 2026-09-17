@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Chip, CircularProgress, Divider, TextField, Typography,
+  Alert, Box, Chip, CircularProgress, TextField, Typography,
 } from '@mui/material';
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { useT } from '@shared/theme';
 import { notify } from '@shared/notify';
 import { usePreviewSplitwise, useImportSplitwise } from '../hooks/useTally';
-import { formatMoney, balanceTone, GROUP_ICONS, GROUP_CATEGORIES } from '../utils/tallyFormat';
+import { formatMoney, balanceTone, GROUP_CATEGORIES } from '../utils/tallyFormat';
+import IconSheet from './IconSheet';
 import {
-  TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx,
+  TallyFormDialog, TallyFormSection, TallySubmitButton, TallyCancelButton, tallyFieldSx,
 } from './tallyFormUi';
 import SplitwisePersonRow from './SplitwisePersonRow';
 
@@ -38,6 +39,7 @@ export default function ImportSplitwiseDialog({ open, onClose, onImported }) {
   const [preview, setPreview] = useState(null);
   const [groupName, setGroupName] = useState('');
   const [icon, setIcon] = useState('');
+  const [pickingIcon, setPickingIcon] = useState(false);
   const [category, setCategory] = useState('Trip');
   /** csvName -> { userId, displayName }. A missing entry means "not chosen yet". */
   const [people, setPeople] = useState({});
@@ -157,14 +159,10 @@ export default function ImportSplitwiseDialog({ open, onClose, onImported }) {
             </Alert>
           )}
 
-          <Divider sx={{ borderColor: T.border, mb: 2 }} />
-
-          <Typography sx={{
-            fontSize: 12, fontWeight: 800, letterSpacing: 0.6,
-            textTransform: 'uppercase', color: T.textFaint, mb: 1,
-          }}>
-            Who is who
-          </Typography>
+          {/* Cards rather than rules between the steps. A divider says "something else starts
+              here"; it does not say what, and on a phone the heading it belongs to has usually
+              scrolled past by the time the rows below it need explaining. */}
+          <TallyFormSection title="Who is who">
           <Typography sx={{ fontSize: 12.5, color: T.textMuted, mb: 1.5 }}>
             Match each name to a db-world account, or leave it as a name for somebody without one.
             Include yourself.
@@ -185,8 +183,11 @@ export default function ImportSplitwiseDialog({ open, onClose, onImported }) {
             </Typography>
           )}
 
-          <Divider sx={{ borderColor: T.border, my: 2 }} />
+          </TallyFormSection>
 
+          <Box sx={{ height: 12 }} />
+
+          <TallyFormSection title="The group">
           <TextField
             label="Group name"
             value={groupName}
@@ -213,27 +214,35 @@ export default function ImportSplitwiseDialog({ open, onClose, onImported }) {
             ))}
           </Box>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {GROUP_ICONS.slice(0, 12).map((emoji) => (
-              <Box
-                key={emoji}
-                onClick={() => setIcon(icon === emoji ? '' : emoji)}
-                role="button"
-                aria-label={`Use ${emoji}`}
-                sx={{
-                  width: 34, height: 34, borderRadius: 2, fontSize: 17, cursor: 'pointer',
-                  display: 'grid', placeItems: 'center',
-                  bgcolor: icon === emoji ? T.tealBg : T.glass,
-                  border: `1px solid ${icon === emoji ? T.glassBorderHover : T.border}`,
-                }}
-              >
-                {emoji}
-              </Box>
-            ))}
+          {/* The first twelve of twenty-four used to be laid out here, which meant the other
+              twelve were unreachable from this screen for no reason anybody could see. */}
+          <Box
+            component="button"
+            type="button"
+            onClick={() => setPickingIcon(true)}
+            aria-label="Choose an icon"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1,
+              px: 1, py: 0.6, borderRadius: 2, cursor: 'pointer', fontFamily: 'inherit',
+              bgcolor: T.glass, border: `1px solid ${T.border}`,
+            }}
+          >
+            <Box aria-hidden sx={{ fontSize: 19, lineHeight: 1 }}>{icon || '👥'}</Box>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.teal }}>
+              Choose an icon
+            </Typography>
           </Box>
+
+          <IconSheet
+            open={pickingIcon}
+            value={icon}
+            onClose={() => setPickingIcon(false)}
+            onPick={(emoji) => { setIcon(emoji); setPickingIcon(false); }}
+          />
           <Typography sx={{ fontSize: 11.5, color: T.textFaint, mt: 0.75 }}>
             Leave the icon blank and one will be picked from the name.
           </Typography>
+          </TallyFormSection>
         </>
       )}
 

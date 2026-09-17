@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Box, Button, Dialog, Drawer, IconButton, Slide,
-  Tooltip, Typography, useMediaQuery,
+  Box,
+  Button,
+  Drawer,
+  IconButton,
+  Slide,
+  Tooltip,
+  Typography,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
@@ -12,6 +18,7 @@ import CloseIcon from '@mui/icons-material/Close';
 
 import { tmdbImg } from '../../../api/cinemaApi';
 import { publicShareUrl } from '@shared/config/apiBaseUrl';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /* ═══════════════════════════════════════════════════════════
    SOCIAL PLATFORMS
@@ -450,7 +457,7 @@ export default function ShareButton({ record, size, flat = false }) {
           <Box sx={{ pb: 'env(safe-area-inset-bottom, 8px)' }} />
         </Drawer>
       ) : (
-        <Dialog
+        <SheetDialog
           open={open}
           onClose={handleClose}
           maxWidth="xs"
@@ -481,7 +488,7 @@ export default function ShareButton({ record, size, flat = false }) {
           }}
         >
           <ShareContent {...sharedProps} />
-        </Dialog>
+        </SheetDialog>
       )}
     </>
   );

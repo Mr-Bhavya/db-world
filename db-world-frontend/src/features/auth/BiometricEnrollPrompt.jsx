@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Button, Dialog, Drawer, Typography, useMediaQuery } from '@mui/material';
+import { Box, Button, Drawer, Typography, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
@@ -8,6 +8,7 @@ import { useAuth } from '@features/auth/context/Authentication';
 import { PERMISSIONS_ONBOARDED_KEY } from '@shared/components/PermissionOnboardingGate';
 import { isBiometricAvailable, isBiometricEnabled, enableBiometric } from '@platform/android/biometric';
 import FingerprintPulse from './components/FingerprintPulse';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const PROMPTED_KEY = 'dbworld_biometric_prompted';
 
@@ -92,8 +93,8 @@ export default function BiometricEnrollPrompt() {
       {body}
     </Drawer>
   ) : (
-    <Dialog open onClose={dismiss} PaperProps={{ sx: { bgcolor: T.bg, color: T.text, backgroundImage: 'none', borderRadius: 3, maxWidth: 400, m: 2 } }}>
+    <SheetDialog open onClose={dismiss} PaperProps={{ sx: { bgcolor: T.bg, color: T.text, backgroundImage: 'none', borderRadius: 3, maxWidth: 400, m: 2 } }}>
       {body}
-    </Dialog>
+    </SheetDialog>
   );
 }

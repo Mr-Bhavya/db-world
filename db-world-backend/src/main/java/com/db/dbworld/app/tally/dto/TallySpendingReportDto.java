@@ -39,6 +39,8 @@ public record TallySpendingReportDto(
         BigDecimal dailyAverage,
         /** Distinct expenses the caller had a share in — not the number of shares. */
         int expenseCount,
+        /** How wide one bucket is — see the group report for why this is sent. */
+        TallyBucketUnit bucketUnit,
         /** Every bucket in the period, including the empty ones. */
         List<TallyReportBucketDto> buckets,
         /** Largest first. */

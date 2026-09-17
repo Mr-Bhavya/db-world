@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import * as api from '../api/tallyApi';
+import { windowParams } from '../utils/reportWindow';
 
 /**
  * Server messages are surfaced verbatim wherever there is one.
@@ -21,8 +22,12 @@ const keys = {
   settleUp: (id) => ['tally', 'settle-up', id],
   activity: (id) => ['tally', 'activity', id],
   reports: ['tally', 'report'],
-  report: (period, anchor) => ['tally', 'report', period, anchor ?? 'current'],
-  groupReport: (id, period, anchor) => ['tally', 'report', 'group', id, period, anchor ?? 'current'],
+  // The whole window in the key, range included -- two different ranges are two different
+  // reports, and a key that only carried the period would serve one of them from the other's
+  // cache entry.
+  report: (w) => ['tally', 'report', w.period, w.anchor ?? 'current', w.from ?? '', w.to ?? ''],
+  groupReport: (id, w) => ['tally', 'report', 'group', id,
+    w.period, w.anchor ?? 'current', w.from ?? '', w.to ?? ''],
 };
 
 /**
@@ -112,10 +117,10 @@ export function useActivity(groupId, enabled = false) {
  * through months slides rather than blinking through an empty chart each time. The figures are
  * briefly a month out of date, which is why the header carries its own loading state.
  */
-export function useSpendingReport(period, anchor) {
+export function useSpendingReport(window) {
   return useQuery({
-    queryKey: keys.report(period, anchor),
-    queryFn: () => api.fetchSpendingReport({ period, anchor }),
+    queryKey: keys.report(window),
+    queryFn: () => api.fetchSpendingReport(windowParams(window)),
     placeholderData: (previous) => previous,
   });
 }
@@ -126,10 +131,10 @@ export function useSpendingReport(period, anchor) {
  * Its key sits under `keys.reports`, so a write to any group invalidates it along with the
  * cross-ledger report -- the group report is a view of the same expenses.
  */
-export function useGroupReport(groupId, period, anchor) {
+export function useGroupReport(groupId, window) {
   return useQuery({
-    queryKey: keys.groupReport(groupId, period, anchor),
-    queryFn: () => api.fetchGroupReport(groupId, { period, anchor }),
+    queryKey: keys.groupReport(groupId, window),
+    queryFn: () => api.fetchGroupReport(groupId, windowParams(window)),
     enabled: Boolean(groupId),
     placeholderData: (previous) => previous,
   });

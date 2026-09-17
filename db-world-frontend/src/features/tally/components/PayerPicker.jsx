@@ -33,6 +33,16 @@ export default function PayerPicker({
     try { return toPaise(paidTotal) === toPaise(totalAmount || '0'); } catch { return false; }
   })();
 
+  /* Adding or removing a payer re-spreads the bill across whoever is left, so the common
+     "we went halves" case needs no typing at all. Anything already typed stays put — same
+     locking rule as the split editor, for the same reason. */
+  const rebalance = (next, total) => redistribute({
+    total: total || '0',
+    memberIds: Object.keys(next),
+    locked: new Set(Object.keys(next).filter((id) => next[id] !== '')),
+    values: next,
+  }).values;
+
   const tapFace = (memberId) => {
     if (!multi) {
       onChange({ [memberId]: totalAmount ?? '' });
@@ -48,22 +58,12 @@ export default function PayerPicker({
     onChange(rebalance({ ...payers, [memberId]: '' }, totalAmount));
   };
 
-  /* Adding or removing a payer re-spreads the bill across whoever is left, so the common
-     "we went halves" case needs no typing at all. Anything already typed stays put — same
-     locking rule as the split editor, for the same reason. */
-  const rebalance = (next, total) => redistribute({
-    total: total || '0',
-    memberIds: Object.keys(next),
-    locked: new Set(Object.keys(next).filter((id) => next[id] !== '')),
-    values: next,
-  }).values;
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted }}>
-          Who paid?
-        </Typography>
+      {/* The heading belongs to the section this sits in now; what is left on this row is the
+          one control that switches it between one payer and several. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, mb: 1 }}>
         <Button
           size="small"
           onClick={() => {

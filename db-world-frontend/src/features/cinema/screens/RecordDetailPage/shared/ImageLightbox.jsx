@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Box, Chip, Dialog, IconButton, Typography } from '@mui/material';
+import { Box, Chip, IconButton, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { tmdbImg } from '../../../api/cinemaApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 export default function ImageLightbox({ images, startIndex, onClose }) {
   const [idx, setIdx] = useState(startIndex ?? 0);
@@ -22,7 +23,7 @@ export default function ImageLightbox({ images, startIndex, onClose }) {
   if (!img) return null;
 
   return (
-    <Dialog
+    <SheetDialog
       open
       onClose={onClose}
       maxWidth="xl"
@@ -72,6 +73,6 @@ export default function ImageLightbox({ images, startIndex, onClose }) {
           <Typography variant="caption" sx={{ color: '#757575' }}>{idx + 1} / {images.length}</Typography>
         </Box>
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

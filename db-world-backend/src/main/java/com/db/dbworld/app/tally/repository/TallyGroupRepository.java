@@ -60,7 +60,7 @@ public interface TallyGroupRepository extends JpaRepository<TallyGroupEntity, St
      * same reason a direct ledger is: two places to record your own spending means two monthly
      * totals, both of them wrong.
      *
-     * <p>Archived ones are included deliberately. If you archived it and then tap "My spending"
+     * <p>Archived ones are included deliberately. If you archived it and then tap "Your spending"
      * again, the right answer is the ledger you already have — with its history — not a second
      * empty one beside it.
      */

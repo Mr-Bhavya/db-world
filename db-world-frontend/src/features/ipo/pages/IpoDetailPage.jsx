@@ -11,7 +11,6 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useIpo, useGmpHistory, useSubscriptionHistory } from '../hooks/useIpo';
 import { detailTabsFor } from '../utils/format';
-import { markListRestoreOnBack } from '../utils/listScrollRestore';
 import IpoDetailSkeleton from '../components/IpoDetailSkeleton';
 import IpoDetailHero from '../components/IpoDetailHero';
 import OverviewTab from '../components/OverviewTab';
@@ -71,13 +70,12 @@ export default function IpoDetailPage() {
   // looked like an in-app arrival and had "back" pop them out of the site entirely.
   const cameFromInApp = useRef(location.key !== 'default');
 
-  // Flag this as a genuine in-app "back to the list" so `IpoListPage` restores its saved
-  // scroll position instead of resetting to the top (see `listScrollRestore.js`). For an
-  // in-app arrival, pop history so the list's URL — its filter/sort query string AND scroll —
-  // is restored as-is; only fall back to a fresh push to the bare list route for a
-  // deep-link/first load where there's no list entry to pop back to.
+  // For an in-app arrival, POP history rather than pushing the list route: that restores the
+  // list's URL -- its filter and sort query string -- and it is the only kind of navigation
+  // `ScrollMemory` restores a position for. Pushing would look identical in the address bar and
+  // land the reader at the top of a list they were forty rows into. Only fall back to a fresh
+  // push for a deep link or first load, where there is no list entry to go back to.
   const backToList = () => {
-    markListRestoreOnBack();
     if (cameFromInApp.current) navigate(-1);
     else navigate(Constants.DB_IPO_ROUTE);
   };

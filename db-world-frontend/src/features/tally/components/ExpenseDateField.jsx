@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
+import { tallyCalendarSx } from './tallyFormUi';
 
 const iso = (date) => {
   // Local calendar date, not UTC. toISOString() would shift an evening expense in IST back to
@@ -67,9 +68,6 @@ export default function ExpenseDateField({ value, onChange }) {
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted, mb: 1 }}>
-        When
-      </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
         {chip('Today', value === today, () => onChange(today))}
         {chip('Yesterday', value === yesterday, () => onChange(yesterday))}
@@ -93,30 +91,7 @@ export default function ExpenseDateField({ value, onChange }) {
           // The field is only ever opened by the chip above; rendering it would put a second,
           // unstyled date control on screen saying the same thing.
           textField: { sx: { display: 'none' } },
-          popper: {
-            sx: {
-              '& .MuiPaper-root': {
-                bgcolor: T.bg,
-                backgroundImage: 'none',
-                border: `1px solid ${T.glassBorder}`,
-                borderRadius: 3,
-              },
-              '& .MuiPickersCalendarHeader-label, & .MuiDayCalendar-weekDayLabel': {
-                color: T.textMuted,
-              },
-              '& .MuiPickersDay-root': { color: T.textPrimary, fontWeight: 600 },
-              '& .MuiPickersDay-root:hover': { bgcolor: T.glassHover },
-              '& .MuiPickersDay-root.Mui-selected': {
-                bgcolor: T.teal, color: '#fff',
-                '&:hover': { bgcolor: T.tealHover },
-              },
-              '& .MuiPickersDay-today': { borderColor: T.teal },
-              '& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton': {
-                color: T.textMuted,
-              },
-              '& .MuiPickersYear-yearButton.Mui-selected': { bgcolor: T.teal, color: '#fff' },
-            },
-          },
+          popper: { sx: tallyCalendarSx(T) },
         }}
       />
     </Box>

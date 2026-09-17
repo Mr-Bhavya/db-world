@@ -20,7 +20,10 @@ import java.util.List;
  *                  counted when the expense was recorded, and adding the two books every
  *                  shared bill twice.
  * @param nextAnchor null when the following period has not started yet — see
- *                  {@link TallySpendingReportDto}.
+ *                  {@link TallySpendingReportDto}. Null for a custom range too: stepping one
+ *                  of those means shifting both ends by its own length, which needs no anchor.
+ * @param period    null when the caller asked for an explicit {@code from}–{@code to} range
+ *                  rather than naming a calendar period.
  */
 public record TallyGroupReportDto(
         TallyReportPeriod period,
@@ -36,8 +39,25 @@ public record TallyGroupReportDto(
         /** Group spend over the days elapsed, not over the whole period. */
         BigDecimal dailyAverage,
         int expenseCount,
+        /**
+         * How wide one bucket is, so the client can label the axis instead of inferring the
+         * granularity from {@code period} — which stops being possible the moment a window is
+         * an arbitrary range rather than one of the three calendar periods.
+         */
+        TallyBucketUnit bucketUnit,
         /** Every bucket in the period, including the empty ones. */
         List<TallyReportBucketDto> buckets,
+        /**
+         * The same buckets for the period before this one, so the client can draw last month
+         * behind this one and answer "are we ahead or behind" partway through.
+         *
+         * <p>Sent as well as {@code previousTotal}, not instead of it: a total is the answer at
+         * the end of the period, and for most of the month the interesting comparison is against
+         * where the last one had got to <em>by this day</em>. Periods differ in length — a
+         * 31-day January against a 28-day February — so these are aligned by index, not by date,
+         * and the client drops whatever runs past the end of the current period.
+         */
+        List<TallyReportBucketDto> previousBuckets,
         /** Largest first. */
         List<TallyReportCategoryDto> categories,
         /** Every member who paid or consumed anything, biggest consumer first. */

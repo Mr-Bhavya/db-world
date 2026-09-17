@@ -1,12 +1,20 @@
 import { forwardRef } from 'react';
 import {
-  Box, Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography, IconButton, List, ListItem,
+  Box,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  IconButton,
+  List,
+  ListItem,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
+import SheetDialog from '@shared/components/SheetDialog';
 
 /** Fade + scale entrance/exit, wired into MUI's Dialog transition lifecycle. */
 const Transition = forwardRef(function Transition(props, ref) {
@@ -38,7 +46,7 @@ export default function UploadConflictDialog({
   const T = useT();
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onCancel}
       TransitionComponent={Transition}
@@ -115,6 +123,6 @@ export default function UploadConflictDialog({
           Overwrite
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

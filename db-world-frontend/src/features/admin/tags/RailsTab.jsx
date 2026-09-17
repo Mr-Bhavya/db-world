@@ -1,8 +1,16 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Box, Typography, Button, CircularProgress, Skeleton,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Tabs, Tab, Divider,
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
+  Skeleton,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tabs,
+  Tab,
+  Divider,
 } from '@mui/material';
 import AddIcon                from '@mui/icons-material/Add';
 import PlaylistPlayIcon       from '@mui/icons-material/PlaylistPlay';
@@ -20,6 +28,7 @@ import { BLANK_RAIL, RAIL_SCOPE_TABS } from './railConstants';
 import { railPageTypes, railOnPage } from './tagsUtils';
 import { DraggableRailRow } from './RailRow';
 import RailDialog from './RailDialog';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Rails tab ─────────────────────────────────────────────────────────────────
 export default function RailsTab() {
@@ -205,7 +214,7 @@ export default function RailsTab() {
         onClose={() => setRailDialog({ open: false, data: null })}
         onSave={doSave} saving={saving} />
 
-      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, rail: null })}
+      <SheetDialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, rail: null })}
         PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
         <DialogTitle sx={{ color: T.textPrimary, fontSize: '1rem', fontWeight: 700 }}>Delete Rail</DialogTitle>
         <DialogContent>
@@ -220,7 +229,7 @@ export default function RailsTab() {
             {deleting ? <CircularProgress size={18} color="inherit" /> : 'Delete'}
           </Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
     </>
   );
 }

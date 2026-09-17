@@ -1,6 +1,7 @@
 package com.db.dbworld.app.tally.service;
 
 import com.db.dbworld.app.tally.dto.TallyGroupReportDto;
+import com.db.dbworld.app.tally.dto.TallyReportWindow;
 import com.db.dbworld.app.tally.dto.TallyGroupReportMemberDto;
 import com.db.dbworld.app.tally.dto.TallyReportBucketDto;
 import com.db.dbworld.app.tally.dto.TallyReportCategoryDto;
@@ -123,16 +124,17 @@ public class TallyReportService {
      *               "previous" means the same thing on both sides.
      */
     @Transactional(readOnly = true)
-    public TallySpendingReportDto spending(Long userId, TallyReportPeriod period, LocalDate anchor) {
+    public TallySpendingReportDto spending(Long userId, TallyReportPeriod period, LocalDate anchor,
+                                           LocalDate from, LocalDate to) {
         LocalDate today = today();
-        LocalDate at = anchor != null ? anchor : today;
+        TallyReportWindow window = TallyReportWindow.of(period, anchor, from, to, today);
 
         // Every membership, departed ones included: see TallyGroupMemberRepository#findByUserId.
         List<TallyGroupMemberEntity> mine = members.findByUserId(userId);
         if (mine.isEmpty()) {
             // Nothing to query against, and `in ()` is not a filter worth asking the database to
             // evaluate. A new user gets the same empty shape as a quiet month.
-            return assembleMine(period, at, today, List.of(), BigDecimal.ZERO, Map.of());
+            return assembleMine(window, today, List.of(), BigDecimal.ZERO, Map.of());
         }
 
         Set<String> groupIds = mine.stream()
@@ -141,12 +143,11 @@ public class TallyReportService {
                 .map(TallyGroupMemberEntity::getId).collect(Collectors.toSet());
 
         List<Line> lines = shares
-                .findConsumed(groupIds, memberIds, period.startOf(at), period.endOf(at))
+                .findConsumed(groupIds, memberIds, window.from(), window.to())
                 .stream().map(TallyReportService::lineOf).toList();
 
-        LocalDate previous = period.previousAnchor(at);
         BigDecimal previousTotal = shares.sumConsumed(
-                groupIds, memberIds, period.startOf(previous), period.endOf(previous));
+                groupIds, memberIds, window.previousFrom(), window.previousTo());
 
         // Only the ledgers that actually saw spending -- being in a group you did not spend in
         // this month is not a row worth drawing.
@@ -155,7 +156,7 @@ public class TallyReportService {
                 : groups.findByIdIn(spentIn).stream()
                         .collect(Collectors.toMap(TallyGroupEntity::getId, Function.identity()));
 
-        return assembleMine(period, at, today, lines, previousTotal, byId);
+        return assembleMine(window, today, lines, previousTotal, byId);
     }
 
     /* ============================== one group ============================== */
@@ -169,26 +170,24 @@ public class TallyReportService {
      * report of.
      */
     @Transactional(readOnly = true)
-    public TallyGroupReportDto group(Long userId, String groupId,
-                                     TallyReportPeriod period, LocalDate anchor) {
+    public TallyGroupReportDto group(Long userId, String groupId, TallyReportPeriod period,
+                                     LocalDate anchor, LocalDate rangeFrom, LocalDate rangeTo) {
         TallyGroupEntity group = access.requireVisibleGroup(userId, groupId);
         TallyGroupMemberEntity me = access.requireMembership(userId, groupId);
 
         LocalDate today = today();
-        LocalDate at = anchor != null ? anchor : today;
-        LocalDate from = period.startOf(at);
-        LocalDate to = period.endOf(at);
+        TallyReportWindow window = TallyReportWindow.of(period, anchor, rangeFrom, rangeTo, today);
+        LocalDate from = window.from();
+        LocalDate to = window.to();
 
-        List<Line> lines = expenses
-                .findByGroupIdAndStatusAndExpenseDateBetween(groupId, TallyExpenseStatus.ACTIVE, from, to)
-                .stream()
-                .map(e -> new Line(e.getId(), e.getGroupId(), e.getExpenseDate(),
-                        e.getDescription(), e.getCategory(), e.getTotalAmount()))
-                .toList();
+        List<Line> lines = linesOf(groupId, from, to);
 
-        LocalDate previous = period.previousAnchor(at);
-        BigDecimal previousTotal =
-                expenses.sumTotalBetween(groupId, period.startOf(previous), period.endOf(previous));
+        // The previous window's rows rather than only its sum. The report draws last period
+        // behind this one, and a single total cannot be a line. It is the same index range scan
+        // the current window already does and the total falls straight out of the rows, so this
+        // replaces the separate aggregate query rather than adding a second read.
+        List<Line> previousLines = linesOf(groupId, window.previousFrom(), window.previousTo());
+        BigDecimal previousTotal = sum(previousLines);
 
         Map<String, BigDecimal> paid = totalsByMember(payers.sumPaidByGroupBetween(groupId, from, to));
         Map<String, BigDecimal> consumed =
@@ -200,24 +199,41 @@ public class TallyReportService {
                 from.atStartOfDay(ZONE).toInstant(),
                 to.plusDays(1).atStartOfDay(ZONE).toInstant());
 
-        LocalDate next = period.nextAnchor(at);
         BigDecimal total = sum(lines);
 
         return new TallyGroupReportDto(
-                period, from, to,
-                period.previousAnchor(at),
-                period.startOf(next).isAfter(today) ? null : next,
+                window.period(), from, to,
+                window.previousAnchor(),
+                window.nextAnchor(),
                 group.getCurrency(),
                 total,
                 orZero(previousTotal),
                 consumed.getOrDefault(me.getId(), BigDecimal.ZERO),
                 orZero(settled),
-                dailyAverage(total, period.elapsedDays(at, today)),
+                dailyAverage(total, window.elapsedDays(today)),
                 countExpenses(lines),
-                buckets(period, at, lines),
+                window.unit(),
+                fill(window.buckets(), lines),
+                fill(window.previousBuckets(), previousLines),
                 categories(lines),
                 memberRows(groupId, paid, consumed),
                 biggest(lines));
+    }
+
+    /**
+     * One group's live expenses over a window, as report lines.
+     *
+     * <p>Named rather than inlined because the report reads two windows now — this period and
+     * the one before it — and they have to be built identically or the comparison drawn from
+     * them is against a differently-defined figure.
+     */
+    private List<Line> linesOf(String groupId, LocalDate from, LocalDate to) {
+        return expenses
+                .findByGroupIdAndStatusAndExpenseDateBetween(groupId, TallyExpenseStatus.ACTIVE, from, to)
+                .stream()
+                .map(e -> new Line(e.getId(), e.getGroupId(), e.getExpenseDate(),
+                        e.getDescription(), e.getCategory(), e.getTotalAmount()))
+                .toList();
     }
 
     /**
@@ -278,29 +294,26 @@ public class TallyReportService {
      * One construction path for the personal report, so an empty one is the same shape as a full
      * one rather than a second version of it that can drift.
      */
-    private TallySpendingReportDto assembleMine(TallyReportPeriod period,
-                                                LocalDate at,
+    private TallySpendingReportDto assembleMine(TallyReportWindow window,
                                                 LocalDate today,
                                                 List<Line> lines,
                                                 BigDecimal previousTotal,
                                                 Map<String, TallyGroupEntity> groupById) {
         BigDecimal total = sum(lines);
-        LocalDate next = period.nextAnchor(at);
 
         return new TallySpendingReportDto(
-                period,
-                period.startOf(at),
-                period.endOf(at),
-                period.previousAnchor(at),
-                // No forward step into a period that has not begun: there is nothing there yet,
-                // and an enabled button that always lands on zero reads as a bug.
-                period.startOf(next).isAfter(today) ? null : next,
+                window.period(),
+                window.from(),
+                window.to(),
+                window.previousAnchor(),
+                window.nextAnchor(),
                 currencyOf(groupById.values()),
                 total,
                 orZero(previousTotal),
-                dailyAverage(total, period.elapsedDays(at, today)),
+                dailyAverage(total, window.elapsedDays(today)),
                 countExpenses(lines),
-                buckets(period, at, lines),
+                window.unit(),
+                fill(window.buckets(), lines),
                 categories(lines),
                 ledgers(lines, groupById),
                 biggest(lines));
@@ -315,10 +328,16 @@ public class TallyReportService {
         return (int) lines.stream().map(Line::expenseId).distinct().count();
     }
 
-    private List<TallyReportBucketDto> buckets(TallyReportPeriod period,
-                                               LocalDate at,
-                                               List<Line> lines) {
-        return period.bucketsOf(at).stream()
+    /**
+     * Put the money into the columns.
+     *
+     * <p>The columns arrive already built, because how a window divides itself is a property of
+     * the window and not of the rows that land in it — and a window now knows how to do that
+     * whether it is a calendar month or an arbitrary eleven weeks.
+     */
+    private static List<TallyReportBucketDto> fill(List<TallyReportPeriod.Bucket> columns,
+                                                   List<Line> lines) {
+        return columns.stream()
                 .map(bucket -> new TallyReportBucketDto(bucket.start(), bucket.end(),
                         lines.stream()
                                 .filter(line -> bucket.contains(line.date()))

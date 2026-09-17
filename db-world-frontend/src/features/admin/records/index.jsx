@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   Box, Typography, useMediaQuery, useTheme,
   CircularProgress, IconButton, Tooltip, Select, MenuItem,
@@ -22,7 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
-  AdminPage, SectionCard, StatCard, StatGrid, StickyBar,
+  AdminPage, SectionCard, StatCard, StatGrid, StickyBar, usePagedListTop,
   AdminActionButton, TableSkeleton, ErrorState, adminSurface,
 } from '@features/admin/adminUi';
 import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb, setRecordVisibility } from '../api/adminApi';
@@ -107,7 +107,12 @@ function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPa
   }, [page, totalPages]);
 
   return (
-    <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap',
+    <Box sx={{
+      // Sticky, so the control stays under the cursor wherever the page change leaves the
+      // scroll. Paging through six pages otherwise means scrolling back down six times --
+      // which is the cost of landing at the top of the table, paid back here.
+      position: 'sticky', bottom: 0, zIndex: 2,
+      flexShrink: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap',
       gap: { xs: 0.5, sm: 1 }, px: { xs: 1.5, sm: 2.5, md: 3 }, py: 1,
       borderTop: `1px solid ${S.border}`, bgcolor: S.card }}>
 
@@ -214,6 +219,12 @@ export default function RecordManagementV2() {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const [page, setPage] = useState(0);
+
+  const listRef = useRef(null);
+  // Page two starts at the top of page two. The rows were replaced, not appended, so staying
+  // where the pager was means opening in the middle of results whose beginning you never saw.
+
+  usePagedListTop(page, listRef);
 
   // Reset to page 0 whenever filters or sort change
   useEffect(() => { setPage(0); }, [filters, sortModel]);
@@ -351,6 +362,7 @@ export default function RecordManagementV2() {
       </StickyBar>
 
       {/* Table */}
+      <Box ref={listRef}>
       <SectionCard padding={false} flushMobile>
         {error ? (
           <ErrorState message="Failed to load records" onRetry={refetch} />
@@ -378,6 +390,7 @@ export default function RecordManagementV2() {
           />
         )}
       </SectionCard>
+      </Box>
 
       {/* Floating bulk-action bar — pinned to the viewport so it stays put while scrolling */}
       {selectedRows.length > 0 && (

@@ -1,7 +1,20 @@
 import { useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, IconButton, TextField, MenuItem,
-  Alert, Box, Typography, List, ListItem, ListItemText, useMediaQuery, useTheme,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  IconButton,
+  TextField,
+  MenuItem,
+  Alert,
+  Box,
+  Typography,
+  List,
+  ListItem,
+  ListItemText,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -10,6 +23,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { createShare, fetchShares, revokeShare, buildShareUrl } from '../api/walletApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const EXPIRY_OPTIONS = [{ label: '1 hour', value: 1 }, { label: '24 hours', value: 24 }, { label: '7 days', value: 168 }];
 
@@ -38,7 +52,7 @@ export default function ShareDialog({ doc, open, onClose }) {
   const copy = (url) => { navigator.clipboard.writeText(url); notify.success('Link copied'); };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isPhone}
+    <SheetDialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isPhone}
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary, fontWeight: 700 }}>
         Share &quot;{doc.label}&quot;
@@ -91,6 +105,6 @@ export default function ShareDialog({ doc, open, onClose }) {
         </List>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}><Button onClick={onClose} sx={{ color: T.textMuted }}>Close</Button></DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

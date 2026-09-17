@@ -1,8 +1,17 @@
+import SheetDialog from '@shared/components/SheetDialog';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { notify } from '@shared/notify';
 import {
-  Box, Dialog, DialogContent, DialogTitle, IconButton, TextField,
-  Tab, Tabs, Typography, CircularProgress, Button,
+  Box,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  TextField,
+  Tab,
+  Tabs,
+  Typography,
+  CircularProgress,
+  Button,
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -181,7 +190,7 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
   const minLenHint = useMemo(() => `Type at least ${MIN_QUERY_LEN} characters to search`, []);
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       fullScreen={isXs}
@@ -267,6 +276,6 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
           )}
         </Box>
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }

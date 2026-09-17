@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -26,6 +25,7 @@ import {
   Refresh,
 } from '@mui/icons-material';
 import { getJobReport } from '../services/ingestionApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transition
@@ -143,7 +143,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
   const full = isMobile || maximized;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       fullScreen={full}
@@ -342,7 +342,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
           </Box>
         )}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

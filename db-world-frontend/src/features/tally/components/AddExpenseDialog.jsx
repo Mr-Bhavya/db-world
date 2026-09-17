@@ -16,7 +16,7 @@ import {
   previewShares, sumAmounts, toPaise, fromPaise, redistribute,
 } from '../utils/tallyMath';
 import {
-  TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx,
+  TallyFormDialog, TallyFormSection, TallySubmitButton, TallyCancelButton, tallyFieldSx,
 } from './tallyFormUi';
 import CategoryPicker from './CategoryPicker';
 import ExpenseDateField from './ExpenseDateField';
@@ -259,8 +259,12 @@ export default function AddExpenseDialog({
         </>
       )}
     >
-      <Box component="form" onSubmit={submit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}>
+      <Box component="form" onSubmit={submit} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
+        {/* Four decisions, four surfaces. They used to be a flat stack of bold labels in the same
+            weight as the field labels under them, which on a phone -- where two fit on screen --
+            left no way to tell which heading owned what. */}
+        <TallyFormSection title="What and how much">
         <Controller
           name="totalAmount"
           control={control}
@@ -302,11 +306,13 @@ export default function AddExpenseDialog({
               placeholder="Groceries"
               error={Boolean(errors.description)}
               helperText={errors.description?.message}
-              sx={tallyFieldSx(T)}
+              sx={{ ...tallyFieldSx(T), mt: 1.5 }}
             />
           )}
         />
+        </TallyFormSection>
 
+        <TallyFormSection title="When">
         <Controller
           name="expenseDate"
           control={control}
@@ -315,9 +321,14 @@ export default function AddExpenseDialog({
           )}
         />
 
-        <CategoryPicker value={category} onChange={(v) => setValue('category', v)} />
+        </TallyFormSection>
+
+        <TallyFormSection title="Category" hint="optional">
+          <CategoryPicker value={category} onChange={(v) => setValue('category', v)} />
+        </TallyFormSection>
 
         {!soloLedger && (
+        <TallyFormSection title="Who paid">
         <PayerPicker
           members={active}
           myMemberId={myMemberId}
@@ -327,15 +338,13 @@ export default function AddExpenseDialog({
           multi={multiPayer}
           onToggleMulti={setMultiPayer}
         />
+        </TallyFormSection>
         )}
 
         {!soloLedger && (
-        <Box>
+        <TallyFormSection title="Split between">
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted }}>
-                Split between
-              </Typography>
               {!showSplit && (
                 <Typography noWrap sx={{ fontSize: 13, color: T.textPrimary, fontWeight: 600 }}>
                   {splitSummary}
@@ -412,7 +421,7 @@ export default function AddExpenseDialog({
               </Box>
             )}
           </AnimatePresence>
-        </Box>
+        </TallyFormSection>
         )}
 
         <AnimatePresence>

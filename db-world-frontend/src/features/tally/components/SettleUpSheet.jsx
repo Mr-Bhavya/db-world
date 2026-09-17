@@ -77,7 +77,17 @@ export default function SettleUpSheet({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.24, delay: Math.min(i * 0.06, 0.3) }}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 1.25,
+              display: 'flex', alignItems: 'center',
+              // Two lines on a phone, one from sm up.
+              //
+              // As a single row this collided. Both name bubbles are flexShrink: 0 with up to
+              // 72px of name each, plus an arrow, the gaps, and the Record button -- about 350px
+              // of content that cannot shrink, on a 360px screen. The only flexible item was the
+              // amount, so a figure like 65,000.00 was squeezed into whatever was left and ran
+              // straight over its neighbours. Wrapping gives the names the top line and the
+              // amount its own, instead of asking four fixed things to fit in three things' room.
+              flexWrap: { xs: 'wrap', sm: 'nowrap' },
+              rowGap: 1, columnGap: 1.25,
               p: 1.25, borderRadius: 3,
               // The rows involving you are the ones you can act on, so they are the ones that
               // stand out. The rest are context.
@@ -89,27 +99,36 @@ export default function SettleUpSheet({
             <ArrowForwardRoundedIcon sx={{ fontSize: 16, color: T.textMuted, flexShrink: 0 }} />
             <NameBubble id={transfer.toMemberId} name={transfer.toMemberName} />
 
-            <Box sx={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-              <Typography sx={{ fontSize: 15, fontWeight: 800, color: T.textPrimary }}>
+            {/* Forces the break on a phone: the names take the first line and this row of
+                amount-plus-button takes the second. From sm it collapses back into the flow. */}
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1.25,
+              flex: { xs: '1 0 100%', sm: '1 1 auto' }, minWidth: 0,
+              justifyContent: 'flex-end',
+            }}>
+              <Typography noWrap sx={{
+                fontSize: 15, fontWeight: 800, color: T.textPrimary,
+                flex: 1, minWidth: 0, textAlign: 'right',
+              }}>
                 {formatMoney(transfer.amount)}
               </Typography>
-            </Box>
 
-            <Button
-              size="small"
-              onClick={() => onRecord(transfer)}
-              variant={mine ? 'contained' : 'text'}
-              disableElevation
-              sx={{
-                textTransform: 'none', fontWeight: 700, fontSize: 12.5,
-                borderRadius: 2, flexShrink: 0, minWidth: 0, px: 1.5,
-                ...(mine
-                  ? { bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover } }
-                  : { color: T.teal }),
-              }}
-            >
-              Record
-            </Button>
+              <Button
+                size="small"
+                onClick={() => onRecord(transfer)}
+                variant={mine ? 'contained' : 'text'}
+                disableElevation
+                sx={{
+                  textTransform: 'none', fontWeight: 700, fontSize: 12.5,
+                  borderRadius: 2, flexShrink: 0, minWidth: 0, px: 1.5,
+                  ...(mine
+                    ? { bgcolor: T.teal, color: '#fff', '&:hover': { bgcolor: T.tealHover } }
+                    : { color: T.teal }),
+                }}
+              >
+                Record
+              </Button>
+            </Box>
           </Box>
         );
       })}
@@ -128,7 +147,7 @@ function NameBubble({ id, name }) {
   const T = useT();
   const tint = avatarColor(id ?? '');
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0, flexShrink: 0 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0, flexShrink: 1 }}>
       <Box sx={{
         width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center',
         fontSize: 10.5, fontWeight: 800, flexShrink: 0,
@@ -136,7 +155,12 @@ function NameBubble({ id, name }) {
       }}>
         {initialsOf(name)}
       </Box>
-      <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 600, color: T.textPrimary, maxWidth: 72 }}>
+      {/* Truncates rather than pushing the row wider -- a long name is the other half of why
+          this overflowed. */}
+      <Typography noWrap sx={{
+        fontSize: 12.5, fontWeight: 600, color: T.textPrimary,
+        maxWidth: { xs: 96, sm: 72 }, minWidth: 0,
+      }}>
         {name}
       </Typography>
     </Box>

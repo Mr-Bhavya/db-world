@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Typography,
-  Table, TableHead, TableRow, TableCell, TableBody, Button, TextField, Chip, Tooltip, CircularProgress,
-  useMediaQuery, useTheme,
+  Box,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Button,
+  TextField,
+  Chip,
+  Tooltip,
+  CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -20,6 +35,7 @@ import { createLocation, updateLocation, deleteLocation } from '../api/fileManag
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import ConfirmDialog from './ConfirmDialog';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const locationSchema = z.object({
   label: z.string().trim().min(1, 'Label is required').max(120, 'Label is too long'),
@@ -95,7 +111,7 @@ export default function LocationManagerDialog({ open, onClose }) {
 
   return (
     <>
-      <Dialog
+      <SheetDialog
         open={open}
         onClose={handleClose}
         maxWidth="sm"
@@ -282,7 +298,7 @@ export default function LocationManagerDialog({ open, onClose }) {
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
           <Button onClick={handleClose} sx={{ color: T.textMuted, fontSize: 13 }}>Close</Button>
         </DialogActions>
-      </Dialog>
+      </SheetDialog>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

@@ -4,7 +4,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -20,6 +19,7 @@ import {
 import { useT } from '@shared/theme';
 import { notify } from '@shared/notify';
 import { getMySessions, revokeAllMySessions, revokeMySession } from './api/accountApi';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const PLATFORM_ICON = {
   ANDROID: AndroidIcon,
@@ -120,7 +120,7 @@ export default function ActiveSessionsDialog({ open, onClose }) {
   const others = sessions.filter((s) => s.id !== currentId);
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       maxWidth="sm"
@@ -227,6 +227,6 @@ export default function ActiveSessionsDialog({ open, onClose }) {
           </>
         )}
       </DialogContent>
-    </Dialog>
+    </SheetDialog>
   );
 }

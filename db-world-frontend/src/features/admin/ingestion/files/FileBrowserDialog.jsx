@@ -7,7 +7,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -40,6 +39,7 @@ import {
 
 import { useT } from '@shared/theme';
 import { useFileBrowser } from '../hooks/useFileBrowser';
+import SheetDialog from '@shared/components/SheetDialog';
 
 function fmtSize(bytes) {
   if (!bytes || !Number.isFinite(Number(bytes))) return null;
@@ -156,7 +156,7 @@ export default function FileBrowserDialog({
   const directoryCount = directories.length;
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       maxWidth="lg"
@@ -540,6 +540,6 @@ export default function FileBrowserDialog({
           </Stack>
         </Stack>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }

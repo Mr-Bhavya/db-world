@@ -1,6 +1,13 @@
 import {
-  Dialog, Box, Typography, Chip, IconButton, Tabs, Tab,
-  CircularProgress, Alert, useMediaQuery,
+  Box,
+  Typography,
+  Chip,
+  IconButton,
+  Tabs,
+  Tab,
+  CircularProgress,
+  Alert,
+  useMediaQuery,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -13,6 +20,7 @@ import VisibilityControl from './VisibilityControl';
 import { useRecordSync } from './useRecordSync';
 import { TmdbDetailBody } from './TmdbDetailModal';
 import { MediaFilesBody } from './MediaFilesModal';
+import SheetDialog from '@shared/components/SheetDialog';
 
 const SYNC_META = {
   SUCCESS: { label: 'Synced',  color: '#10b981' },
@@ -130,7 +138,7 @@ export default function RecordDetailDrawer({ rows }) {
   const isXs = useMediaQuery('(max-width:600px)');
 
   return (
-    <Dialog open={open} onClose={closeDrawer} fullWidth maxWidth="md" fullScreen={isXs}
+    <SheetDialog open={open} onClose={closeDrawer} fullWidth maxWidth="md" fullScreen={isXs}
       PaperProps={{ sx: { bgcolor: T.sidebar, color: T.textPrimary, border: isXs ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: isXs ? 0 : 2, height: isXs ? '100%' : '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}>
 
       {/* Header */}
@@ -174,6 +182,6 @@ export default function RecordDetailDrawer({ rows }) {
           : drawerTab === 'files'    ? <MediaFilesBody recordId={drawerRecordId} record={row} />
           : <SyncPanel row={row} />}
       </Box>
-    </Dialog>
+    </SheetDialog>
   );
 }

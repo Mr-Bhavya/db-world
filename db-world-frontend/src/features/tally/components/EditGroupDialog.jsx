@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Box, Typography, TextField, useMediaQuery, useTheme } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
-import { GROUP_CATEGORIES, GROUP_ICONS, groupIcon } from '../utils/tallyFormat';
+import { GROUP_CATEGORIES, groupIcon } from '../utils/tallyFormat';
+import IconSheet from './IconSheet';
 import { TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx } from './tallyFormUi';
 
 /**
@@ -26,6 +27,7 @@ export default function EditGroupDialog({ open, group, busy, onClose, onSave }) 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [icon, setIcon] = useState('');
+  const [pickingIcon, setPickingIcon] = useState(false);
 
   // Seeded on every open. `useState(group.name)` reads its argument once, so the second time
   // the dialog opened it would still be showing the name from the first.
@@ -79,37 +81,47 @@ export default function EditGroupDialog({ open, group, busy, onClose, onSave }) 
         <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: T.textMuted, mb: 1 }}>
           Icon
         </Typography>
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(44px, 1fr))',
-          gap: 0.75,
-        }}>
-          {GROUP_ICONS.map((option) => {
-            const selected = icon === option;
-            return (
-              <Box
-                key={option}
-                component={motion.button}
-                type="button"
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIcon(option)}
-                aria-label={`Use ${option}`}
-                aria-pressed={selected}
-                sx={{
-                  aspectRatio: '1', display: 'grid', placeItems: 'center',
-                  fontSize: 20, cursor: 'pointer', borderRadius: 2.5,
-                  bgcolor: selected ? T.tealBg : T.glass,
-                  border: `1px solid ${selected ? T.glassBorderHover : T.border}`,
-                  transition: 'all .15s ease',
-                  '&:hover': { bgcolor: selected ? T.tealBgHover : T.glassHover },
-                }}
-              >
-                {option}
-              </Box>
-            );
-          })}
+        {/* One current icon and a way to the other eighty-one. A grid of every icon inline was
+            fine at twenty-four; past that it is the largest thing in the dialog and pushes the
+            name field -- the one you actually came to change -- below the fold. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            component={motion.button}
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            onClick={() => setPickingIcon(true)}
+            aria-label="Change the icon"
+            sx={{
+              width: 48, height: 48, borderRadius: 2.5, fontSize: 24, cursor: 'pointer',
+              display: 'grid', placeItems: 'center', flexShrink: 0,
+              bgcolor: T.tealBg, border: `1px solid ${T.glassBorderHover}`,
+            }}
+          >
+            {icon || groupIcon(group)}
+          </Box>
+          <Box
+            component={motion.button}
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setPickingIcon(true)}
+            sx={{
+              px: 1.5, py: 0.7, borderRadius: 999, cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+              bgcolor: 'transparent', color: T.teal,
+              border: `1px dashed ${T.glassBorderHover}`,
+            }}
+          >
+            Choose an icon
+          </Box>
         </Box>
       </Box>
+
+      <IconSheet
+        open={pickingIcon}
+        value={icon}
+        onClose={() => setPickingIcon(false)}
+        onPick={(emoji) => { setIcon(emoji); setPickingIcon(false); }}
+      />
 
       {!direct && (
         <Box>

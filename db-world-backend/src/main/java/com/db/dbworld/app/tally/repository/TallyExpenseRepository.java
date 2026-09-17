@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -49,7 +48,6 @@ public interface TallyExpenseRepository extends JpaRepository<TallyExpenseEntity
                                            @Param("status") TallyExpenseStatus status,
                                            Limit limit);
 
-    /** Subsequent pages: everything strictly older than the cursor. */
     /**
      * Every live expense in one group over a date range, for the group's report.
      *
@@ -62,18 +60,12 @@ public interface TallyExpenseRepository extends JpaRepository<TallyExpenseEntity
     List<TallyExpenseEntity> findByGroupIdAndStatusAndExpenseDateBetween(
             String groupId, TallyExpenseStatus status, LocalDate from, LocalDate to);
 
-    /** The same total on its own, for the previous period's comparison figure. */
-    @Query("""
-            select coalesce(sum(e.totalAmount), 0)
-              from TallyExpenseEntity e
-             where e.groupId = :groupId
-               and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
-               and e.expenseDate between :from and :to
-            """)
-    BigDecimal sumTotalBetween(@Param("groupId") String groupId,
-                               @Param("from") LocalDate from,
-                               @Param("to") LocalDate to);
+    // The previous period's comparison figure used to be a separate sum() here. The report now
+    // draws last period's shape behind this one, so it reads that period's rows through the
+    // method above and adds them up itself -- one query instead of two, and one definition of
+    // "what counts" instead of a list read and an aggregate that could drift apart.
 
+    /** Subsequent pages: everything strictly older than the cursor. */
     @Query("""
             select e from TallyExpenseEntity e
              where e.groupId = :groupId

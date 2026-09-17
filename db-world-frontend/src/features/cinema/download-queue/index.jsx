@@ -1,10 +1,26 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Chip, CircularProgress, IconButton, Tabs, Tab, Divider, Button,
-  Switch, useMediaQuery, useTheme,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-  Menu, MenuItem, ListItemIcon, ListItemText
+  Box,
+  Typography,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Tabs,
+  Tab,
+  Divider,
+  Button,
+  Switch,
+  useMediaQuery,
+  useTheme,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon         from '@mui/icons-material/Refresh';
@@ -22,6 +38,7 @@ import { useT }            from '@shared/theme/ThemeContext';
 import Constants            from '@shared/constants';
 import DownloadItem, { STATUS_COLOR, fmtBytes, fmtSpeed, fmtEta } from './DownloadItem';
 import { useDownloads }    from './useDownloads';
+import SheetDialog from '@shared/components/SheetDialog';
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 function EmptyState({ tab }) {
@@ -185,7 +202,7 @@ function ConfirmDialog({ state, onClose, onConfirm }) {
       };
 
   return (
-    <Dialog
+    <SheetDialog
       open={open}
       onClose={onClose}
       PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.text, borderRadius: 2, border: `1px solid ${T.glassBorder}`, maxWidth: 380 } }}
@@ -213,7 +230,7 @@ function ConfirmDialog({ state, onClose, onConfirm }) {
           {copy.confirm}
         </Button>
       </DialogActions>
-    </Dialog>
+    </SheetDialog>
   );
 }
 

@@ -40,13 +40,22 @@ public class TallyReportController {
      * <p>{@code anchor} is any date inside the period, not its first day, so paging back is
      * "give me the week around the 3rd" rather than the client having to work out which Monday
      * that was. Omit it for the current period.
+     *
+     * <p>{@code from} and {@code to} are the other way to ask, and they win when both are given:
+     * an arbitrary range has no anchor and no calendar period to belong to. The comparison the
+     * report draws behind it then becomes the equally long stretch immediately before, rather
+     * than "the previous month" — see {@link com.db.dbworld.app.tally.dto.TallyReportWindow}.
      */
     @GetMapping("/spending")
     public ResponseEntity<ApiResponse<TallySpendingReportDto>> spending(
             @RequestParam(defaultValue = "MONTH") TallyReportPeriod period,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor) {
-        return TallyResponses.ok(reports.spending(userContext.userId(), period, anchor));
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return TallyResponses.ok(reports.spending(userContext.userId(), period, anchor, from, to));
     }
 
     /**
@@ -57,13 +66,23 @@ public class TallyReportController {
      * spend and a paid-versus-consumed split per member, where {@code /spending} is only ever
      * the caller's own share — one endpoint answering both would have half its fields null
      * depending on how it was called.
+     *
+     * <p>{@code from} and {@code to} are the other way to ask, and they win when both are given:
+     * an arbitrary range has no anchor and no calendar period to belong to. The comparison the
+     * report draws behind it then becomes the equally long stretch immediately before, rather
+     * than "the previous month" — see {@link com.db.dbworld.app.tally.dto.TallyReportWindow}.
      */
     @GetMapping("/groups/{groupId}")
     public ResponseEntity<ApiResponse<TallyGroupReportDto>> group(
             @PathVariable String groupId,
             @RequestParam(defaultValue = "MONTH") TallyReportPeriod period,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor) {
-        return TallyResponses.ok(reports.group(userContext.userId(), groupId, period, anchor));
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate anchor,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return TallyResponses.ok(
+                reports.group(userContext.userId(), groupId, period, anchor, from, to));
     }
 }

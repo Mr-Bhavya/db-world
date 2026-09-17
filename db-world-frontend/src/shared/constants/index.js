@@ -163,6 +163,10 @@ export const DB_TALLY_REPORT_ROUTE = `${DB_TALLY_ROUTE}/report`;
 export const DB_TALLY_GROUP_REPORT_ROUTE = `${DB_TALLY_GROUP_ROUTE}/report`;
 export const tallyGroupReportPath = (id) =>
   `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}/report`;
+// The group's change log. A tab beside the expenses and the report, so it needs a real route.
+export const DB_TALLY_GROUP_HISTORY_ROUTE = `${DB_TALLY_GROUP_ROUTE}/history`;
+export const tallyGroupHistoryPath = (id) =>
+  `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}/history`;
 
 export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
@@ -322,8 +326,10 @@ export default {
   DB_TALLY_GROUP_ROUTE,
   DB_TALLY_REPORT_ROUTE,
   DB_TALLY_GROUP_REPORT_ROUTE,
+  DB_TALLY_GROUP_HISTORY_ROUTE,
   tallyGroupPath,
   tallyGroupReportPath,
+  tallyGroupHistoryPath,
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,
   ipoDetailPath,

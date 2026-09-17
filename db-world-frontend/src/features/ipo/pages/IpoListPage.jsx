@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
@@ -13,7 +13,6 @@ import IpoCardSkeleton from '../components/IpoCardSkeleton';
 import WhyUseThis from '../components/WhyUseThis';
 import IpoLearn from '../components/IpoLearn';
 import AdSlot from '@shared/ads/AdSlot';
-import { consumeListScrollRestore } from '../utils/listScrollRestore';
 
 const SKELETON_COUNT = 8;
 
@@ -88,26 +87,11 @@ export default function IpoListPage() {
 
   const hasActiveFilter = !!status || type !== 'all' || !!query;
 
-  // Bonus (nice-to-have): remember where the user was scrolled to on the list so a genuine
-  // in-app "back" from an IPO's detail page restores it, instead of always dropping back to
-  // the top of a long list. The save side of this lives in `IpoCard` (on the card-click
-  // navigation into a detail) and the flag side in `IpoDetailPage` (on its back action) —
-  // see `listScrollRestore.js`. Deliberately *not* saved/restored here on generic
-  // mount/unmount: that would replay a stale position for any other way of reaching this
-  // page (header nav, `MyIposPage`'s own back button, a fresh load, a browser refresh),
-  // none of which should ever land anywhere but the top.
-  //
-  // Runs once the list has actually rendered (there's nothing to scroll to before then) —
-  // `scrollRestored` guards against re-running on later filter/sort changes, which reuse
-  // this same isLoading/ipos state but shouldn't re-trigger a scroll jump.
-  const scrollRestored = useRef(false);
-  useEffect(() => {
-    if (isLoading || ipos.length === 0 || scrollRestored.current) return;
-    scrollRestored.current = true;
-    const y = consumeListScrollRestore();
-    const t = setTimeout(() => window.scrollTo({ top: y, behavior: 'instant' }), 80);
-    return () => clearTimeout(t);
-  }, [isLoading, ipos.length]);
+  // Scroll restoration is not this page's job any more. It used to keep its own copy --
+  // saved by IpoCard, flagged by IpoDetailPage, replayed here 80ms after the list rendered
+  // -- and that copy fought the app-wide one in `ScrollMemory`, which restored the reader's
+  // position only for this to overwrite it with zero a moment later. See ScrollMemory for
+  // why there is exactly one of these now.
 
   // Column count follows the available width instead of four guessed breakpoints: `auto-fill`
   // fits as many ~300px tracks as there's room for, so 360px gets 1, a tablet gets 2, and the

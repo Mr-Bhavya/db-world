@@ -83,7 +83,14 @@ export default function RecordDetailSheet() {
       // instead of returning to cinema.
       const background = location.state?.background;
       if (background) {
-        navigate(background.pathname + (background.search ?? ''), { replace: true });
+        // `restoreScrollKey` names the entry this is returning to, so the reader lands back at
+        // the row they opened rather than at the top. Every dismissal that is not the Back
+        // button ends up here -- the swipe, the backdrop, the close button -- and a replace is
+        // otherwise indistinguishable from opening something new.
+        navigate(background.pathname + (background.search ?? ''), {
+          replace: true,
+          state: { restoreScrollKey: background.key },
+        });
       } else {
         navigate(-1);
       }

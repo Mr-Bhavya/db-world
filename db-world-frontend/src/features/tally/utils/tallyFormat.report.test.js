@@ -45,16 +45,24 @@ describe('formatReportWindow', () => {
 });
 
 describe('bucketLabel', () => {
-  it('labels a week by weekday, a month by date, a year by month', () => {
-    expect(bucketLabel('WEEK', '2026-09-14')).toBe('Mon');
-    expect(bucketLabel('MONTH', '2026-09-03')).toBe('3');
-    expect(bucketLabel('YEAR', '2026-02-01')).toBe('Feb');
+  // Takes the bucket's own width, not the report's period. A custom range has no period, and
+  // eleven weeks is charted per month while a fortnight is charted per day -- so the label has
+  // to follow what a column actually covers rather than what the window is called.
+  it('labels by how wide the column is', () => {
+    expect(bucketLabel('WEEKDAY', '2026-09-14')).toBe('Mon');
+    expect(bucketLabel('DAY', '2026-09-03')).toBe('3');
+    expect(bucketLabel('MONTH', '2026-02-01')).toBe('Feb');
+    expect(bucketLabel('YEAR', '2024-01-01')).toBe('2024');
+  });
+
+  it('falls back to the date for an unrecognised width', () => {
+    expect(bucketLabel(undefined, '2026-09-03')).toBe('3');
   });
 
   it('holds the first of the month on the first of the month', () => {
     // Parsed as UTC this reads as the 31st of August in any negative offset, which would shift
     // every bar in the chart by a day.
-    expect(bucketLabel('MONTH', '2026-09-01')).toBe('1');
+    expect(bucketLabel('DAY', '2026-09-01')).toBe('1');
   });
 });
 
