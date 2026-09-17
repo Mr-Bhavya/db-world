@@ -4,6 +4,7 @@ import { Box, Typography, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useT } from '@shared/theme';
+import { PAGE_SX } from '../ipoLayout';
 import { useIpos } from '../hooks/useIpo';
 import { formatIstTime, groupIposByStage, matchesIpoQuery } from '../utils/format';
 import IpoHero from '../components/IpoHero';
@@ -117,23 +118,7 @@ export default function IpoListPage() {
   };
 
   return (
-    <Box sx={{
-      // maxWidth + auto margins: without a cap the grid ran the full width of an ultrawide
-      // window, which is both a wall of cards and a line length well past what's comfortable
-      // to scan. 1500px keeps the grid at four columns at the top end and leaves the hero,
-      // toolbar and ad slot aligned to the same measure.
-      pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' },
-      px: { xs: 2, sm: 3 },
-      pb: 3,
-      maxWidth: 1500,
-      // `width: 100%` is load-bearing alongside `mx: auto`. This Box is a flex item of the app
-      // shell's <main> column, and AUTO SIDE MARGINS CANCEL `align-items: stretch` — so without an
-      // explicit width the Box shrink-wrapped its own max-content instead of the viewport, came out
-      // 465px wide on a 390px phone, and gave the whole page a horizontal scrollbar.
-      width: '100%',
-      mx: 'auto',
-      color: T.textPrimary,
-    }}>
+    <Box sx={{ ...PAGE_SX, pb: 3, color: T.textPrimary }}>
       <IpoHero lastUpdated={lastUpdated} />
 
       <IpoFilterBar
