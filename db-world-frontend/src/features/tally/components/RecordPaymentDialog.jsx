@@ -8,6 +8,7 @@ import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { newIdempotencyKey } from '../api/tallyApi';
+import { sanitiseAmountInput } from '../utils/tallyFormat';
 import { settlementSchema, SETTLEMENT_METHODS } from '../schemas/tallySchemas';
 import {
   TallyFormDialog, TallySubmitButton, TallyCancelButton, tallyFieldSx, MemberAvatar,
@@ -156,27 +157,36 @@ export default function RecordPaymentDialog({
         member in a state with no control to leave it.
       */}
       <Box sx={{
-        display: 'flex', flexDirection: 'column', gap: 1,
+        display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 1, columnGap: 1.25,
         p: 1.5, borderRadius: 3, bgcolor: T.glass, border: `1px solid ${T.border}`,
       }}>
         {pair && from && to ? (
           <>
+            {/*
+              Reads left to right, because it is a sentence. Centring it left a narrow stack in
+              the middle of a wide dialog with dead space either side, and centring the swap
+              underneath stacked a second centred thing below the first.
+            */}
             <Box sx={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 1.25, minWidth: 0,
+              display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1,
             }}>
               <Party member={memberOf(from)} caption="paid" myMemberId={myMemberId} />
               <ArrowForwardRoundedIcon sx={{ fontSize: 18, color: T.teal, flexShrink: 0 }} />
               <Party member={memberOf(to)} caption="received" myMemberId={myMemberId} />
             </Box>
-            <SwapButton onClick={swap} />
+            {/* At the end of the row it acts on, and the only control in the box. On a phone the
+                row wraps and it takes the second line to itself. */}
+            <SwapButton
+              onClick={swap}
+              sx={{ ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}
+            />
           </>
         ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <>
             <PersonPicker label="Paid" value={from} onChange={setFrom} members={active} myMemberId={myMemberId} />
             <SwapButton onClick={swap} compact />
             <PersonPicker label="Received" value={to} onChange={setTo} members={active} myMemberId={myMemberId} />
-          </Box>
+          </>
         )}
       </Box>
 
@@ -195,7 +205,7 @@ export default function RecordPaymentDialog({
       <TextField
         fullWidth
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onChange={(e) => setAmount(sanitiseAmountInput(e.target.value))}
         placeholder="0.00"
         inputMode="decimal"
         aria-label="Amount paid"
@@ -314,7 +324,7 @@ function Party({ member, caption, myMemberId }) {
  * identical avatar groups it read as belonging to one side rather than acting on both -- which
  * is the one thing a swap must not be ambiguous about.
  */
-function SwapButton({ onClick, compact = false }) {
+function SwapButton({ onClick, compact = false, sx }) {
   const T = useT();
   return (
     <Box
@@ -331,6 +341,7 @@ function SwapButton({ onClick, compact = false }) {
           : { px: 1.5, py: 0.6, borderRadius: 2 }),
         bgcolor: T.glassHover, border: `1px solid ${T.border}`, color: T.teal,
         fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+        ...sx,
       }}
     >
       <SwapHorizRoundedIcon sx={{ fontSize: 17 }} />

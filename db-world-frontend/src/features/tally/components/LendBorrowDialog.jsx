@@ -6,6 +6,7 @@ import {
 import CurrencyRupeeRoundedIcon from '@mui/icons-material/CurrencyRupeeRounded';
 import { useT } from '@shared/theme';
 import { newIdempotencyKey } from '../api/tallyApi';
+import { sanitiseAmountInput } from '../utils/tallyFormat';
 import { loanSchema } from '../schemas/tallySchemas';
 import ExpenseDateField from './ExpenseDateField';
 import {
@@ -155,7 +156,7 @@ export default function LendBorrowDialog({
       <TextField
         fullWidth
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onChange={(e) => setAmount(sanitiseAmountInput(e.target.value))}
         placeholder="0.00"
         inputMode="decimal"
         aria-label="Amount"
