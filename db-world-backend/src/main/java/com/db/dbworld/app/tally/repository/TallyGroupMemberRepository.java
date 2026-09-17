@@ -25,6 +25,9 @@ public interface TallyGroupMemberRepository extends JpaRepository<TallyGroupMemb
      */
     List<TallyGroupMemberEntity> findByGroupId(String groupId);
 
+    /** Rosters for several ledgers at once, so a cross-ledger view is one query. */
+    List<TallyGroupMemberEntity> findByGroupIdIn(Collection<String> groupIds);
+
     List<TallyGroupMemberEntity> findByGroupIdAndStatus(String groupId, TallyMemberStatus status);
 
     Optional<TallyGroupMemberEntity> findByIdAndGroupId(String id, String groupId);

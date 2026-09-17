@@ -77,6 +77,20 @@ public class TallyExpenseService {
     }
 
     private TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request) {
+        return createEntity(userId, groupId, request, TallyExpenseKind.SPEND, null);
+    }
+
+    /**
+     * The same creation path, told what kind of row it is building.
+     *
+     * <p>Package-private and taken only by {@link TallyLoanService}: a loan has to produce exactly
+     * the payer, share and ledger rows an expense does -- that is what keeps balances, the
+     * settle-up plan, corrections and voiding working on it unchanged -- so it goes through here
+     * rather than assembling its own. The public {@link #create} stays SPEND-only, so no client
+     * can post a loan through the expense endpoint and skip the loan rules.
+     */
+    TallyExpenseEntity createEntity(Long userId, String groupId, CreateExpenseRequest request,
+                                    TallyExpenseKind kind, LocalDate dueDate) {
         access.requireOpenGroup(userId, groupId);
 
         // Idempotent replay comes first: a retry must return the original, not validate and
@@ -105,6 +119,8 @@ public class TallyExpenseService {
         expense.setCreatedByUserId(userId);
         expense.setNotes(blankToNull(request.notes()));
         expense.setIdempotencyKey(blankToNull(request.idempotencyKey()));
+        expense.setKind(kind);
+        expense.setDueDate(dueDate);
         expenses.save(expense);
 
         List<TallyExpensePayerEntity> payerRows = buildPayers(expense, request.payers());

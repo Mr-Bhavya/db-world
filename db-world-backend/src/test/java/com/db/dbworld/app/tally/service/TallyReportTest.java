@@ -436,7 +436,7 @@ class TallyReportTest {
     void settlementsAreNotSpending() {
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
         settlementService.record(appaUser, groupId,
-                new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null, null));
+                new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null, null, null));
 
         var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 
@@ -454,7 +454,7 @@ class TallyReportTest {
         // 30th -- which is most of the 30th.
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
         settlementService.record(appaUser, groupId, new RecordSettlementRequest(
-                amma, appa, bd("450.00"), "UPI",
+                amma, appa, bd("450.00"), "UPI", null,
                 Instant.parse("2026-09-30T18:00:00Z"), null));
 
         assertThat(reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null).settled())

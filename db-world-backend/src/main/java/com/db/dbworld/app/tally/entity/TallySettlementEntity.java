@@ -51,6 +51,24 @@ public class TallySettlementEntity {
     /** Free text — "UPI", "cash", "bank transfer". Display only; nothing branches on it. */
     @Column(length = 40) private String method;
 
+    /**
+     * The LOAN this payment repays, when it repays one.
+     *
+     * <p>Null for an ordinary settle-up, which is deliberately unallocated: clearing a balance
+     * built from a dozen shared dinners does not repay any particular dinner, and pretending it
+     * does would invent an allocation nobody chose.
+     *
+     * <p>A loan is the opposite case. "I lent 1,000 and got 500 back" is two facts about ONE
+     * loan, and without this column the pair is unrecoverable -- the ledger nets to 500 owed and
+     * cannot say whether that is half of one loan or the whole of another. The balance was always
+     * right; it was the progress that could not be told.
+     *
+     * <p>Not a foreign key, matching {@code source_id} on the ledger entries: the tables in this
+     * module reference each other by id without constraints, and a settlement outliving the row
+     * it points at is handled by reading it as unallocated rather than by refusing the delete.
+     */
+    @Column(name = "settles_expense_id", length = 36) private String settlesExpenseId;
+
     /** When the money moved, which is not necessarily when the row was written. */
     @Column(name = "settled_at", nullable = false) private Instant settledAt;
 

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,4 +80,20 @@ public interface TallyExpenseRepository extends JpaRepository<TallyExpenseEntity
                                            @Param("cursorDate") LocalDate cursorDate,
                                            @Param("cursorId") String cursorId,
                                            Limit limit);
+
+    /**
+     * Every live loan across the given ledgers, newest first.
+     *
+     * <p>Loans only. The ordinary expense list deliberately shows both -- a loan is a thing that
+     * happened in the ledger and belongs in its history -- but the loans view is about tracking
+     * what is outstanding, and shared dinners are not.
+     */
+    @Query("""
+            select e from TallyExpenseEntity e
+             where e.groupId in :groupIds
+               and e.kind = com.db.dbworld.app.tally.entity.TallyExpenseKind.LOAN
+               and e.status = com.db.dbworld.app.tally.entity.TallyExpenseStatus.ACTIVE
+             order by e.expenseDate desc, e.id desc
+            """)
+    List<TallyExpenseEntity> findLoans(@Param("groupIds") Collection<String> groupIds);
 }

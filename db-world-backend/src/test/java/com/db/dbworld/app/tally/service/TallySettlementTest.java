@@ -148,7 +148,7 @@ class TallySettlementTest {
         // Money often moves before anybody records it.
         Instant lastWeek = Instant.parse("2026-09-07T10:15:30Z");
         var settlement = settlementService.record(ammaUser, groupId,
-                new RecordSettlementRequest(amma, appa, bd("50.00"), "UPI", lastWeek, null));
+                new RecordSettlementRequest(amma, appa, bd("50.00"), "UPI", null, lastWeek, null));
 
         assertThat(settlement.settledAt()).isEqualTo(lastWeek);
         assertThat(settlement.method()).isEqualTo("UPI");
@@ -321,7 +321,7 @@ class TallySettlementTest {
     }
 
     private static RecordSettlementRequest settle(String from, String to, String amount, String key) {
-        return new RecordSettlementRequest(from, to, bd(amount), null, null, key);
+        return new RecordSettlementRequest(from, to, bd(amount), null, null, null, key);
     }
 
     private BigDecimal balance(String memberId) {

@@ -29,6 +29,13 @@ public record RecordSettlementRequest(
         BigDecimal amount,
 
         @Size(max = 40) String method,
+
+        /**
+         * The loan this payment repays, if it repays one. Null for an ordinary settle-up, which
+         * is unallocated on purpose -- clearing a balance built from a dozen dinners does not
+         * repay any particular dinner.
+         */
+        @Size(max = 36) String settlesExpenseId,
         Instant settledAt,
         @Size(max = 64) String idempotencyKey
 ) {}
