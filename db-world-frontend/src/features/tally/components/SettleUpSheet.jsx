@@ -52,7 +52,7 @@ export default function SettleUpSheet({
       open={open}
       onClose={onClose}
       fullScreen={fullScreen}
-      maxWidth="xs"
+      maxWidth="sm"
       title="Settle up"
       subtitle={plan.length ? 'Suggested payments — nothing happens until you record one' : undefined}
       actions={(
@@ -129,9 +129,13 @@ export default function SettleUpSheet({
               flex: { xs: '1 0 100%', sm: '1 1 auto' }, minWidth: 0,
               justifyContent: 'flex-end',
             }}>
+              {/* Never shrinks. A truncated name is still recognisable -- "New Pe..." is
+                   clearly New Person -- but a truncated amount is not: "61,72..." could be
+                   61,720 or 61,729.99, and this is the figure the row exists to state. So the
+                   names give way first. */}
               <Typography noWrap sx={{
                 fontSize: 15, fontWeight: 800, color: T.textPrimary,
-                flex: 1, minWidth: 0, textAlign: 'right',
+                flexShrink: 0, textAlign: 'right', ml: 'auto',
               }}>
                 {formatMoney(transfer.amount)}
               </Typography>
@@ -218,7 +222,9 @@ function NameBubble({ id, name }) {
           this overflowed. */}
       <Typography noWrap sx={{
         fontSize: 12.5, fontWeight: 600, color: T.textPrimary,
-        maxWidth: { xs: 96, sm: 72 }, minWidth: 0,
+        // Was tighter on a desktop than on a phone (72 against 96), which is backwards -- the
+        // xs value only needed to be generous because the row wraps there.
+        maxWidth: { xs: 96, sm: 150 }, minWidth: 0,
       }}>
         {name}
       </Typography>

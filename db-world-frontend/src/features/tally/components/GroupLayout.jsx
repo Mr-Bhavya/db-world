@@ -664,9 +664,22 @@ export default function GroupLayout({ groupId, active, children }) {
         loading={loadingPlan}
         myMemberId={myMemberId}
         loans={loans}
-        onRecord={(transfer) => { setSettling(false); setPayment(transfer); }}
-        onRecordLoan={(loan) => { setSettling(false); openRepay(loan); }}
-        onRecordCustom={() => { setSettling(false); setPayment({}); }}
+        /*
+          The sheet stays OPEN behind the payment dialog, deliberately.
+
+          Closing it in the same tick as opening the other was a navigation bug, not a tidiness
+          choice: useOverlayBack gives each overlay a history entry and pops it with
+          navigate(-1) on close, so two overlays changing state together fire two depth
+          operations at once, one entry too many comes off, and Cancel landed the reader on the
+          tally list instead of back here.
+
+          Nesting is the case that hook is built for -- "a sheet opened over a sheet closes one
+          at a time" -- and it reads better anyway: cancelling a payment returns you to the list
+          of suggestions you picked it from rather than dumping you on the page.
+        */
+        onRecord={(transfer) => setPayment(transfer)}
+        onRecordLoan={(loan) => openRepay(loan)}
+        onRecordCustom={() => setPayment({})}
       />
 
       <LendBorrowDialog
@@ -685,7 +698,9 @@ export default function GroupLayout({ groupId, active, children }) {
         members={members}
         myMemberId={myMemberId}
         prefill={payment}
-        onRecord={(body) => recordSettlement.mutate(body, { onSuccess: () => setPayment(null) })}
+        onRecord={(body) => recordSettlement.mutate(body, {
+          onSuccess: () => { setPayment(null); setSettling(false); },
+        })}
       />
 
       <EditGroupDialog
