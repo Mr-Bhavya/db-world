@@ -221,7 +221,12 @@
       "Bash(seq 1 40)",
       "Bash(sleep 5)",
       "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/backend-run.log)",
-      "Bash(awk '{print \"behind: \"$1\"  ahead: \"$2}')"
+      "Bash(awk '{print \"behind: \"$1\"  ahead: \"$2}')",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\({k:d.get\\(k\\) for k in ['full_name','description','license','stargazers_count','forks_count','language','created_at','pushed_at','size','archived','fork','topics','homepage','default_branch']}\\)\")",
+      "Bash(node -e \"console.log\\(require\\('hls.js/package.json'\\).version\\)\")",
+      "Bash(ls -la iptv.m3u)",
+      "Bash(grep -oE 'group-title=\"[^\"]*\"' iptv.m3u)",
+      "Bash(grep -oE 'href=\"[^\"]+\"' mjh.html)"
     ]
   },
   "enableAllProjectMcpServers": true,

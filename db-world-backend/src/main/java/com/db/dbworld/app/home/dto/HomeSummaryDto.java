@@ -32,6 +32,7 @@ public record HomeSummaryDto(
 
         IpoSection ipo,
         CinemaSection cinema,
+        LiveSection live,
         WalletSection wallet,
         VaultSection vault,
         TallySection tally,
@@ -79,6 +80,25 @@ public record HomeSummaryDto(
             long series,
             /** Titles published in the last week — what makes the figures worth re-reading. */
             long addedThisWeek
+    ) {}
+
+    /**
+     * Live TV's tile: how much there is, and a few logos so the tile looks like television
+     * rather than a number. Deliberately tiny — the full channel list is megabytes, and the
+     * hub must not pay for that to render a card.
+     */
+    public record LiveSection(
+            long channels,
+            long categories,
+            long countries,
+            /** A handful of logos to show; empty when no imported channel has one. */
+            List<LiveChannelTile> featured
+    ) {}
+
+    public record LiveChannelTile(
+            String id,
+            String name,
+            String logoUrl
     ) {}
 
     public record CinemaTitle(

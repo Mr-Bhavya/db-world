@@ -82,12 +82,31 @@ function createNativeControllerAdapter() {
   };
 }
 
+// A stream URL that needs an HLS engine. Live TV channels are almost always HLS, and
+// a plain `video.src = '….m3u8'` plays ONLY in Safari/iOS — every other browser needs
+// hls.js to fetch the manifest and feed segments through Media Source Extensions.
+export const isHlsUrl = (url) => /\.m3u8(\?|#|$)/i.test(String(url || ''));
+
 function createWebAdapter(getVideo) {
   const handlers = {};
   const emit = (e, d) => (handlers[e] || new Set()).forEach(cb => cb(d));
   let v = null;
   let attached = false;
   const ensure = () => (v = getVideo());
+
+  // hls.js instance for the current source, and a token that invalidates an in-flight
+  // dynamic import. Switching channel twice quickly would otherwise let the FIRST
+  // import resolve last and attach the channel the viewer already moved off.
+  let hls = null;
+  let loadToken = 0;
+  const destroyHls = () => {
+    if (!hls) return;
+    try { hls.destroy(); } catch { /* already torn down */ }
+    hls = null;
+  };
+  // Safari and iOS play HLS natively; there hls.js is unnecessary (and worse — it
+  // can't use the hardware pipeline).
+  const canPlayHlsNatively = () => !!v && v.canPlayType('application/vnd.apple.mpegurl') !== '';
 
   // End of the buffered range that currently covers playback — i.e. how far
   // ahead the browser has preloaded — so the UI can draw the loaded portion.
@@ -145,10 +164,44 @@ function createWebAdapter(getVideo) {
       ensure();
       if (!v) return;
       attach();
+      destroyHls();
+      const token = ++loadToken;
+      const start = () => {
+        // Seeking a live stream is meaningless and throws on some browsers, so only
+        // apply a resume position when there is one.
+        if (startMs > 0) { try { v.currentTime = startMs / 1000; } catch { /* unseekable */ } }
+        const p = v.play();
+        if (p?.catch) p.catch(() => {}); // autoplay may be blocked until a tap
+      };
+
+      if (isHlsUrl(url) && !canPlayHlsNatively()) {
+        // Loaded on demand: the library is ~400 KB and only live TV needs it, so the
+        // cinema bundle must not carry it.
+        import('hls.js')
+          .then(({ default: Hls }) => {
+            if (token !== loadToken || !v) return;           // superseded by a newer load
+            if (!Hls.isSupported()) { v.src = url; start(); return; }
+            hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90 });
+            hls.on(Hls.Events.ERROR, (_evt, data) => {
+              if (!data?.fatal) return;                      // hls.js retries these itself
+              // One recovery attempt per class of fatal error. A network error on a live
+              // edge is usually a blip; a media error is usually a decode hiccup. If the
+              // recovery doesn't take, surface it so the page can fail over to the
+              // channel's next source URL.
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR)      { try { hls.startLoad(); return; } catch { /* fall through */ } }
+              else if (data.type === Hls.ErrorTypes.MEDIA_ERROR)   { try { hls.recoverMediaError(); return; } catch { /* fall through */ } }
+              emit('error', { code: data.type, message: data.details || 'hls error' });
+            });
+            hls.loadSource(url);
+            hls.attachMedia(v);
+            start();
+          })
+          .catch(() => emit('error', { code: 'hls-load', message: 'Could not load the HLS player' }));
+        return;
+      }
+
       v.src = url;
-      v.currentTime = (startMs || 0) / 1000;
-      const p = v.play();
-      if (p?.catch) p.catch(() => {}); // autoplay may be blocked until a tap
+      start();
     },
     play:          () => ensure()?.play?.(),
     pause:         () => ensure()?.pause?.(),
@@ -167,6 +220,8 @@ function createWebAdapter(getVideo) {
     setOrientation:() => {},   // best-effort no-op on web
     enterPip:      () => {},   // Android-only feature; no-op on web
     release: () => {
+      loadToken++;   // cancel any in-flight hls.js import
+      destroyHls();
       if (v) { try { v.pause(); listeners.forEach(([ev, fn]) => v.removeEventListener(ev, fn)); attached = false; } catch { /* ignore */ } }
     },
     on: (event, cb) => { (handlers[event] ||= new Set()).add(cb); return () => handlers[event]?.delete(cb); },
