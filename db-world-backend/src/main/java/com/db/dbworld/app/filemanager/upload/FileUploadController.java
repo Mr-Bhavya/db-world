@@ -1,12 +1,12 @@
 package com.db.dbworld.app.filemanager.upload;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.upload.dto.ChunkBase64Request;
 import com.db.dbworld.app.filemanager.upload.dto.InitUploadRequest;
 import com.db.dbworld.app.filemanager.upload.dto.UploadSessionDto;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;

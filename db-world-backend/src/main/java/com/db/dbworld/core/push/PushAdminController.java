@@ -1,7 +1,7 @@
 package com.db.dbworld.core.push;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

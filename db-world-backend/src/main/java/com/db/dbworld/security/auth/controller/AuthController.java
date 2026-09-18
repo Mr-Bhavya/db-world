@@ -1,6 +1,6 @@
 package com.db.dbworld.security.auth.controller;
 
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.payloads.LoginRequest;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.core.user.dto.CreateUserRequest;

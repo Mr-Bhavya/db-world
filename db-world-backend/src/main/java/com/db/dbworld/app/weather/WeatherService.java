@@ -12,11 +12,11 @@ import com.db.dbworld.app.weather.dto.WeatherBundleDto.CurrentDto;
 import com.db.dbworld.app.weather.dto.WeatherBundleDto.DayDto;
 import com.db.dbworld.app.weather.dto.WeatherBundleDto.HourDto;
 import com.db.dbworld.app.weather.dto.WeatherBundleDto.PlaceDto;
+import com.db.dbworld.core.exception.DbWorldException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 
 import java.net.URLEncoder;
@@ -297,16 +297,16 @@ public class WeatherService {
     private JsonNode get(String urlWithoutKey) {
         if (props.getApiKey() == null || props.getApiKey().isBlank()) {
             log.warn("Weather API key is not configured on the server");
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+            throw new DbWorldException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Weather is not configured on the server");
         }
         try {
             return http.getJson(withKey(urlWithoutKey));
         } catch (WeatherUpstreamException e) {
             if (e.notFound()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found");
+                throw new DbWorldException(HttpStatus.NOT_FOUND, "Location not found");
             }
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Weather service is unavailable");
+            throw new DbWorldException(HttpStatus.BAD_GATEWAY, "Weather service is unavailable");
         }
     }
 
@@ -314,8 +314,8 @@ public class WeatherService {
     private JsonNode tryGet(String urlWithoutKey, String what) {
         try {
             return get(urlWithoutKey);
-        } catch (ResponseStatusException e) {
-            log.warn("Weather {} unavailable, continuing without it: {}", what, e.getReason());
+        } catch (DbWorldException e) {
+            log.warn("Weather {} unavailable, continuing without it: {}", what, e.getMessage());
             return null;
         }
     }
@@ -348,18 +348,18 @@ public class WeatherService {
      */
     private static String requireQuery(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " is required");
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, field + " is required");
         }
         String trimmed = value.trim();
         if (trimmed.length() > MAX_QUERY_LENGTH) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " is too long");
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, field + " is too long");
         }
         return trimmed;
     }
 
     private static void requireCoords(double lat, double lon) {
         if (Double.isNaN(lat) || Double.isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lat/lon are out of range");
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "lat/lon are out of range");
         }
     }
 

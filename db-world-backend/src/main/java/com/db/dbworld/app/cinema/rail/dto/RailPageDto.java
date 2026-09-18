@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.rail.dto;
 
-import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

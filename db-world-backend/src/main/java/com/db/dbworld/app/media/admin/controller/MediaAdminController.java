@@ -7,7 +7,7 @@ import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
 import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;

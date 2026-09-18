@@ -1,7 +1,5 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.app.cinema.tmdb.collection.dto.CollectionDto;
-import com.db.dbworld.app.cinema.tmdb.dto.TmdbDto;
 import lombok.Getter;
 import lombok.Setter;
 

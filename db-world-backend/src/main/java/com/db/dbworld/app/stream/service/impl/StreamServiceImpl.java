@@ -13,6 +13,7 @@ import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.utils.DbWorldUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
@@ -183,29 +184,52 @@ public class StreamServiceImpl implements StreamService {
 
         String clean = StringUtils.cleanPath(relativePath);
 
-        Path inputPath = Path.of(clean);
-//        if (inputPath.isAbsolute() || clean.matches("^[a-zA-Z]:.*")) {
-//            log.error("Absolute path detected (SECURITY RISK): {}", clean);
-//            throw new DbWorldException("Absolute paths are not allowed: " + clean);
-//        }
-
+        // Client paths are root-relative and normally carry a leading slash - see toRelativePath,
+        // which is what produced them.
         String normalized = clean.startsWith("/") || clean.startsWith("\\")
                 ? clean.substring(1)
                 : clean;
 
-        Path candidate = runtime.getStreamPath()
-                .resolve(normalized)
-                .normalize();
+        Path candidate = resolveWithin(runtime.getStreamPath(), normalized);
+        if (candidate != null && Files.exists(candidate)) return candidate;
 
-        if (Files.exists(candidate)) return candidate;
+        Path external = resolveWithin(runtime.getExternalVideosPath(), normalized);
+        if (external != null && Files.exists(external)) return external;
 
-        Path external = runtime.getExternalVideosPath()
-                .resolve(normalized)
-                .normalize();
+        if (candidate == null && external == null) {
+            // Logged with the offending value, but not echoed back: no reflecting caller input,
+            // and no confirming the filesystem layout to whoever probed it.
+            log.warn("Rejected media path outside every configured root: {}", relativePath);
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Invalid media path");
+        }
 
-        if (Files.exists(external)) return external;
+        // Inside a root but absent - the caller's own Files.exists check reports "not found".
+        return candidate != null ? candidate : external;
+    }
 
-        return candidate;
+    /**
+     * Resolves {@code relative} under {@code root}, returning the result only if it stays inside
+     * that root, and {@code null} otherwise.
+     *
+     * <p>This is the containment check for {@link #resolveRealPath}, and it has to cover two
+     * unrelated escapes. {@link Path#resolve} discards the base when handed an absolute argument,
+     * so {@code streamRoot.resolve("C:/Windows/win.ini")} is simply {@code C:/Windows/win.ini};
+     * and {@code StringUtils.cleanPath} preserves leading {@code ..} segments, so
+     * {@code ../../etc/passwd} normalises to above the root. A single {@code startsWith} after
+     * {@code normalize()} rejects both, which is why this replaced the older absolute-only guard
+     * that had been commented out - that one would not have stopped the {@code ..} case.
+     *
+     * <p>Deliberately lexical: {@code normalize()}, never {@code toRealPath()}. The library is
+     * served partly through a symlink root ({@code SymlinkService}), so resolving symlinks here
+     * would reject legitimate media whose target deliberately lives outside these roots.
+     *
+     * <p>{@code root} may be null - external-videos is optional configuration.
+     */
+    private static Path resolveWithin(Path root, String relative) {
+        if (root == null) return null;
+        Path base     = root.toAbsolutePath().normalize();
+        Path resolved = base.resolve(relative).toAbsolutePath().normalize();
+        return resolved.startsWith(base) ? resolved : null;
     }
 
     private long resolveFileSize(Long known, Path file) {

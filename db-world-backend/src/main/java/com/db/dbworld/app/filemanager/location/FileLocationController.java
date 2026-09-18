@@ -1,10 +1,10 @@
 package com.db.dbworld.app.filemanager.location;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.location.dto.FileLocationDto;
 import com.db.dbworld.app.filemanager.location.dto.UpsertLocationRequest;
 import com.db.dbworld.app.filemanager.mapper.FileMetadataMapper;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

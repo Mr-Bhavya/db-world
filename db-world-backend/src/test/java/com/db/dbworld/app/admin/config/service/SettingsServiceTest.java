@@ -1,7 +1,6 @@
 package com.db.dbworld.app.admin.config.service;
 
 import com.db.dbworld.app.admin.config.entity.AppConfigEntity;
-import com.db.dbworld.app.admin.config.entity.ConfigValueType;
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.repository.AppConfigRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,7 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 

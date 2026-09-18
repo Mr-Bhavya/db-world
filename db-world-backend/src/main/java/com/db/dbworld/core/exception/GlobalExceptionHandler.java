@@ -1,6 +1,6 @@
 package com.db.dbworld.core.exception;
 
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.core.convert.ConverterNotFoundException;
 import org.springframework.dao.DataAccessException;
@@ -20,6 +20,7 @@ import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
@@ -219,6 +220,50 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
         log.debug("No resource found: {}", ex.getResourcePath());
         return build(HttpStatus.NOT_FOUND, "Not found: " + ex.getResourcePath());
+    }
+
+    /* =========================
+       SPRING'S OWN STATUS EXCEPTION - SAFETY NET
+       ========================= */
+
+    /**
+     * Answers a {@link ResponseStatusException} with the status and reason it carries.
+     *
+     * <p>Without this handler the type is actively dangerous here: this {@code @RestControllerAdvice}
+     * is consulted <em>before</em> Spring's own {@code ResponseStatusExceptionResolver}, so the
+     * {@link Exception} catch-all below matched first and every one of them became a 500 reading
+     * "Unexpected error occurred. Please contact support." — the intended status and message were
+     * both thrown away, and the log said "Unhandled exception".
+     *
+     * <p>This is a safety net, not the convention. Throw {@link DbWorldException} or
+     * {@link ResourceNotFoundException} instead; the warn below names the offending type so the
+     * stragglers are findable rather than silent.
+     *
+     * <p>More specific handlers still win — {@code NoResourceFoundException} is a subclass and keeps
+     * its own handler above. {@code HttpStatus.resolve} rather than {@code valueOf} because
+     * {@code getStatusCode()} is an {@code HttpStatusCode} and may hold a non-standard code:
+     * {@code valueOf} would throw, and throwing from inside a handler lands back on the catch-all.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
+
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        String reason = ex.getReason() != null && !ex.getReason().isBlank()
+                ? ex.getReason()
+                : status.getReasonPhrase();
+
+        log.warn(
+                "ResponseStatusException ({}) from {}: {} — prefer DbWorldException",
+                status.value(),
+                ex.getClass().getSimpleName(),
+                reason
+        );
+
+        return build(status, reason);
     }
 
     /* =========================

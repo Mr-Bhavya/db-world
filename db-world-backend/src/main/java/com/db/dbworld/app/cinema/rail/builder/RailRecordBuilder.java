@@ -2,7 +2,6 @@ package com.db.dbworld.app.cinema.rail.builder;
 
 import com.db.dbworld.app.cinema.rail.dto.RailRecordDto;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
-import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
 import com.db.dbworld.app.cinema.tmdb.media.projection.*;
         import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
 

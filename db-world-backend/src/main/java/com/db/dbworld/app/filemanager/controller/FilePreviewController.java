@@ -4,7 +4,7 @@ import com.db.dbworld.app.filemanager.preview.ThumbnailService;
 import com.db.dbworld.app.filemanager.preview.TextPreviewService;
 import com.db.dbworld.app.filemanager.preview.dto.TextPreviewDto;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.MediaType;

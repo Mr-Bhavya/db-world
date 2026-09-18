@@ -1,12 +1,10 @@
 package com.db.dbworld.app.cinema.rail.service;
 
-import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
-import java.util.List;
 
 public interface RailResolver {
 

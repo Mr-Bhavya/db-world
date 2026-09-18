@@ -2,7 +2,6 @@ package com.db.dbworld.app.cinema.tmdb.providers.mapper;
 
 import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
 import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
-import com.db.dbworld.app.cinema.tmdb.providers.dto.ProviderDto;
 import com.db.dbworld.app.cinema.tmdb.providers.dto.ProviderProjection;
 import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
 import com.db.dbworld.app.cinema.tmdb.providers.entity.TmdbProviderEntity;
@@ -54,27 +53,6 @@ public interface TmdbProviderMapper
      /* ==========================================
        PROJECTION → DTO
        ========================================== */
-
-//    default TmdbProviderDto fromProjection(ProviderProjection p) {
-//
-//        if (p == null) {
-//            return null;
-//        }
-//
-//        ProviderDto provider = new ProviderDto();
-//        provider.setId(p.getProviderId());
-//        provider.setName(p.getProviderName());
-//        provider.setLogoPath(p.getLogoPath());
-//        provider.setDisplayPriority(p.getDisplayPriority());
-//
-//        TmdbProviderDto dto = new TmdbProviderDto();
-//        dto.setId(p.getTmdbProviderId());
-//        dto.setProvider(provider);
-//        dto.setProviderType(p.getProviderType());
-//        dto.setRegionCode(DEFAULT_REGION);
-//
-//        return dto;
-//    }
 
     @Mapping(target = "provider.id", source = "providerId")
     @Mapping(target = "provider.name", source = "providerName")

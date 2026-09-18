@@ -20,21 +20,6 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     @Query(value = "SELECT role FROM db_world.USERS WHERE id= :id", nativeQuery = true)
     Integer getRoleByUserId(@Param(value="id") Integer id);
 
-//    @Query(value = """
-//        SELECT
-//            u.first_name as firstName,
-//            u.last_name as lastName,
-//            u.email
-//        FROM
-//            db_world.users u
-//        WHERE
-//            LOWER(u.first_name) LIKE LOWER(CONCAT('%', :query, '%')) OR
-//            LOWER(u.last_name) LIKE LOWER(CONCAT('%', :query, '%')) OR
-//            LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
-//        LIMIT :limit
-//        """, nativeQuery = true)
-//    List<UserSearchProjection> searchUsers(@Param("query") String query, @Param("limit") int limit);
-
     @Query("""
     SELECT u.userId AS userId,
            u.firstName AS firstName,
