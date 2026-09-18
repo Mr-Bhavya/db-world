@@ -13,10 +13,14 @@ const unwrap = (response) => response.data?.data ?? response.data;
  * It is metadata only — the video streams straight from the channel's own CDN to the
  * viewer's device and never passes through our server.
  */
-export function useLiveChannels() {
+export function useLiveChannels({ enabled = true } = {}) {
   return useQuery({
     queryKey: ['live', 'channels'],
     queryFn: () => axiosInstance.get('/api/live/channels').then(unwrap),
+    // Opt-out so the player can defer it: opening a channel should not pull the whole
+    // catalogue before the viewer has asked for the channel list. Same query key, so
+    // arriving from the grid reuses that cache and costs nothing.
+    enabled,
     // The health job re-verifies on its own cycle; a remount inside two minutes should
     // not spend a request on a list that changes every few hours.
     staleTime: 2 * 60_000,

@@ -26,9 +26,11 @@ export default function LivePlayerPage() {
   const navigate = useNavigate();
 
   const { data: channel, isLoading, isError } = useLiveChannel(channelId);
-  // The full list powers the in-player zapper. It is already cached by the grid the
-  // viewer almost always arrives from, so this is usually free.
-  const { data: allChannels = [] } = useLiveChannels();
+  // The full list powers the in-player zapper, and is deferred until the viewer opens
+  // it. Arriving from the grid it is already cached and free; on a deep link straight
+  // to a channel, someone who never opens the zapper never pays for it.
+  const [zapWanted, setZapWanted] = useState(false);
+  const { data: allChannels = [], isLoading: zapLoading } = useLiveChannels({ enabled: zapWanted });
 
   const [sourceIndex, setSourceIndex] = useState(0);
   const [exhausted, setExhausted]     = useState(false);
@@ -144,6 +146,8 @@ export default function LivePlayerPage() {
       channels={zapList}
       currentChannelId={channel.id}
       onSelectChannel={selectChannel}
+      onChannelsOpen={() => setZapWanted(true)}
+      channelsLoading={zapWanted && zapLoading}
       liveInfo={liveInfo}
       onError={handleError}
       onClose={() => navigate(Constants.DB_LIVE_TV_ROUTE)}

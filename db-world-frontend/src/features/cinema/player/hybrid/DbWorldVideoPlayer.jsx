@@ -32,6 +32,7 @@ import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import InfoOutlinedIcon  from '@mui/icons-material/InfoOutlined';
 import LiveTvIcon        from '@mui/icons-material/LiveTv';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { FixedSizeList } from 'react-window';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
 import { isNativePlayerEnabled } from './nativePlayerFlag';
@@ -318,6 +319,10 @@ export default function DbWorldVideoPlayer({
   channels = [],          // [{ id, name, group, logoUrl }] for the in-player channel list
   currentChannelId = null,
   onSelectChannel,
+  /** Fired the first time the channel panel opens, so the page can fetch the list then. */
+  onChannelsOpen,
+  /** True while that fetch is in flight. */
+  channelsLoading = false,
   /**
    * What the Info panel shows for a live channel:
    * `{ categories, countryName, languages, quality, sourceIndex, sourceCount, host }`.
@@ -822,7 +827,10 @@ export default function DbWorldVideoPlayer({
   const openAudioSubs = (btnRef) => openMenu('audioSubs', () => { if (btnRef?.current) setAudioSubsPos(anchorAbove(btnRef.current, 520)); });
   const openInfo      = (btnRef) => openMenu('info',      () => { if (btnRef?.current) setInfoPos(anchorAbove(btnRef.current, 440)); });
   const openEpisodes  = ()       => openMenu('episodes',  () => { if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400)); });
-  const openChannels  = ()       => openMenu('channels',  () => { if (chBtnRef.current) setChPos(anchorAbove(chBtnRef.current, 440)); });
+  const openChannels  = ()       => {
+    onChannelsOpen?.();   // the list is fetched lazily; this is what triggers it
+    openMenu('channels', () => { if (chBtnRef.current) setChPos(anchorAbove(chBtnRef.current, 440)); });
+  };
   // Speed: a horizontal slider popover above the Speed button.
   const openSpeed     = ()       => openMenu('speed',     () => { if (speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 460)); });
   // Next-episode "Up next" preview — computes the on-screen nudge for its centered card.
@@ -1497,7 +1505,7 @@ export default function DbWorldVideoPlayer({
                   <VolumeControl volume={volume} hasHover={hasHover} onToggleMute={toggleMute} onSetVol={setVol} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {live && channels.length > 1 && (
+                  {live && (
                     <span ref={chBtnRef} style={{ display: 'inline-flex' }}
                       onMouseEnter={() => hoverOpen(openChannels)} onMouseLeave={hoverLeaveBtn}>
                       <CtrlBtn icon={<LiveTvIcon />} tip="Channels" active={channelsOpen}
@@ -1552,7 +1560,7 @@ export default function DbWorldVideoPlayer({
                     onToggleMute={toggleMute} onSetVol={setVol} />
                 )}
                 {live && <LiveBadge buffering={buffering} scale={uiScale} />}
-                {live && channels.length > 1 && (
+                {live && (
                   <span ref={chBtnRef} style={{ display: 'inline-flex' }}>
                     <CtrlBtn icon={<LiveTvIcon />} label="Channels" active={channelsOpen}
                       ariaLabel="Channel list" onClick={openChannels} />
@@ -1669,7 +1677,7 @@ export default function DbWorldVideoPlayer({
       <Sheet open={channelsOpen} hasHover={hasHover} pos={chPos} title="Channels" onClose={() => setChannelsOpen(false)}
         mobileFull desktopHeader desktopPad="12px 0" desktopMaxH="62vh"
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
-        <ChannelList channels={channels} currentId={currentChannelId}
+        <ChannelList channels={channels} currentId={currentChannelId} loading={channelsLoading}
           onPick={(ch) => { setChannelsOpen(false); onSelectChannel?.(ch); }} />
       </Sheet>
 
@@ -2312,72 +2320,140 @@ function LiveInfoContent({ title, info }) {
 }
 
 /**
- * The in-player channel zapper (live only). Grouped by group-title and opened ON the
- * channel you're watching, for the same reason the episode list is: scrolled to the top
- * of a 400-channel list, the thing you actually want is off screen.
+ * The in-player channel zapper (live only).
  *
- * Deliberately lighter than EpisodeList — a logo, a name and a group is all the metadata
- * an M3U carries, so a row that tried to look like an episode row would be mostly empty.
+ * <p>Shows the current channel's own category first, not the whole catalogue. That is
+ * both what a viewer actually flicks through — "the other sports channels" — and the
+ * only version that stays cheap: a real playlist is thousands of channels, and mounting
+ * a row with a logo for each of them over a playing video is what made merely hovering
+ * this button stutter. Anything outside the category is one search away.
+ *
+ * <p>Rows are virtualised, so a 1,000-channel category costs about fifteen of them.
  */
-function ChannelList({ channels, currentId, onPick }) {
-  const scale  = useContext(ScaleCtx);
-  const curRef = useRef(null);
-  useEffect(() => {
-    curRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
-  }, []);
+function ChannelList({ channels, currentId, loading, onPick }) {
+  const scale = useContext(ScaleCtx);
+  const [query, setQuery] = useState('');
+
+  const current = channels.find((c) => c.id === currentId) ?? null;
+  const category = current?.group ?? null;
+
+  const q = query.trim().toLowerCase();
+  // With a search term, look across everything; without one, stay in the category.
+  const rows = q
+    ? channels.filter((c) => c.name.toLowerCase().includes(q)
+        || (c.group || '').toLowerCase().includes(q))
+    : (category ? channels.filter((c) => c.group === category) : channels);
+
+  const rowH = Math.round(58 * scale);
+  const listH = Math.min(Math.round(340 * scale), Math.max(rowH, rows.length * rowH));
+
+  // Open on the channel being watched rather than at the top of its category.
+  const initialIndex = Math.max(0, rows.findIndex((c) => c.id === currentId));
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', padding: Math.round(28 * scale) }}>
+        <CircularProgress size={Math.round(22 * scale)} sx={{ color: TEAL }} />
+      </div>
+    );
+  }
 
   if (!channels.length) return <SheetEmpty>No other channels</SheetEmpty>;
 
-  // Preserve the order the list arrived in (the server already sorted it) while still
-  // grouping: a plain sort by group would scramble the server's within-group ordering.
-  const groups = channels.reduce((map, ch) => {
-    const key = ch.group || 'Other';
-    (map[key] ||= []).push(ch);
-    return map;
-  }, {});
-
   return (
-    <>
-      {Object.entries(groups).map(([group, rows]) => (
-        <div key={group}>
-          <div style={{ padding: `10px ${Math.round(18 * scale)}px 6px`, color: '#9aa',
-            fontSize: Math.round(12 * scale), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {group}
-          </div>
-          {rows.map((ch) => {
+    <div>
+      <div style={{ padding: `${Math.round(6 * scale)}px ${Math.round(14 * scale)}px` }}>
+        <input
+          className="dbw-chsearch"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={category && !q ? `Search all channels` : 'Search channels'}
+          aria-label="Search channels"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: `${Math.round(7 * scale)}px ${Math.round(10 * scale)}px`,
+            fontSize: Math.round(13 * scale), color: '#fff',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, outline: 'none',
+          }}
+        />
+      </div>
+
+      <div style={{
+        padding: `${Math.round(2 * scale)}px ${Math.round(16 * scale)}px ${Math.round(6 * scale)}px`,
+        color: '#9aa', fontSize: Math.round(11.5 * scale), fontWeight: 700,
+        textTransform: 'uppercase', letterSpacing: 0.5,
+      }}>
+        {q ? `${rows.length} result${rows.length === 1 ? '' : 's'}`
+           : `${category ?? 'All channels'} · ${rows.length}`}
+      </div>
+
+      {rows.length === 0 ? (
+        <SheetEmpty>Nothing matches that</SheetEmpty>
+      ) : (
+        <FixedSizeList
+          height={listH}
+          itemCount={rows.length}
+          itemSize={rowH}
+          width="100%"
+          initialScrollOffset={initialIndex * rowH}
+          className="dbw-scroll"
+        >
+          {({ index, style }) => {
+            const ch = rows[index];
             const isCur = ch.id === currentId;
             return (
-              <button key={ch.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
-                ref={isCur ? curRef : null}
+              <button
+                style={{
+                  ...style,
+                  display: 'flex', alignItems: 'center', gap: Math.round(11 * scale),
+                  width: '100%', padding: `0 ${Math.round(16 * scale)}px`, textAlign: 'left',
+                  cursor: 'pointer', border: 'none', background: 'transparent',
+                  borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}`,
+                }}
+                className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
                 onClick={() => onPick(ch)}
-                style={{ display: 'flex', alignItems: 'center', gap: Math.round(12 * scale), width: '100%',
-                  padding: `${Math.round(9 * scale)}px ${Math.round(16 * scale)}px`, textAlign: 'left',
-                  cursor: 'pointer', border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
-                <div style={{ position: 'relative', width: Math.round(52 * scale), height: Math.round(52 * scale),
+              >
+                <div style={{
+                  position: 'relative', width: Math.round(42 * scale), height: Math.round(42 * scale),
                   flexShrink: 0, borderRadius: 8, overflow: 'hidden', background: '#1c1c1c',
-                  display: 'grid', placeItems: 'center' }}>
+                  display: 'grid', placeItems: 'center',
+                }}>
                   {ch.logoUrl
                     ? <img src={ch.logoUrl} alt="" loading="lazy"
                         style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-                    : <LiveTvIcon sx={{ fontSize: Math.round(22 * scale), color: '#555' }} />}
+                    : <LiveTvIcon sx={{ fontSize: Math.round(18 * scale), color: '#555' }} />}
                   {isCur && (
                     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)' }}>
-                      <PlayArrowIcon sx={{ fontSize: Math.round(24 * scale), color: TEAL }} />
+                      <PlayArrowIcon sx={{ fontSize: Math.round(20 * scale), color: TEAL }} />
                     </div>
                   )}
                 </div>
-                <span style={{ minWidth: 0, flex: 1, fontWeight: isCur ? 700 : 500,
-                  fontSize: Math.round(14 * scale), color: isCur ? TEAL : '#fff',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {ch.name}
+                <span style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                  <span style={{
+                    display: 'block', fontWeight: isCur ? 700 : 500,
+                    fontSize: Math.round(13.5 * scale), color: isCur ? TEAL : '#fff',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {ch.name}
+                  </span>
+                  {/* Only while searching: inside a category it would repeat on every row. */}
+                  {q && ch.group && (
+                    <span style={{
+                      display: 'block', fontSize: Math.round(11 * scale), color: '#8f9296',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {ch.group}
+                    </span>
+                  )}
                 </span>
-                {isCur && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0, color: TEAL }} />}
+                {isCur && <CheckIcon sx={{ fontSize: Math.round(15 * scale), flexShrink: 0, color: TEAL }} />}
               </button>
             );
-          })}
-        </div>
-      ))}
-    </>
+          }}
+        </FixedSizeList>
+      )}
+    </div>
   );
 }
 
