@@ -1,12 +1,12 @@
 package com.db.dbworld.core.user.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.core.user.dto.DeleteAccountRequest;
 import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.core.user.service.AccountDeletionService;
 import com.db.dbworld.core.user.service.UserService;
-import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.security.auth.AuthenticationService;
 import com.db.dbworld.security.auth.SessionRevocationService;
 import com.db.dbworld.security.entity.RefreshTokenEntity.RevokeReason;

@@ -3,7 +3,7 @@ package com.db.dbworld.core.role.controller;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.core.role.dto.RoleDto;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.core.role.service.RoleService;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.info.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.events.MediaFilesChangedEvent;
@@ -11,7 +12,6 @@ import com.db.dbworld.app.media.info.entity.track.VideoTrackEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
-import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.ApplicationEventPublisher;

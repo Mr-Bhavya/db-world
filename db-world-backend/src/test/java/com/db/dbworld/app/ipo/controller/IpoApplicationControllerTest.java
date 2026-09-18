@@ -1,12 +1,12 @@
 package com.db.dbworld.app.ipo.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.ipo.dto.IpoApplicationDto;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.dto.MyIpoDto;
 import com.db.dbworld.app.ipo.dto.SaveApplicationRequest;
 import com.db.dbworld.app.ipo.service.IpoApplicationService;
 import com.db.dbworld.core.context.UserContext;
-import com.db.dbworld.payloads.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

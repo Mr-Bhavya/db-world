@@ -3,6 +3,7 @@ package com.db.dbworld.app.weather;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.weather.dto.GeoPlaceDto;
 import com.db.dbworld.app.weather.dto.WeatherBundleDto;
+import com.db.dbworld.core.exception.DbWorldException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -50,7 +50,7 @@ public class WeatherController {
             return ApiResponse.success(service.bundleByCity(city));
         }
         log.warn("Weather request rejected: missing both city and coords");
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pass either ?city= or ?lat=&lon=");
+        throw new DbWorldException(HttpStatus.BAD_REQUEST, "Pass either ?city= or ?lat=&lon=");
     }
 
     /** GET /api/weather/search?q= — place suggestions for the city search box. */

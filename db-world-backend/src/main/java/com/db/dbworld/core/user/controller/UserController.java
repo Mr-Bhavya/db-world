@@ -2,7 +2,7 @@ package com.db.dbworld.core.user.controller;
 
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.core.user.dto.*;
 import com.db.dbworld.audit.activity.dto.LoginDataDto;

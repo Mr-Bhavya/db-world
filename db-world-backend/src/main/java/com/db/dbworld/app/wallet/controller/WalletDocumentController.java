@@ -1,5 +1,6 @@
 package com.db.dbworld.app.wallet.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.wallet.dto.*;
 import com.db.dbworld.app.wallet.mapper.WalletMapper;
 import com.db.dbworld.app.wallet.service.WalletDocumentService;
@@ -7,7 +8,6 @@ import com.db.dbworld.app.wallet.service.WalletTypeService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

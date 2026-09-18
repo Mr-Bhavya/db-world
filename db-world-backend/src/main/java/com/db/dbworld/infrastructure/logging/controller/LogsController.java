@@ -3,7 +3,7 @@ package com.db.dbworld.infrastructure.logging.controller;
 import com.db.dbworld.infrastructure.logging.LogsService;
 import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogType;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.config.AppConstants;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;

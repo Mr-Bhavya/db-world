@@ -1,5 +1,6 @@
 package com.db.dbworld.app.tally.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.tally.dto.SplitwiseImportRequest;
 import com.db.dbworld.app.tally.dto.SplitwiseImportResultDto;
 import com.db.dbworld.app.tally.dto.SplitwisePreviewDto;
@@ -7,7 +8,6 @@ import com.db.dbworld.app.tally.dto.SplitwisePreviewRequest;
 import com.db.dbworld.app.tally.service.importer.TallyImportService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

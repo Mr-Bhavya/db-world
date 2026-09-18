@@ -1,6 +1,6 @@
 package com.db.dbworld.app.tally.controller;
 
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 

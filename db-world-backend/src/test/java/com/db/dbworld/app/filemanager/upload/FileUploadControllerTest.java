@@ -1,9 +1,9 @@
 package com.db.dbworld.app.filemanager.upload;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.upload.dto.InitUploadRequest;
 import com.db.dbworld.app.filemanager.upload.dto.UploadSessionDto;
-import com.db.dbworld.payloads.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

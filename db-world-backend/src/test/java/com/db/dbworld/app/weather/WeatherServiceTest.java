@@ -6,6 +6,7 @@ import com.db.dbworld.app.weather.client.WeatherHttpClient;
 import com.db.dbworld.app.weather.client.WeatherUpstreamException;
 import com.db.dbworld.app.weather.dto.GeoPlaceDto;
 import com.db.dbworld.app.weather.dto.WeatherBundleDto;
+import com.db.dbworld.core.exception.DbWorldException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -215,8 +215,8 @@ class WeatherServiceTest {
         when(http.getJson(contains("/weather"))).thenThrow(new WeatherUpstreamException("boom", false));
 
         assertThatThrownBy(() -> service.bundleByCity("Pune"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isInstanceOf(DbWorldException.class)
+                .extracting(e -> ((DbWorldException) e).getHttpStatus())
                 .isEqualTo(HttpStatus.BAD_GATEWAY);
     }
 
@@ -225,8 +225,8 @@ class WeatherServiceTest {
         when(http.getJson(anyString())).thenThrow(new WeatherUpstreamException("nope", true));
 
         assertThatThrownBy(() -> service.bundleByCity("Atlantis"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isInstanceOf(DbWorldException.class)
+                .extracting(e -> ((DbWorldException) e).getHttpStatus())
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -235,8 +235,8 @@ class WeatherServiceTest {
         props.setApiKey("  ");
 
         assertThatThrownBy(() -> service.bundleByCity("Pune"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isInstanceOf(DbWorldException.class)
+                .extracting(e -> ((DbWorldException) e).getHttpStatus())
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         verify(http, never()).getJson(anyString());
     }
@@ -308,23 +308,23 @@ class WeatherServiceTest {
     @Test
     void aBlankCityIsRejected() {
         assertThatThrownBy(() -> service.bundleByCity("   "))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isInstanceOf(DbWorldException.class)
+                .extracting(e -> ((DbWorldException) e).getHttpStatus())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void anAbsurdlyLongQueryIsRejectedBeforeItReachesUpstream() {
         assertThatThrownBy(() -> service.search("x".repeat(200)))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(DbWorldException.class);
         verify(http, never()).getJson(anyString());
     }
 
     @Test
     void outOfRangeCoordinatesAreRejected() {
-        assertThatThrownBy(() -> service.bundleByCoords(91, 0)).isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> service.bundleByCoords(0, 181)).isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> service.bundleByCoords(Double.NaN, 0)).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.bundleByCoords(91, 0)).isInstanceOf(DbWorldException.class);
+        assertThatThrownBy(() -> service.bundleByCoords(0, 181)).isInstanceOf(DbWorldException.class);
+        assertThatThrownBy(() -> service.bundleByCoords(Double.NaN, 0)).isInstanceOf(DbWorldException.class);
         verify(http, never()).getJson(anyString());
     }
 
