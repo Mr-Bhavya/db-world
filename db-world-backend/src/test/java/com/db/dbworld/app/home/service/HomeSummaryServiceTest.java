@@ -23,6 +23,7 @@ import com.db.dbworld.app.tally.entity.TallyGroupKind;
 import com.db.dbworld.app.tally.service.TallyGroupService;
 import com.db.dbworld.app.wallet.entity.WalletDocumentEntity;
 import com.db.dbworld.app.wallet.repository.WalletDocumentRepository;
+import com.db.dbworld.app.live.repository.LiveChannelRepository;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.security.dto.CurrentUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,6 +76,7 @@ class HomeSummaryServiceTest {
     @Mock private UserNotificationRepository notificationRepository;
     @Mock private MediaRequestService mediaRequestService;
     @Mock private CatalogIngestRequestService catalogIngestRequestService;
+    @Mock private LiveChannelRepository liveChannelRepository;
     @Mock private UserContext userContext;
 
     private HomeSummaryService service;
@@ -84,12 +86,13 @@ class HomeSummaryServiceTest {
         service = new HomeSummaryService(ipoQueryService, recordRepository, watchProgressService,
                 walletDocumentRepository, passwordManagerRepository, tallyGroupService,
                 notificationRepository, mediaRequestService, catalogIngestRequestService,
-                userContext, FIXED_CLOCK);
+                liveChannelRepository, userContext, FIXED_CLOCK);
 
         when(ipoQueryService.list(any(), any(), any()))
                 .thenReturn(new IpoListResponse(List.of(), Instant.now(FIXED_CLOCK)));
         when(recordRepository.findLatestPublished(any())).thenReturn(List.of());
         when(recordRepository.countByVisibility(RecordVisibility.PUBLISHED)).thenReturn(0L);
+        when(liveChannelRepository.countPublicChannels()).thenReturn(0L);
     }
 
     /* ── Who sees what ───────────────────────────────────────────────────────────────────────── */

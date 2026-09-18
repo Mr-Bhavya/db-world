@@ -13,6 +13,7 @@ import com.db.dbworld.app.cinema.notification.repository.UserNotificationReposit
 import com.db.dbworld.app.cinema.progress.dto.ContinueWatchingDto;
 import com.db.dbworld.app.cinema.progress.service.WatchProgressService;
 import com.db.dbworld.app.home.dto.HomeSummaryDto;
+import com.db.dbworld.app.live.repository.LiveChannelRepository;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.service.IpoQueryService;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
@@ -86,6 +87,7 @@ public class HomeSummaryService {
     private final UserNotificationRepository notificationRepository;
     private final MediaRequestService mediaRequestService;
     private final CatalogIngestRequestService catalogIngestRequestService;
+    private final LiveChannelRepository liveChannelRepository;
     private final UserContext userContext;
     private final Clock clock;
 
@@ -99,10 +101,12 @@ public class HomeSummaryService {
                               UserNotificationRepository notificationRepository,
                               MediaRequestService mediaRequestService,
                               CatalogIngestRequestService catalogIngestRequestService,
+                              LiveChannelRepository liveChannelRepository,
                               UserContext userContext) {
         this(ipoQueryService, recordRepository, watchProgressService, walletDocumentRepository,
                 passwordManagerRepository, tallyGroupService, notificationRepository,
-                mediaRequestService, catalogIngestRequestService, userContext, Clock.systemUTC());
+                mediaRequestService, catalogIngestRequestService, liveChannelRepository,
+                userContext, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for a deterministic "today" (IST). */
@@ -115,6 +119,7 @@ public class HomeSummaryService {
                        UserNotificationRepository notificationRepository,
                        MediaRequestService mediaRequestService,
                        CatalogIngestRequestService catalogIngestRequestService,
+                       LiveChannelRepository liveChannelRepository,
                        UserContext userContext,
                        Clock clock) {
         this.ipoQueryService = ipoQueryService;
@@ -126,6 +131,7 @@ public class HomeSummaryService {
         this.notificationRepository = notificationRepository;
         this.mediaRequestService = mediaRequestService;
         this.catalogIngestRequestService = catalogIngestRequestService;
+        this.liveChannelRepository = liveChannelRepository;
         this.userContext = userContext;
         this.clock = clock;
     }
@@ -140,6 +146,7 @@ public class HomeSummaryService {
                 userId != null,
                 section("ipo", this::ipoSection),
                 section("cinema", () -> cinemaSection(userId)),
+                section("live", this::liveSection),
                 userId == null ? null : section("wallet", () -> walletSection(userId)),
                 userId == null ? null : section("vault", () -> vaultSection(userId)),
                 userId == null ? null : section("tally", () -> tallySection(userId)),
@@ -211,6 +218,28 @@ public class HomeSummaryService {
                 recordRepository.countByVisibilityAndType(RecordVisibility.PUBLISHED, RecordType.TV_SERIES),
                 recordRepository.countByVisibilityAndPublishedAtAfter(RecordVisibility.PUBLISHED, weekAgo)
         );
+    }
+
+    /**
+     * Live TV's tile. Three counts and a few logos — never the channel list itself, which
+     * on a large import is megabytes the hub has no use for.
+     */
+    private HomeSummaryDto.LiveSection liveSection() {
+        long channels = liveChannelRepository.countPublicChannels();
+        if (channels == 0) return null;   // nothing imported yet; the tile falls back to its blurb
+
+        var featured = liveChannelRepository.findFeatured(PageRequest.of(0, 6)).stream()
+                .map(c -> new HomeSummaryDto.LiveChannelTile(
+                        c.getId(),
+                        c.getCustomName() != null && !c.getCustomName().isBlank() ? c.getCustomName() : c.getName(),
+                        c.getLogoUrl()))
+                .toList();
+
+        return new HomeSummaryDto.LiveSection(
+                channels,
+                liveChannelRepository.findPublicGroups().size(),
+                liveChannelRepository.countPublicCountries(),
+                featured);
     }
 
     private HomeSummaryDto.WalletSection walletSection(Long userId) {

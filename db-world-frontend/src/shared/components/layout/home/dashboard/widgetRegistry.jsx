@@ -10,6 +10,7 @@ import AdminWidget from './widgets/AdminWidget';
 import ArcadeWidget from './widgets/ArcadeWidget';
 import CinemaWidget from './widgets/CinemaWidget';
 import IpoWidget from './widgets/IpoWidget';
+import LiveTvWidget from './widgets/LiveTvWidget';
 import QuickLaunchWidget from './widgets/QuickLaunchWidget';
 import RecentWidget from './widgets/RecentWidget';
 import TallyWidget from './widgets/TallyWidget';
@@ -30,6 +31,14 @@ import WeatherWidget from './widgets/WeatherWidget';
 const APP_WIDGETS = {
   ipo: { Component: IpoWidget, defaultSize: 'lg', sizes: ['md', 'lg'] },
   cinema: { Component: CinemaWidget, defaultSize: 'lg', sizes: ['md', 'lg'] },
+  // Medium by default: three counts and a logo strip fill that footprint exactly,
+  // and drops to small when no playlist has been imported and there is only a blurb.
+  'live-tv': {
+    Component: LiveTvWidget,
+    defaultSize: 'md',
+    sizes: ['sm', 'md'],
+    resolveSize: contentAwareSize((summary) => (summary.live?.channels ?? 0) === 0),
+  },
   wallet: {
     Component: WalletWidget,
     defaultSize: 'md',

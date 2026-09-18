@@ -19,7 +19,7 @@ import {
   SpaceDashboardRounded, ManageAccountsRounded, MovieRounded, VideoLibraryRounded,
   MoveToInboxRounded, SellRounded, DownloadingRounded, InsightsRounded,
   MonitorHeartRounded, TerminalRounded, MemoryRounded, FolderRounded,
-  ScheduleRounded, TuneRounded, WalletRounded, CandlestickChartRounded,
+  ScheduleRounded, TuneRounded, WalletRounded, CandlestickChartRounded, LiveTvRounded,
 } from '@mui/icons-material';
 
 // Section order in the sidebar. 'Overview' renders without a header label.
@@ -34,6 +34,7 @@ export const ADMIN_MODULES = [
   { id: 'ingestion',       path: 'ingestion',        label: 'Media Ingestion',    icon: DownloadingRounded,    group: 'Content',  element: lazy(() => import('./ingestion')) },
   { id: 'tag-management',  path: 'tag-management',   label: 'Tags & Rails',        icon: SellRounded,           group: 'Content',  element: lazy(() => import('./tags')) },
   { id: 'requests',        path: 'requests',         label: 'Requests',           icon: MoveToInboxRounded,    group: 'Content',  element: lazy(() => import('./requests')) },
+  { id: 'live-tv',         path: 'live-tv',          label: 'Live TV',             icon: LiveTvRounded,         group: 'Content',  badge: 'New', element: lazy(() => import('./live')) },
 
   // Users
   { id: 'users',           path: 'users',            label: 'User Management',     icon: ManageAccountsRounded, group: 'Users',    element: lazy(() => import('./users')) },

@@ -100,6 +100,7 @@ GitHub Release's `version.json`) and installs the newer signed APK.
 | Feature | Description |
 |---|---|
 | Cinema | Browse + stream movies/series (TMDB metadata), continue-watching, downloads, watchlist; Netflix-style UI on web + Android |
+| Live TV | Live channels from admin-managed M3U playlists, with automatic health checking and multi-URL failover; see [`docs/live-tv.md`](docs/live-tv.md) |
 | IPO Radar | Live Indian mainboard + SME IPOs: dates, price band, lot size, GMP, subscription and listing gain, reconciled from several sources |
 | Tally | Split expenses with people and groups, including people without an account; balances, settle-up, per-ledger reports and Splitwise import |
 | Password Manager | Encrypted credential storage |

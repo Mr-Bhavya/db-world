@@ -30,6 +30,7 @@ import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import InfoOutlinedIcon  from '@mui/icons-material/InfoOutlined';
+import LiveTvIcon        from '@mui/icons-material/LiveTv';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
@@ -250,6 +251,9 @@ const epTitle = (ep, withName = true) => {
 // and fake the played fill with an inline gradient).
 const PLAYER_CSS = `
 @keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
+@keyframes dbw-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.dbw-live-dot { animation: dbw-live-pulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .dbw-live-dot { animation: none; } }
 .dbw-range { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 999px; outline: none; cursor: pointer; transition: height 0.15s ease; }
 .dbw-range:hover { height: 7px; }
 /* Scrubber knob always visible; a soft dark shadow gives it definition without the big
@@ -304,6 +308,32 @@ export default function DbWorldVideoPlayer({
   storyboard = null, // scrub-preview sprite { url, intervalMs, cols, rows, tileW, tileH, count } | null
   overview = '', // show/movie synopsis — shown on the pause info card (episodes use their own)
   requestId = null, mediaFileId = null, recordId = null, // stream telemetry session (null → reporting is skipped)
+  // ── Live TV ──────────────────────────────────────────────────────────────────
+  // A live channel has no duration, no end and nothing to seek, so the transport half
+  // of this UI is meaningless for it. Rather than fork the player — and then maintain
+  // two of everything — `live` swaps the seek bar for a LIVE badge, drops the controls
+  // that only make sense for a file, and turns the episode list into a channel zapper.
+  // Everything else (scrims, gestures, volume, PiP, rotation, lock, sheets) is shared.
+  live = false,
+  channels = [],          // [{ id, name, group, logoUrl }] for the in-player channel list
+  currentChannelId = null,
+  onSelectChannel,
+  /**
+   * What the Info panel shows for a live channel:
+   * `{ categories, countryName, languages, quality, sourceIndex, sourceCount, host }`.
+   *
+   * <p>The normal Info panel reads the file's MediaInfo, which does not exist for an HLS
+   * stream — it would open empty. This is the equivalent that IS knowable, and "playing
+   * source 2 of 3" is the part worth having when a channel keeps dropping.
+   */
+  liveInfo = null,
+  /**
+   * Playback failed and the adapter could not recover. Return TRUE to claim it — the
+   * player then stays silent because the caller is doing something about it (live TV
+   * retries the channel's next source URL). Anything else, and the player shows its own
+   * error overlay as before.
+   */
+  onError,
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
   // When the native (SurfaceView+Compose) player is active it draws its OWN controls natively,
@@ -322,6 +352,8 @@ export default function DbWorldVideoPlayer({
   const qualityLockedRef = useRef(false);
   const stallRef = useRef({ since: 0, downgrades: 0 });
   const adapterRef  = useRef(null);
+  const onErrorRef  = useRef(onError);
+  onErrorRef.current = onError;
   const hideTimer   = useRef(null);
   const tapRef      = useRef({ last: 0, x: 0 });
   const gestureRef  = useRef(null);
@@ -360,6 +392,8 @@ export default function DbWorldVideoPlayer({
   // same episode (auto-pick), which left the running quality unmarked in the menu.
   const [curQualityId, setCurQualityId] = useState(mediaFileId ?? fileId);
   const [episodesOpen, setEpisodesOpen] = useState(false);
+  const [channelsOpen, setChannelsOpen] = useState(false);   // live: the channel zapper
+  const [chPos, setChPos] = useState(null);
   const [epPos, setEpPos] = useState(null);   // { left, width, bottom } — popover anchored above its button
   const [speedOpen, setSpeedOpen] = useState(false);
   const [speedPos, setSpeedPos] = useState(null);
@@ -433,6 +467,7 @@ export default function DbWorldVideoPlayer({
   const menuCloseTimer = useRef(null);   // desktop: grace delay before an open menu closes
   const switchTimer = useRef(null);      // stagger: close the OLD menu a beat after the new one opens
   const epBtnRef = useRef(null);   // the active Episodes button, so the popover can anchor above it
+  const chBtnRef = useRef(null);   // the Channels button (live), same anchoring contract
   const speedBtnRef = useRef(null);   // the active Speed button, for the speed popover
   const audioBtnRef = useRef(null);   // the active Audio & Subtitles button
   const qualityBtnRef = useRef(null);   // the active Quality button
@@ -539,7 +574,11 @@ export default function DbWorldVideoPlayer({
           emitStreamEvent('STREAM_STOP');
         }
       }),
-      adapter.on('error', (d) => { setBuffering(false); setErrorMsg(d?.message || 'This video could not be played.'); }),
+      adapter.on('error', (d) => {
+        setBuffering(false);
+        if (onErrorRef.current?.(d) === true) return;   // caller is retrying — no overlay
+        setErrorMsg(d?.message || 'This video could not be played.');
+      }),
       adapter.on('info', (d) => { setBuffering(false); if (d?.message) { setInfoMsg(d.message); setTimeout(() => setInfoMsg(null), 3000); } }),
       adapter.on('tracks', d => {
         // `audio` (the file-metadata prop) enriches native tracks so the menu shows clean
@@ -710,13 +749,17 @@ export default function DbWorldVideoPlayer({
 
   const seekBy = useCallback((deltaMs, showUi = true) => {
     const a = adapterRef.current; if (!a) return;
+    // Nothing to seek in a live stream, and the buttons for it are already hidden — but
+    // the arrow keys and the double-tap gesture also land here, so the guard belongs on
+    // the action rather than on each of its triggers.
+    if (live) return;
     const target = Math.max(0, Math.min(duration || Infinity, position + deltaMs));
     a.seekTo(target); setPosition(target);
     if (showUi) showControls();     // arrow keys pass false → just the ±10s ripple, no control bar
     flashSeek(deltaMs >= 0 ? 'fwd' : 'back');
     emitStreamEvent('SEEK', { positionMs: Math.round(target) || null });
     beatRef.current.force = true;   // next beat saves; debounces a tap flurry to one
-  }, [position, duration, showControls, flashSeek, emitStreamEvent]);
+  }, [live, position, duration, showControls, flashSeek, emitStreamEvent]);
 
   const toggleMute = useCallback(() => {
     const a = adapterRef.current; if (!a) return;
@@ -757,8 +800,8 @@ export default function DbWorldVideoPlayer({
     const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
     return { left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) };
   };
-  const setMenuOpen = { speed: setSpeedOpen, audioSubs: setAudioSubsOpen, quality: setQualityOpen, info: setInfoOpen, episodes: setEpisodesOpen, next: setNextOpen };
-  const closeMenus = () => { clearTimeout(switchTimer.current); setSpeedOpen(false); setEpisodesOpen(false); setAudioSubsOpen(false); setQualityOpen(false); setInfoOpen(false); setNextOpen(false); };
+  const setMenuOpen = { speed: setSpeedOpen, audioSubs: setAudioSubsOpen, quality: setQualityOpen, info: setInfoOpen, episodes: setEpisodesOpen, next: setNextOpen, channels: setChannelsOpen };
+  const closeMenus = () => { clearTimeout(switchTimer.current); setSpeedOpen(false); setEpisodesOpen(false); setAudioSubsOpen(false); setQualityOpen(false); setInfoOpen(false); setNextOpen(false); setChannelsOpen(false); };
   // Switch by CLOSING the current menu first, then opening the new one a beat later — so
   // only one panel is ever on screen (the old leaves, then the new arrives): a clean,
   // one-at-a-time handoff. `setPos` anchors the incoming panel up front. The Next-episode
@@ -766,7 +809,7 @@ export default function DbWorldVideoPlayer({
   const openMenu = (which, setPos) => {
     clearTimeout(menuCloseTimer.current);
     setPos?.();
-    const isOpen = { speed: speedOpen, audioSubs: audioSubsOpen, quality: qualityOpen, info: infoOpen, episodes: episodesOpen, next: nextOpen };
+    const isOpen = { speed: speedOpen, audioSubs: audioSubsOpen, quality: qualityOpen, info: infoOpen, episodes: episodesOpen, next: nextOpen, channels: channelsOpen };
     if (isOpen[which]) { showControls(); return; }        // already open → nothing to switch
     const elseOpen = Object.keys(isOpen).some(k => k !== which && isOpen[k]);
     closeMenus();                                          // current menu animates out
@@ -779,6 +822,7 @@ export default function DbWorldVideoPlayer({
   const openAudioSubs = (btnRef) => openMenu('audioSubs', () => { if (btnRef?.current) setAudioSubsPos(anchorAbove(btnRef.current, 520)); });
   const openInfo      = (btnRef) => openMenu('info',      () => { if (btnRef?.current) setInfoPos(anchorAbove(btnRef.current, 440)); });
   const openEpisodes  = ()       => openMenu('episodes',  () => { if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400)); });
+  const openChannels  = ()       => openMenu('channels',  () => { if (chBtnRef.current) setChPos(anchorAbove(chBtnRef.current, 440)); });
   // Speed: a horizontal slider popover above the Speed button.
   const openSpeed     = ()       => openMenu('speed',     () => { if (speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 460)); });
   // Next-episode "Up next" preview — computes the on-screen nudge for its centered card.
@@ -1166,7 +1210,7 @@ export default function DbWorldVideoPlayer({
 
   // Any control-bar menu OR the "Up next" preview → hides the progress bar + pins the
   // controls, so every overlay behaves identically.
-  const anyMenuOpen = speedOpen || audioSubsOpen || qualityOpen || infoOpen || episodesOpen || nextOpen;
+  const anyMenuOpen = speedOpen || audioSubsOpen || qualityOpen || infoOpen || episodesOpen || nextOpen || channelsOpen;
   // While one is open: keep the controls pinned (never idle-hide) so it isn't orphaned;
   // resume the normal auto-hide once everything closes.
   useEffect(() => {
@@ -1383,7 +1427,7 @@ export default function DbWorldVideoPlayer({
           {!hasHover && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 48, pointerEvents: 'none' }}>
-            <IconBtn big onClick={() => seekBy(-10000)} ariaLabel="Rewind 10 seconds"><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>
+            {!live && <IconBtn big onClick={() => seekBy(-10000)} ariaLabel="Rewind 10 seconds"><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>}
             <IconBtn big focusRef={playBtnRef} onClick={togglePlay} ariaLabel={playing ? 'Pause' : 'Play'}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span key={playing ? 'pause' : 'play'} style={{ display: 'flex' }}
@@ -1393,7 +1437,7 @@ export default function DbWorldVideoPlayer({
                 </motion.span>
               </AnimatePresence>
             </IconBtn>
-            <IconBtn big onClick={() => seekBy(10000)} ariaLabel="Forward 10 seconds"><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>
+            {!live && <IconBtn big onClick={() => seekBy(10000)} ariaLabel="Forward 10 seconds"><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>}
           </div>
           )}
 
@@ -1406,7 +1450,7 @@ export default function DbWorldVideoPlayer({
 
             {/* Progress bar + time. Hidden while a menu is open (Netflix-style — the menu
                 gets a clean, uncluttered backdrop). */}
-            {!anyMenuOpen && (<>
+            {!live && !anyMenuOpen && (<>
             {/* full-width progress bar — wrapper carries hover→time math + the preview bubble.
                 Fill is a 3-stop gradient: teal (played) → light (buffered) → dark (unloaded). */}
             <div ref={barRef} style={{ position: 'relative', height: 16 }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
@@ -1447,34 +1491,44 @@ export default function DbWorldVideoPlayer({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <CtrlBtn icon={playing ? <PauseIcon /> : <PlayArrowIcon />} tip={playing ? 'Pause' : 'Play'}
                     ariaLabel={playing ? 'Pause' : 'Play'} focusRef={playBtnRef} onClick={togglePlay} />
-                  <CtrlBtn icon={<Replay10Icon />} tip="Back 10s" ariaLabel="Rewind 10 seconds" onClick={() => seekBy(-10000)} />
-                  <CtrlBtn icon={<Forward10Icon />} tip="Forward 10s" ariaLabel="Forward 10 seconds" onClick={() => seekBy(10000)} />
+                  {live && <LiveBadge buffering={buffering} scale={uiScale} />}
+                  {!live && <CtrlBtn icon={<Replay10Icon />} tip="Back 10s" ariaLabel="Rewind 10 seconds" onClick={() => seekBy(-10000)} />}
+                  {!live && <CtrlBtn icon={<Forward10Icon />} tip="Forward 10s" ariaLabel="Forward 10 seconds" onClick={() => seekBy(10000)} />}
                   <VolumeControl volume={volume} hasHover={hasHover} onToggleMute={toggleMute} onSetVol={setVol} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {live && channels.length > 1 && (
+                    <span ref={chBtnRef} style={{ display: 'inline-flex' }}
+                      onMouseEnter={() => hoverOpen(openChannels)} onMouseLeave={hoverLeaveBtn}>
+                      <CtrlBtn icon={<LiveTvIcon />} tip="Channels" active={channelsOpen}
+                        ariaLabel="Channel list" onClick={openChannels} />
+                    </span>
+                  )}
+                  {!live && (
                   <span ref={speedBtnRef} style={{ display: 'inline-flex' }}
                     onMouseEnter={() => hoverOpen(openSpeed)} onMouseLeave={hoverLeaveBtn}>
                     <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
                       active={rateIdx !== SPEED_NORMAL_IDX} ariaLabel="Playback speed" onClick={openSpeed} />
                   </span>
+                  )}
                   <span ref={audioBtnRef} style={{ display: 'inline-flex' }}
                     onMouseEnter={() => hoverOpen(() => openAudioSubs(audioBtnRef))} onMouseLeave={hoverLeaveBtn}>
                     <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles" active={audioSubsOpen}
                       ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                   </span>
-                  {episodes.length > 1 && (
+                  {!live && episodes.length > 1 && (
                     <span ref={epBtnRef} style={{ display: 'inline-flex' }}
                       onMouseEnter={() => hoverOpen(openEpisodes)} onMouseLeave={hoverLeaveBtn}>
                       <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" active={episodesOpen} ariaLabel="Episode list" onClick={openEpisodes} />
                     </span>
                   )}
-                  {nextEpisode && (
+                  {!live && nextEpisode && (
                     <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext}
                       open={nextOpen} shift={nextShift} btnRef={nextBtnRef}
                       onEnter={() => hoverOpen(openNext)} onLeave={hoverLeaveBtn}
                       cardEnter={cancelMenuClose} cardLeave={scheduleMenuClose} />
                   )}
-                  {hasQuality && (
+                  {!live && hasQuality && (
                     <span ref={qualityBtnRef} style={{ display: 'inline-flex' }}
                       onMouseEnter={() => hoverOpen(() => openQuality(qualityBtnRef))} onMouseLeave={hoverLeaveBtn}>
                       <CtrlBtn icon={<HighQualityIcon />} label={curQualityLabel} tip="Quality" active={qualityOpen}
@@ -1497,23 +1551,32 @@ export default function DbWorldVideoPlayer({
                   <VolumeControl volume={volume} hasHover={hasHover} label="Volume"
                     onToggleMute={toggleMute} onSetVol={setVol} />
                 )}
+                {live && <LiveBadge buffering={buffering} scale={uiScale} />}
+                {live && channels.length > 1 && (
+                  <span ref={chBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<LiveTvIcon />} label="Channels" active={channelsOpen}
+                      ariaLabel="Channel list" onClick={openChannels} />
+                  </span>
+                )}
+                {!live && (
                 <span ref={speedBtnRef} style={{ display: 'inline-flex' }}>
                   <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== SPEED_NORMAL_IDX}
                     ariaLabel="Playback speed" onClick={openSpeed} />
                 </span>
+                )}
                 <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
                   <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subtitles" active={audioSubsOpen}
                     ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                 </span>
-                {episodes.length > 1 && (
+                {!live && episodes.length > 1 && (
                   <span ref={epBtnRef} style={{ display: 'inline-flex' }}>
                     <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" active={episodesOpen} ariaLabel="Episode list" onClick={openEpisodes} />
                   </span>
                 )}
-                {nextEpisode && (
+                {!live && nextEpisode && (
                   <CtrlBtn icon={<SkipNextIcon />} label="Next" ariaLabel="Next episode" onClick={goNext} />
                 )}
-                {hasQuality && (
+                {!live && hasQuality && (
                   <span ref={qualityBtnRef} style={{ display: 'inline-flex' }}>
                     <CtrlBtn icon={<HighQualityIcon />} label={curQualityLabel} active={qualityOpen}
                       ariaLabel="Video quality" onClick={() => openQuality(qualityBtnRef)} />
@@ -1601,12 +1664,26 @@ export default function DbWorldVideoPlayer({
           onQuality={(v) => { chooseQuality(v, true); setQualityOpen(false); }} />
       </Sheet>
 
-      {/* Media info — read-only details of the current video/audio/subtitle tracks. */}
-      <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos} title="Media info" onClose={() => setInfoOpen(false)}
+      {/* Channels — live only. Reuses the Episodes Sheet, so the zapper inherits the
+          desktop popover / mobile bottom-sheet behaviour and styling for free. */}
+      <Sheet open={channelsOpen} hasHover={hasHover} pos={chPos} title="Channels" onClose={() => setChannelsOpen(false)}
+        mobileFull desktopHeader desktopPad="12px 0" desktopMaxH="62vh"
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
-        <MediaInfoContent
-          variants={variants} curQualityId={curQualityId} info={activeInfo}
-          audioTracks={audioTracks} textTracks={textTracks} curAudio={curAudio} curText={curText} />
+        <ChannelList channels={channels} currentId={currentChannelId}
+          onPick={(ch) => { setChannelsOpen(false); onSelectChannel?.(ch); }} />
+      </Sheet>
+
+      {/* Media info — read-only details of the current video/audio/subtitle tracks. */}
+      <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos}
+        title={live ? 'Channel info' : 'Media info'} onClose={() => setInfoOpen(false)}
+        panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        {live ? (
+          <LiveInfoContent title={title} info={liveInfo} />
+        ) : (
+          <MediaInfoContent
+            variants={variants} curQualityId={curQualityId} info={activeInfo}
+            audioTracks={audioTracks} textTracks={textTracks} curAudio={curAudio} curText={curText} />
+        )}
       </Sheet>
       </>)}
     </div>
@@ -1684,6 +1761,33 @@ function SheetSection({ children }) {
 
 // ── tiny style helpers ────────────────────────────────────────────────────────
 const row = (position, extra) => ({ position, display: 'flex', alignItems: 'center', ...extra });
+
+/**
+ * The live indicator, sized to sit in the control row next to the buttons.
+ *
+ * <p>Inline rather than on its own line: a live stream has no seek bar, and giving the
+ * badge that whole strip left a tall empty band above the controls. Where a recording
+ * shows elapsed time, a live channel shows this.
+ */
+function LiveBadge({ buffering, scale }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, margin: '0 10px 0 6px' }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: `${Math.round(3 * scale)}px ${Math.round(9 * scale)}px`, borderRadius: 999,
+        background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.55)',
+        fontSize: Math.round(10.5 * scale), fontWeight: 800, letterSpacing: 0.9, lineHeight: 1.6,
+      }}>
+        <span className="dbw-live-dot"
+          style={{ width: Math.round(6 * scale), height: Math.round(6 * scale), borderRadius: '50%', background: '#ef4444' }} />
+        LIVE
+      </span>
+      {buffering && (
+        <span style={{ fontSize: Math.round(11.5 * scale), color: '#bbb', whiteSpace: 'nowrap' }}>Connecting…</span>
+      )}
+    </span>
+  );
+}
 
 // Round icon button (top bar + big center transport), with hover/tap motion.
 function IconBtn({ children, onClick, big, ariaLabel, focusRef }) {
@@ -2165,6 +2269,118 @@ function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, cur
 
 // Netflix-style episode rows: still thumbnail + title + runtime + 2-line synopsis,
 // current episode highlighted. Shared by the desktop popover and the mobile sheet.
+/**
+ * Channel info for a live stream.
+ *
+ * <p>Answers the question the normal Info panel cannot: which of the channel's mirrors
+ * is actually playing. When a channel is unreliable that is the only useful diagnostic,
+ * and it is invisible everywhere else in the UI.
+ */
+function LiveInfoContent({ title, info }) {
+  const scale = useContext(ScaleCtx);
+  const rows = [
+    ['Channel',   title],
+    ['Categories', (info?.categories || []).join(', ')],
+    ['Country',   info?.countryName],
+    ['Languages', (info?.languages || []).join(', ')],
+    ['Quality',   info?.quality],
+    ['Source',    info?.sourceCount > 1
+      ? `${info.sourceIndex + 1} of ${info.sourceCount}`
+      : (info?.sourceCount === 1 ? 'Only source' : null)],
+    ['Stream',    info?.host],
+  ].filter(([, value]) => value);
+
+  if (!rows.length) return <SheetEmpty>No channel details</SheetEmpty>;
+
+  return (
+    <div style={{ padding: `${Math.round(4 * scale)}px 0` }}>
+      {rows.map(([label, value]) => (
+        <div key={label} style={{
+          display: 'flex', gap: Math.round(12 * scale),
+          padding: `${Math.round(6 * scale)}px ${Math.round(16 * scale)}px`,
+        }}>
+          <span style={{ width: Math.round(86 * scale), flexShrink: 0, color: '#9aa0a6', fontSize: Math.round(12.5 * scale) }}>
+            {label}
+          </span>
+          <span style={{ minWidth: 0, color: '#fff', fontSize: Math.round(12.5 * scale), wordBreak: 'break-word' }}>
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The in-player channel zapper (live only). Grouped by group-title and opened ON the
+ * channel you're watching, for the same reason the episode list is: scrolled to the top
+ * of a 400-channel list, the thing you actually want is off screen.
+ *
+ * Deliberately lighter than EpisodeList — a logo, a name and a group is all the metadata
+ * an M3U carries, so a row that tried to look like an episode row would be mostly empty.
+ */
+function ChannelList({ channels, currentId, onPick }) {
+  const scale  = useContext(ScaleCtx);
+  const curRef = useRef(null);
+  useEffect(() => {
+    curRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, []);
+
+  if (!channels.length) return <SheetEmpty>No other channels</SheetEmpty>;
+
+  // Preserve the order the list arrived in (the server already sorted it) while still
+  // grouping: a plain sort by group would scramble the server's within-group ordering.
+  const groups = channels.reduce((map, ch) => {
+    const key = ch.group || 'Other';
+    (map[key] ||= []).push(ch);
+    return map;
+  }, {});
+
+  return (
+    <>
+      {Object.entries(groups).map(([group, rows]) => (
+        <div key={group}>
+          <div style={{ padding: `10px ${Math.round(18 * scale)}px 6px`, color: '#9aa',
+            fontSize: Math.round(12 * scale), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {group}
+          </div>
+          {rows.map((ch) => {
+            const isCur = ch.id === currentId;
+            return (
+              <button key={ch.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
+                ref={isCur ? curRef : null}
+                onClick={() => onPick(ch)}
+                style={{ display: 'flex', alignItems: 'center', gap: Math.round(12 * scale), width: '100%',
+                  padding: `${Math.round(9 * scale)}px ${Math.round(16 * scale)}px`, textAlign: 'left',
+                  cursor: 'pointer', border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
+                <div style={{ position: 'relative', width: Math.round(52 * scale), height: Math.round(52 * scale),
+                  flexShrink: 0, borderRadius: 8, overflow: 'hidden', background: '#1c1c1c',
+                  display: 'grid', placeItems: 'center' }}>
+                  {ch.logoUrl
+                    ? <img src={ch.logoUrl} alt="" loading="lazy"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                    : <LiveTvIcon sx={{ fontSize: Math.round(22 * scale), color: '#555' }} />}
+                  {isCur && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)' }}>
+                      <PlayArrowIcon sx={{ fontSize: Math.round(24 * scale), color: TEAL }} />
+                    </div>
+                  )}
+                </div>
+                <span style={{ minWidth: 0, flex: 1, fontWeight: isCur ? 700 : 500,
+                  fontSize: Math.round(14 * scale), color: isCur ? TEAL : '#fff',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ch.name}
+                </span>
+                {isCur && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0, color: TEAL }} />}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function EpisodeList({ seasonsMap, currentEpisodeId, onPick }) {
   const scale = useContext(ScaleCtx);
   const curRef = useRef(null);
