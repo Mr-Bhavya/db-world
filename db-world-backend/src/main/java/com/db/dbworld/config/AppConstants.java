@@ -154,6 +154,12 @@ public final class AppConstants {
             "/api/cinema/persons/**",
             "/api/cinema/tmdb/search",
             "/api/cinema/reviews/record/*",
+            // Live TV. Metadata only — the channel list and its stream URLs. The video is
+            // fetched by the player straight from the third-party CDN and never passes
+            // through this server, so there is nothing user-scoped or costly to protect.
+            // "/api/live/admin/**" is NOT covered: it is POST/PATCH/DELETE and separately
+            // guarded by @PreAuthorize, and this list is GET-only.
+            "/api/live/channels", "/api/live/channels/*", "/api/live/groups",
             // IPO tracker — list and detail. Single-segment "*" cannot swallow the
             // two-segment user-scoped paths (/{id}/application, /my/applications).
             "/api/ipo", "/api/ipo/*",
