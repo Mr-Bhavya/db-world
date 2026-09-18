@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Moves the downloaded file from temp to the final directory, then:
@@ -766,22 +765,6 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 .filter(t -> !t.isBlank())
                 .orElseGet(() -> stripExt(file.getFileName().toString()));
         return candidate.replaceAll("(?i)[. _-]S\\d{2}E\\d{2}.*$", "").replace('.', ' ').trim();
-    }
-
-    private String buildAudioTrackTitle(TrackDto t) {
-        String lang = normalizeLanguage(t.getLanguage());
-        String codec = normalizeAudioCodec(t.getFormat());
-        String channels = normalizeChannels(t.getChannels());
-        String bitrate = formatBitrate(t.getBitRate());
-
-        return Stream.of(lang, channels, codec, bitrate)
-                .filter(v -> v != null && !v.isBlank())
-                .collect(Collectors.joining(" "));
-    }
-
-    private String formatBitrate(Long bitrate) {
-        if (bitrate == null || bitrate <= 0) return null;
-        return (bitrate / 1000) + "kbps";
     }
 
     private EpisodeRef resolveEpisodeRef(IngestionContext ctx, Path file) {

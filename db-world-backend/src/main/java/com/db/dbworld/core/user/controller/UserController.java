@@ -8,11 +8,8 @@ import com.db.dbworld.core.user.dto.*;
 import com.db.dbworld.audit.activity.dto.LoginDataDto;
 import com.db.dbworld.audit.activity.service.LoginDataService;
 import com.db.dbworld.core.user.service.UserService;
-import com.db.dbworld.config.AppConstants;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
 

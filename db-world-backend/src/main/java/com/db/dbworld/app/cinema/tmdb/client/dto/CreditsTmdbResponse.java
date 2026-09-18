@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.app.cinema.tmdb.credits.dto.CreditDto;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -5,7 +5,6 @@ import com.db.dbworld.core.user.PasswordPolicy;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-import java.io.Serializable;
 import java.util.Date;
 
 @Getter

@@ -12,7 +12,6 @@ import com.db.dbworld.audit.activity.recommend.GenreAffinityService;
 import com.db.dbworld.audit.activity.recommend.RewatchTrendService;
 import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
-import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
 import com.db.dbworld.app.cinema.rail.repository.RailItemRepository;
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import com.db.dbworld.app.cinema.rail.service.RailResolver;

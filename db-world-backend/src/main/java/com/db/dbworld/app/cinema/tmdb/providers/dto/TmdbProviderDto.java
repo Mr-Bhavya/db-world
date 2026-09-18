@@ -1,8 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.providers.dto;
 
-import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
-import com.db.dbworld.app.cinema.tmdb.providers.entity.ProviderEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

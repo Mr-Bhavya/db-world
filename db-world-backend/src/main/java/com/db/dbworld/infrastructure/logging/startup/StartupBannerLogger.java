@@ -13,7 +13,6 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Arrays;
 
 /**
  * Logs a one-line startup summary once the application is fully ready.

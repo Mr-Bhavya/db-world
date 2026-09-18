@@ -7,23 +7,14 @@ import com.db.dbworld.app.system.info.collector.ServerInfoCollector;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.lang.management.ManagementFactory;
-import java.lang.management.OperatingSystemMXBean;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.nio.file.FileStore;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -507,15 +498,6 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                 if (subnetObj instanceof List && ((List<?>) subnetObj).size() > 0) {
                     adapter.setSubnetMask(((List<?>) subnetObj).get(0).toString());
                 }
-
-                // Get default gateway
-//                Object gatewayObj = adapterData.get("DefaultIPGateway");
-//                if (gatewayObj instanceof List && ((List<?>) gatewayObj).size() > 0) {
-//                    adapter.setDefaultGateway(((List<?>) gatewayObj).get(0).toString());
-//                    if (defaultGateway.isEmpty()) {
-//                        defaultGateway = adapter.getDefaultGateway();
-//                    }
-//                }
 
                 // Get DNS servers
                 Object dnsObj = adapterData.get("DNSServerSearchOrder");

@@ -1,7 +1,5 @@
 package com.db.dbworld.audit.activity.entity;
 
-import com.db.dbworld.core.user.entity.UserEntity;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 

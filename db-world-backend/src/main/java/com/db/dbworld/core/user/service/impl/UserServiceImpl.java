@@ -1,6 +1,5 @@
 package com.db.dbworld.core.user.service.impl;
 
-import com.db.dbworld.audit.activity.entity.LoginDataEntity;
 import com.db.dbworld.audit.activity.repository.LoginDataRepository;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
@@ -18,11 +17,9 @@ import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.auth.SessionRevocationService;
 import com.db.dbworld.security.entity.RefreshTokenEntity.RevokeReason;
 import com.db.dbworld.security.entity.RefreshTokenEntity;
-import com.db.dbworld.security.entity.BiometricDeviceEntity;
 import com.db.dbworld.security.repository.RefreshTokenRepository;
 import com.db.dbworld.security.repository.BiometricDeviceRepository;
 
-import com.db.dbworld.config.AppConstants;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;

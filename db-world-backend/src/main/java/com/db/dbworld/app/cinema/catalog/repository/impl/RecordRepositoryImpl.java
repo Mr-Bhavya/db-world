@@ -288,12 +288,6 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
     private static Long toLong(Object o)      { return o == null ? null : ((Number) o).longValue(); }
     private static Integer toInteger(Object o) { return o == null ? null : ((Number) o).intValue(); }
 
-    private static Boolean toBoolean(Object o) {
-        if (o == null) return null;
-        if (o instanceof Boolean b) return b;
-        return ((Number) o).intValue() != 0;
-    }
-
     private static Instant toInstant(Object o) {
         if (o == null) return null;
         if (o instanceof Timestamp ts) return ts.toInstant();

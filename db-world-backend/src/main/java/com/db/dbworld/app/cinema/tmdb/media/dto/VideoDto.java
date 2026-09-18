@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.tmdb.media.dto;
 
-import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.enums.VideoSite;
 import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
 import jakarta.persistence.*;
