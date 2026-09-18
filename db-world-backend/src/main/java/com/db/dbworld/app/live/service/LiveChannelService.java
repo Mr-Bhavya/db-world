@@ -47,6 +47,7 @@ public class LiveChannelService {
     private final LiveChannelSourceRepository sources;
     private final LiveIngestService           ingest;
     private final M3uParser                   parser;
+    private final LiveWriteLock               writeLock;
 
     // ── Public reads ─────────────────────────────────────────────────────────────
 
@@ -255,13 +256,18 @@ public class LiveChannelService {
     }
 
     public LiveStatsDto stats() {
+        var busy = writeLock.current();
         return new LiveStatsDto(
                 playlists.count(),
                 channels.count(),
                 channels.countByHealth(LiveHealth.UP),
                 channels.countByHealth(LiveHealth.DOWN),
                 channels.countByHealth(LiveHealth.UNKNOWN),
-                sources.count());
+                sources.count(),
+                sources.countByLastCheckedAtIsNotNull(),
+                sources.findLastHealthCheckAt(),
+                busy == null ? null : busy.what(),
+                busy == null ? 0 : busy.seconds());
     }
 
     // ── Mapping ──────────────────────────────────────────────────────────────────

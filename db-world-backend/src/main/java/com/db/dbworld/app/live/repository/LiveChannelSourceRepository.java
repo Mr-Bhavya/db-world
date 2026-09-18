@@ -50,4 +50,10 @@ public interface LiveChannelSourceRepository extends JpaRepository<LiveChannelSo
            order by s.lastCheckedAt asc nulls first
            """)
     List<LiveChannelSourceEntity> findProbeQueue(@Param("maxFailures") int maxFailures, Pageable page);
+
+    /** Sources the health sweep has reached at least once — its coverage so far. */
+    long countByLastCheckedAtIsNotNull();
+
+    @Query("select max(s.lastCheckedAt) from LiveChannelSourceEntity s")
+    java.time.Instant findLastHealthCheckAt();
 }

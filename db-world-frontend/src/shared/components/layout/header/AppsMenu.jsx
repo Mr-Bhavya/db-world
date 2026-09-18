@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Popover, Typography } from '@mui/material';
 
 import { useT } from '@shared/theme';
+import { useSeenFeatures } from '@features/whatsNew/seenFeatures';
 import { clampTextSx } from '@shared/components/layout/home/homeStyles';
 
 /**
@@ -59,6 +60,8 @@ const liveStatus = (appId, summary) => {
  * outcome than a header that offers an anonymous visitor nowhere to go.
  */
 export default function AppsMenu({ anchorEl, onClose, apps, summary, activeRoute, onNavigate }) {
+  // A "New" badge stops being true the moment the reader has been shown the feature.
+  const { isNew } = useSeenFeatures();
   const T = useT();
 
   const isActive = (route) =>
@@ -144,17 +147,33 @@ export default function AppsMenu({ anchorEl, onClose, apps, summary, activeRoute
               </Box>
 
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  sx={{
-                    color: active ? app.accent : T.text,
-                    fontWeight: 800,
-                    fontSize: '0.88rem',
-                    lineHeight: 1.25,
-                    ...clampTextSx(1),
-                  }}
-                >
-                  {app.label}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      color: active ? app.accent : T.text,
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      lineHeight: 1.25,
+                      ...clampTextSx(1),
+                    }}
+                  >
+                    {app.label}
+                  </Typography>
+                  {app.badge && isNew(app.id) && (
+                    <Box
+                      component="span"
+                      sx={{
+                        flexShrink: 0, px: 0.6, py: 0.1, borderRadius: 0.75,
+                        fontSize: '0.58rem', fontWeight: 800, letterSpacing: 0.4,
+                        textTransform: 'uppercase',
+                        color: app.accent, bgcolor: `${app.accent}22`,
+                        border: `1px solid ${app.accent}55`,
+                      }}
+                    >
+                      {app.badge}
+                    </Box>
+                  )}
+                </Box>
 
                 {status && (
                   <Typography

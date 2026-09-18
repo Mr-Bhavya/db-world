@@ -25,6 +25,10 @@ import Constants from '@shared/constants';
  * Accents are solid hex so they read correctly over both the AMOLED-dark and pure-white surfaces;
  * theme-dependent surfaces come from the `useT()` tokens at the render site, never hard-coded here.
  *
+ * `badge` is optional and purely a label ("New"): the header Apps panel and the hub's Quick
+ * Launch tile both render it. Remove it from an entry once the app stops being news - nothing
+ * expires it automatically, and a permanent "New" badge teaches people to ignore the badge.
+ *
  * Widget sizing is NOT here — that lives in `dashboard/widgetRegistry`, because it is a property of
  * the tile rather than of the app, and the user overrides it anyway.
  */
@@ -56,6 +60,7 @@ export const APPS = [
     label: 'Live TV',
     description: 'Watch live channels streamed straight from their broadcasters.',
     tagline: 'Live channels',
+    badge: 'New',
     Icon: LiveTvIcon,
     route: Constants.DB_LIVE_TV_ROUTE,
     adminOnly: false,
@@ -78,6 +83,7 @@ export const APPS = [
     label: 'Tally',
     description: 'Split expenses with anyone — even people without an account.',
     tagline: 'Shared expenses',
+    badge: 'New',
     Icon: TallyIcon,
     route: Constants.DB_TALLY_ROUTE,
     adminOnly: false,

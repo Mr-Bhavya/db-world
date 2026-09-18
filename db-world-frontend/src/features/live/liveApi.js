@@ -58,6 +58,10 @@ export function useLiveStats() {
   return useQuery({
     queryKey: ['live', 'admin', 'stats'],
     queryFn: () => axiosInstance.get(`${ADMIN}/stats`).then(unwrap),
+    // An import or health sweep runs for minutes behind a fire-and-forget button. Poll
+    // while one is in flight so the page can show it is working and then that it
+    // finished; idle, this costs nothing.
+    refetchInterval: (query) => (query.state.data?.running ? 3000 : false),
   });
 }
 

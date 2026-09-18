@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Chip, LinearProgress, Skeleton } from '@mui/material';
 import {
-  People, Movie, VideoLibrary, Sync, Inbox, Computer, Storage, Label,
+  People, Movie, VideoLibrary, Sync, Inbox, Computer, Storage, Label, LiveTv,
   Tv, Movie as MovieIcon, WbSunny, NightsStay, Dashboard as DashboardIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
 import { quickNavModules } from '@features/admin/adminModules';
+import { useLiveStats } from '@features/live/liveApi';
 import {
   AdminPage, StatCard, StatGrid, SectionCard, EmptyState, TableSkeleton, adminSurface,
 } from '@features/admin/adminUi';
@@ -108,6 +109,8 @@ const AdminDashboard = () => {
 
   const tagEntries = useMemo(() => (Array.isArray(s?.tags) ? s.tags : []), [s?.tags]);
   const modules = useMemo(() => quickNavModules(), []);
+  // Live TV has its own stats endpoint rather than a slot in /admin/dashboard/stats.
+  const live = useLiveStats();
 
   const displayName = user?.username ?? user?.name ?? user?.email ?? 'Admin';
   const displayRole = role ? role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
@@ -147,7 +150,9 @@ const AdminDashboard = () => {
           <StatCard icon={Sync} label="TMDB Synced" value={s?.sync?.synced} loading={loading} index={3}
             sub={s?.sync ? `${s.sync.pending} pending · ${s.sync.failed} failed` : null}
             onClick={() => nav('records')} />
-          <StatCard icon={Inbox} label="Pending Requests" value={pending.total} loading={pending.isLoading} index={4}
+          <StatCard icon={LiveTv} label="Live Channels" value={live.data?.channels} loading={live.isLoading} index={4}
+            onClick={() => nav('live-tv')} />
+          <StatCard icon={Inbox} label="Pending Requests" value={pending.total} loading={pending.isLoading} index={5}
             accent={pending.total > 0 ? '#f59e0b' : T.teal}
             badge={pending.total > 0 ? `${pending.total} new` : null}
             sub={pending.total > 0 ? `${pending.media} media · ${pending.catalog} new titles` : 'All caught up'}

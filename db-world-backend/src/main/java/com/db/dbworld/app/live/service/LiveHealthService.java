@@ -49,11 +49,14 @@ public class LiveHealthService {
 
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(8);
     private static final int      PROBE_BYTES   = 8192;
+    /** How long the sweep waits for an import to finish before dropping its results. */
+    private static final Duration WRITE_LOCK_WAIT = Duration.ofMinutes(5);
     private static final String   DEFAULT_UA =
             "Mozilla/5.0 (compatible; DbWorld/1.0; +https://db-world.in)";
 
     private final LiveChannelSourceRepository sources;
     private final LiveChannelRepository       channels;
+    private final LiveWriteLock               writeLock;
 
     /**
      * How many probes run at once. Kept low by default: this runs on a Raspberry Pi with a
@@ -102,13 +105,26 @@ public class LiveHealthService {
                     results.size(), queue.size());
             return new HealthResult(0, 0, 0, 0, 0);
         }
-        persist(queue, results);
-
-        // Only the channels this sweep actually touched. Re-deriving health for the whole
-        // table would load every channel on every run, which on a large import is the
-        // most expensive thing the job does and changes nothing.
-        var touched = queue.stream().map(LiveChannelSourceEntity::getChannelId).collect(Collectors.toSet());
-        var rolled  = rollUpChannels(touched);
+        // The probing above is HTTP and needs no lock; these writes DO. An import holds
+        // the lock for minutes, so wait for it rather than throw away results we already
+        // paid for — but never write concurrently with one, which is what produced
+        // "Lock wait timeout exceeded" on live_channel_source.
+        if (!writeLock.acquire("Recording channel health", WRITE_LOCK_WAIT)) {
+            log.warn("Live health sweep probed {} sources but could not take the write lock; "
+                    + "discarding this run's verdicts", queue.size());
+            return new HealthResult(0, 0, 0, 0, 0);
+        }
+        RollUp rolled;
+        try {
+            persist(queue, results);
+            // Only the channels this sweep actually touched. Re-deriving health for the whole
+            // table would load every channel on every run, which on a large import is the
+            // most expensive thing the job does and changes nothing.
+            var touched = queue.stream().map(LiveChannelSourceEntity::getChannelId).collect(Collectors.toSet());
+            rolled = rollUpChannels(touched);
+        } finally {
+            writeLock.release();
+        }
 
         var up = (int) results.values().stream().filter(Boolean::booleanValue).count();
         log.info("Live health sweep — {} sources probed, {} up, {} down", queue.size(), up, queue.size() - up);

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Box, Chip, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography,
+  Box, Chip, CircularProgress, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography,
 } from '@mui/material';
 import {
   AddLinkRounded, DeleteOutlineRounded, EditRounded, LiveTvRounded, NetworkCheckRounded,
@@ -212,12 +212,28 @@ export default function LiveTvAdmin() {
       ),
     },
     {
-      field: 'enabled', headerName: 'Visible', width: 90, sortable: false,
-      renderCell: ({ row }) => (
-        <Switch size="small" checked={row.enabled}
-          onChange={(e) => patchChannel.mutateAsync({ id: row.id, enabled: e.target.checked })
-            .catch((err) => notify.error(err?.response?.data?.message ?? 'Could not update the channel'))} />
-      ),
+      // Two things decide whether a viewer sees a channel, and conflating them would be
+      // wrong: this switch is the admin's own choice, and health is automatic. A DOWN
+      // channel is ALREADY hidden from the grid and comes back by itself once a probe
+      // finds it working, so the switch must not be flipped for it - that would
+      // overwrite a deliberate "keep this hidden" the next time the stream answered.
+      field: 'enabled', headerName: 'Visible', width: 140, sortable: false,
+      renderCell: ({ row }) => {
+        const autoHidden = row.enabled && row.health === 'DOWN';
+        return (
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0 }}>
+            <Switch size="small" checked={row.enabled}
+              onChange={(e) => patchChannel.mutateAsync({ id: row.id, enabled: e.target.checked })
+                .catch((err) => notify.error(err?.response?.data?.message ?? 'Could not update the channel'))} />
+            {autoHidden && (
+              <Tooltip title="Every stream URL failed its last check, so viewers cannot see this channel. It reappears on its own when a probe succeeds - no need to touch the switch.">
+                <Chip size="small" label="auto-hidden" variant="outlined" color="warning"
+                  sx={{ height: 20, fontSize: 10.5 }} />
+              </Tooltip>
+            )}
+          </Stack>
+        );
+      },
     },
     {
       field: 'actions', headerName: '', width: 100, sortable: false, filterable: false,
@@ -277,12 +293,34 @@ export default function LiveTvAdmin() {
         </Stack>
       )}
     >
+      {s?.running && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, p: 1.5,
+          bgcolor: T.tealBg, border: `1px solid ${T.teal}`, borderRadius: 2,
+        }}>
+          <CircularProgress size={18} sx={{ color: T.teal }} />
+          <Typography sx={{ fontSize: 13.5, color: T.teal, fontWeight: 700 }}>
+            {s.running}…
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: T.textMuted }}>
+            {`running for ${s.runningSeconds}s · this page updates itself`}
+          </Typography>
+        </Box>
+      )}
+
       <StatGrid>
         <StatCard icon={PlaylistAddRounded} label="Playlists" value={s?.playlists ?? 0} loading={stats.isLoading} />
         <StatCard icon={LiveTvRounded}      label="Channels"  value={s?.channels ?? 0}  loading={stats.isLoading} />
         <StatCard icon={NetworkCheckRounded} label="Working"  value={s?.channelsUp ?? 0} accent={T.success} loading={stats.isLoading} />
         <StatCard icon={TroubleshootRounded} label="Dead"     value={s?.channelsDown ?? 0} accent={T.error} loading={stats.isLoading} />
         <StatCard icon={AddLinkRounded}      label="Stream URLs" value={s?.sources ?? 0} loading={stats.isLoading} />
+        <StatCard
+          icon={NetworkCheckRounded}
+          label="Health checked"
+          value={`${(s?.sourcesChecked ?? 0).toLocaleString()} / ${(s?.sources ?? 0).toLocaleString()}`}
+          sub={s?.lastHealthCheckAt ? `last ${relative(s.lastHealthCheckAt)}` : 'never run'}
+          loading={stats.isLoading}
+        />
       </StatGrid>
 
       <SectionCard title="Playlist sources" icon={PlaylistAddRounded}>

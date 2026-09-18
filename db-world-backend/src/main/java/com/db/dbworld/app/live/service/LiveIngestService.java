@@ -23,7 +23,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Turns playlists into channels.
@@ -58,16 +57,11 @@ public class LiveIngestService {
     private final ObjectProvider<LiveIngestService> self;
 
     /**
-     * Only one import may run at a time.
-     *
-     * <p>An import is thousands of inserts against {@code live_channel}, whose
-     * {@code channel_key} is unique — so two concurrent runs (the 6-hourly job and an
-     * admin pressing "Refresh all", or two impatient presses) block on the same index
-     * rows until MySQL gives up with "Lock wait timeout exceeded". Refusing the second
-     * run outright is both correct and more useful than making the caller wait: it has
-     * nothing to add, since the run already in flight is importing the same playlists.
+     * Shared with the health sweep — see {@link LiveWriteLock}. An import is thousands of
+     * writes and the sweep writes the same source rows, so without one lock across both
+     * they deadlock and the import rolls back.
      */
-    private final ReentrantLock importLock = new ReentrantLock();
+    private final LiveWriteLock writeLock;
 
     /**
      * A completed refresh, or the fact that one was declined because another was running.
@@ -80,14 +74,14 @@ public class LiveIngestService {
 
     /** Refresh every enabled playlist, accumulating one combined result. */
     public RefreshResult refreshAll() {
-        if (!importLock.tryLock()) {
-            log.info("Live playlist refresh skipped — an import is already running");
+        if (!writeLock.tryAcquire("Importing playlists")) {
+            log.info("Live playlist refresh skipped — {} is already running", describeBusy());
             throw new ImportInProgressException();
         }
         try {
             return refreshAllLocked();
         } finally {
-            importLock.unlock();
+            writeLock.release();
         }
     }
 
@@ -139,14 +133,14 @@ public class LiveIngestService {
     public RefreshResult refreshOne(String playlistId) {
         // Held for the whole import, and reentrant so refreshAll's per-playlist calls
         // pass straight through on the thread that already owns it.
-        if (!importLock.tryLock()) {
-            log.info("Live playlist refresh skipped — an import is already running");
+        if (!writeLock.tryAcquire("Importing a playlist")) {
+            log.info("Live playlist refresh skipped — {} is already running", describeBusy());
             throw new ImportInProgressException();
         }
         try {
             return refreshOneLocked(playlistId);
         } finally {
-            importLock.unlock();
+            writeLock.release();
         }
     }
 
@@ -264,6 +258,11 @@ public class LiveIngestService {
                 playlist.getName(), parsed.size(), created, added, stale.size());
 
         return new RefreshResult(1, 0, created, updated, added, stale.size());
+    }
+
+    private String describeBusy() {
+        var busy = writeLock.current();
+        return busy == null ? "another live write" : busy.what() + " (" + busy.seconds() + "s)";
     }
 
     /** Drop channels that have no sources left — nothing to play, nothing to show. */

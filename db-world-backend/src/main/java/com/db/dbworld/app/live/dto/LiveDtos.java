@@ -139,14 +139,28 @@ public final class LiveDtos {
             List<SourceDto> sources
     ) {}
 
-    /** Counters for the admin header. */
+    /**
+     * Counters for the admin header, plus whether anything is running.
+     *
+     * <p>Import and health sweep are long operations behind fire-and-forget buttons, so
+     * without {@code running} the page gives no sign that a refresh is in flight — which
+     * looks identical to one that silently did nothing.
+     */
     public record LiveStatsDto(
             long playlists,
             long channels,
             long channelsUp,
             long channelsDown,
             long channelsUnknown,
-            long sources
+            long sources,
+            /** Sources the health sweep has a verdict for. */
+            long sourcesChecked,
+            /** The most recent health probe across all sources, or null. */
+            Instant lastHealthCheckAt,
+            /** "Importing playlists" etc. while a bulk write holds the lock; null when idle. */
+            String running,
+            /** How long it has been running, in seconds. */
+            long runningSeconds
     ) {}
 
     /** Outcome of one playlist refresh, surfaced by both the admin button and the job summary. */
