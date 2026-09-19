@@ -168,6 +168,16 @@ export const DB_TALLY_GROUP_HISTORY_ROUTE = `${DB_TALLY_GROUP_ROUTE}/history`;
 export const tallyGroupHistoryPath = (id) =>
   `${DB_TALLY_ROUTE}/${encodeURIComponent(id ?? '')}/history`;
 
+/* =========================
+   Live TV
+   ========================= */
+export const DB_LIVE_TV_ROUTE = `${APP_BASE}/db-live-tv`;
+// The player route carries the channel id so a channel is shareable and survives a
+// refresh, exactly like the cinema player carries a media file id.
+export const DB_LIVE_PLAYER_ROUTE = `${DB_LIVE_TV_ROUTE}/watch/:channelId`;
+export const liveWatchPath = (channelId) =>
+  `${DB_LIVE_TV_ROUTE}/watch/${encodeURIComponent(channelId ?? '')}`;
+
 export const DB_IPO_ROUTE = `${APP_BASE}/db-ipo`;
 export const DB_IPO_DETAIL_ROUTE = `${DB_IPO_ROUTE}/:id`;
 export const ipoDetailPath = (id) => `${DB_IPO_ROUTE}/${encodeURIComponent(id ?? '')}`;
@@ -330,6 +340,9 @@ export default {
   tallyGroupPath,
   tallyGroupReportPath,
   tallyGroupHistoryPath,
+  DB_LIVE_TV_ROUTE,
+  DB_LIVE_PLAYER_ROUTE,
+  liveWatchPath,
   DB_IPO_ROUTE,
   DB_IPO_DETAIL_ROUTE,
   ipoDetailPath,

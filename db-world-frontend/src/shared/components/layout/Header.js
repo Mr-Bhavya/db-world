@@ -267,6 +267,15 @@ BrandLogo.displayName = 'BrandLogo';
 // Header
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Height of the fixed app bar, by breakpoint.
+ *
+ * <p>The bar is `position: fixed` and transparent until scrolled, so page content slides
+ * UNDER it by design. A page that pins something of its own — a sticky filter bar — has
+ * to offset by this, or the two end up occupying the same strip.
+ */
+export const HEADER_HEIGHT = { xs: 56, md: 64, xl: 72 };
+
 const Header = () => {
   const muiTheme = useTheme();
   const prefersReducedMotion = useReducedMotion();
@@ -460,11 +469,7 @@ const Header = () => {
           <Toolbar
             disableGutters
             sx={{
-              minHeight: {
-                xs: 56,
-                md: 64,
-                xl: 72,
-              },
+              minHeight: HEADER_HEIGHT,
               display: 'flex',
               alignItems: 'center',
               gap: 1,

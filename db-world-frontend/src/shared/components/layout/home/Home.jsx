@@ -15,6 +15,7 @@ import { pageContent, pageMeta } from '@shared/content/siteContent';
 import NotificationsPrompt from '@shared/push/NotificationsPrompt';
 
 import { APPS } from './homeData';
+import WhatsNewDialog from '@features/whatsNew/WhatsNewDialog';
 import { getRecent, saveRecent } from './homeStorage';
 
 import DashboardGrid from './dashboard/DashboardGrid';
@@ -149,6 +150,9 @@ const Home = () => {
         overflowX: 'hidden',
       }}
     >
+      {/* First run only, and only on the hub: this is the landing route, and a modal
+          that could appear over the video player would be worse than not showing it. */}
+      <WhatsNewDialog />
       <Box
         component="main"
         sx={{

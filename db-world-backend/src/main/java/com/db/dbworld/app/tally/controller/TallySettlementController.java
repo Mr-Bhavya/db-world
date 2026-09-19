@@ -1,12 +1,12 @@
 package com.db.dbworld.app.tally.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.tally.dto.RecordSettlementRequest;
 import com.db.dbworld.app.tally.dto.SettleUpTransferDto;
 import com.db.dbworld.app.tally.dto.TallySettlementDto;
 import com.db.dbworld.app.tally.service.TallySettlementService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

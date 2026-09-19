@@ -17,8 +17,6 @@ import java.util.Map;
 @Data
 public class ResponsePayloads {
 
-//    public static Object PasswordMangerCredential;
-
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class LoginResponse{
@@ -61,19 +59,6 @@ public class ResponsePayloads {
         private String host;
         private List<CredentialDto> credentials;
     }
-
-//    @Data
-//    @NoArgsConstructor
-//    @AllArgsConstructor
-//    public static class PaginationRecords{
-//        private int pageNumber;
-//        private int pageSize;
-//        private long totalElements;
-//        private boolean isEmpty;
-//        private boolean isFirst;
-//        private boolean isLast;
-//        private List<DBCinemaRecordsDto> records;
-//    }
 
     @Data
     public static class TmdbFilerResponse {

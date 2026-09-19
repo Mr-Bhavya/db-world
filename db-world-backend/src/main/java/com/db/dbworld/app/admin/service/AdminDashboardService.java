@@ -1,7 +1,6 @@
 package com.db.dbworld.app.admin.service;
 
 import com.db.dbworld.app.admin.dto.AdminDashboardDto;
-import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.repository.RecordTagRepository;
 import com.db.dbworld.app.cinema.catalog.tags.entity.TagDefinitionRepository;
@@ -12,7 +11,6 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.user.repository.UserRepository;
 //import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
-import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;

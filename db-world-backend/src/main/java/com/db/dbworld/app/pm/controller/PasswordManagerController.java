@@ -1,12 +1,12 @@
 package com.db.dbworld.app.pm.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.mapper.CredentialMapper;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import jakarta.validation.Valid;

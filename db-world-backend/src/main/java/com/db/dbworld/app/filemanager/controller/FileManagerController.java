@@ -1,5 +1,6 @@
 package com.db.dbworld.app.filemanager.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.download.DownloadService;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
@@ -8,7 +9,6 @@ import com.db.dbworld.app.filemanager.dto.request.MkdirRequest;
 import com.db.dbworld.app.filemanager.dto.request.RenameRequest;
 import com.db.dbworld.app.filemanager.service.FileOperationsService;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;

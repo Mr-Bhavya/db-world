@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 
 import { useT } from '@shared/theme';
+import { useSeenFeatures } from '@features/whatsNew/seenFeatures';
 import { clampTextSx } from '../../homeStyles';
 import WidgetShell from '../WidgetShell';
 
@@ -19,6 +20,8 @@ import WidgetShell from '../WidgetShell';
  * and no app is ever unreachable.
  */
 export default function QuickLaunchWidget({ widget, apps = [], onNavigate, ...shell }) {
+  // A "New" badge stops being true the moment the reader has been shown the feature.
+  const { isNew } = useSeenFeatures();
   const T = useT();
 
   return (
@@ -80,6 +83,7 @@ export default function QuickLaunchWidget({ widget, apps = [], onNavigate, ...sh
             >
               <Box
                 sx={{
+                  position: 'relative',
                   width: { xs: 30, sm: 36 },
                   height: { xs: 30, sm: 36 },
                   borderRadius: 1.6,
@@ -91,6 +95,19 @@ export default function QuickLaunchWidget({ widget, apps = [], onNavigate, ...sh
                 }}
               >
                 {AppIcon && <AppIcon sx={{ color: '#fff', fontSize: { xs: 17, sm: 20 } }} />}
+                {/* A dot, not the word: these tiles are ~36px and a "NEW" pill would
+                    cover the icon it is drawing attention to. The Apps panel spells it out. */}
+                {app.badge && isNew(app.id) && (
+                  <Box
+                    component="span"
+                    aria-label={app.badge}
+                    sx={{
+                      position: 'absolute', top: -2, right: -2,
+                      width: 9, height: 9, borderRadius: '50%',
+                      bgcolor: '#ef4444', border: `2px solid ${T.bg}`,
+                    }}
+                  />
+                )}
               </Box>
 
               <Typography

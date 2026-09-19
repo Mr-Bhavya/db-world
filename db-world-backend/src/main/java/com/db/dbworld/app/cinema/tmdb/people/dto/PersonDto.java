@@ -1,16 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.people.dto;
 
-import com.db.dbworld.app.cinema.tmdb.credits.entity.CreditEntity;
-import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Getter
 @Setter

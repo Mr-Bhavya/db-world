@@ -19,7 +19,6 @@ import com.db.dbworld.app.cinema.tmdb.people.repository.PersonRepository;
 import com.db.dbworld.app.cinema.tmdb.providers.entity.ProviderEntity;
 import com.db.dbworld.app.cinema.tmdb.providers.entity.TmdbProviderEntity;
 import com.db.dbworld.app.cinema.tmdb.providers.repository.ProviderRepository;
-import com.db.dbworld.app.cinema.tmdb.providers.repository.TmdbProviderRepository;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.entity.*;
 import com.db.dbworld.app.cinema.tmdb.season.mapper.*;
@@ -28,7 +27,6 @@ import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
 import com.db.dbworld.app.cinema.tmdb.service.TmdbVideoLanguageResolver;
 
-import com.db.dbworld.core.exception.ResourceNotFoundException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
@@ -297,18 +295,6 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
         })
         .flatMap(response -> withExtraLanguageVideos(response, tmdbId, RecordType.TV_SERIES))
         .block();
-    }
-
-    private void updateEpisodeReferences(TvSeriesTmdbEntity series, List<SeasonEntity> seasons,
-                                         EpisodeInfo last, EpisodeInfo next) {
-        Map<String, EpisodeEntity> episodeIndex = buildEpisodeIndex(seasons);
-
-        if (last != null) {
-            series.setLastEpisodeToAir(episodeIndex.get(last.getKey()));
-        }
-        if (next != null) {
-            series.setNextEpisodeToAir(episodeIndex.get(next.getKey()));
-        }
     }
 
     /* ======================================================
@@ -948,20 +934,6 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
         existing.setVoteCount(newEpisode.getVoteCount());
         existing.setStillPath(newEpisode.getStillPath());
         existing.setSeasonNumber(newEpisode.getSeasonNumber());
-    }
-
-    private Map<String, EpisodeEntity> buildEpisodeIndex(List<SeasonEntity> seasons) {
-        Map<String, EpisodeEntity> index = new HashMap<>();
-
-        for (SeasonEntity season : seasons) {
-            if (season.getEpisodes() != null) {
-                for (EpisodeEntity episode : season.getEpisodes()) {
-                    index.put(season.getSeasonNumber() + "_" + episode.getEpisodeNumber(), episode);
-                }
-            }
-        }
-
-        return index;
     }
 
     /* ======================================================

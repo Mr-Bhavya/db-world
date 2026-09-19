@@ -1,12 +1,12 @@
 package com.db.dbworld.app.ipo.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.ipo.dto.IpoApplicationDto;
 import com.db.dbworld.app.ipo.dto.MyIpoDto;
 import com.db.dbworld.app.ipo.dto.SaveApplicationRequest;
 import com.db.dbworld.app.ipo.service.IpoApplicationService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -6,7 +6,6 @@ import com.db.dbworld.app.cinema.tmdb.country.entity.ProductionCountryEntity;
 import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
 import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
-import org.mapstruct.InheritInverseConfiguration;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 

@@ -5,6 +5,7 @@ import com.db.dbworld.app.cinema.rail.controller.RailController;
 import com.db.dbworld.app.cinema.tmdb.collection.controller.CollectionController;
 import com.db.dbworld.app.cinema.tmdb.people.controller.PersonsController;
 import com.db.dbworld.app.ipo.controller.IpoController;
+import com.db.dbworld.app.live.controller.LiveChannelController;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.core.role.annotations.OwnerOnly;
@@ -47,6 +48,7 @@ class PublicEndpointMethodSecurityTest {
             CollectionController.class,
             PersonsController.class,
             IpoController.class,
+            LiveChannelController.class,
     };
 
     private static List<String> roleAnnotationsOn(Class<?> controller) {
@@ -112,13 +114,32 @@ class PublicEndpointMethodSecurityTest {
                 .isNotEmpty();
     }
 
+    /**
+     * The same trap on the live-TV side: {@code LiveAdminController} shares the
+     * {@code /api/live} base path with the public {@link LiveChannelController}, and it
+     * can add, edit and delete playlists and channels.
+     */
+    @org.junit.jupiter.api.Test
+    void liveAdminEndpointsStayProtected() throws ClassNotFoundException {
+        Class<?> admin = Class.forName("com.db.dbworld.app.live.controller.LiveAdminController");
+
+        assertThat(roleAnnotationsOn(admin))
+                .as("LiveAdminController mutates playlists and channels and must keep method security")
+                .isNotEmpty();
+    }
+
     /** Sanity check that the constant still lists what these tests assume. */
     @org.junit.jupiter.api.Test
     void publicGetApisCoversTheControllersUnderTest() {
         assertThat(AppConstants.PUBLIC_GET_APIS)
                 .contains("/api/cinema/catalog/**")
                 .contains("/api/ipo")
-                .contains("/api/cinema/rails");
-        assertThat(PUBLIC_CONTROLLERS).hasSize(5);
+                .contains("/api/cinema/rails")
+                .contains("/api/live/channels");
+        // The admin paths are POST/PATCH/DELETE, and this list is GET-only — but a
+        // wildcard here would open them anyway, so assert none crept in.
+        assertThat(AppConstants.PUBLIC_GET_APIS)
+                .noneMatch(path -> path.startsWith("/api/live/admin"));
+        assertThat(PUBLIC_CONTROLLERS).hasSize(6);
     }
 }

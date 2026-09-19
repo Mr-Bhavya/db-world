@@ -15,7 +15,6 @@ import com.db.dbworld.app.cinema.catalogrequest.service.CatalogIngestRequestServ
 import com.db.dbworld.app.cinema.common.dto.VoterSummary;
 import com.db.dbworld.app.cinema.common.support.RequestPushLinks;
 import com.db.dbworld.app.cinema.common.support.VoterListSupport;
-import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestScope;

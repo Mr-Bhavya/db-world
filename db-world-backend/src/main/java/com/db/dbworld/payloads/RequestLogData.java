@@ -1,6 +1,5 @@
 package com.db.dbworld.payloads;
 
-import com.db.dbworld.core.user.entity.UserEntity;
 import lombok.Builder;
 import lombok.Data;
 

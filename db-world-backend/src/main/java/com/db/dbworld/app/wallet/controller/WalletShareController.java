@@ -1,11 +1,11 @@
 package com.db.dbworld.app.wallet.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.wallet.dto.CreateShareRequest;
 import com.db.dbworld.app.wallet.dto.ShareDto;
 import com.db.dbworld.app.wallet.service.WalletShareService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.role.annotations.AnyRole;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

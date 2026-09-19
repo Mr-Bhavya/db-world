@@ -1,7 +1,6 @@
 package com.db.dbworld.app.pm.service.impl;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
-import com.db.dbworld.app.pm.dto.HostDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.HostEntity;

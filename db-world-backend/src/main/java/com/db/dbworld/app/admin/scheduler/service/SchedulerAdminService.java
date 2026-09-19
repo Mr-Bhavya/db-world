@@ -13,6 +13,8 @@ import com.db.dbworld.app.cinema.tmdb.people.scheduler.PersonSyncScheduler;
 import com.db.dbworld.app.cinema.tmdb.sync.scheduler.TmdbSyncScheduler;
 import com.db.dbworld.app.ipo.scheduler.IpoLiveScheduler;
 import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler;
+import com.db.dbworld.app.live.scheduler.LiveHealthScheduler;
+import com.db.dbworld.app.live.scheduler.LivePlaylistScheduler;
 import com.db.dbworld.app.media.sync.MediaSyncService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,8 @@ public class SchedulerAdminService {
     private final MediaSyncService              mediaSyncService;
     private final IpoPollScheduler              ipoPollScheduler;
     private final IpoLiveScheduler              ipoLiveScheduler;
+    private final LivePlaylistScheduler         livePlaylistScheduler;
+    private final LiveHealthScheduler           liveHealthScheduler;
     private final JdbcTemplate                  jdbcTemplate;
     private final JobRunRecorder                recorder;
     private final UserContext                   userContext;
@@ -103,7 +107,18 @@ public class SchedulerAdminService {
             // syncs have finished writing their rows and well before anyone is looking at the page.
             SchedulerJobConfigEntity.builder().jobId(SchedulerHistoryRetentionService.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 30 4 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(7).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(7).build(),
+            // Live TV playlist re-import. Every 6h: a playlist's channel list changes on the
+            // order of days, and re-downloading a 15 MB file more often buys nothing.
+            SchedulerJobConfigEntity.builder().jobId(LivePlaylistScheduler.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 20 */6 * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(8).build(),
+            // Live TV stream probe. Whether a stream answers changes by the minute, which is
+            // why this is a separate, much shorter cycle than the import above. Offset off
+            // the hour so a probe sweep never starts in lockstep with the re-import.
+            SchedulerJobConfigEntity.builder().jobId(LiveHealthScheduler.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 5/30 * * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(9).build()
     );
 
     /**
@@ -279,6 +294,8 @@ public class SchedulerAdminService {
             }
             case IpoLiveScheduler.JOB_ID -> ipoLiveScheduler.refreshOnce(summary);
             case SchedulerHistoryRetentionService.JOB_ID -> retentionService.prune(summary);
+            case LivePlaylistScheduler.JOB_ID -> livePlaylistScheduler.refresh(summary);
+            case LiveHealthScheduler.JOB_ID   -> liveHealthScheduler.check(summary);
             default -> throw new IllegalArgumentException("Unknown job: " + jobId);
         }
     }
@@ -593,6 +610,8 @@ public class SchedulerAdminService {
             case IpoPollScheduler.JOB_ID -> "IPO Tracker Poll";
             case IpoLiveScheduler.JOB_ID -> "IPO Live GMP, Subscription & Alerts";
             case SchedulerHistoryRetentionService.JOB_ID -> "Run History Cleanup";
+            case LivePlaylistScheduler.JOB_ID -> "Live TV Playlist Refresh";
+            case LiveHealthScheduler.JOB_ID   -> "Live TV Stream Health";
             default -> jobId;
         };
     }
@@ -607,6 +626,8 @@ public class SchedulerAdminService {
             case IpoPollScheduler.JOB_ID -> "Polls enabled IPO sources (IPO Guru, NSE, Chittorgarh), merges and ingests listing/GMP/subscription updates";
             case IpoLiveScheduler.JOB_ID -> "Refreshes live GMP, subscription, rating, market lot, P/E and listing price from investorgain, then sends any IPO push still pending \u2014 every 30 min inside the IST market window";
             case SchedulerHistoryRetentionService.JOB_ID -> "Deletes scheduler run history past its retention window — lengths are set under Settings → Scheduler (4:30 AM IST)";
+            case LivePlaylistScheduler.JOB_ID -> "Re-imports every enabled M3U playlist, merging channels and their stream URLs (every 6 hours)";
+            case LiveHealthScheduler.JOB_ID   -> "Probes every live stream URL and hides channels whose sources have all gone dead (every 30 min)";
             default -> "";
         };
     }

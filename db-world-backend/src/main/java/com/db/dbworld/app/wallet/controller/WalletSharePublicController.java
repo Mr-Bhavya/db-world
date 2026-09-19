@@ -1,9 +1,9 @@
 package com.db.dbworld.app.wallet.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.wallet.dto.SharedDocumentInfoDto;
 import com.db.dbworld.app.wallet.dto.WalletContent;
 import com.db.dbworld.app.wallet.service.WalletShareService;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

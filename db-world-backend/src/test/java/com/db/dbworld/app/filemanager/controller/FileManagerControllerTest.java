@@ -1,5 +1,6 @@
 package com.db.dbworld.app.filemanager.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.download.DownloadService;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
@@ -7,7 +8,6 @@ import com.db.dbworld.app.filemanager.dto.request.FileOperationRequest;
 import com.db.dbworld.app.filemanager.dto.request.MkdirRequest;
 import com.db.dbworld.app.filemanager.dto.request.RenameRequest;
 import com.db.dbworld.app.filemanager.service.FileOperationsService;
-import com.db.dbworld.payloads.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

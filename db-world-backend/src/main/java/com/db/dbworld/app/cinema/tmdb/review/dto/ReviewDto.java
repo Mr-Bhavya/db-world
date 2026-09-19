@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.tmdb.review.dto;
 
-import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.review.entity.AuthorDetails;
 import jakarta.persistence.*;
 import lombok.Getter;

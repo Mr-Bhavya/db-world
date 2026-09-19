@@ -6,7 +6,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.*;
 
-import java.io.Serializable;
 import java.util.List;
 
 @Getter

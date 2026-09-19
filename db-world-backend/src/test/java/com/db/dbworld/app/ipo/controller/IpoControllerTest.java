@@ -1,5 +1,6 @@
 package com.db.dbworld.app.ipo.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.ipo.dto.GmpPointDto;
 import com.db.dbworld.app.ipo.dto.IpoDetailDto;
 import com.db.dbworld.app.ipo.dto.IpoFinancialDto;
@@ -7,7 +8,6 @@ import com.db.dbworld.app.ipo.dto.IpoListResponse;
 import com.db.dbworld.app.ipo.dto.IpoSummaryDto;
 import com.db.dbworld.app.ipo.dto.SubscriptionPointDto;
 import com.db.dbworld.app.ipo.service.IpoQueryService;
-import com.db.dbworld.payloads.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

@@ -15,7 +15,7 @@ import com.db.dbworld.app.media.ingestion.migration.StreamMigrationService;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
-import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.api.response.ApiResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;

@@ -81,6 +81,8 @@ const LazyTallyReport         = lazy(() => import('@features/tally/TallyReportPa
 const LazyTallyGroupReport    = lazy(() => import('@features/tally/TallyGroupReportPage'));
 const LazyTallyGroupHistory   = lazy(() => import('@features/tally/TallyGroupHistoryPage'));
 const LazySharedDocument      = lazy(() => import('@features/wallet/SharedDocumentPage'));
+const LazyLiveTvPage          = lazy(() => import('@features/live/LiveTvPage.jsx'));
+const LazyLivePlayerPage      = lazy(() => import('@features/live/LivePlayerPage.jsx'));
 const LazyIpoListPage         = lazy(() => import('@features/ipo/pages/IpoListPage.jsx'));
 const LazyIpoDetailPage       = lazy(() => import('@features/ipo/pages/IpoDetailPage.jsx'));
 const LazyMyIposPage          = lazy(() => import('@features/ipo/pages/MyIposPage.jsx'));
@@ -268,6 +270,11 @@ const routeConfig = {
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_CINEMA_COLLECTION_ROUTE, element: <LazyCollectionPage /> },
+    // Live TV. Public for the same reason the catalog is: the channel list is plain
+    // metadata, playback streams from the channel's own CDN, and nothing here is
+    // user-scoped, so a signed-out visitor can browse and watch.
+    { path: Constants.DB_LIVE_TV_ROUTE, element: <LazyLiveTvPage /> },
+    { path: Constants.DB_LIVE_PLAYER_ROUTE, element: <LazyLivePlayerPage /> },
     { path: Constants.DB_IPO_ROUTE, element: <LazyIpoListPage /> },
     { path: Constants.DB_IPO_DETAIL_ROUTE, element: <Suspense fallback={<IpoDetailSkeleton />}><LazyIpoDetailPage /></Suspense> },
   ],

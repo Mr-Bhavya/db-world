@@ -1,8 +1,8 @@
 package com.db.dbworld.app.filemanager.location;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.filemanager.location.dto.FileLocationDto;
 import com.db.dbworld.app.filemanager.location.dto.UpsertLocationRequest;
-import com.db.dbworld.payloads.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

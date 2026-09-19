@@ -1,5 +1,6 @@
 package com.db.dbworld.app.wallet.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.wallet.dto.UpsertDocumentTypeRequest;
 import com.db.dbworld.app.wallet.dto.WalletDocumentTypeDto;
 import com.db.dbworld.app.wallet.dto.WalletStatsDto;
@@ -7,7 +8,6 @@ import com.db.dbworld.app.wallet.mapper.WalletMapper;
 import com.db.dbworld.app.wallet.service.WalletStatsService;
 import com.db.dbworld.app.wallet.service.WalletTypeService;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

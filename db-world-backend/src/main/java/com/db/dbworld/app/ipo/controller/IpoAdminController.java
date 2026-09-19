@@ -1,12 +1,12 @@
 package com.db.dbworld.app.ipo.controller;
 
+import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.ipo.dto.IpoChangeDto;
 import com.db.dbworld.app.ipo.dto.IpoDuplicateDto;
 import com.db.dbworld.app.ipo.dto.SourceHealthDto;
 import com.db.dbworld.app.ipo.service.IpoAdminService;
 import com.db.dbworld.app.ipo.service.IpoDuplicateService;
 import com.db.dbworld.core.role.annotations.AdminAccess;
-import com.db.dbworld.payloads.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

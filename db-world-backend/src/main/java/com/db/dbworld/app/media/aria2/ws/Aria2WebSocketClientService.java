@@ -28,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.db.dbworld.app.media.aria2.Aria2StatusKeys.DETAILED_KEYS;
 import static com.db.dbworld.app.media.aria2.Aria2StatusKeys.FINAL_STATUS_KEYS;
