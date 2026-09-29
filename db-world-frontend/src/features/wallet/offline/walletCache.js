@@ -31,7 +31,18 @@ const DB_NAME = 'dbworld-wallet';
 const STORE = 'walletCache';
 
 const indexKey = (userId) => `${userId}:index`;
-const fileKey = (userId, docId) => `${userId}:file:${docId}`;
+
+/**
+ * File records carry the GENERATION they were written in.
+ *
+ * Keying them by document id alone meant a re-cache overwrote the live record before it
+ * knew whether the pass would even finish — so a run that had to be abandoned had
+ * already destroyed the copy it was meant to preserve. A new generation writes beside
+ * the old one instead, the index names the generation it belongs to, and swapping that
+ * index is the single moment anything changes. Abandoning a pass just sweeps its
+ * generation; the previous one was never touched.
+ */
+const fileKey = (userId, gen, docId) => `${userId}:g${gen}:file:${docId}`;
 
 export const offlineWalletSupported = () =>
   vaultCryptoAvailable() && typeof indexedDB !== 'undefined' && !!globalThis.crypto?.subtle;
@@ -86,16 +97,29 @@ const idbClear = () => idbRun('readwrite', (s) => s.clear());
  * prompt again. This is what lets a document open after the list has already been
  * unlocked, instead of asking for the same finger twice in a row.
  */
-let sessionKey = null;   // { userId, key: CryptoKey }
+let sessionKey = null;   // { userId, key: CryptoKey, gen }
 
-const rememberKey = (userId, key) => { sessionKey = { userId: String(userId), key }; };
-const recallKey = (userId) => (sessionKey?.userId === String(userId) ? sessionKey.key : null);
+const rememberKey = (userId, key, gen) => { sessionKey = { userId: String(userId), key, gen }; };
+const recallSession = (userId) => (sessionKey?.userId === String(userId) ? sessionKey : null);
 export const forgetWalletSessionKey = () => { sessionKey = null; };
 
-/** What a re-cache is keyed on: any metadata change at all rewrites the snapshot. */
-const signatureOf = (documents) => {
-  try { return JSON.stringify(documents ?? []); } catch { return String(Date.now()); }
-};
+/**
+ * What a re-cache is keyed on: any metadata change at all rewrites the snapshot.
+ *
+ * A DIGEST, not the metadata. This value sits in IndexedDB unencrypted next to the
+ * ciphertext it guards, so storing the JSON itself — which is what this did first —
+ * published every label, type and holder name in the clear and made encrypting the
+ * record beside it pointless. A hash compares exactly as well and reveals nothing.
+ */
+async function signatureOf(documents) {
+  try {
+    const json = JSON.stringify(documents ?? []);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(json));
+    return abToB64(digest);
+  } catch {
+    return String(Date.now());   // never equal to a stored digest, so it re-caches
+  }
+}
 
 async function encryptBuffer(aesKey, buffer) {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
@@ -127,7 +151,7 @@ async function decryptBuffer(aesKey, rec) {
 export async function cacheWallet(userId, documents, fetchBlob) {
   if (!offlineWalletSupported() || !userId || !Array.isArray(documents)) return;
   try {
-    const signature = signatureOf(documents);
+    const signature = await signatureOf(documents);
     const existing = await idbGet(indexKey(userId)).catch(() => null);
     if (existing?.signature === signature) return;   // nothing changed
 
@@ -135,27 +159,49 @@ export async function cacheWallet(userId, documents, fetchBlob) {
     const aesKey = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
     const rawKey = await subtle.exportKey('raw', aesKey);
     const wrapped = await vcWrapKey(abToB64(rawKey));   // Keystore public-key wrap, no prompt
+    const gen = Date.now();
 
     // Files first. A half-written snapshot whose index promises documents it cannot open
     // is worse than the previous one, so the index — the thing readers start from — is
     // only swapped in once the bytes are actually down.
     const stored = [];
+    let missed = false;
     for (const doc of documents) {
       if (!doc?.id) continue;
       try {
         // Sequential on purpose: a wallet is a handful of documents and firing every
         // download at once on the connection that just came back helps nobody.
         const blob = await fetchBlob(doc.id);
-        if (!blob) continue;
+        if (!blob) throw new Error('no body');
         const buf = await blob.arrayBuffer();
         const enc = await encryptBuffer(aesKey, buf);
-        await idbPut(fileKey(userId, doc.id), {
+        // No file name. It was stored here in the clear, and "passport.pdf" or an
+        // Aadhaar label IS the sensitive part — the one field that describes what the
+        // ciphertext beside it contains. Nothing read it either: the decrypted index
+        // already carries every document's name.
+        await idbPut(fileKey(userId, gen, doc.id), {
           ...enc,
           contentType: blob.type || 'application/octet-stream',
-          fileName: doc.fileName ?? doc.label ?? `document-${doc.id}`,
         });
         stored.push(String(doc.id));
-      } catch { /* this one document stays online-only */ }
+      } catch { missed = true; }
+    }
+
+    /**
+     * A complete older snapshot beats a fresher one with holes in it.
+     *
+     * Re-caching mints a new key, so the files under the OLD one become unreadable the
+     * moment the index is replaced. Letting a pass through on a flaky connection would
+     * therefore trade a wallet whose documents all open for one that knows their names
+     * and can show none of them — on exactly the bad connection that makes offline
+     * matter. Metadata going a little stale is the cheaper failure.
+     *
+     * Only when something is already cached: with nothing to lose, whatever came down
+     * is strictly better than nothing.
+     */
+    if (missed && existing) {
+      await Promise.all(stored.map((id) => idbDelete(fileKey(userId, gen, id)).catch(() => {})));
+      return;
     }
 
     const metaEnc = await encryptBuffer(aesKey, new TextEncoder().encode(JSON.stringify(documents)));
@@ -166,13 +212,14 @@ export async function cacheWallet(userId, documents, fetchBlob) {
       ct: metaEnc.ct,
       signature,
       files: stored,
-      syncedAt: Date.now(),
+      gen,
+      syncedAt: gen,
     });
 
     // Files written under the PREVIOUS key can no longer be opened by anything, since the
     // raw key they used is unrecoverable. Leaving them would be dead bytes accumulating on
     // the device forever.
-    const keep = new Set(stored.map((id) => fileKey(userId, id)));
+    const keep = new Set(stored.map((id) => fileKey(userId, gen, id)));
     keep.add(indexKey(userId));
     const prefix = `${userId}:`;
     const all = await idbKeys().catch(() => []);
@@ -181,7 +228,7 @@ export async function cacheWallet(userId, documents, fetchBlob) {
         .map((k) => idbDelete(k).catch(() => {})),
     );
 
-    rememberKey(userId, aesKey);
+    rememberKey(userId, aesKey, gen);
   } catch { /* best-effort; leave any previous snapshot intact */ }
 }
 
@@ -208,7 +255,7 @@ export async function readOfflineWallet(userId) {
   try { rec = await idbGet(indexKey(userId)); } catch { return { status: 'none' }; }
   if (!rec) return { status: 'none' };
   try {
-    let aesKey = recallKey(userId);
+    let aesKey = recallSession(userId)?.key;
     if (!aesKey) {
       const rawKeyB64 = await vcUnwrapKey(rec.wrapped, {
         title: 'Unlock your wallet',
@@ -217,7 +264,7 @@ export async function readOfflineWallet(userId) {
       aesKey = await globalThis.crypto.subtle.importKey(
         'raw', b64ToAb(rawKeyB64), { name: 'AES-GCM' }, false, ['decrypt'],
       );
-      rememberKey(userId, aesKey);
+      rememberKey(userId, aesKey, rec.gen);
     }
     const plaintext = await decryptBuffer(aesKey, rec);
     const documents = JSON.parse(new TextDecoder().decode(plaintext));
@@ -238,24 +285,27 @@ export async function readOfflineWallet(userId) {
  */
 export async function readOfflineDocument(userId, docId) {
   if (!offlineWalletSupported() || !userId || !docId) return { status: 'none' };
-  let rec;
-  try { rec = await idbGet(fileKey(userId, docId)); } catch { return { status: 'none' }; }
-  if (!rec) return { status: 'none' };
 
-  let aesKey = recallKey(userId);
-  if (!aesKey) {
+  // The key AND the generation both come from the index, so a cold call has to open it
+  // first — there is no way to know which generation's record is the live one otherwise.
+  let session = recallSession(userId);
+  if (!session) {
     const opened = await readOfflineWallet(userId);
     if (opened.status !== 'ok') return { status: opened.status };
-    aesKey = recallKey(userId);
-    if (!aesKey) return { status: 'error' };
+    session = recallSession(userId);
+    if (!session) return { status: 'error' };
   }
+
+  let rec;
+  try { rec = await idbGet(fileKey(userId, session.gen, docId)); } catch { return { status: 'none' }; }
+  if (!rec) return { status: 'none' };
+
   try {
-    const buf = await decryptBuffer(aesKey, rec);
+    const buf = await decryptBuffer(session.key, rec);
     return {
       status: 'ok',
       blob: new Blob([buf], { type: rec.contentType }),
       contentType: rec.contentType,
-      fileName: rec.fileName,
     };
   } catch {
     return { status: 'error' };
