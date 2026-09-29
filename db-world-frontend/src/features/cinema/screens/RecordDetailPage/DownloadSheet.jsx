@@ -603,8 +603,15 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
           </Typography>
           <Typography sx={{ color: T.textFaint, fontSize: '0.74rem', fontWeight: 500, mt: 0.35 }}>
             {subheading ? `${subheading} · ` : ''}
-            {filtering ? `${shown} of ${total}` : total} file{(filtering ? shown : total) === 1 ? '' : 's'}
-            {totalSize ? ` · ${totalSize}` : ''}
+            {/* Episode rows open this sheet as their detail view, whether or not the
+                library holds anything — so a bare "0 files" would be the wrong answer
+                to a question the reader did not ask. */}
+            {episode && total === 0 ? 'Not in your library' : (
+              <>
+                {filtering ? `${shown} of ${total}` : total} file{(filtering ? shown : total) === 1 ? '' : 's'}
+                {totalSize ? ` · ${totalSize}` : ''}
+              </>
+            )}
           </Typography>
         </Box>
         <IconButton size="small" onClick={onClose} aria-label="Close downloads" sx={{ color: T.textMuted }}>
@@ -672,7 +679,9 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
       }}>
         {total === 0 ? (
           <Typography sx={{ color: T.textFaint, fontSize: '0.85rem', textAlign: 'center', py: 5 }}>
-            No files available for this title yet.
+            {episode
+              ? 'This episode is not in the library yet.'
+              : 'No files available for this title yet.'}
           </Typography>
         ) : shown === 0 ? (
           <Box sx={{ textAlign: 'center', py: 5 }}>

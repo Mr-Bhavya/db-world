@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Chip, MenuItem, Select, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
-import StarIcon from '@mui/icons-material/Star';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import MovieIcon from '@mui/icons-material/Movie';
@@ -184,7 +183,6 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
   const T = useT();
   const meta = ep.tmdb;
   const still = tmdbImg(meta?.stillPath, 'w300');
-  const rating = meta?.voteAverage > 0 ? Math.round(meta.voteAverage * 10) / 10 : null;
 
   // Signed out, media-info is not readable, so `ep.available` is false for every
   // episode regardless of what the library holds. Treat that as UNKNOWN, not missing:
@@ -209,6 +207,69 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
 
   const openDetails = (e) => { e?.stopPropagation?.(); onDetails(ep); };
 
+  /**
+   * Nothing on a not-in-library row was clickable at all — the synopsis was clamped
+   * with no way to finish it, the still did nothing, and the only control was a
+   * Request pill. The episode's own details do not depend on holding a file, so an
+   * unheld row opens the same sheet; it simply reports an empty library instead of a
+   * file list. Signed out stays inert, because there we genuinely do not know.
+   */
+  const clickable = available || (!unknown && Boolean(meta));
+  const activate = (e) => (available ? onPlay(ep) : openDetails(e));
+
+  /**
+   * The synopsis, rendered in ONE of two slots depending on width.
+   *
+   * On a phone it sat beside a 116px still with barely half the row to work with and
+   * clipped mid-word every time; it now gets its own full-width line underneath. Only
+   * one copy is ever displayed — the other is `display: none`, so it is out of the
+   * accessibility tree too and nothing is announced twice.
+   */
+  const renderOverview = (displaySx) => {
+    if (meta?.overview) {
+      return (
+        <Typography
+          // Available rows PLAY on tap, so the synopsis needs its own target to reach
+          // the details. Unavailable rows already open details, so there it just bubbles.
+          {...(available ? {
+            onClick: openDetails,
+            role: 'button',
+            tabIndex: 0,
+            'aria-label': `Full details for episode ${numeral}`,
+            onKeyDown: (e) => { if (e.key === 'Enter') openDetails(e); },
+          } : {})}
+          sx={{
+            color: T.textMuted, lineHeight: 1.55, mt: 0.6,
+            fontSize: { xs: '0.76rem', sm: '0.8rem', xl: '0.88rem' },
+            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            ...displaySx,
+            ...(available && {
+              cursor: 'pointer',
+              '&:hover': { color: T.text },
+              '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2, borderRadius: 1 },
+            }),
+          }}
+        >
+          {meta.overview}
+        </Typography>
+      );
+    }
+    if (ep.orphan) {
+      return (
+        <Typography sx={{
+          color: T.textFaint, fontStyle: 'italic', mt: 0.6,
+          fontSize: { xs: '0.74rem', sm: '0.78rem' },
+          WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          ...displaySx,
+        }}>
+          {ep.files[0]?.general?.fileName}
+        </Typography>
+      );
+    }
+    return null;
+  };
+
+
   return (
     <Box
       component={motion.div}
@@ -218,24 +279,31 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
       // The whole row is the play target when there is something to play. The still
       // carries the glyph; a separate Play pill underneath was a second control for the
       // same intent and the tallest thing in the row.
-      {...(available ? {
+      {...(clickable ? {
         role: 'button',
         tabIndex: 0,
-        'aria-label': `Play episode ${numeral}${name ? `, ${name}` : ''}`,
-        onClick: () => onPlay(ep),
+        'aria-label': available
+          ? `Play episode ${numeral}${name ? `, ${name}` : ''}`
+          : `Details for episode ${numeral}${name ? `, ${name}` : ''}`,
+        onClick: (e) => activate(e),
         onKeyDown: (e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlay(ep); }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(e); }
         },
       } : {})}
       sx={{
         display: 'flex',
-        gap: { xs: 1.5, sm: 2 },
+        // Phones stack: the still and the details share one line, and the synopsis
+        // gets the full width underneath. Beside a 116px still it had barely half the
+        // row to work with and clipped mid-word every time; below it, the same two
+        // lines carry roughly twice the text.
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: { xs: 0, sm: 2 },
         py: 1.35,
         borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
         '&:last-of-type': { borderBottom: 'none' },
         alignItems: 'center',
         opacity: unknown || available ? 1 : 0.55,
-        ...(available && {
+        ...(clickable && {
           cursor: 'pointer',
           borderRadius: 1,
           transition: 'background-color .16s ease',
@@ -244,6 +312,12 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
         }),
       }}
     >
+      {/* On xs this is the top line; from sm it is `display: contents` so the three
+          children below become direct flex children of the row again. */}
+      <Box sx={{
+        display: { xs: 'flex', sm: 'contents' },
+        gap: 1.5, alignItems: 'center', width: '100%', minWidth: 0,
+      }}>
       {/* Still. Nothing is drawn over it but the play affordance and the watched bar —
           the episode number moved into the title line. */}
       <Box sx={{
@@ -327,12 +401,8 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
           display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap',
           mt: 0.3, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
         }}>
-          {rating != null && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-              <StarIcon sx={{ fontSize: 12, color: '#fbbf24' }} />
-              <span>{rating}</span>
-            </Box>
-          )}
+          {/* Rating moved to the sheet header. On a row it is a number you cannot act
+              on, competing for a line that has to hold the date and the runtime. */}
           {meta?.airDate && <span>{formatDate(meta.airDate)}</span>}
           {meta?.runtime > 0 && <span>{formatRuntime(meta.runtime)}</span>}
           {ep.orphan && (
@@ -352,37 +422,7 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
           )}
         </Box>
 
-        {meta?.overview ? (
-          <Typography
-            {...(available ? {
-              onClick: openDetails,
-              role: 'button',
-              tabIndex: 0,
-              'aria-label': `Full details for episode ${numeral}`,
-              onKeyDown: (e) => { if (e.key === 'Enter') openDetails(e); },
-            } : {})}
-            sx={{
-              color: T.textMuted, lineHeight: 1.55, mt: 0.6,
-              fontSize: { xs: '0.76rem', sm: '0.8rem', xl: '0.88rem' },
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              ...(available && {
-                cursor: 'pointer',
-                '&:hover': { color: T.text },
-                '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2, borderRadius: 1 },
-              }),
-            }}
-          >
-            {meta.overview}
-          </Typography>
-        ) : ep.orphan ? (
-          <Typography sx={{
-            color: T.textFaint, fontStyle: 'italic', mt: 0.6,
-            fontSize: { xs: '0.74rem', sm: '0.78rem' },
-            display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
-            {ep.files[0]?.general?.fileName}
-          </Typography>
-        ) : null}
+        {renderOverview({ display: { xs: 'none', sm: '-webkit-box' } })}
 
         {unknown ? (
           // Signed out: we cannot tell whether this episode is held, so offer neither
@@ -428,6 +468,10 @@ function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progres
           <DownloadIcon sx={{ fontSize: 19 }} />
         </Box>
       )}
+      </Box>
+
+      {/* Phones only — the full-width line the synopsis moved to. */}
+      {renderOverview({ display: { xs: '-webkit-box', sm: 'none' }, mt: 1, width: '100%' })}
     </Box>
   );
 }
