@@ -3,6 +3,7 @@ import {
   fmtRuntime,
   buildMobileMeta,
   heroArtCandidates,
+  isTitledArt,
   heroBadge,
   classifyLogoTone,
   interpolateRgb,
@@ -58,6 +59,23 @@ describe('heroArtCandidates', () => {
     const onlyText = { posterPath: '/poster-text.jpg', backdropPathText: '/backdrop-text.jpg' };
     expect(heroArtCandidates(onlyText, { portrait: true, hasLogo: true }).filter(Boolean))
       .toEqual(['/poster-text.jpg', '/backdrop-text.jpg']);
+  });
+
+  it('never offers a portrait poster ahead of a backdrop for a landscape frame', () => {
+    // A 2:3 poster cover-cropped into a 3:2 frame shows the middle ~44% of its height,
+    // upscaled. A titled backdrop is the wrong content but the right shape, and the
+    // caller drops its own logo for it; the poster has no such remedy.
+    const noCleanBackdrop = { ...full, backdropPath: null };
+    [true, false].forEach((hasLogo) => {
+      expect(heroArtCandidates(noCleanBackdrop, { portrait: false, hasLogo }).filter(Boolean)[0])
+        .toBe('/backdrop-text.jpg');
+    });
+  });
+
+  it('only reaches a poster in landscape when there is no backdrop at all', () => {
+    const noBackdrops = { posterPathClean: '/poster-clean.jpg', posterPath: '/poster-text.jpg' };
+    expect(heroArtCandidates(noBackdrops, { portrait: false, hasLogo: true }).filter(Boolean))
+      .toEqual(['/poster-clean.jpg', '/poster-text.jpg']);
   });
 
   it('always returns the same four paths, just reordered', () => {
@@ -228,6 +246,27 @@ describe('darken', () => {
 // ─── heroBadge ─────────────────────────────────────────────────────────────
 // The single contextual chip on the phone hero card. Pure so the precedence is
 // pinned down: a rail-supplied rank beats anything inferred from a date.
+
+describe('isTitledArt', () => {
+  it('recognises both text-bearing variants and nothing else', () => {
+    expect(isTitledArt(full, '/backdrop-text.jpg')).toBe(true);
+    expect(isTitledArt(full, '/poster-text.jpg')).toBe(true);
+    expect(isTitledArt(full, '/backdrop-clean.jpg')).toBe(false);
+    expect(isTitledArt(full, '/poster-clean.jpg')).toBe(false);
+  });
+
+  it('is false for a missing path or record rather than throwing', () => {
+    expect(isTitledArt(full, null)).toBe(false);
+    expect(isTitledArt(null, '/backdrop-text.jpg')).toBe(false);
+  });
+
+  it('agrees with the landscape fallback, so a logo is dropped exactly when needed', () => {
+    const noCleanBackdrop = { ...full, backdropPath: null };
+    const chosen = heroArtCandidates(noCleanBackdrop, { portrait: false, hasLogo: true })
+      .filter(Boolean)[0];
+    expect(isTitledArt(noCleanBackdrop, chosen)).toBe(true);
+  });
+});
 
 describe('heroBadge', () => {
   const NOW = Date.parse('2026-08-20T00:00:00Z');
