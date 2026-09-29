@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Box, Typography, IconButton, Tooltip, CircularProgress, Button } from '@mui/material';
 import { PlayArrow, Close, InfoOutlined } from '@mui/icons-material';
-import { tmdbImg } from '../../api/cinemaApi';
+import { tmdbImg, tmdbSrcSet } from '../../api/cinemaApi';
 
 // "1h 45m" / "12m" — used for the time-remaining subline.
 const formatTime = (ms) => {
@@ -52,8 +52,14 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
   const rightLabel = isNext ? 'Next episode' : (dur > 0 ? `${formatTime(dur - pos)} left` : null);
   const subLine = [epLabel, rightLabel].filter(Boolean).join('  ·  ');
 
-  const img = tmdbImg(item.backdropPath ?? item.posterPath, 'w780');
+  // The card is 230-300px wide, so a flat w780 was roughly double what even a 2x
+  // phone needs and short of what a 300px slot wants at 3x. Both from one literal.
+  const artPath = item.backdropPath ?? item.posterPath;
+  const img = tmdbImg(artPath, 'w780');
+  const imgSrcSet = tmdbSrcSet(artPath, { min: 300, max: 1280 });
   const logoUrl = item.logoPath ? tmdbImg(item.logoPath, 'w300') : null;
+  const logoSrcSet = tmdbSrcSet(item.logoPath, { min: 154, max: 500 });
+  const ART_SIZES = '(min-width:900px) 300px, (min-width:600px) 260px, 230px';
   const cardRef = useRef(null);
 
   const resume = (e) => { e?.stopPropagation?.(); if (!loading) onResume(item); };
@@ -89,7 +95,8 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
 
   // Wordmark logo, falling back to the text title — desktop draws this over the art.
   const titleMark = logoUrl ? (
-    <Box component="img" src={logoUrl} alt="" loading="lazy" decoding="async"
+    <Box component="img" src={logoUrl} srcSet={logoSrcSet} sizes="234px"
+      alt="" loading="lazy" decoding="async"
       sx={{ maxHeight: 30, maxWidth: '78%', objectFit: 'contain', objectPosition: 'left bottom',
         display: 'block', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,.85))' }} />
   ) : (
@@ -135,7 +142,8 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
         }}
       >
         {img && (
-          <Box component="img" src={img} alt="" loading="lazy" decoding="async"
+          <Box component="img" src={img} srcSet={imgSrcSet} sizes={ART_SIZES}
+            alt="" loading="lazy" decoding="async"
             sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         )}
 

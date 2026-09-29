@@ -9,14 +9,14 @@ import MovieIcon from '@mui/icons-material/Movie';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AddRoundedIcon from '@mui/icons-material/Add';
 import { useT } from '@shared/theme/ThemeContext';
-import { tmdbImg } from '../../../api/cinemaApi';
-import { getQuality, getHdrTags, qualityRank } from '../../../media/helpers';
+import { tmdbImg, tmdbSrcSet } from '../../../api/cinemaApi';
+import { getQuality } from '../../../media/helpers';
 import { QUALITY_META } from '../../../media/constants';
 import { episodeRefOf } from '../../../utils/episodeUtils';
 import { episodeProgress } from '../../../utils/watchProgress';
 import { coveringRequest, requestScopeKey } from '../../../utils/requestScope';
 import SectionHeading from '../shared/SectionHeading';
-import { formatDate, formatRuntime } from '../helpers';
+import { formatDate, formatRuntime, distinctEpisodeName } from '../helpers';
 
 /* ═══════════════════════════════════════════════════════════
    MERGE
@@ -52,15 +52,6 @@ function indexFiles(files) {
   return { bySeason, loose };
 }
 
-/** Best (highest) quality label across a set of files. */
-function bestQuality(files) {
-  let best = null;
-  for (const f of files ?? []) {
-    const q = getQuality(f?.video ?? {}, f?.general?.fileName);
-    if (best === null || qualityRank(q) < qualityRank(best)) best = q;
-  }
-  return best;
-}
 
 /**
  * One row per episode, merged from both sides.
@@ -188,7 +179,7 @@ function CoveredNote({ request }) {
    EPISODE ROW
 ═══════════════════════════════════════════════════════════ */
 
-function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progress,
+function EpisodeRow({ ep, index, onPlay, onDetails, onRequest, requests, progress,
   filesKnown = true }) {
   const T = useT();
   const meta = ep.tmdb;
@@ -201,13 +192,10 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
   // already have is worse than saying nothing.
   const unknown = !filesKnown;
   const available = ep.available;
-  const quality = available ? bestQuality(ep.files) : null;
-  const qMeta = quality ? (QUALITY_META[quality] ?? QUALITY_META.Unknown) : null;
-  const hdr = ep.available
-    ? getHdrTags(ep.files[0]?.video?.hdrDetails, ep.files[0]?.general?.fileName)
-    : [];
 
-  const title = meta?.name || (ep.orphan ? `Episode ${ep.episodeNumber}` : `Episode ${ep.episodeNumber}`);
+  const numeral = ep.seasonNumber === 0 ? `SP${ep.episodeNumber}` : String(ep.episodeNumber);
+  const name = distinctEpisodeName(meta?.name);
+
   // How far through this episode the viewer is, across whichever master they played.
   const watched = episodeProgress(progress, ep.files);
 
@@ -219,26 +207,45 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
   const cover = own?.hasMyVote ? null : coveringRequest(requests, epScope);
   const coveredByMine = !own?.hasMyVote && !!cover?.hasMyVote && cover !== own;
 
+  const openDetails = (e) => { e?.stopPropagation?.(); onDetails(ep); };
+
   return (
     <Box
       component={motion.div}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.32, delay: Math.min(index, 8) * 0.035, ease: [0.22, 1, 0.36, 1] }}
+      // The whole row is the play target when there is something to play. The still
+      // carries the glyph; a separate Play pill underneath was a second control for the
+      // same intent and the tallest thing in the row.
+      {...(available ? {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': `Play episode ${numeral}${name ? `, ${name}` : ''}`,
+        onClick: () => onPlay(ep),
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlay(ep); }
+        },
+      } : {})}
       sx={{
         display: 'flex',
         gap: { xs: 1.5, sm: 2 },
-        py: 1.75,
+        py: 1.35,
         borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
         '&:last-of-type': { borderBottom: 'none' },
-        // Centred, not top-aligned: rows vary a lot in height (a long synopsis
-        // versus none at all), and a still pinned to the top left short rows
-        // looking lopsided.
         alignItems: 'center',
         opacity: unknown || available ? 1 : 0.55,
+        ...(available && {
+          cursor: 'pointer',
+          borderRadius: 1,
+          transition: 'background-color .16s ease',
+          '&:hover': { bgcolor: alpha(T.text, 0.04) },
+          '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: -2 },
+        }),
       }}
     >
-      {/* Still + prominent episode number */}
+      {/* Still. Nothing is drawn over it but the play affordance and the watched bar —
+          the episode number moved into the title line. */}
       <Box sx={{
         position: 'relative', flexShrink: 0,
         width: { xs: 116, sm: 168, xl: 208 },
@@ -252,37 +259,41 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
       }}>
         {still ? (
           <Box
-            component="img" src={still} alt="" loading="lazy" draggable={false}
+            component="img"
+            src={still}
+            // One bucket could never be right for all four widths above: w300 is nearly
+            // three times what a 116px phone slot needs and barely half what a 260px
+            // slot wants at 2x. The ladder lets the browser resolve both.
+            srcSet={tmdbSrcSet(meta?.stillPath, { min: 185, max: 780 })}
+            sizes="(min-width:1920px) 260px, (min-width:1536px) 208px, (min-width:600px) 168px, 116px"
+            alt="" loading="lazy" decoding="async" draggable={false}
             sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
           <MovieIcon sx={{ fontSize: 28, color: alpha(T.text, 0.18) }} />
         )}
 
-        {/* The episode number is the thing people scan for, so it reads as a
-            label rather than a caption — solid plate, not a translucent chip. */}
-        <Box sx={{
-          position: 'absolute', top: 6, left: 6,
-          px: 0.9, py: 0.3, borderRadius: 1,
-          bgcolor: ep.available ? alpha(T.teal, 0.95) : alpha('#000', 0.72),
-          border: `1px solid ${ep.available ? T.teal : alpha('#fff', 0.22)}`,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
-        }}>
-          <Typography sx={{
-            color: '#fff', fontWeight: 900, lineHeight: 1,
-            fontSize: { xs: '0.72rem', sm: '0.78rem', xl: '0.86rem' },
-            letterSpacing: 0.4, fontVariantNumeric: 'tabular-nums',
+        {available && (
+          <Box sx={{
+            position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+            zIndex: 2, pointerEvents: 'none',
           }}>
-            {ep.seasonNumber === 0 ? 'SP' : 'E'}{String(ep.episodeNumber).padStart(2, '0')}
-          </Typography>
-        </Box>
+            <Box sx={{
+              width: 34, height: 34, borderRadius: '50%',
+              bgcolor: alpha('#000', 0.45), border: `1.5px solid ${alpha('#fff', 0.9)}`,
+              display: 'grid', placeItems: 'center',
+            }}>
+              <PlayArrowIcon sx={{ fontSize: 19, color: '#fff', ml: '1px' }} />
+            </Box>
+          </Box>
+        )}
 
         {/* Watched bar, same as the player's episode list — this is where episodes get
             started from, so it's where "did I already see this one" needs answering. */}
         {watched > 0 && (
           <Box sx={{
             position: 'absolute', left: 0, right: 0, bottom: 0, height: 3,
-            bgcolor: alpha('#fff', 0.28),
+            bgcolor: alpha('#fff', 0.28), zIndex: 3,
           }}>
             <Box sx={{ width: `${Math.round(watched * 100)}%`, height: '100%', bgcolor: T.teal }} />
           </Box>
@@ -291,36 +302,30 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
 
       {/* Body */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
           <Typography sx={{
-            color: T.text, fontWeight: 700, lineHeight: 1.3,
+            color: T.textFaint, fontWeight: 800, flexShrink: 0,
+            fontVariantNumeric: 'tabular-nums',
             fontSize: { xs: '0.88rem', sm: '0.94rem', xl: '1.05rem' },
           }}>
-            {title}
+            {numeral}
           </Typography>
-          {quality && (
-            <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-              <Chip label={qMeta.label} size="small" sx={{
-                height: 19, fontSize: '0.6rem', fontWeight: 800,
-                bgcolor: alpha(qMeta.color, 0.2), color: qMeta.color,
-                border: `1px solid ${alpha(qMeta.color, 0.38)}`,
-                '& .MuiChip-label': { px: 0.7 },
-              }} />
-              {hdr.slice(0, 1).map((h) => (
-                <Chip key={h} label={h} size="small" sx={{
-                  height: 19, fontSize: '0.6rem', fontWeight: 800,
-                  bgcolor: alpha('#f59e0b', 0.2), color: '#fbbf24',
-                  border: `1px solid ${alpha('#f59e0b', 0.38)}`,
-                  '& .MuiChip-label': { px: 0.7 },
-                }} />
-              ))}
-            </Box>
-          )}
+          <Typography sx={{
+            color: T.text, fontWeight: 700, lineHeight: 1.3, minWidth: 0,
+            fontSize: { xs: '0.88rem', sm: '0.94rem', xl: '1.05rem' },
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {name ?? `Episode ${ep.episodeNumber}`}
+          </Typography>
         </Box>
 
+        {/* Quality and HDR chips used to live up here. Every row in a library that is
+            almost entirely 1080p said "1080p", which differentiates nothing while
+            costing the title its full width. That detail now lives PER FILE in the
+            episode sheet, where it is actually actionable. */}
         <Box sx={{
           display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap',
-          mt: 0.4, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
+          mt: 0.3, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
         }}>
           {rating != null && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
@@ -348,16 +353,30 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
         </Box>
 
         {meta?.overview ? (
-          <Typography sx={{
-            color: T.textMuted, lineHeight: 1.6, mt: 0.85,
-            fontSize: { xs: '0.76rem', sm: '0.8rem', xl: '0.88rem' },
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
+          <Typography
+            {...(available ? {
+              onClick: openDetails,
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': `Full details for episode ${numeral}`,
+              onKeyDown: (e) => { if (e.key === 'Enter') openDetails(e); },
+            } : {})}
+            sx={{
+              color: T.textMuted, lineHeight: 1.55, mt: 0.6,
+              fontSize: { xs: '0.76rem', sm: '0.8rem', xl: '0.88rem' },
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              ...(available && {
+                cursor: 'pointer',
+                '&:hover': { color: T.text },
+                '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2, borderRadius: 1 },
+              }),
+            }}
+          >
             {meta.overview}
           </Typography>
         ) : ep.orphan ? (
           <Typography sx={{
-            color: T.textFaint, fontStyle: 'italic', mt: 0.85,
+            color: T.textFaint, fontStyle: 'italic', mt: 0.6,
             fontSize: { xs: '0.74rem', sm: '0.78rem' },
             display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}>
@@ -365,59 +384,50 @@ function EpisodeRow({ ep, index, onPlay, onDownload, onRequest, requests, progre
           </Typography>
         ) : null}
 
-        <Box sx={{ display: 'flex', gap: 1, mt: 1.25, flexWrap: 'wrap' }}>
-          {unknown ? (
-            // Signed out: we cannot tell whether this episode is held, so offer neither
-            // Play nor Request. The season chip above states what the public rollup does
-            // know, and the hero's Watch button prompts to sign in — which is the honest
-            // route to the rest. Offering "Request episode" here would invite a request
-            // for something already in the library.
-            <Typography sx={{ fontSize: '0.74rem', color: T.textFaint }}>
-              Sign in to see what is available
-            </Typography>
-          ) : ep.available ? (
-            <>
-              <Box
-                component={motion.button}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => onPlay(ep)}
-                sx={{
-                  display: 'inline-flex', alignItems: 'center', gap: 0.6,
-                  border: 'none', borderRadius: 999, cursor: 'pointer',
-                  bgcolor: T.teal, color: '#fff',
-                  px: 1.75, py: 0.65, fontWeight: 800, fontSize: '0.75rem',
-                  '&:hover': { filter: 'brightness(1.12)' },
-                }}
-              >
-                <PlayArrowIcon sx={{ fontSize: 16 }} /> Play
-              </Box>
-              <Box
-                component={motion.button}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => onDownload(ep)}
-                sx={{
-                  display: 'inline-flex', alignItems: 'center', gap: 0.6,
-                  borderRadius: 999, cursor: 'pointer',
-                  bgcolor: alpha(T.text, 0.08), color: T.text,
-                  border: `1px solid ${alpha(T.text, 0.14)}`,
-                  px: 1.75, py: 0.65, fontWeight: 700, fontSize: '0.75rem',
-                  '&:hover': { bgcolor: alpha(T.text, 0.16) },
-                }}
-              >
-                <DownloadIcon sx={{ fontSize: 15 }} /> Download
-              </Box>
-            </>
-          ) : coveredByMine ? (
-            <CoveredNote request={cover} />
-          ) : (
-            <RequestPill
-              label="Request episode"
-              request={own}
-              onClick={() => onRequest(epScope)}
-            />
-          )}
-        </Box>
+        {unknown ? (
+          // Signed out: we cannot tell whether this episode is held, so offer neither
+          // Play nor Request. The season chip above states what the public rollup does
+          // know, and the hero's Watch button prompts to sign in — which is the honest
+          // route to the rest. Offering "Request episode" here would invite a request
+          // for something already in the library.
+          <Typography sx={{ fontSize: '0.74rem', color: T.textFaint, mt: 0.85 }}>
+            Sign in to see what is available
+          </Typography>
+        ) : !available ? (
+          <Box sx={{ display: 'flex', gap: 1, mt: 0.85, flexWrap: 'wrap' }}>
+            {coveredByMine
+              ? <CoveredNote request={cover} />
+              : <RequestPill label="Request episode" request={own} onClick={() => onRequest(epScope)} />}
+          </Box>
+        ) : null}
       </Box>
+
+      {/* Details / downloads. One icon rather than a labelled pill: the row itself is
+          Play now, so this is the only button left, and it opens the sheet carrying the
+          full synopsis, the file list and every quality the row stopped showing. */}
+      {available && (
+        <Box
+          component={motion.button}
+          whileTap={{ scale: 0.92 }}
+          onClick={openDetails}
+          aria-label={`Details and downloads for episode ${numeral}`}
+          sx={{
+            position: 'relative', flexShrink: 0, alignSelf: 'center',
+            width: 36, height: 36, p: 0, border: 'none', borderRadius: '50%',
+            bgcolor: 'transparent', color: T.textMuted, cursor: 'pointer',
+            display: 'grid', placeItems: 'center',
+            '&:hover': { bgcolor: alpha(T.text, 0.1), color: T.text },
+            '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2 },
+            // 36px drawn, 44px tappable.
+            '&::after': {
+              content: '""', position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)', width: 44, height: 44,
+            },
+          }}
+        >
+          <DownloadIcon sx={{ fontSize: 19 }} />
+        </Box>
+      )}
     </Box>
   );
 }
@@ -712,7 +722,7 @@ export default function SeasonsSection({
               ep={ep}
               index={i}
               onPlay={onPlayEpisode}
-              onDownload={onDownloadEpisode}
+              onDetails={onDownloadEpisode}
               onRequest={onRequest}
               requests={requests}
               progress={progress}

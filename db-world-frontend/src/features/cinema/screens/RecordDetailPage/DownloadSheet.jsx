@@ -25,7 +25,9 @@ import { resolveMediaUrl } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-import { tmdbImg } from '../../api/cinemaApi';
+import { tmdbImg, tmdbSrcSet } from '../../api/cinemaApi';
+import { formatDate, formatRuntime } from './helpers';
+import StarIcon from '@mui/icons-material/Star';
 import { getCodec, getHdrTags, getQuality, qualityRank } from '../../media/helpers';
 import { QUALITY_META } from '../../media/constants';
 import { pickAutoQuality } from '../../media/pickAutoQuality';
@@ -83,6 +85,83 @@ function expiryHint(url) {
   } catch {
     return null;
   }
+}
+
+/* ── episode header ─────────────────────────────────────────────────────── */
+
+/** `Episode 3` / `Special 2` — the sheet's own title when opened from a row. */
+const episodeHeading = (ep) =>
+  (ep?.seasonNumber === 0 ? `Special ${ep?.episodeNumber}` : `Episode ${ep?.episodeNumber}`);
+
+/**
+ * The episode's own information, above its files.
+ *
+ * The episode rows deliberately gave things up — the synopsis is clamped to two lines
+ * and the quality chips are gone entirely, because "1080p" on every row of an all-1080p
+ * library differentiates nothing while costing the title its width. None of that is
+ * lost; it moved here, where there is room for the full synopsis and where quality is
+ * attached to the individual file you are choosing between rather than summarised.
+ */
+function EpisodeHeader({ ep }) {
+  const T = useT();
+  const meta = ep?.tmdb;
+  const rating = meta?.voteAverage > 0 ? Math.round(meta.voteAverage * 10) / 10 : null;
+  const bits = [
+    meta?.airDate ? formatDate(meta.airDate) : null,
+    meta?.runtime > 0 ? formatRuntime(meta.runtime) : null,
+  ].filter(Boolean);
+
+  return (
+    <Box sx={{
+      display: 'flex', gap: 1.5, alignItems: 'flex-start',
+      px: { xs: 2, sm: 2.5 }, py: 1.75,
+      borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
+    }}>
+      {meta?.stillPath && (
+        <Box
+          component="img"
+          src={tmdbImg(meta.stillPath, 'w300')}
+          srcSet={tmdbSrcSet(meta.stillPath, { min: 185, max: 500 })}
+          sizes="132px"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          sx={{
+            width: 132, aspectRatio: '16/9', flexShrink: 0,
+            objectFit: 'cover', borderRadius: 1.5, display: 'block',
+            border: `1px solid ${alpha(T.text, 0.08)}`,
+          }}
+        />
+      )}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        {meta?.name && (
+          <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.3 }}>
+            {meta.name}
+          </Typography>
+        )}
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap',
+          mt: 0.3, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
+        }}>
+          {rating != null && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+              <StarIcon sx={{ fontSize: 12, color: '#fbbf24' }} />
+              <span>{rating}</span>
+            </Box>
+          )}
+          {bits.map((b) => <span key={b}>{b}</span>)}
+        </Box>
+        {/* Unclamped. This is the one place the whole synopsis is readable. */}
+        {meta?.overview && (
+          <Typography sx={{
+            color: T.textMuted, fontSize: '0.78rem', lineHeight: 1.6, mt: 0.7,
+          }}>
+            {meta.overview}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
 }
 
 /* ── one file row ───────────────────────────────────────────────────────── */
@@ -411,7 +490,7 @@ function buildSections(files, episodeMode) {
  * Bottom sheet on phones, centred dialog from `sm` up — a full-height sheet on a desktop
  * monitor is a lot of travel for a short list.
  */
-export default function DownloadSheet({ open, onClose, files, record, heading, subheading }) {
+export default function DownloadSheet({ open, onClose, files, record, heading, subheading, episode = null }) {
   const T = useT();
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -520,7 +599,7 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
       }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, fontSize: '1.02rem', letterSpacing: -0.2 }}>
-            {heading ?? 'Download'}
+            {heading ?? (episode ? episodeHeading(episode) : 'Download')}
           </Typography>
           <Typography sx={{ color: T.textFaint, fontSize: '0.74rem', fontWeight: 500, mt: 0.35 }}>
             {subheading ? `${subheading} · ` : ''}
@@ -532,6 +611,11 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
           <CloseIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Box>
+
+      {/* Opened from an episode row, this sheet IS that episode's detail view: the row
+          shows two clamped lines and no quality at all, and this is where the rest
+          lives. Without it the rows would simply have lost information. */}
+      {episode && <EpisodeHeader ep={episode} />}
 
       {showFilters && (
         <Box sx={{

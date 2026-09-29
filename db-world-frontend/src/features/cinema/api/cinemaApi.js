@@ -27,8 +27,7 @@ export const removeContinueWatching = (recordId) =>
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */
-export const tmdbImg = (path, quality = 'original') =>
-  path ? `https://image.tmdb.org/t/p/${quality}${path}` : null;
+export { tmdbImg, tmdbSrcSet, TMDB_WIDTHS } from './tmdbImage';
 
 /** Unwrap ApiResponse<T> → T */
 const unwrap = (r) => r.data?.data ?? r.data;

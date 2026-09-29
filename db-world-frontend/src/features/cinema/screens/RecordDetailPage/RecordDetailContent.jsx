@@ -292,6 +292,9 @@ export default function RecordDetailContent({
 
   const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
   const [downloadLabel, setDownloadLabel] = useState(null);
+  // The episode the sheet is open for, when it was opened from an episode row. The
+  // sheet doubles as that episode's detail view, so it needs the TMDB side too.
+  const [downloadEp, setDownloadEp] = useState(null);
 
   /**
    * Whether the library holds anything for this title.
@@ -431,6 +434,7 @@ export default function RecordDetailContent({
   }, [launch, ensureMediaFiles, continueItem]);
 
   const openDownloads = useCallback(async () => {
+    setDownloadEp(null);
     setDownloadFiles(await ensureMediaFiles());
     setDownloadLabel(null);
   }, [ensureMediaFiles]);
@@ -441,6 +445,7 @@ export default function RecordDetailContent({
 
   const downloadEpisode = useCallback((ep) => {
     setDownloadFiles(ep?.files ?? []);
+    setDownloadEp(ep ?? null);
     setDownloadLabel(
       ep?.seasonNumber != null && ep?.episodeNumber != null
         ? `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
@@ -801,8 +806,9 @@ export default function RecordDetailContent({
 
       <DownloadSheet
         open={downloadFiles !== null}
-        onClose={() => setDownloadFiles(null)}
+        onClose={() => { setDownloadFiles(null); setDownloadEp(null); }}
         files={downloadFiles ?? []}
+        episode={downloadEp}
         record={record}
         subheading={downloadLabel}
       />
