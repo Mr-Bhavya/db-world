@@ -67,13 +67,14 @@ const StyledAppBar = styled(AppBar, {
     : coverColor
       ? 'transparent'
       : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.75)} 0%, transparent 100%)`,
-  backdropFilter: scrolled ? 'blur(8px)' : 'none',
-  WebkitBackdropFilter: scrolled ? 'blur(8px)' : 'none',
+  // NO backdrop-filter. The scrolled background is 0.97 alpha — visually opaque — so a
+  // blur behind it could never be seen, but it still forced the compositor to re-sample
+  // the full width of the page behind the bar on every scroll frame. That was the bulk
+  // of the scroll cost on Android, paid for an effect nobody can see.
   boxShadow: scrolled ? `0 1px 0 ${alpha(theme.palette.common.white, 0.06)}` : 'none',
   borderBottom: 'none',
-  transition: 'background 0.4s ease, backdrop-filter 0.4s ease',
+  transition: 'background 0.4s ease',
   backgroundImage: 'none',
-  willChange: 'background',
 }));
 
 /** Desktop text-only nav link */
@@ -364,9 +365,15 @@ function Navbar({ coverColor, bleedUnderTop = false }) {
 
   // Scroll detection
   useEffect(() => {
+    // Two thresholds, not one. A single `scrollY > 10` sits right where a finger rests at
+    // the top of the page: a few px of drift flipped `scrolled` on and off repeatedly, and
+    // each flip restarted a 0.4s background transition — the header flicker.
     const onScroll = () => {
       if (scrollTimerRef.current) cancelAnimationFrame(scrollTimerRef.current);
-      scrollTimerRef.current = requestAnimationFrame(() => setIsScrolled(window.scrollY > 10));
+      scrollTimerRef.current = requestAnimationFrame(() => {
+        const y = window.scrollY;
+        setIsScrolled((was) => (was ? y > 4 : y > 28));
+      });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
