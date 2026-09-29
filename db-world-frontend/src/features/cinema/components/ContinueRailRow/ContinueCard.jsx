@@ -44,12 +44,25 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
   const iconBtnSx = {
     bgcolor: 'rgba(0,0,0,.55)', color: '#fff', border: '1px solid rgba(255,255,255,.2)', p: 0.5,
     '&:hover': { bgcolor: 'rgba(0,0,0,.82)' },
+    '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
+  };
+
+  /**
+   * Below the image on mobile these were 30px boxes sitting side by side — under the
+   * 44px minimum, and one of them throws away your position in the title. The painted
+   * chip stays its old size; the TARGET is grown around it with padding and pulled back
+   * out with a negative margin, so nothing moves and the row does not get taller.
+   */
+  const touchTargetSx = {
+    ...iconBtnSx,
+    p: 1.1, m: '-7px',
+    '& .MuiSvgIcon-root': { display: 'block' },
   };
 
   // Wordmark logo, falling back to the text title — reused by every layer so the
   // card is identifiable without hovering.
   const titleMark = logoUrl ? (
-    <Box component="img" src={logoUrl} alt={item.title}
+    <Box component="img" src={logoUrl} alt="" loading="lazy" decoding="async"
       sx={{ maxHeight: 30, maxWidth: '78%', objectFit: 'contain', objectPosition: 'left bottom',
         display: 'block', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,.85))' }} />
   ) : (
@@ -65,8 +78,17 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
       {/* ── Image ── */}
       <Box
         onClick={resume}
+        // It was a plain div with an onClick: the card's PRIMARY action could not be
+        // reached or announced by anything that is not a mouse.
+        role="button"
+        tabIndex={loading ? -1 : 0}
+        aria-label={`Resume ${item.title}${subLine ? ` — ${subLine}` : ''}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resume(e); }
+        }}
         sx={{
           position: 'relative', cursor: loading ? 'wait' : 'pointer',
+          '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
           width: '100%', aspectRatio: '16/9', borderRadius: 1, overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)', boxShadow: '0 2px 8px rgba(0,0,0,.3)',
           transition: 'transform .18s ease, box-shadow .18s ease',
@@ -78,7 +100,7 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
         }}
       >
         {img && (
-          <Box component="img" src={img} alt={item.title}
+          <Box component="img" src={img} alt="" loading="lazy" decoding="async"
             sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         )}
 
@@ -102,7 +124,7 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
               background: 'linear-gradient(to top, rgba(0,0,0,.9) 0%, rgba(0,0,0,.3) 70%, transparent 100%)',
             }}>
               {logoUrl ? (
-                <Box component="img" src={logoUrl} alt={item.title}
+                <Box component="img" src={logoUrl} alt="" loading="lazy" decoding="async"
                   sx={{ maxHeight: 26, maxWidth: '72%', objectFit: 'contain', objectPosition: 'left bottom', display: 'block', filter: 'drop-shadow(0 1px 6px rgba(0,0,0,.9))' }} />
               ) : (
                 <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.2, textShadow: '0 1px 6px rgba(0,0,0,.9)',
@@ -124,19 +146,33 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
             transition: 'background .2s ease',
           }}>
             <Box sx={{ mb: 0.35 }}>{titleMark}</Box>
+            {/* At rest, not on hover. "S1:E3 · 23m left" is the reason you pick one
+                tile over another, and it was the one thing you had to hover to learn. */}
+            {subLine && (
+              <Typography sx={{ color: 'rgba(255,255,255,.75)', fontSize: '0.68rem', mt: 0.2 }}>
+                {subLine}
+              </Typography>
+            )}
             <Box className="cw-actions" sx={{
               opacity: 0, maxHeight: 0, overflow: 'hidden', pointerEvents: 'none',
               transition: 'opacity .18s ease, max-height .2s ease',
             }}>
-              {subLine && <Typography sx={{ color: 'rgba(255,255,255,.75)', fontSize: '0.68rem', mt: 0.2, mb: 0.9 }}>{subLine}</Typography>}
-              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center', mt: 0.9 }}>
                 <Button onClick={resume} variant="contained" startIcon={<PlayArrow sx={{ fontSize: 18 }} />}
                   sx={{ bgcolor: '#fff', color: '#000', fontWeight: 800, textTransform: 'none', fontSize: '0.78rem', borderRadius: 0.8, py: 0.3, px: 1.6, boxShadow: 'none', '&:hover': { bgcolor: 'rgba(255,255,255,.85)', boxShadow: 'none' } }}>
                   Play
                 </Button>
-                <Tooltip title="More info"><IconButton size="small" onClick={info} sx={iconBtnSx}><InfoOutlined sx={{ fontSize: 17 }} /></IconButton></Tooltip>
+                <Tooltip title="More info">
+                  <IconButton size="small" aria-label={`More info about ${item.title}`} onClick={info} sx={iconBtnSx}>
+                    <InfoOutlined sx={{ fontSize: 17 }} />
+                  </IconButton>
+                </Tooltip>
                 <Box sx={{ ml: 'auto' }}>
-                  <Tooltip title="Remove from Continue Watching"><IconButton size="small" onClick={remove} sx={iconBtnSx}><Close sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+                  <Tooltip title="Remove from Continue Watching">
+                    <IconButton size="small" aria-label={`Remove ${item.title} from Continue Watching`} onClick={remove} sx={iconBtnSx}>
+                      <Close sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </Box>
             </Box>
@@ -151,14 +187,22 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
 
       {/* ── Mobile: Info + Remove below the image ── */}
       {isMobile && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.6, px: 0.2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mt: 0.6, px: 0.2 }}>
           {subLine ? (
             <Typography sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.68rem', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {subLine}
             </Typography>
           ) : <Box sx={{ flex: 1 }} />}
-          <Tooltip title="More info"><IconButton size="small" onClick={info} sx={iconBtnSx}><InfoOutlined sx={{ fontSize: 17 }} /></IconButton></Tooltip>
-          <Tooltip title="Remove"><IconButton size="small" onClick={remove} sx={iconBtnSx}><Close sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+          <Tooltip title="More info">
+            <IconButton size="small" aria-label={`More info about ${item.title}`} onClick={info} sx={touchTargetSx}>
+              <InfoOutlined sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Remove from Continue Watching">
+            <IconButton size="small" aria-label={`Remove ${item.title} from Continue Watching`} onClick={remove} sx={touchTargetSx}>
+              <Close sx={{ fontSize: 15 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
       )}
     </Box>
