@@ -12,12 +12,31 @@ const formatTime = (ms) => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
+/**
+ * The mobile tile is a CARD: artwork on top, a solid body beneath it, one background
+ * and one rounded outline around both.
+ *
+ * It used to be a bare image with a loose row of text and buttons floating under it.
+ * With only the rail's gap between tiles, that row's right-aligned controls sat against
+ * the NEXT tile's artwork and read as belonging to neither — the buttons looked like
+ * they were in the gutter. Giving the tile a body solves that without putting anything
+ * on top of the picture: the controls are inside the card's own painted area, so what
+ * they act on is never in question, and the artwork stays clean.
+ */
+export const MOBILE_SHELL = {
+  bgcolor: 'rgba(255,255,255,.055)',
+  border: '1px solid rgba(255,255,255,.09)',
+  borderRadius: 1.5,
+  overflow: 'hidden',
+};
+
 // Landscape (16:9) Continue Watching card. The backdrop is a clean image with no
-// baked-in title, so we always overlay the logo/title.
-//  - Desktop: logo/title always shown over a gradient; hovering reveals the subline +
-//    Play · Info · Remove and darkens the gradient.
-//  - Mobile (no hover): a play circle sits on the image (tap resumes), logo/title on the
-//    image, and Info + Remove live in a bar BELOW the image.
+// baked-in title, so the title is always drawn — over the image on desktop, in the
+// card body on mobile.
+//  - Desktop: logo/title + time left over a gradient; hovering reveals Play · Info ·
+//    Remove and darkens the gradient.
+//  - Mobile (no hover): a play circle on the image; title, time left, Info and Remove
+//    all live in the card body below it.
 const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) => {
   const dur = item.durationMs || 0;
   const pos = item.positionMs || 0;
@@ -48,19 +67,27 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
   };
 
   /**
-   * Below the image on mobile these were 30px boxes sitting side by side — under the
-   * 44px minimum, and one of them throws away your position in the title. The painted
-   * chip stays its old size; the TARGET is grown around it with padding and pulled back
-   * out with a negative margin, so nothing moves and the row does not get taller.
+   * Controls in the card body.
+   *
+   * 36px painted, 44px tappable: the extra comes from a transparent ::after ring, which
+   * grows the hit area without growing the button or disturbing the row. The 8px gap
+   * then puts their centres exactly 44px apart, so the two targets meet and neither
+   * steals from the other — which matters when one of them throws away your place in
+   * the title. They were 30px boxes before, and overlapping nothing but each other.
    */
-  const touchTargetSx = {
-    ...iconBtnSx,
-    p: 1.1, m: '-7px',
-    '& .MuiSvgIcon-root': { display: 'block' },
+  const bodyBtnSx = {
+    position: 'relative',
+    width: 36, height: 36, p: 0, flexShrink: 0,
+    color: 'rgba(255,255,255,.72)',
+    '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
+    '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
+    '&::after': {
+      content: '""', position: 'absolute', top: '50%', left: '50%',
+      transform: 'translate(-50%, -50%)', width: 44, height: 44,
+    },
   };
 
-  // Wordmark logo, falling back to the text title — reused by every layer so the
-  // card is identifiable without hovering.
+  // Wordmark logo, falling back to the text title — desktop draws this over the art.
   const titleMark = logoUrl ? (
     <Box component="img" src={logoUrl} alt="" loading="lazy" decoding="async"
       sx={{ maxHeight: 30, maxWidth: '78%', objectFit: 'contain', objectPosition: 'left bottom',
@@ -74,7 +101,10 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
   );
 
   return (
-    <Box ref={cardRef} sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 } }}>
+    <Box ref={cardRef} sx={{
+      flexShrink: 0, width: { xs: 230, sm: 260, md: 300 },
+      ...(isMobile ? MOBILE_SHELL : null),
+    }}>
       {/* ── Image ── */}
       <Box
         onClick={resume}
@@ -88,15 +118,20 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
         }}
         sx={{
           position: 'relative', cursor: loading ? 'wait' : 'pointer',
-          '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
-          width: '100%', aspectRatio: '16/9', borderRadius: 1, overflow: 'hidden',
-          bgcolor: 'rgba(255,255,255,.06)', boxShadow: '0 2px 8px rgba(0,0,0,.3)',
-          transition: 'transform .18s ease, box-shadow .18s ease',
-          '&:hover': { transform: 'scale(1.03)', boxShadow: '0 14px 40px rgba(0,0,0,.7)' },
-          '&:hover .cw-actions': { opacity: 1, maxHeight: 96, pointerEvents: 'auto' },
-          '&:hover .cw-grad': {
-            background: 'linear-gradient(to top, rgba(0,0,0,.96) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.12) 78%, transparent 100%)',
-          },
+          '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: -3 },
+          width: '100%', aspectRatio: '16/9', overflow: 'hidden',
+          // On mobile the shell owns the corners and the outline.
+          borderRadius: isMobile ? 0 : 1,
+          bgcolor: 'rgba(255,255,255,.06)',
+          ...(isMobile ? null : {
+            boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+            transition: 'transform .18s ease, box-shadow .18s ease',
+            '&:hover': { transform: 'scale(1.03)', boxShadow: '0 14px 40px rgba(0,0,0,.7)' },
+            '&:hover .cw-actions': { opacity: 1, maxHeight: 96, pointerEvents: 'auto' },
+            '&:hover .cw-grad': {
+              background: 'linear-gradient(to top, rgba(0,0,0,.96) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.12) 78%, transparent 100%)',
+            },
+          }),
         }}
       >
         {img && (
@@ -111,33 +146,24 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
           </Box>
         )}
 
-        {/* Mobile: play circle on the card + title, since there's no hover layer */}
+        {/* Mobile: the artwork carries nothing but the play affordance now — the title,
+            the time left and the controls are all in the body below. Outlined rather
+            than a solid white disc: at 44px of opaque white it was the brightest thing
+            on the rail and it landed squarely on whoever was mid-shot. */}
         {isMobile && !loading && (
-          <>
-            <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 2, pointerEvents: 'none' }}>
-              <Box sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.92)', display: 'grid', placeItems: 'center', boxShadow: '0 2px 14px rgba(0,0,0,.55)' }}>
-                <PlayArrow sx={{ fontSize: 26, color: '#000', ml: '2px' }} />
-              </Box>
-            </Box>
+          <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 2, pointerEvents: 'none' }}>
             <Box sx={{
-              position: 'absolute', left: 0, right: 0, bottom: 4, px: 1, pt: 2.5, pb: 0.6, zIndex: 2, pointerEvents: 'none',
-              background: 'linear-gradient(to top, rgba(0,0,0,.9) 0%, rgba(0,0,0,.3) 70%, transparent 100%)',
+              width: 40, height: 40, borderRadius: '50%',
+              bgcolor: 'rgba(0,0,0,.45)', border: '1.5px solid rgba(255,255,255,.9)',
+              display: 'grid', placeItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,.45)',
             }}>
-              {logoUrl ? (
-                <Box component="img" src={logoUrl} alt="" loading="lazy" decoding="async"
-                  sx={{ maxHeight: 26, maxWidth: '72%', objectFit: 'contain', objectPosition: 'left bottom', display: 'block', filter: 'drop-shadow(0 1px 6px rgba(0,0,0,.9))' }} />
-              ) : (
-                <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.2, textShadow: '0 1px 6px rgba(0,0,0,.9)',
-                  display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {item.title}
-                </Typography>
-              )}
+              <PlayArrow sx={{ fontSize: 22, color: '#fff', ml: '2px' }} />
             </Box>
-          </>
+          </Box>
         )}
 
         {/* Desktop: always-on gradient + logo/title (clean backdrop needs the wordmark);
-            the subline + Play / Info / Remove reveal on hover. */}
+            Play / Info / Remove reveal on hover. */}
         {!isMobile && !loading && (
           <Box className="cw-grad" sx={{
             position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none',
@@ -185,24 +211,27 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
         </Box>
       </Box>
 
-      {/* ── Mobile: Info + Remove below the image ── */}
+      {/* ── Mobile: the card body ──
+          Title, time left and the two controls, all inside the card's own background.
+          This is the row that used to float loose beneath the artwork. */}
       {isMobile && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mt: 0.6, px: 0.2 }}>
-          {subLine ? (
-            <Typography sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.68rem', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {subLine}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', px: 1, py: 0.85 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.3 }}>
+              {item.title}
             </Typography>
-          ) : <Box sx={{ flex: 1 }} />}
-          <Tooltip title="More info">
-            <IconButton size="small" aria-label={`More info about ${item.title}`} onClick={info} sx={touchTargetSx}>
-              <InfoOutlined sx={{ fontSize: 17 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Remove from Continue Watching">
-            <IconButton size="small" aria-label={`Remove ${item.title} from Continue Watching`} onClick={remove} sx={touchTargetSx}>
-              <Close sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Tooltip>
+            {/* Always rendered, blank when there is nothing to say, so tiles in the
+                rail keep level bottoms. */}
+            <Typography noWrap sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.68rem', lineHeight: 1.45 }}>
+              {subLine || ' '}
+            </Typography>
+          </Box>
+          <IconButton aria-label={`More info about ${item.title}`} onClick={info} sx={bodyBtnSx}>
+            <InfoOutlined sx={{ fontSize: 18 }} />
+          </IconButton>
+          <IconButton aria-label={`Remove ${item.title} from Continue Watching`} onClick={remove} sx={bodyBtnSx}>
+            <Close sx={{ fontSize: 17 }} />
+          </IconButton>
         </Box>
       )}
     </Box>

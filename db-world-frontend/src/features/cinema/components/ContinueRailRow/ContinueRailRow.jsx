@@ -8,7 +8,7 @@ import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
-import ContinueCard from './ContinueCard';
+import ContinueCard, { MOBILE_SHELL } from './ContinueCard';
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
@@ -40,12 +40,13 @@ const writeHadItems = (had) => {
   try { window.localStorage.setItem(HAD_ITEMS_KEY, had ? '1' : '0'); } catch { /* private mode */ }
 };
 
-// Loading placeholder that matches ContinueCard's footprint (16:9 + teal progress
-// bar; mobile has a title line below) so the row doesn't jump when cards arrive.
+// Loading placeholder matching ContinueCard's footprint, including the mobile card
+// shell and its two-line body, so the row doesn't jump when the real tiles arrive.
 const ContinueCardSkeleton = ({ isMobile }) => (
-  <Box sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 } }}>
+  <Box sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 }, ...(isMobile ? MOBILE_SHELL : null) }}>
     <Box sx={{
-      position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 1,
+      position: 'relative', width: '100%', aspectRatio: '16/9',
+      borderRadius: isMobile ? 0 : 1,
       overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)',
     }}>
       <Skeleton variant="rectangular" width="100%" height="100%"
@@ -53,7 +54,15 @@ const ContinueCardSkeleton = ({ isMobile }) => (
       <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: 'rgba(255,255,255,.12)' }} />
     </Box>
     {isMobile && (
-      <Skeleton variant="text" width="60%" height={16} sx={{ mt: 0.6, bgcolor: 'rgba(255,255,255,.06)' }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', px: 1, py: 0.85 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Skeleton variant="text" width="72%" height={17} sx={{ bgcolor: 'rgba(255,255,255,.06)' }} />
+          <Skeleton variant="text" width="46%" height={16} sx={{ bgcolor: 'rgba(255,255,255,.06)' }} />
+        </Box>
+        {/* the two 36px controls the body reserves room for */}
+        <Box sx={{ width: 36, height: 36, flexShrink: 0 }} />
+        <Box sx={{ width: 36, height: 36, flexShrink: 0 }} />
+      </Box>
     )}
   </Box>
 );
