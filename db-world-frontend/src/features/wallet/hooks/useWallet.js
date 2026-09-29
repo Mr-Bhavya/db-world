@@ -51,8 +51,8 @@ export function useDocuments(filters) {
       const userId = currentUserId();
       try {
         const docs = await api.fetchDocuments(filters);
-        const unfiltered = filters?.typeId || filters?.q;
-        if (!unfiltered) {
+        const filtered = Boolean(filters?.typeId || filters?.q);
+        if (!filtered) {
           // Fire and forget: downloading the files must never hold up the list.
           void cacheWallet(userId, docs, (id) => api.fetchContentBlob(id));
         }
@@ -72,14 +72,21 @@ export function useDocuments(filters) {
  * Offline there is no server to narrow the list, but the UI still passes whatever the
  * user typed — so without this, searching offline silently returns everything and looks
  * like the filter is broken.
+ *
+ * Deliberately mirrors WalletDocumentService.list EXACTLY: `q` matches on the LABEL and
+ * nothing else. Searching more fields here would be worse than searching fewer — the
+ * same query would return different documents depending on whether there was signal,
+ * which is precisely the kind of thing that makes a store stop feeling trustworthy.
+ *
+ * The number is not searchable offline even in principle: the server holds the real
+ * value and only ever sends a masked one, so there is nothing local to match against.
  */
 function applyFilters(documents, filters) {
   let out = documents ?? [];
   if (filters?.typeId) out = out.filter((d) => String(d.typeId) === String(filters.typeId));
   if (filters?.q) {
-    const q = String(filters.q).toLowerCase();
-    out = out.filter((d) => [d.label, d.number, d.holder, d.notes, d.typeName]
-      .some((v) => String(v ?? '').toLowerCase().includes(q)));
+    const q = String(filters.q).trim().toLowerCase();
+    if (q) out = out.filter((d) => String(d.label ?? '').toLowerCase().includes(q));
   }
   return out;
 }

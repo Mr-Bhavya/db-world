@@ -177,9 +177,11 @@ export const AuthProvider = ({ children }) => {
         setAuth({ ...INITIAL_AUTH, loading: false, locked: true });
         return;
       }
-      // The interceptor already cleared the session.
-      void clearAllOfflineWallet();
-      clearAllOfflineVault(); // dead session → drop the encrypted offline snapshot too
+      // The interceptor already cleared the session. Same order as `logout`, and CHAINED
+      // rather than fired alongside: clearAllOfflineVault drops the shared Keystore key,
+      // so starting it before the wallet wipe finishes could leave records behind that
+      // nothing can ever open again.
+      void clearAllOfflineWallet().finally(() => clearAllOfflineVault());
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
     window.addEventListener('auth:force-logout', handler);
