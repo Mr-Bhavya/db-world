@@ -28,6 +28,10 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { tmdbImg, tmdbSrcSet } from '../../api/cinemaApi';
 import { formatDate, formatRuntime } from './helpers';
 import StarIcon from '@mui/icons-material/Star';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { motion } from 'framer-motion';
+import { RequestPill, CoveredNote } from './shared/requestControls';
+import { coveringRequest, requestScopeKey } from '../../utils/requestScope';
 import { getCodec, getHdrTags, getQuality, qualityRank } from '../../media/helpers';
 import { QUALITY_META } from '../../media/constants';
 import { pickAutoQuality } from '../../media/pickAutoQuality';
@@ -94,18 +98,29 @@ const episodeHeading = (ep) =>
   (ep?.seasonNumber === 0 ? `Special ${ep?.episodeNumber}` : `Episode ${ep?.episodeNumber}`);
 
 /**
- * The episode's own information, above its files.
+ * The episode's own information and actions, above its files.
  *
- * The episode rows deliberately gave things up — the synopsis is clamped to two lines
- * and the quality chips are gone entirely, because "1080p" on every row of an all-1080p
- * library differentiates nothing while costing the title its width. None of that is
- * lost; it moved here, where there is room for the full synopsis and where quality is
- * attached to the individual file you are choosing between rather than summarised.
+ * The rows deliberately gave things up -- the synopsis is clamped to two lines, the
+ * rating is gone, the quality chips are gone -- because none of that differentiates
+ * one row from the next. This is where it comes back, in full.
+ *
+ * It also has to be able to ACT. Opening details on an episode and then finding no way
+ * to play or request it is the reason this sheet read as thinner than the row that
+ * opened it: the row could do both and the sheet could do neither.
  */
-function EpisodeHeader({ ep }) {
+function EpisodeHeader({ ep, onPlay, onRequest, requests }) {
   const T = useT();
   const meta = ep?.tmdb;
   const rating = meta?.voteAverage > 0 ? Math.round(meta.voteAverage * 10) / 10 : null;
+  const votes = meta?.voteCount > 0 ? meta.voteCount : null;
+  const available = Boolean(ep?.available);
+
+  // Same question the row asks: is this already inside a wider request of yours?
+  const scope = { season: ep?.seasonNumber, episode: ep?.episodeNumber };
+  const own = requests?.get(requestScopeKey(scope)) ?? null;
+  const cover = own?.hasMyVote ? null : coveringRequest(requests, scope);
+  const coveredByMine = !own?.hasMyVote && !!cover?.hasMyVote && cover !== own;
+
   const bits = [
     meta?.airDate ? formatDate(meta.airDate) : null,
     meta?.runtime > 0 ? formatRuntime(meta.runtime) : null,
@@ -113,51 +128,80 @@ function EpisodeHeader({ ep }) {
 
   return (
     <Box sx={{
-      display: 'flex', gap: 1.5, alignItems: 'flex-start',
       px: { xs: 2, sm: 2.5 }, py: 1.75,
       borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
     }}>
-      {meta?.stillPath && (
-        <Box
-          component="img"
-          src={tmdbImg(meta.stillPath, 'w300')}
-          srcSet={tmdbSrcSet(meta.stillPath, { min: 185, max: 500 })}
-          sizes="132px"
-          alt=""
-          loading="lazy"
-          decoding="async"
-          sx={{
-            width: 132, aspectRatio: '16/9', flexShrink: 0,
-            objectFit: 'cover', borderRadius: 1.5, display: 'block',
-            border: `1px solid ${alpha(T.text, 0.08)}`,
-          }}
-        />
-      )}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        {meta?.name && (
-          <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.3 }}>
-            {meta.name}
-          </Typography>
+      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+        {meta?.stillPath && (
+          <Box
+            component="img"
+            src={tmdbImg(meta.stillPath, 'w300')}
+            srcSet={tmdbSrcSet(meta.stillPath, { min: 185, max: 500 })}
+            sizes="132px"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            sx={{
+              width: 132, aspectRatio: '16/9', flexShrink: 0,
+              objectFit: 'cover', borderRadius: 1.5, display: 'block',
+              border: `1px solid ${alpha(T.text, 0.08)}`,
+            }}
+          />
         )}
-        <Box sx={{
-          display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap',
-          mt: 0.3, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
-        }}>
-          {rating != null && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-              <StarIcon sx={{ fontSize: 12, color: '#fbbf24' }} />
-              <span>{rating}</span>
-            </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {meta?.name && (
+            <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.3 }}>
+              {meta.name}
+            </Typography>
           )}
-          {bits.map((b) => <span key={b}>{b}</span>)}
-        </Box>
-        {/* Unclamped. This is the one place the whole synopsis is readable. */}
-        {meta?.overview && (
-          <Typography sx={{
-            color: T.textMuted, fontSize: '0.78rem', lineHeight: 1.6, mt: 0.7,
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap',
+            mt: 0.3, color: T.textFaint, fontSize: '0.72rem', fontWeight: 500,
           }}>
-            {meta.overview}
-          </Typography>
+            {rating != null && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <StarIcon sx={{ fontSize: 12, color: '#fbbf24' }} />
+                <span>{rating}</span>
+                {/* A score with no sample size behind it is not worth much; TMDB
+                    sends the count and nothing was showing it. */}
+                {votes && <span style={{ opacity: 0.7 }}>({votes})</span>}
+              </Box>
+            )}
+            {bits.map((b) => <span key={b}>{b}</span>)}
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Unclamped. This is the one place the whole synopsis is readable. */}
+      {meta?.overview && (
+        <Typography sx={{ color: T.textMuted, fontSize: '0.78rem', lineHeight: 1.6, mt: 1.25 }}>
+          {meta.overview}
+        </Typography>
+      )}
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+        {available && onPlay && (
+          <Box
+            component={motion.button}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onPlay(ep)}
+            sx={{
+              display: 'inline-flex', alignItems: 'center', gap: 0.6,
+              border: 'none', borderRadius: 999, cursor: 'pointer',
+              bgcolor: T.teal, color: '#fff',
+              px: 2, py: 0.75, fontWeight: 800, fontSize: '0.78rem',
+              '&:hover': { filter: 'brightness(1.12)' },
+              '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2 },
+            }}
+          >
+            <PlayArrowIcon sx={{ fontSize: 17 }} /> Play
+          </Box>
+        )}
+        {!available && onRequest && (
+          coveredByMine
+            ? <CoveredNote request={cover} />
+            : <RequestPill label="Request episode" request={own} size="md"
+                onClick={() => onRequest(scope)} />
         )}
       </Box>
     </Box>
@@ -490,7 +534,10 @@ function buildSections(files, episodeMode) {
  * Bottom sheet on phones, centred dialog from `sm` up — a full-height sheet on a desktop
  * monitor is a lot of travel for a short list.
  */
-export default function DownloadSheet({ open, onClose, files, record, heading, subheading, episode = null }) {
+export default function DownloadSheet({
+  open, onClose, files, record, heading, subheading,
+  episode = null, onPlayEpisode, onRequestEpisode, requests,
+}) {
   const T = useT();
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -622,7 +669,14 @@ export default function DownloadSheet({ open, onClose, files, record, heading, s
       {/* Opened from an episode row, this sheet IS that episode's detail view: the row
           shows two clamped lines and no quality at all, and this is where the rest
           lives. Without it the rows would simply have lost information. */}
-      {episode && <EpisodeHeader ep={episode} />}
+      {episode && (
+        <EpisodeHeader
+          ep={episode}
+          onPlay={onPlayEpisode}
+          onRequest={onRequestEpisode}
+          requests={requests}
+        />
+      )}
 
       {showFilters && (
         <Box sx={{

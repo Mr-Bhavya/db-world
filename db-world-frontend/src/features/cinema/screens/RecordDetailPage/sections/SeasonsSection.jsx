@@ -6,7 +6,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import MovieIcon from '@mui/icons-material/Movie';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import AddRoundedIcon from '@mui/icons-material/Add';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg, tmdbSrcSet } from '../../../api/cinemaApi';
 import { getQuality } from '../../../media/helpers';
@@ -15,6 +14,7 @@ import { episodeRefOf } from '../../../utils/episodeUtils';
 import { episodeProgress } from '../../../utils/watchProgress';
 import { coveringRequest, requestScopeKey } from '../../../utils/requestScope';
 import SectionHeading from '../shared/SectionHeading';
+import { RequestPill, CoveredNote } from '../shared/requestControls';
 import { formatDate, formatRuntime, distinctEpisodeName } from '../helpers';
 
 /* ═══════════════════════════════════════════════════════════
@@ -115,64 +115,6 @@ function buildSeasons(tmdbSeasons, files) {
    different on the season bar than on an episode row. Both
    use this one pill: outlined to ask, teal once you have.
 ═══════════════════════════════════════════════════════════ */
-
-function RequestPill({ label, requestedLabel, request, onClick, size = 'sm' }) {
-  const T = useT();
-  const mine = !!request?.hasMyVote;
-  const count = request?.voteCount ?? 0;
-  // Your own vote is already in the count, so it only tells you something once
-  // somebody else is waiting too.
-  const others = mine ? count - 1 : count;
-
-  return (
-    <Box
-      component={motion.button}
-      whileTap={{ scale: 0.95 }}
-      onClick={onClick}
-      aria-pressed={mine}
-      sx={{
-        display: 'inline-flex', alignItems: 'center', gap: 0.6,
-        borderRadius: 999, cursor: 'pointer', flexShrink: 0,
-        bgcolor: mine ? alpha(T.teal, 0.16) : 'transparent',
-        color: mine ? T.teal : T.textFaint,
-        border: `1px solid ${mine ? alpha(T.teal, 0.42) : alpha(T.text, 0.14)}`,
-        px: size === 'md' ? 1.75 : 1.5,
-        py: size === 'md' ? 0.65 : 0.55,
-        fontWeight: 700,
-        fontSize: size === 'md' ? '0.75rem' : '0.72rem',
-        '&:hover': {
-          color: mine ? T.teal : T.text,
-          borderColor: mine ? alpha(T.teal, 0.6) : alpha(T.text, 0.28),
-          bgcolor: mine ? alpha(T.teal, 0.24) : alpha(T.text, 0.06),
-        },
-      }}
-    >
-      {mine ? <CheckRoundedIcon sx={{ fontSize: 15 }} /> : <AddRoundedIcon sx={{ fontSize: 15 }} />}
-      {mine ? (requestedLabel ?? 'Requested') : label}
-      {others > 0 && (
-        <Box component="span" sx={{ color: mine ? T.teal : T.textMuted, fontWeight: 600, opacity: 0.85 }}>
-          · {others} {mine ? 'more' : 'waiting'}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-/** Non-interactive marker for something a wider request of yours already asks for. */
-function CoveredNote({ request }) {
-  const T = useT();
-  const label = request?.scopeLabel === 'All'
-    ? 'In your request for this show'
-    : `In your ${request?.scopeLabel} request`;
-  return (
-    <Box sx={{
-      display: 'inline-flex', alignItems: 'center', gap: 0.5,
-      color: alpha(T.teal, 0.85), fontWeight: 700, fontSize: '0.72rem',
-    }}>
-      <CheckRoundedIcon sx={{ fontSize: 14 }} /> {label}
-    </Box>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    EPISODE ROW
