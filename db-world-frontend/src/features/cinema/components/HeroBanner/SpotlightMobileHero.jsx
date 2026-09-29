@@ -320,9 +320,6 @@ function HeroSlide({
       {art ? (
         <Box
           component="img"
-          // Keyed on the record, so a slide that takes new content gets a fresh element:
-          // the Ken Burns below restarts, and `complete` re-runs against the cache.
-          key={item.id}
           src={art}
           alt={item.title ?? ''}
           draggable={false}
@@ -340,7 +337,9 @@ function HeroSlide({
             // A cycle is eight seconds of an otherwise dead frame. 6% across the whole
             // of it is slow enough that you never catch it moving and the card still
             // feels alive; it is a compositor transform on an already-clipped element,
-            // so it costs nothing. Active slide only, and held when the carousel is.
+            // so it costs nothing. Active slide only: the element outlives the turn, so
+            // what restarts the zoom is the animation arriving with the active class,
+            // not a remount. Held when the carousel is held.
             ...(active && kenBurns && {
               animation: `heroKenBurns ${CYCLE_MS}ms ease-out forwards`,
               animationPlayState: holdMotion ? 'paused' : 'running',
@@ -392,12 +391,14 @@ function HeroSlide({
           '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: -3 },
         }}
       >
-        {/* The title block arrives just behind the artwork rather than welded to it.
-            Keyed on the record so it replays when a slide takes new content. Transform
-            and opacity only, and skipped outright under reduced motion. */}
+        {/* The title block arrives just behind the artwork on FIRST paint, and only
+            then. It used to carry a record key, which replayed the entrance every time
+            a slide took new content — so the title of a card you had just swiped in,
+            and had been reading a moment earlier, blinked out and faded back. A slide
+            now owns one record for its whole life, so this runs when the record enters
+            the window (offscreen, at the far slot) and never again. */}
         <Box
           component={motion.div}
-          key={item.id}
           initial={reducedMotion ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: reducedMotion ? 0 : 0.14, duration: reducedMotion ? 0.2 : 0.34, ease: EASE }}
@@ -514,13 +515,31 @@ const SpotlightMobileHero = ({
   const safeIdx = count ? ((idx % count) + count) % count : 0;
   const active = items[safeIdx] ?? record ?? null;
 
-  /** previous, active, next — always mounted, so a drag has something to pull in. */
+  /**
+   * previous, active, next — always mounted, so a drag has something to pull in.
+   *
+   * Keyed by the RECORD, not by the slot. A turn rotates the contents through fixed
+   * positions, so slot keys made React swap content in place — which tore down and
+   * rebuilt the artwork and the title of the very card the user had just dragged into
+   * view, one that had been fully rendered a slot to the right a moment earlier. Record
+   * keys make that a reorder instead: the same DOM nodes move, nothing refetches, and
+   * nothing replays its entrance.
+   *
+   * With only two titles the previous and next ARE the same record, so a record key
+   * would collide; that case falls back to per-slot keys and accepts the swap.
+   */
   const windowItems = useMemo(() => {
     if (count === 0) return [];
-    if (count === 1) return [{ offset: 0, itemIndex: 0, item: items[0] }];
+    if (count === 1) return [{ key: 'solo', offset: 0, itemIndex: 0, item: items[0] }];
     return [-1, 0, 1].map((offset) => {
       const itemIndex = (((safeIdx + offset) % count) + count) % count;
-      return { offset, itemIndex, item: items[itemIndex] };
+      const item = items[itemIndex];
+      return {
+        offset,
+        itemIndex,
+        item,
+        key: count >= 3 ? (item?.id ?? itemIndex) : `${itemIndex}:${offset}`,
+      };
     });
   }, [items, count, safeIdx]);
 
@@ -754,14 +773,9 @@ const SpotlightMobileHero = ({
               '&:active': { cursor: count > 1 ? 'grabbing' : 'pointer' },
             }}
           >
-            {windowItems.map(({ offset, item, itemIndex }) => (
+            {windowItems.map(({ key, offset, item, itemIndex }) => (
               <HeroSlide
-                // Keyed by SLOT, not by record: the three positions are fixed and their
-                // contents rotate through them, so keying by slot lets React swap the
-                // content in place instead of tearing down and rebuilding a card that is
-                // about to be on screen. The pieces that must restart per record — the
-                // artwork element and the title block — carry their own record key.
-                key={offset}
+                key={key}
                 item={item}
                 offset={offset}
                 itemIndex={itemIndex}
@@ -780,19 +794,14 @@ const SpotlightMobileHero = ({
             ))}
           </Box>
 
-          <ProgressSegments
-            count={count}
-            idx={safeIdx}
-            paused={dragging || userPaused}
-            animated={animated}
-            onSelect={goToIndex}
-            userPaused={userPaused}
-            onTogglePause={togglePause}
-          />
-
           {/* The action row this whole shape exists for. Outside the track, so a tap
-              here can never be mistaken for the tail of a swipe. */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+              here can never be mistaken for the tail of a swipe.
+              DIRECTLY under the card, with the marks moved below it. The indicator used
+              to sit in between, which put 44px and a second row of furniture between the
+              artwork and its own controls — enough that the buttons read as belonging to
+              the page rather than to the title above them. Ten pixels and a shared width
+              is what makes them one object. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.25 }}>
             <Button
               onClick={handlePlay}
               startIcon={<PlayArrowRoundedIcon sx={{ fontSize: '1.6rem' }} />}
@@ -826,6 +835,19 @@ const SpotlightMobileHero = ({
               <InfoOutlinedIcon sx={{ fontSize: 21 }} />
             </IconButton>
           </Box>
+
+          {/* Position marks last. They describe the whole card-and-controls block, so
+              they read fine as its footer and stop wedging the buttons away from the
+              artwork they act on. */}
+          <ProgressSegments
+            count={count}
+            idx={safeIdx}
+            paused={dragging || userPaused}
+            animated={animated}
+            onSelect={goToIndex}
+            userPaused={userPaused}
+            onTogglePause={togglePause}
+          />
         </Box>
       </Box>
     </Box>

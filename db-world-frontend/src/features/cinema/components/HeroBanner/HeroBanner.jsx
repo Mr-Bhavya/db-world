@@ -47,10 +47,10 @@ const SkeletonBlock = (props) => (
 /**
  * Mirrors SpotlightMobileHero.
  *
- * Same gutters, same card ratio, the same room left for the peeking edge, and the same
- * two blocks underneath — progress segments, then a full-width primary and two square
- * actions. The point is that the real hero lands at exactly this size and position, so
- * nothing shifts when it arrives.
+ * Same gutters, same card ratio, the same room left for the peeking neighbour, and the
+ * same two blocks underneath IN THE SAME ORDER — a full-width primary with two square
+ * actions, then the position marks. The point is that the real hero lands at exactly
+ * this size and position, so nothing shifts when it arrives.
  */
 const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
   const gutter = isXs ? 16 : 24;            // SpotlightMobileHero's own gutter
@@ -97,22 +97,22 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
           </Box>
         </Box>
 
-        {/* progress segments — compact and centred, as in the live hero */}
+        {/* Play, then My List and More Info — the hero's action row, same heights, gap
+            and offset, so the buttons land without pushing the first rail down. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.25 }}>
+          <SkeletonBlock height={48} sx={{ flex: 1, borderRadius: 999 }} />
+          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
+          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
+        </Box>
+
+        {/* position marks last, as in the live hero */}
         <Box sx={{
           display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center',
-          height: 24, mt: 1.5,
+          height: 28, mt: 1,
         }}>
           {[0, 1, 2, 3, 4].map((i) => (
             <SkeletonBlock key={i} width={22} height={3} sx={{ borderRadius: 999 }} />
           ))}
-        </Box>
-
-        {/* Play, then My List and More Info — the hero's action row, same heights and
-            gap, so the buttons land without pushing the first rail down. */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5 }}>
-          <SkeletonBlock height={48} sx={{ flex: 1, borderRadius: 999 }} />
-          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
-          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
         </Box>
       </Box>
     </Box>
