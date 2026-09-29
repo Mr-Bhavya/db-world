@@ -15,9 +15,9 @@ import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { fetchContentBlob, fetchDocument } from '../api/walletApi';
+import {  fetchDocument } from '../api/walletApi';
 import { downloadBlob, documentFileName } from '../utils/download';
-import { useDocumentTypes } from '../hooks/useWallet';
+import { useDocumentTypes, loadDocumentBlob } from '../hooks/useWallet';
 import { formatDocDate, expiryLabel, expiryMeta, formatFileSize } from '../utils/walletFormat';
 import { typeIcon, categoryColor } from '../utils/walletTypes';
 import { WalletFormDialog, FormSection, PrimaryButton, GhostButton } from './walletFormUi';
@@ -140,7 +140,7 @@ export default function DocumentPreviewDialog({ doc, open, onClose, onEdit, onSh
   useEffect(() => {
     let objectUrl; let cancelled = false;
     setLoading(true); setBlob(null); setUrl(null);
-    fetchContentBlob(doc.id, 'inline')
+    loadDocumentBlob(doc.id, 'inline')
       .then((b) => {
         if (cancelled) return;
         setBlob(b);
@@ -155,7 +155,7 @@ export default function DocumentPreviewDialog({ doc, open, onClose, onEdit, onSh
   const download = async () => {
     if (onDownload) { onDownload(doc); return; }
     try {
-      const b = await fetchContentBlob(doc.id, 'attachment');
+      const b = await loadDocumentBlob(doc.id, 'attachment');
       await downloadBlob(b, documentFileName(doc.label, doc.contentType));
     } catch {
       notify.error('Failed to download document');

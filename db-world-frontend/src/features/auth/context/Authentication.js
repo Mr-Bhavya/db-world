@@ -4,6 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
 import { isBiometricEnabled } from '@platform/android/biometric';
 import { clearAllOfflineVault } from '@features/password-manager/offline/vaultCache';
+import { clearAllOfflineWallet } from '@features/wallet/offline/walletCache';
 import {
   accessTokenExpiringSoon,
   clearSession,
@@ -155,6 +156,10 @@ export const AuthProvider = ({ children }) => {
       // Intentionally swallowed — client-side cleanup always runs.
     } finally {
       await clearSession();
+      // Both snapshots, then the keypair. clearAllOfflineVault owns vcReset(), which drops
+      // the shared Keystore key — so the wallet has to be wiped first or its records would
+      // outlive the only key that could ever open them.
+      await clearAllOfflineWallet();
       clearAllOfflineVault(); // wipe the encrypted offline snapshot + device keypair
       setAuth({ ...INITIAL_AUTH, loading: false });
     }
@@ -173,6 +178,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       // The interceptor already cleared the session.
+      void clearAllOfflineWallet();
       clearAllOfflineVault(); // dead session → drop the encrypted offline snapshot too
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
