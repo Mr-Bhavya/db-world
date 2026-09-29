@@ -29,6 +29,15 @@ const INITIAL_AUTH = {
   role: null,
   loading: true,   // true until the initial verify completes
   locked: false,   // biometric unlock enabled and awaiting fingerprint/face at launch
+  /**
+   * Signed in from the DEVICE alone, with no server session behind it.
+   *
+   * The biometric proof happened in hardware and the identity came from local storage, but
+   * there is no access token — so nothing that needs the server can work. Screens that hold
+   * an encrypted local snapshot (the vault, and the wallet) read it; everything else has to
+   * treat this as "not available right now" rather than as a normal session.
+   */
+  offline: false,
 };
 
 /**
@@ -87,6 +96,9 @@ const extractAppRole = (roles = []) => {
 
 export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(firstPaintAuth);
+  // Read by listeners that must not re-subscribe on every auth change.
+  const authRef = useRef(auth);
+  authRef.current = auth;
   const initialized = useRef(false); // guard against strict-mode double-mount
 
   /* ── login ──────────────────────────────────────────────────────── */
@@ -105,6 +117,31 @@ export const AuthProvider = ({ children }) => {
   /* ── Give up on biometric unlock → fall back to password login ────── */
   const cancelBiometricLock = useCallback(() => {
     setAuth({ ...INITIAL_AUTH, loading: false, locked: false });
+  }, []);
+
+  /**
+   * Let the device in when the SERVER is what is missing.
+   *
+   * Biometric login proves you locally in hardware and then trades a Keystore device token
+   * for a session — a network round trip. With no connection that last step fails, and the
+   * gate had nothing to offer but "Try again": the app was unreachable precisely when its
+   * offline features were the point. The encrypted vault snapshot has shipped for a while
+   * and could never actually be opened by anyone using biometric login, because the gate in
+   * front of it needed the server.
+   *
+   * No token is minted, so this grants nothing server-side — it cannot, there is no server.
+   * It restores the identity the device already had and marks the session `offline` so the
+   * app knows to read snapshots instead of calling APIs.
+   */
+  const unlockOffline = useCallback(() => {
+    const user = getStoredUser();
+    const role = getStoredRole();
+    if (!user || !role) return false;
+    setAuth({
+      isAuthenticated: true, token: null, user, role,
+      loading: false, locked: false, offline: true,
+    });
+    return true;
   }, []);
 
   /* ── logout ─────────────────────────────────────────────────────── */
@@ -127,6 +164,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const handler = () => {
+      // An OFFLINE session has no token, so the first call made once the server comes back
+      // is a guaranteed 401 — and treating that as a revoked session would sign the user out
+      // for the crime of regaining connectivity, taking the snapshot with it. Re-lock instead:
+      // the gate re-prompts, the exchange succeeds now there is a network, and they carry on.
+      if (authRef.current.offline) {
+        setAuth({ ...INITIAL_AUTH, loading: false, locked: true });
+        return;
+      }
       // The interceptor already cleared the session.
       clearAllOfflineVault(); // dead session → drop the encrypted offline snapshot too
       setAuth({ ...INITIAL_AUTH, loading: false });
@@ -270,7 +315,7 @@ export const AuthProvider = ({ children }) => {
   /* ── Context value ───────────────────────────────────────────────── */
 
   return (
-    <AuthContext.Provider value={{ auth, login, logout, cancelBiometricLock, syncRole }}>
+    <AuthContext.Provider value={{ auth, login, logout, cancelBiometricLock, unlockOffline, syncRole }}>
       {children}
     </AuthContext.Provider>
   );

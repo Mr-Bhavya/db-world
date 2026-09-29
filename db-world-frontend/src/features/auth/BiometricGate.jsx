@@ -8,6 +8,7 @@ import {
   BIOMETRIC_OUTCOME, biometricUnlock, classifyBiometricError, clearBiometricLocal, isNetworkError,
 } from '@platform/android/biometric';
 import { haptic } from '@shared/platform/platform';
+import { getStoredUser } from '@shared/auth/tokenStore';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 
 /**
@@ -73,7 +74,10 @@ const MESSAGES = {
     // Names the real problem. The scan worked; the connection did not. Saying "Not recognised"
     // or "Could not unlock" here would send them to re-scan a finger that was never the issue.
     title: 'No connection',
-    hint: 'Your fingerprint was accepted — we just could not reach DB World. Try again.',
+    // No longer ends at "Try again". Retrying is useless while the server is unreachable, and
+    // this was the exact state that made the app impossible to open with no signal — with the
+    // encrypted vault snapshot sitting on the device, unopenable, the whole time.
+    hint: 'Your fingerprint was accepted — we just could not reach DB World.',
   },
 };
 
@@ -83,7 +87,7 @@ const NO_RETRY = new Set([BIOMETRIC_OUTCOME.LOCKED_OUT]);
 export default function BiometricGate() {
   const T = useT();
   const reduce = useReducedMotion();
-  const { auth, login, cancelBiometricLock } = useAuth();
+  const { auth, login, cancelBiometricLock, unlockOffline } = useAuth();
 
   // null = nothing to say. That covers both "waiting to prompt" and "the sheet is open",
   // which are indistinguishable to the user and should be indistinguishable here.
@@ -176,6 +180,12 @@ export default function BiometricGate() {
 
   const message = outcome ? MESSAGES[outcome] ?? MESSAGES[BIOMETRIC_OUTCOME.ERROR] : null;
   const canRetry = outcome && !NO_RETRY.has(outcome);
+  /**
+   * Offline entry needs two things to be true: the fingerprint was ACCEPTED and only the
+   * exchange failed, and this device remembers who it belongs to. Without a stored identity
+   * there is no user to read a snapshot for, so there would be nothing behind the button.
+   */
+  const canGoOffline = outcome === BIOMETRIC_OUTCOME.NETWORK && Boolean(getStoredUser());
 
   return (
     <Box
@@ -295,6 +305,31 @@ export default function BiometricGate() {
                   }}
                 >
                   Try again
+                </Button>
+              )}
+
+              {/* The way in when the SERVER, not the finger, is what failed.
+                  Offered only here: every other outcome means the scan itself did not
+                  succeed, and this must never become a way past biometric proof. The
+                  hardware check has already passed by the time we get this far. */}
+              {canGoOffline && (
+                <Button
+                  onClick={() => { if (!unlockOffline()) cancelBiometricLock(); }}
+                  variant="contained"
+                  disableElevation
+                  sx={{
+                    mt: 1.5,
+                    minHeight: 44,
+                    px: 3,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 800,
+                    color: '#fff',
+                    bgcolor: T.teal,
+                    '&:hover': { bgcolor: T.tealHover },
+                  }}
+                >
+                  Continue offline
                 </Button>
               )}
             </Box>
