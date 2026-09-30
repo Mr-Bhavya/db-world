@@ -215,10 +215,10 @@ export const fetchCollection = (id) =>
 
 // ─── Catalog Ingest Requests (new titles not yet in the catalog) ─────────────
 
-/** GET /api/cinema/tmdb/search?type=MOVIE&query=... → TmdbSearchItemDto[] */
-export const searchTmdbForRequest = (type, query, year) =>
+/** GET /api/cinema/tmdb/search?type=MOVIE&query=...&page=1 → { page, totalPages, totalResults, results } */
+export const searchTmdbForRequest = ({ type, query, year, page = 1, signal }) =>
   axiosInstance
-    .get(`${BASE}/tmdb/search`, { params: { type, query, year } })
+    .get(`${BASE}/tmdb/search`, { params: { type, query, year, page }, signal })
     .then(unwrap);
 
 /**

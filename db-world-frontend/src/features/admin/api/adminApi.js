@@ -116,8 +116,9 @@ export const removeRecordTag = (recordId, tagType) =>
 
 /* ─── TMDB SEARCH & DETAIL ──────────────────────────────────────── */
 
-export const searchTmdb = (type, query, year, language = 'en-US') =>
-  axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, language } }).then(r => r.data.data);
+/** → { page, totalPages, totalResults, results: TmdbSearchItemDto[] } */
+export const searchTmdb = ({ type, query, year, page = 1, language = 'en-US', signal }) =>
+  axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, page, language }, signal }).then(r => r.data.data);
 
 export const getTmdbDetail = (type, tmdbId) => {
   const seg = type === 'MOVIE' ? 'movies' : 'tv';

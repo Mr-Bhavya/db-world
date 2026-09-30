@@ -1,4 +1,6 @@
 import SheetDialog from '@shared/components/SheetDialog';
+import InfiniteListFooter from '@shared/components/InfiniteListFooter';
+import useTmdbSearch from '@shared/hooks/useTmdbSearch';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { notify } from '@shared/notify';
 import {
@@ -115,8 +117,6 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
   const [mediaType, setMediaType] = useState('MOVIE');
   const [query, setQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [submittingId, setSubmittingId] = useState(null);
   const [requestedKeys, setRequestedKeys] = useState(() => new Set()); // `${tmdbId}:${mediaType}`
 
@@ -141,17 +141,11 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
     return () => clearTimeout(t);
   }, [query]);
 
-  useEffect(() => {
-    if (!open) return;
-    if (debouncedQuery.length < MIN_QUERY_LEN) { setResults([]); return; }
-    let alive = true;
-    setLoading(true);
-    searchTmdbForRequest(mediaType, debouncedQuery)
-      .then(rows => { if (alive) setResults(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (alive) setResults([]); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [debouncedQuery, mediaType, open]);
+  const search = useTmdbSearch({
+    search: searchTmdbForRequest, scope: 'request', type: mediaType,
+    query: debouncedQuery, enabled: open && debouncedQuery.length >= MIN_QUERY_LEN,
+  });
+  const { results, isSearching: loading } = search;
 
   const onToggle = useCallback(async (item) => {
     const tmdbId = item.id;
@@ -247,7 +241,17 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
               <Typography variant="body2" sx={{ color: T.textFaint }}>{minLenHint}</Typography>
             </Box>
           )}
-          {!loading && debouncedQuery.length >= MIN_QUERY_LEN && results.length === 0 && (
+          {!loading && debouncedQuery.length >= MIN_QUERY_LEN && search.isError && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 1 }}>
+              <Typography variant="body2" sx={{ color: T.textFaint }}>
+                Couldn&apos;t reach TMDB right now.
+              </Typography>
+              <Button size="small" onClick={() => search.retry()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                Try again
+              </Button>
+            </Box>
+          )}
+          {!loading && debouncedQuery.length >= MIN_QUERY_LEN && !search.isError && results.length === 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 1 }}>
               <Typography variant="body2" sx={{ color: T.textFaint }}>
                 No TMDB matches for &ldquo;{debouncedQuery}&rdquo;.
@@ -272,6 +276,15 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
                   />
                 );
               })}
+              <InfiniteListFooter
+                sentinelRef={search.sentinelRef}
+                isFetchingNextPage={search.isFetchingNextPage}
+                hasNextPage={search.hasNextPage}
+                isNextPageError={search.isNextPageError}
+                onRetry={search.retry}
+                loaded={results.length}
+                total={search.totalResults}
+              />
             </Box>
           )}
         </Box>

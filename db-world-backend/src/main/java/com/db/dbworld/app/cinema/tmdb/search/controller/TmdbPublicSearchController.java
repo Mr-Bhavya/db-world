@@ -2,12 +2,10 @@ package com.db.dbworld.app.cinema.tmdb.search.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.enums.RecordType;
-import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchItemDto;
+import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchPageDto;
 import com.db.dbworld.app.cinema.tmdb.search.service.TmdbSearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * Authenticated, non-admin TMDB search — used by the cinema-side "request a title"
@@ -21,14 +19,15 @@ public class TmdbPublicSearchController {
 
     private final TmdbSearchService tmdbSearchService;
 
-    /** GET /api/cinema/tmdb/search?type=MOVIE&query=...&year=... */
+    /** GET /api/cinema/tmdb/search?type=MOVIE&query=...&year=...&page=1 */
     @GetMapping("/search")
-    public ApiResponse<List<TmdbSearchItemDto>> search(
+    public ApiResponse<TmdbSearchPageDto> search(
             @RequestParam RecordType type,
             @RequestParam String query,
             @RequestParam(required = false, defaultValue = "en-US") String language,
-            @RequestParam(required = false) Integer year
+            @RequestParam(required = false) Integer year,
+            @RequestParam(defaultValue = "1") int page
     ) {
-        return ApiResponse.success(tmdbSearchService.search(type, query, language, year));
+        return ApiResponse.success(tmdbSearchService.search(type, query, language, year, page));
     }
 }
