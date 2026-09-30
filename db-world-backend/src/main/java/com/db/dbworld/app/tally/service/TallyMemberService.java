@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -95,8 +96,18 @@ public class TallyMemberService {
             group.setKind(TallyGroupKind.GROUP);
             // The stored name was only the creator's view of the other person; a group needs one
             // everybody in it can read. Any member can rename it afterwards.
-            group.setName(TallyLedgerNames.joined(
-                    active.stream().map(TallyGroupMemberEntity::getDisplayName).toList(), 120));
+            //
+            // In the order people joined, so the creator comes first and the newcomer last. The
+            // repository returns rows in primary-key order, and the keys are random UUIDs, so
+            // without this the same three people came out in a different order every time --
+            // and db/migration/tally_promoted_direct_names.sql, which renames ledgers promoted
+            // before this existed, could not produce the same name as a promotion does today.
+            group.setName(TallyLedgerNames.joined(active.stream()
+                    .sorted(Comparator.comparing(TallyGroupMemberEntity::getCreatedAt,
+                                    Comparator.nullsLast(Comparator.naturalOrder()))
+                            .thenComparing(TallyGroupMemberEntity::getId))
+                    .map(TallyGroupMemberEntity::getDisplayName)
+                    .toList(), 120));
         }
     }
 

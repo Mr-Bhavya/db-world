@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, Skeleton,
-  SpeedDial, SpeedDialAction, SpeedDialIcon,
+  SpeedDial, SpeedDialAction, SpeedDialIcon, useMediaQuery,
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -18,19 +18,23 @@ import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import {
-  useGroup, useSettleUpPlan, useCreateExpense, useReplaceExpense,
+  useGroup, useCachedLedger, useSettleUpPlan, useCreateExpense, useReplaceExpense,
   useAddMembers, useRemoveMember, useUpdateMember, useClaimMember, useUpdateGroup,
   useRecordSettlement,
   useCreateLoan,
   useGroupLoans,
 } from '../hooks/useTally';
+import {
+  TALLY_COLUMNS, TALLY_PAGE_MAX_W, TALLY_PAGE_PT, TALLY_PAGE_PX,
+} from '../utils/tallyLayout';
 import GroupBalanceHero, { GROUP_BALANCE_HERO_MIN_H } from './GroupBalanceHero';
 import GroupTabs from './GroupTabs';
 import WhoPaysWhom from './WhoPaysWhom';
+import { LoansPanel, MonthPanel, PaymentsPanel } from './LedgerSidePanels';
 import MemberAvatarRow from './MemberAvatarRow';
 import LedgerAvatar from './LedgerAvatar';
 import ExpenseRowSkeleton from './ExpenseRowSkeleton';
-import GroupStickyBar, { GROUP_STICKY_TOP, useHeaderFade } from './GroupStickyBar';
+import GroupStickyBar, { APP_BAR_H, GROUP_STICKY_TOP, useHeaderFade } from './GroupStickyBar';
 import AddExpenseDialog from './AddExpenseDialog';
 import AddMemberDialog from './AddMemberDialog';
 import MembersSheet from './MembersSheet';
@@ -73,6 +77,12 @@ export default function GroupLayout({ groupId, active, children }) {
   const reduce = useReducedMotion();
 
   const { data: group, isLoading, isError } = useGroup(groupId);
+  // The list's row for this ledger, when you came from the list -- lets the loading state be
+  // drawn in the right shape, with the real name in it.
+  const cached = useCachedLedger(groupId);
+  // Decides what the side column holds rather than only how it is laid out, so it has to be
+  // known in script: the desktop-only panels fetch data a phone would never show.
+  const wide = useMediaQuery((theme) => theme.breakpoints.up('md'), { noSsr: true });
 
   // Named after the ledger once it has loaded. Called here rather than in any of the three tab
   // components: this layout is mounted once and survives a tab switch, so the tab title does not
@@ -138,9 +148,12 @@ export default function GroupLayout({ groupId, active, children }) {
   const personal = group?.kind === 'PERSONAL';
   const direct = group?.kind === 'DIRECT';
   const activeCount = members.filter((m) => m.status === 'ACTIVE').length;
-  // Only a real group earns the second column. Your own spending has no balances at all, and a
-  // one-to-one ledger's are already the hero.
-  const sidebar = Boolean(group) && !personal && !direct;
+  const isGroup = Boolean(group) && !personal && !direct;
+  // The side column. Every ledger has one on a desktop -- a group's balances, and for the two
+  // kinds without a list of balances, what LedgerSidePanels puts there instead. On a phone only
+  // a group's balances earn it, and only on the expenses tab: a one-to-one ledger's balance is
+  // already the hero, and burying a panel under a whole report is the same as not drawing it.
+  const side = Boolean(group) && (wide || (isGroup && active === 'expenses'));
   const writable = Boolean(group) && !group.archived;
 
   // Read here rather than in the tab: the settle-up sheet needs them to offer allocation, and
@@ -148,6 +161,8 @@ export default function GroupLayout({ groupId, active, children }) {
   const { data: loans = [] } = useGroupLoans(groupId, !personal);
   // Your own spending has no report worth a tab and no history anybody else could have written.
   const showTabs = Boolean(group) && !personal;
+  // What anything sticky has to clear: the pinned bar where there is one, else the app bar.
+  const stickyTop = showTabs ? GROUP_STICKY_TOP.md : APP_BAR_H.md;
   const nameOf = (id) => members.find((m) => m.id === id)?.displayName ?? 'Someone';
 
   /* ============================== actions ============================== */
@@ -223,19 +238,29 @@ export default function GroupLayout({ groupId, active, children }) {
 
   /* ============================== render ============================== */
 
-  // The page gutters and the reading-width cap. The cap no longer depends on which tab you are
-  // on -- that was the sideways jump.
+  // The page gutters and the width cap -- the same on every Tally page and every tab, so neither
+  // opening a ledger nor switching tabs moves the page sideways.
   const shell = {
     minHeight: '100dvh', bgcolor: T.bg,
-    pt: { xs: 'calc(56px + 16px)', md: 'calc(64px + 24px)' },
-    px: { xs: 2, sm: 3, md: 4 },
+    pt: TALLY_PAGE_PT,
+    px: TALLY_PAGE_PX,
     // Room for the floating button, which is now the only way to add an expense on a phone.
     pb: { xs: `calc(${writable ? 96 : 32}px + env(safe-area-inset-bottom))`, sm: 6 },
   };
-  const column = { maxWidth: { xs: 760, md: sidebar ? 1080 : 760 }, mx: 'auto', width: '100%' };
+  const column = { maxWidth: TALLY_PAGE_MAX_W, mx: 'auto', width: '100%' };
+  const grid = {
+    display: 'grid',
+    gridTemplateColumns: { xs: '1fr', md: TALLY_COLUMNS },
+    gap: { xs: 0, md: 3 },
+    alignItems: 'start',
+  };
 
   if (isLoading && !group) {
     const bar = { bgcolor: T.glass };
+    // Known when you came from the list; a link opened cold falls back to the commonest shape,
+    // a shared ledger with a balance card and tabs.
+    const lonely = cached?.kind === 'PERSONAL';
+    const pair = cached?.kind === 'DIRECT';
     return (
       <Box sx={shell}>
         <Box sx={column}>
@@ -246,13 +271,27 @@ export default function GroupLayout({ groupId, active, children }) {
             and the tab bar all appeared together the moment the group landed and drove the feed
             about 250px down the page -- under the reader's thumb, on the row they were reading.
             The hero's height comes from the hero rather than from a number typed here.
+
+            The back arrow is the real one, so leaving does not have to wait for the load, and the
+            name and avatar are the real ones whenever the list already had them.
           */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <Skeleton variant="circular" width={40} height={40} sx={{ ...bar, ml: -1, flexShrink: 0 }} />
-            <Skeleton variant="rounded" width={40} height={40} sx={{ ...bar, borderRadius: 2.5, flexShrink: 0 }} />
+            <IconButton
+              onClick={() => navigate(Constants.DB_TALLY_ROUTE)}
+              aria-label="Back to your groups"
+              sx={{ color: T.textMuted, ml: -1 }}
+            >
+              <ArrowBackRoundedIcon />
+            </IconButton>
+            {cached
+              ? <LedgerAvatar ledger={cached} size="md" />
+              : <Skeleton variant="rounded" width={40} height={40} sx={{ ...bar, borderRadius: 2.5, flexShrink: 0 }} />}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: { xs: 19, sm: 24 }, fontWeight: 800 }}>
-                <Skeleton variant="text" width="60%" sx={bar} />
+              <Typography noWrap component="h1" sx={{
+                fontSize: { xs: 19, sm: 24 }, fontWeight: 800,
+                color: T.textPrimary, letterSpacing: -0.5,
+              }}>
+                {cached?.name ?? <Skeleton variant="text" width="60%" sx={bar} />}
               </Typography>
               <Typography sx={{ fontSize: 12.5 }}>
                 <Skeleton variant="text" width="35%" sx={bar} />
@@ -260,15 +299,45 @@ export default function GroupLayout({ groupId, active, children }) {
             </Box>
           </Box>
 
-          <Skeleton variant="rounded"
-            sx={{ ...bar, height: GROUP_BALANCE_HERO_MIN_H, borderRadius: 3.5, mb: 2.5 }} />
+          {!lonely && (
+            <Skeleton variant="rounded"
+              sx={{ ...bar, height: GROUP_BALANCE_HERO_MIN_H, borderRadius: 3.5, mb: 2.5 }} />
+          )}
 
-          {/* The tabs-and-action row. */}
-          <Skeleton variant="rounded" width={240} height={42}
-            sx={{ ...bar, borderRadius: 2.5, mb: 2.5 }} />
+          {/* The tabs-and-action row, at the real bar's width rather than a guessed 240px. Your
+              own spending has no tabs, and on a phone no inline button either. */}
+          <Box sx={{
+            display: lonely ? { xs: 'none', sm: 'flex' } : 'flex',
+            alignItems: 'center', gap: 2, mb: 2.5,
+          }}>
+            {!lonely && (
+              <Skeleton variant="rounded" height={43} sx={{
+                ...bar, borderRadius: 2.5, width: '100%', maxWidth: { sm: 360, md: 380 }, flexShrink: 1,
+              }} />
+            )}
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1, ml: 'auto', flexShrink: 0 }}>
+              {pair && <Skeleton variant="rounded" width={150} height={42} sx={{ ...bar, borderRadius: 2.5 }} />}
+              <Skeleton variant="rounded" width={140} height={42} sx={{ ...bar, borderRadius: 2.5 }} />
+            </Box>
+          </Box>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {Array.from({ length: 5 }, (_, i) => <ExpenseRowSkeleton key={i} />)}
+          {/* Two columns from md, like the page, so the feed arrives at the width it keeps. */}
+          <Box sx={grid}>
+            <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {Array.from({ length: 5 }, (_, i) => <ExpenseRowSkeleton key={i} />)}
+            </Box>
+            {wide && (
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 11, mb: 1 }}>
+                  <Skeleton variant="text" width={110} sx={bar} />
+                </Typography>
+                <Skeleton variant="rounded" height={148} sx={{ ...bar, borderRadius: 3, mb: 2.5 }} />
+                <Typography sx={{ fontSize: 11, mb: 1 }}>
+                  <Skeleton variant="text" width={80} sx={bar} />
+                </Typography>
+                <Skeleton variant="rounded" height={96} sx={{ ...bar, borderRadius: 3 }} />
+              </Box>
+            )}
           </Box>
         </Box>
       </Box>
@@ -415,65 +484,64 @@ export default function GroupLayout({ groupId, active, children }) {
           }}>
             {showTabs && <GroupTabs groupId={groupId} active={active} />}
 
+            {/* The actions as one cluster at the right edge. They were separate children of a
+                space-between row, so on a one-to-one ledger the free space was shared out
+                between them and "Add expense" floated in the middle of the page. The primary
+                one is outermost, where the eye ends the row. */}
             {writable && (
-              <Button
-                onClick={() => openExpense(null)}
-                startIcon={<AddRoundedIcon />}
-                variant="contained"
-                disableElevation
-                sx={{
-                  display: { xs: 'none', sm: 'inline-flex' },
-                  flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
-                  borderRadius: 2.5, py: 1.1, px: 2.25, bgcolor: T.teal, color: '#fff',
-                  '&:hover': { bgcolor: T.tealHover },
-                }}
-              >
-                Add expense
-              </Button>
-            )}
-            {writable && direct && (
-              <Button
-                onClick={openLoan}
-                startIcon={<HandshakeOutlinedIcon />}
-                sx={{
-                  display: { xs: 'none', sm: 'inline-flex' },
-                  flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
-                  borderRadius: 2.5, py: 1.1, px: 2,
-                  // Teal, like every other secondary action in this feature -- the settle-up
-                  // sheet's "Something else", the loan row's repay. It was T.textPrimary over a
-                  // 0.08-alpha border, which next to a filled teal primary read as disabled.
-                  color: T.teal, border: `1px solid ${T.teal}55`,
-                  '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
-                }}
-              >
-                Lend or borrow
-              </Button>
+              <Box sx={{
+                display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1,
+                flexShrink: 0, ml: 'auto',
+              }}>
+                {direct && (
+                  <Button
+                    onClick={openLoan}
+                    startIcon={<HandshakeOutlinedIcon />}
+                    sx={{
+                      flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
+                      borderRadius: 2.5, py: 1.1, px: 2,
+                      // Teal, like every other secondary action in this feature -- the settle-up
+                      // sheet's "Something else", the loan row's repay. It was T.textPrimary over
+                      // a 0.08-alpha border, which next to a filled teal primary read as disabled.
+                      color: T.teal, border: `1px solid ${T.teal}55`,
+                      '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
+                    }}
+                  >
+                    Lend or borrow
+                  </Button>
+                )}
+                <Button
+                  onClick={() => openExpense(null)}
+                  startIcon={<AddRoundedIcon />}
+                  variant="contained"
+                  disableElevation
+                  sx={{
+                    flexShrink: 0, textTransform: 'none', fontWeight: 700, fontSize: 14,
+                    borderRadius: 2.5, py: 1.1, px: 2.25, bgcolor: T.teal, color: '#fff',
+                    '&:hover': { bgcolor: T.tealHover },
+                  }}
+                >
+                  Add expense
+                </Button>
+              </Box>
             )}
           </Box>
         )}
 
         {/* ── The view, and who stands where ─────────────────────────────── */}
         {/* One column on a phone, two from md: what you scroll on the left, what you glance at
-            on the right. The balances column is on all three tabs, so the page skeleton is the
-            same whichever one you are on and only the left column changes.
+            on the right. The side column is on all three tabs and on every kind of ledger, so
+            the page has the same shape whichever one you are on and only the left column
+            changes.
 
-            DOM order is the mobile order. On the expenses tab the balances come FIRST, because
-            otherwise reaching "who do I pay" on a phone means scrolling past every expense; on
-            the other two tabs there is no phone column at all, since burying the panel under a
-            whole history is the same as not rendering it. `order` moves it right from md up. */}
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            md: sidebar ? 'minmax(0, 1.5fr) minmax(0, 1fr)' : '1fr',
-          },
-          gap: { xs: 0, md: 3 },
-          alignItems: 'start',
-        }}>
-          {sidebar && (
+            DOM order is the mobile order. On a group's expenses tab the balances come FIRST,
+            because otherwise reaching "who do I pay" on a phone means scrolling past every
+            expense. `order` moves the column right from md up. */}
+        <Box sx={grid}>
+          {side && (
             <Box sx={{
               minWidth: 0, mb: 3, order: { xs: 1, md: 2 },
-              display: { xs: active === 'expenses' ? 'block' : 'none', md: 'block' },
+              display: 'flex', flexDirection: 'column', gap: 2.5,
               // From md it travels with the reader. A three-person group's balances are about
               // 200px against a feed that scrolls for screens, so left in normal flow the column
               // is mostly empty space and "who do I pay" is only answered at the very top of the
@@ -485,27 +553,38 @@ export default function GroupLayout({ groupId, active, children }) {
               // hangs off the bottom of the screen where the last few rows can never be reached.
               // Needs the grid's `alignItems: start` above to have any room to move in.
               // Clears the pinned bar, not just the app bar -- otherwise the panel parks itself
-              // underneath it the moment the bar comes up.
+              // underneath it the moment the bar comes up. Your own spending has no pinned bar.
               position: { md: 'sticky' },
-              top: { md: GROUP_STICKY_TOP.md + 16 },
-              maxHeight: { md: `calc(100dvh - ${GROUP_STICKY_TOP.md + 40}px)` },
+              top: { md: stickyTop + 16 },
+              maxHeight: { md: `calc(100dvh - ${stickyTop + 40}px)` },
               overflowY: { md: 'auto' },
               overscrollBehavior: 'contain',
               '&::-webkit-scrollbar': { width: 6 },
               '&::-webkit-scrollbar-thumb': { bgcolor: T.glassBorder, borderRadius: 99 },
             }}>
-              <WhoPaysWhom
-                members={members}
-                plan={plan}
-                myMemberId={myMemberId}
-                loading={loadingPlan && plan.length === 0}
-              />
+              {isGroup && (
+                <WhoPaysWhom
+                  members={members}
+                  plan={plan}
+                  myMemberId={myMemberId}
+                  loading={loadingPlan && plan.length === 0}
+                />
+              )}
+              {wide && !personal && <LoansPanel loans={loans} onRepay={openRepay} />}
+              {wide && !personal && (
+                <PaymentsPanel groupId={groupId} members={members} myMemberId={myMemberId} />
+              )}
+              {wide && personal && <MonthPanel groupId={groupId} />}
             </Box>
           )}
 
           <Box sx={{ minWidth: 0, order: { xs: 2, md: 1 } }}>
             <GroupChromeCtx.Provider
-              value={{ group, members, myMemberId, isOwner, nameOf, openExpense, openLoan, openRepay }}
+              value={{
+                group, members, myMemberId, isOwner, nameOf, openExpense, openLoan, openRepay,
+                // The feed leaves its loans out when this column is showing them.
+                loansInSide: wide && !personal,
+              }}
             >
               {children}
             </GroupChromeCtx.Provider>

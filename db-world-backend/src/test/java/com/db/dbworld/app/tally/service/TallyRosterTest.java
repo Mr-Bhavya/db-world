@@ -495,7 +495,10 @@ class TallyRosterTest {
         assertThat(after.members()).hasSize(3);
         assertThat(after.name())
                 .as("no longer one person's view of the other")
-                .contains("Appa Dudhia", "Amma Dudhia", "Flatmate");
+                .contains("Appa Dudhia", "Amma Dudhia", "Flatmate")
+                // Join order, so the newcomer is always last. Appa and Amma were added in one
+                // transaction and can share a timestamp, so their order is not pinned here.
+                .endsWith(" & Flatmate");
         assertThat(groupService.get(ammaUser, ledger.id()).name()).isEqualTo(after.name());
         assertThat(expenseService.list(appaUser, ledger.id(), null, null, null).items())
                 .as("nothing recorded before the promotion is lost")

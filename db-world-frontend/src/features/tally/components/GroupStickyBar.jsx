@@ -3,6 +3,7 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useT } from '@shared/theme';
+import { TALLY_PAGE_MAX_W, TALLY_PAGE_PX } from '../utils/tallyLayout';
 import LedgerAvatar from './LedgerAvatar';
 import GroupTabs from './GroupTabs';
 
@@ -70,7 +71,7 @@ export default function GroupStickyBar({ group, groupId, active, onBack, onMenu,
       sx={{
         position: 'fixed', left: 0, right: 0, top: APP_BAR_H,
         zIndex: (theme) => theme.zIndex.appBar - 10,
-        px: { xs: 2, sm: 3, md: 4 },
+        px: TALLY_PAGE_PX,
       }}
     >
       <Box
@@ -78,9 +79,11 @@ export default function GroupStickyBar({ group, groupId, active, onBack, onMenu,
         style={{ opacity: backdrop }}
         sx={{ position: 'absolute', inset: 0, bgcolor: T.bg, borderBottom: `1px solid ${T.border}` }}
       />
+      {/* The page's own width, so the back arrow and the menu sit exactly over the header's.
+          A flat 1080 overhung a 760px page by 160px each side. */}
       <Box component={motion.div} style={{ opacity, y }} sx={{
         position: 'relative',
-        maxWidth: 1080, mx: 'auto', width: '100%', height: GROUP_BAR_H,
+        maxWidth: TALLY_PAGE_MAX_W, mx: 'auto', width: '100%', height: GROUP_BAR_H,
         display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 },
       }}>
         <IconButton

@@ -28,7 +28,7 @@ export default function TallyGroupExpensesTab() {
   const T = useT();
   const { groupId } = useParams();
   const confirm = useConfirm();
-  const { myMemberId, nameOf, openExpense, openRepay } = useGroupChrome();
+  const { myMemberId, nameOf, openExpense, openRepay, loansInSide } = useGroupChrome();
 
   const { data: page, isLoading } = useExpenses(groupId);
   const { data: loans = [] } = useGroupLoans(groupId);
@@ -49,8 +49,11 @@ export default function TallyGroupExpensesTab() {
    *
    * <p>Settled ones are still listed, dimmed, because "Riya paid me back in full" is a thing
    * worth being able to see rather than something that silently disappears.
+   *
+   * <p>On a desktop they are in the side column instead, where they stay in view while the feed
+   * scrolls -- so not here as well.
    */
-  const loansBand = loans.length > 0 && (
+  const loansBand = !loansInSide && loans.length > 0 && (
     <Box sx={{ mb: 2.5 }}>
       <Typography sx={{
         fontSize: 12, fontWeight: 800, color: T.textMuted, letterSpacing: 0.2, mb: 1,
