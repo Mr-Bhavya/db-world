@@ -176,7 +176,8 @@ aria2:
   secret: ${ARIA2_SECRET}
 
 tmdb:
-  baseUrl: ${TMDB_BASE_URL}
+  baseUrl: ${TMDB_BASE_URL:https://api.tmdb.org/3}
+  fallbackBaseUrls: ${TMDB_FALLBACK_BASE_URLS:https://api.themoviedb.org/3}
   bearerToken: ${TMDB_ACCESS_TOKEN}
   apiKey: ${TMDB_API_KEY}
 

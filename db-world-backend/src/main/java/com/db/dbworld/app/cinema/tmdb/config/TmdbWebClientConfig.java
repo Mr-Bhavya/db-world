@@ -16,11 +16,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.json.JacksonJsonDecoder;
 import org.springframework.http.codec.json.JacksonJsonEncoder;
+import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -30,6 +32,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * WebClient configuration for the TMDB API.
@@ -61,9 +65,9 @@ public class TmdbWebClientConfig {
     private static final Duration RL_INITIAL_BACKOFF = Duration.ofSeconds(1);
     private static final Duration RL_MAX_BACKOFF = Duration.ofSeconds(30);
 
-    private static final int NET_MAX_ATTEMPTS = 3;
+    private static final int NET_MAX_ATTEMPTS = 4;
     private static final Duration NET_INITIAL_BACKOFF = Duration.ofMillis(500);
-    private static final Duration NET_MAX_BACKOFF = Duration.ofSeconds(5);
+    private static final Duration NET_MAX_BACKOFF = Duration.ofSeconds(8);
 
     private static final double JITTER = 0.3d;
 
@@ -87,6 +91,7 @@ public class TmdbWebClientConfig {
                 .defaultHeader(HttpHeaders.ACCEPT, "application/json")
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
+                .filter(hostFailover(properties))
                 .filter(retryOn429())
                 .filter(observabilityFilter())
                 .build();
@@ -148,6 +153,49 @@ public class TmdbWebClientConfig {
     /* =========================================================
        FILTERS
        ========================================================= */
+
+    /**
+     * Routes requests to the currently active TMDB host and rotates to the next configured host
+     * when a transient network error occurs (e.g. ISP resetting TLS to {@code api.themoviedb.org}).
+     * The switch is sticky, so later requests go straight to the healthy host; the next attempt of
+     * {@link #transientNetworkRetry} re-enters this filter and therefore uses the new host.
+     */
+    private static ExchangeFilterFunction hostFailover(TmdbProperties properties) {
+        List<URI> hosts = Stream.concat(
+                        Stream.of(properties.getBaseUrl()),
+                        properties.getFallbackBaseUrls().stream())
+                .filter(s -> s != null && !s.isBlank())
+                .map(URI::create)
+                .distinct()
+                .toList();
+
+        if (hosts.size() < 2) {
+            return (request, next) -> next.exchange(request);
+        }
+
+        var active = new AtomicInteger();
+        log.info("TMDB host failover enabled: {}", hosts.stream().map(URI::getHost).toList());
+
+        return (request, next) -> {
+            int index = active.get();
+            URI target = hosts.get(index);
+            URI url = UriComponentsBuilder.fromUri(request.url())
+                    .scheme(target.getScheme())
+                    .host(target.getHost())
+                    .port(target.getPort())
+                    .build(true)
+                    .toUri();
+
+            return next.exchange(ClientRequest.from(request).url(url).build())
+                    .doOnError(TmdbWebClientConfig::isTransientNetworkError, error -> {
+                        int nextIndex = (index + 1) % hosts.size();
+                        if (active.compareAndSet(index, nextIndex)) {
+                            log.warn("TMDB host {} unreachable ({}); switching to {}",
+                                    target.getHost(), rootCause(error), hosts.get(nextIndex).getHost());
+                        }
+                    });
+        };
+    }
 
     /** Logs each request with method, URL and total duration. */
     private static ExchangeFilterFunction observabilityFilter() {
