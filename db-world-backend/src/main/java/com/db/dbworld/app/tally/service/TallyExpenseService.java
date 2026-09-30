@@ -271,7 +271,11 @@ public class TallyExpenseService {
         var expense = expenses.findById(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
         access.requireVisibleGroup(userId, expense.getGroupId());
-        return view(expense);
+        var payerRows = payers.findByExpenseId(expense.getId());
+        var shareRows = shares.findByExpenseId(expense.getId());
+        var reader = readerOf(userId, expense.getGroupId());
+        return mapper.toExpenseDto(expense, mapper.toPayerDtos(payerRows), mapper.toShareDtos(shareRows),
+                reader.titleOf(expense, payerRows, shareRows));
     }
 
     /**
@@ -309,10 +313,14 @@ public class TallyExpenseService {
                 shares.findByExpenseIdIn(page.stream().map(TallyExpenseEntity::getId).toList()).stream()
                         .collect(Collectors.groupingBy(TallyExpenseShareEntity::getExpenseId));
 
+        var reader = readerOf(userId, groupId);
         List<TallyExpenseDto> items = page.stream()
-                .map(e -> mapper.toExpenseDto(e,
-                        mapper.toPayerDtos(payersByExpense.getOrDefault(e.getId(), List.of())),
-                        mapper.toShareDtos(sharesByExpense.getOrDefault(e.getId(), List.of()))))
+                .map(e -> {
+                    var payerRows = payersByExpense.getOrDefault(e.getId(), List.of());
+                    var shareRows = sharesByExpense.getOrDefault(e.getId(), List.of());
+                    return mapper.toExpenseDto(e, mapper.toPayerDtos(payerRows),
+                            mapper.toShareDtos(shareRows), reader.titleOf(e, payerRows, shareRows));
+                })
                 .toList();
 
         TallyExpenseEntity last = hasMore ? page.getLast() : null;
@@ -325,7 +333,28 @@ public class TallyExpenseService {
     private TallyExpenseDto view(TallyExpenseEntity expense) {
         return mapper.toExpenseDto(expense,
                 mapper.toPayerDtos(payers.findByExpenseId(expense.getId())),
-                mapper.toShareDtos(shares.findByExpenseId(expense.getId())));
+                mapper.toShareDtos(shares.findByExpenseId(expense.getId())),
+                expense.getDescription());
+    }
+
+    /** Who is reading a group's expenses, for titling loans from their side. */
+    private record Reader(String myMemberId, Map<String, String> nameById) {
+        String titleOf(TallyExpenseEntity e, List<TallyExpensePayerEntity> payerRows,
+                       List<TallyExpenseShareEntity> shareRows) {
+            if (!e.isLoan() || payerRows.isEmpty() || shareRows.isEmpty()) return e.getDescription();
+            return TallyLedgerNames.loanTitle(myMemberId, payerRows.getFirst().getMemberId(),
+                    shareRows.getFirst().getBeneficiaryMemberId(), nameById);
+        }
+    }
+
+    private Reader readerOf(Long userId, String groupId) {
+        var roster = members.findByGroupId(groupId);
+        String me = roster.stream()
+                .filter(m -> userId.equals(m.getUserId()))
+                .map(TallyGroupMemberEntity::getId)
+                .findFirst().orElse(null);
+        return new Reader(me, roster.stream().collect(Collectors.toMap(
+                TallyGroupMemberEntity::getId, TallyGroupMemberEntity::getDisplayName)));
     }
 
     /* ============================== building rows ============================== */

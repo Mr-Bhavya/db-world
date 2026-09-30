@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Fab, Skeleton,
@@ -119,6 +119,19 @@ export default function GroupLayout({ groupId, active, children }) {
   // Drives the other half of the handover to the pinned bar. Applied to a wrapper rather than
   // to the header itself, which has an entry animation on the same two properties.
   const headerFade = useHeaderFade();
+
+  // The pinned bar shows its own tabs only once these have gone under it.
+  const [tabsRow, setTabsRow] = useState(null);
+  const [tabsPinned, setTabsPinned] = useState(false);
+  useEffect(() => {
+    if (!tabsRow || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      ([entry]) => setTabsPinned(!entry.isIntersecting && entry.boundingClientRect.top < 200),
+      { rootMargin: '-116px 0px 0px 0px' },
+    );
+    io.observe(tabsRow);
+    return () => io.disconnect();
+  }, [tabsRow]);
 
   const isOwner = members.find((m) => m.id === myMemberId)?.role === 'OWNER';
   // Balances, members and settling up all presuppose somebody on the other side.
@@ -295,6 +308,7 @@ export default function GroupLayout({ groupId, active, children }) {
           active={active}
           onBack={() => navigate(Constants.DB_TALLY_ROUTE)}
           onMenu={(e) => setMenuAt(e.currentTarget)}
+          showTabs={tabsPinned}
         />
       )}
 
@@ -377,6 +391,7 @@ export default function GroupLayout({ groupId, active, children }) {
             balance={myBalance}
             plan={plan}
             myMemberId={myMemberId}
+            counterpartName={direct ? group.name : null}
             archived={group.archived}
             onSettleUp={() => setSettling(true)}
           />
@@ -392,7 +407,7 @@ export default function GroupLayout({ groupId, active, children }) {
             meant the same action twice with 60px of the first screen spent on saying so.
             Settling up is not here either — it lives on the balance card it clears. */}
         {(showTabs || writable) && (
-          <Box sx={{
+          <Box ref={setTabsRow} sx={{
             // Without tabs -- your own spending -- the row is only the button, and on a phone
             // the button is the floating one, so there would be nothing here to leave a gap for.
             display: showTabs ? 'flex' : { xs: 'none', sm: 'flex' },

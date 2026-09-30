@@ -4,7 +4,11 @@ import com.db.dbworld.app.tally.dto.TallyActivityDto;
 import com.db.dbworld.app.tally.dto.TallyActivityPageDto;
 import com.db.dbworld.app.tally.entity.*;
 import com.db.dbworld.app.tally.repository.TallyActivityRepository;
+import com.db.dbworld.app.tally.repository.TallyExpensePayerRepository;
+import com.db.dbworld.app.tally.repository.TallyExpenseRepository;
+import com.db.dbworld.app.tally.repository.TallyExpenseShareRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
+import com.db.dbworld.app.tally.repository.TallySettlementRepository;
 import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
@@ -15,7 +19,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +52,10 @@ public class TallyActivityService {
     private final TallyActivityRepository activity;
     private final TallyGroupMemberRepository members;
     private final UserRepository users;
+    private final TallySettlementRepository settlements;
+    private final TallyExpenseRepository expenses;
+    private final TallyExpensePayerRepository payers;
+    private final TallyExpenseShareRepository shares;
 
     /**
      * A clock that never returns the same instant twice.
@@ -78,8 +92,17 @@ public class TallyActivityService {
      * have. It reads {@code archivedAt}-blind on purpose: an archived group's history is the
      * main reason to keep the group at all.
      */
+    /**
+     * A page of the group's history, newest first, told from the reader's side.
+     *
+     * <p>The stored sentence is kept as written; only the reader's own part of it is re-voiced
+     * ("Rashmi paid you", "You lent Riya") and amounts are re-formatted. Names of other people
+     * stay as they were at the time.
+     */
     @Transactional(readOnly = true)
-    public TallyActivityPageDto list(String groupId, Instant cursorAt, String cursorId, Integer size) {
+    public TallyActivityPageDto list(Long viewerId, TallyGroupEntity group, Instant cursorAt,
+                                     String cursorId, Integer size) {
+        String groupId = group.getId();
         int limit = Math.clamp(size == null ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
         var probe = Limit.of(limit + 1);
 
@@ -93,14 +116,21 @@ public class TallyActivityService {
         // Which removed expenses have already been put back, in one query for the page rather
         // than one per row -- a history screen is the last place to introduce an N+1.
         Set<String> restored = new HashSet<>(activity.findRestoredSubjectIds(groupId));
+        var view = new Viewer(viewerId, group, page);
 
-        var items = page.stream().map(row -> new TallyActivityDto(
-                row.getId(), row.getAction(), row.getSubjectType(), row.getSubjectId(),
-                row.getActorName(), row.getSummary(), row.getDetail(),
-                row.getAction() == TallyActivityAction.EXPENSE_REMOVED
-                        && row.getSubjectId() != null
-                        && !restored.contains(row.getSubjectId()),
-                row.getCreatedAt())).toList();
+        var items = page.stream().map(row -> {
+            boolean canRestore = row.getAction() == TallyActivityAction.EXPENSE_REMOVED
+                    && row.getSubjectId() != null
+                    && !restored.contains(row.getSubjectId());
+            return new TallyActivityDto(
+                    row.getId(), row.getAction(), row.getSubjectType(), row.getSubjectId(),
+                    Objects.equals(row.getActorUserId(), viewerId) ? "You" : row.getActorName(),
+                    TallyMoneyText.formatAmounts(view.summaryOf(row)),
+                    TallyMoneyText.formatAmounts(row.getDetail()),
+                    canRestore,
+                    canRestore ? view.restoreWarning(row.getSubjectId()) : null,
+                    row.getCreatedAt());
+        }).toList();
 
         var last = hasMore ? page.getLast() : null;
         return new TallyActivityPageDto(items,
@@ -236,6 +266,17 @@ public class TallyActivityService {
                 TallyActivitySubject.EXPENSE, original.getId(), line, null);
     }
 
+    /* ============================== loans ============================== */
+
+    /** Stored in the third person; {@link #list} re-voices it for whichever side is reading. */
+    @Transactional
+    public void loanRecorded(TallyExpenseEntity loan, String lenderName, String borrowerName, Long actor) {
+        write(loan.getGroupId(), actor, TallyActivityAction.EXPENSE_ADDED,
+                TallyActivitySubject.EXPENSE, loan.getId(),
+                "%s lent %s %s".formatted(lenderName, borrowerName, money(loan.getTotalAmount())),
+                loan.getNotes());
+    }
+
     /* ============================== settlements ============================== */
 
     @Transactional
@@ -291,7 +332,135 @@ public class TallyActivityService {
     }
 
     private static String money(BigDecimal amount) {
-        return "₹" + (amount == null ? "0.00" : amount.toPlainString());
+        return TallyMoneyText.inr(amount);
+    }
+
+    /* ============================== reading for one person ============================== */
+
+    private static final Pattern PAID = Pattern.compile("^(.+) paid (.+) (₹\\S+)$");
+    private static final Pattern TOOK_BACK = Pattern.compile("^Took back (₹\\S+) paid by (.+) to (.+)$");
+    private static final Pattern LENT = Pattern.compile("^(.+) lent (.+) (₹\\S+)$");
+
+    /** What one page needs to re-voice its entries for one reader, loaded in batches. */
+    private final class Viewer {
+        private final TallyGroupEntity group;
+        private final String me;
+        private final Map<String, String> nameById;
+        private final Map<String, TallySettlementEntity> settlementById;
+        private final Map<String, TallyExpenseEntity> expenseById;
+        private final Map<String, String> lenderByLoan;
+        private final Map<String, String> borrowerByLoan;
+        private List<TallyExpenseEntity> live;
+
+        Viewer(Long viewerId, TallyGroupEntity group, List<TallyActivityEntity> page) {
+            this.group = group;
+            var roster = members.findByGroupId(group.getId());
+            this.me = roster.stream()
+                    .filter(m -> Objects.equals(viewerId, m.getUserId()))
+                    .map(TallyGroupMemberEntity::getId)
+                    .findFirst().orElse(null);
+            this.nameById = roster.stream().collect(Collectors.toMap(
+                    TallyGroupMemberEntity::getId, TallyGroupMemberEntity::getDisplayName));
+
+            Set<String> settlementIds = subjectIds(page, TallyActivitySubject.SETTLEMENT);
+            Set<String> expenseIds = subjectIds(page, TallyActivitySubject.EXPENSE);
+            this.settlementById = settlementIds.isEmpty() ? Map.of()
+                    : settlements.findAllById(settlementIds).stream()
+                            .collect(Collectors.toMap(TallySettlementEntity::getId, Function.identity()));
+            this.expenseById = expenseIds.isEmpty() ? Map.of()
+                    : expenses.findAllById(expenseIds).stream()
+                            .collect(Collectors.toMap(TallyExpenseEntity::getId, Function.identity()));
+
+            List<String> loanIds = expenseById.values().stream()
+                    .filter(TallyExpenseEntity::isLoan).map(TallyExpenseEntity::getId).toList();
+            this.lenderByLoan = loanIds.isEmpty() ? Map.of()
+                    : payers.findByExpenseIdIn(loanIds).stream().collect(Collectors.toMap(
+                            TallyExpensePayerEntity::getExpenseId, TallyExpensePayerEntity::getMemberId, (a, b) -> a));
+            this.borrowerByLoan = loanIds.isEmpty() ? Map.of()
+                    : shares.findByExpenseIdIn(loanIds).stream().collect(Collectors.toMap(
+                            TallyExpenseShareEntity::getExpenseId, TallyExpenseShareEntity::getBeneficiaryMemberId, (a, b) -> a));
+        }
+
+        String summaryOf(TallyActivityEntity row) {
+            String s = row.getSummary();
+            if (row.getAction() == TallyActivityAction.GROUP_CREATED) {
+                // A one-to-one ledger was named after the other person, which is the reader for half of them.
+                return group.getKind() == TallyGroupKind.DIRECT ? "Started this ledger" : s;
+            }
+            if (me == null || row.getSubjectId() == null) return s;
+            return switch (row.getAction()) {
+                case SETTLEMENT_RECORDED -> payment(row.getSubjectId(), s);
+                case SETTLEMENT_REVERSED -> reversal(row.getSubjectId(), s);
+                case EXPENSE_ADDED, EXPENSE_REMOVED, EXPENSE_RESTORED, EXPENSE_CORRECTED ->
+                        loan(row.getAction(), row.getSubjectId(), s);
+                default -> s;
+            };
+        }
+
+        private String payment(String settlementId, String s) {
+            var st = settlementById.get(settlementId);
+            Matcher m = PAID.matcher(s);
+            if (st == null || !m.matches()) return s;
+            if (me.equals(st.getFromMemberId())) return "You paid %s %s".formatted(m.group(2), m.group(3));
+            if (me.equals(st.getToMemberId())) return "%s paid you %s".formatted(m.group(1), m.group(3));
+            return s;
+        }
+
+        private String reversal(String settlementId, String s) {
+            var st = settlementById.get(settlementId);
+            Matcher m = TOOK_BACK.matcher(s);
+            if (st == null || !m.matches()) return s;
+            if (me.equals(st.getFromMemberId())) return "Took back %s you paid to %s".formatted(m.group(1), m.group(3));
+            if (me.equals(st.getToMemberId())) return "Took back %s %s paid you".formatted(m.group(1), m.group(2));
+            return s;
+        }
+
+        private String loan(TallyActivityAction action, String expenseId, String s) {
+            var expense = expenseById.get(expenseId);
+            String lender = lenderByLoan.get(expenseId);
+            String borrower = borrowerByLoan.get(expenseId);
+            if (expense == null || lender == null || borrower == null) return s;
+
+            Matcher m = LENT.matcher(s);
+            if (action == TallyActivityAction.EXPENSE_ADDED && m.matches()) {
+                if (me.equals(lender)) return "You lent %s %s".formatted(m.group(2), m.group(3));
+                if (me.equals(borrower)) return "%s lent you %s".formatted(m.group(1), m.group(3));
+                return s;
+            }
+            return s.replace(expense.getDescription(),
+                    TallyLedgerNames.loanTitle(me, lender, borrower, nameById));
+        }
+
+        /** Set when an entry for the same amount is live, so putting this back would double it. */
+        String restoreWarning(String expenseId) {
+            var removed = expenseById.get(expenseId);
+            if (removed == null) return null;
+            if (live == null) {
+                live = expenses.findByGroupIdAndStatus(group.getId(), TallyExpenseStatus.ACTIVE);
+            }
+            return live.stream()
+                    .filter(e -> e.getTotalAmount().compareTo(removed.getTotalAmount()) == 0)
+                    .findFirst()
+                    .map(e -> "\"%s\" for %s is already in this ledger. Putting this back would count the same money twice."
+                            .formatted(titleOf(e), money(e.getTotalAmount())))
+                    .orElse(null);
+        }
+
+        private String titleOf(TallyExpenseEntity expense) {
+            if (!expense.isLoan() || me == null) return expense.getDescription();
+            var lender = payers.findByExpenseId(expense.getId()).stream().findFirst();
+            var borrower = shares.findByExpenseId(expense.getId()).stream().findFirst();
+            if (lender.isEmpty() || borrower.isEmpty()) return expense.getDescription();
+            return TallyLedgerNames.loanTitle(me, lender.get().getMemberId(),
+                    borrower.get().getBeneficiaryMemberId(), nameById);
+        }
+    }
+
+    private static Set<String> subjectIds(List<TallyActivityEntity> page, TallyActivitySubject type) {
+        return page.stream()
+                .filter(r -> r.getSubjectType() == type && r.getSubjectId() != null)
+                .map(TallyActivityEntity::getSubjectId)
+                .collect(Collectors.toSet());
     }
 
     private static String trim(String value, int max) {

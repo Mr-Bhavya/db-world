@@ -38,6 +38,7 @@ export default function TallyGroupExpensesTab() {
   // which would make the grouping below recompute each time for no reason.
   const expenses = useMemo(() => page?.items ?? [], [page]);
   const days = useMemo(() => groupExpensesByDate(expenses), [expenses]);
+  const loanById = useMemo(() => new Map(loans.map((l) => [l.id, l])), [loans]);
 
   /**
    * Loans, above the feed.
@@ -124,6 +125,7 @@ export default function TallyGroupExpensesTab() {
                 <ExpenseRow
                   key={expense.id}
                   expense={expense}
+                  loan={loanById.get(expense.id) ?? null}
                   index={i}
                   myMemberId={myMemberId}
                   nameOf={nameOf}

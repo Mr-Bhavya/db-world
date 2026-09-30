@@ -89,10 +89,14 @@ public class TallyMemberService {
      */
     private void promoteIfNoLongerDirect(TallyGroupEntity group) {
         if (group.getKind() != TallyGroupKind.DIRECT) return;
-        long active = members.findByGroupIdAndStatus(group.getId(), TallyMemberStatus.ACTIVE).size();
-        if (active > 2) {
-            log.debug("Direct ledger {} became a group at {} members", group.getId(), active);
+        var active = members.findByGroupIdAndStatus(group.getId(), TallyMemberStatus.ACTIVE);
+        if (active.size() > 2) {
+            log.debug("Direct ledger {} became a group at {} members", group.getId(), active.size());
             group.setKind(TallyGroupKind.GROUP);
+            // The stored name was only the creator's view of the other person; a group needs one
+            // everybody in it can read. Any member can rename it afterwards.
+            group.setName(TallyLedgerNames.joined(
+                    active.stream().map(TallyGroupMemberEntity::getDisplayName).toList(), 120));
         }
     }
 

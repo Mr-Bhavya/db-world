@@ -221,11 +221,14 @@ public class TallyGroupService {
 
         // One balance query per group. A join would collapse them, but somebody is in five
         // groups, not five hundred, and each of these is an index-only read.
-        return groups.findByIdIn(myRowByGroup.keySet()).stream()
+        var mineGroups = groups.findByIdIn(myRowByGroup.keySet());
+        Map<String, String> nameByGroup = TallyLedgerNames.forViewer(userId, mineGroups, members);
+        return mineGroups.stream()
                 .sorted(Comparator.comparing(TallyGroupEntity::getUpdatedAt).reversed())
                 .map(g -> mapper.toGroupSummary(g,
                         activeCounts.getOrDefault(g.getId(), 0L).intValue(),
-                        balances.netOf(g.getId(), myRowByGroup.get(g.getId()).getId())))
+                        balances.netOf(g.getId(), myRowByGroup.get(g.getId()).getId()),
+                        nameByGroup.get(g.getId())))
                 .toList();
     }
 
@@ -253,8 +256,8 @@ public class TallyGroupService {
     @Transactional(readOnly = true)
     public TallyActivityPageDto activity(Long userId, String groupId, Instant cursorAt,
                                          String cursorId, Integer size) {
-        access.requireVisibleGroup(userId, groupId);
-        return activity.list(groupId, cursorAt, cursorId, size);
+        var group = access.requireVisibleGroup(userId, groupId);
+        return activity.list(userId, group, cursorAt, cursorId, size);
     }
 
     /* ============================== update ============================== */
@@ -360,7 +363,8 @@ public class TallyGroupService {
                 .map(m -> mapper.toMemberDto(m, balanceByMember.getOrDefault(m.getId(), BigDecimal.ZERO)))
                 .toList();
 
-        return mapper.toGroupDetail(group, memberViews, myMemberId);
+        return mapper.toGroupDetail(group, memberViews, myMemberId,
+                TallyLedgerNames.forViewer(userId, group, roster));
     }
 
     /**
