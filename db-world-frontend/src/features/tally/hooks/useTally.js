@@ -85,6 +85,25 @@ export function useGroup(groupId) {
   });
 }
 
+/**
+ * This ledger's row from the list, if the list is already cached. Never fetches.
+ *
+ * <p>For the group page's loading state. Arriving from the list, the name, the avatar and the
+ * kind are already known, so the skeleton can be drawn in the right shape (your own spending
+ * has no balance card and no tabs) with the real title in it, instead of a generic outline
+ * that rearranges itself once the detail lands. Opened straight from a link there is no list,
+ * and this is simply null.
+ */
+export function useCachedLedger(groupId) {
+  const { data } = useQuery({
+    queryKey: keys.groups,
+    queryFn: api.fetchGroups,
+    enabled: false,
+    select: (list) => list?.find((g) => g.id === groupId) ?? null,
+  });
+  return data ?? null;
+}
+
 export function useExpenses(groupId) {
   return useQuery({
     queryKey: keys.expenses(groupId),
@@ -93,6 +112,7 @@ export function useExpenses(groupId) {
   });
 }
 
+/** Payments recorded in one ledger, newest first. Reversed ones are left out by the server. */
 export function useSettlements(groupId) {
   return useQuery({
     queryKey: keys.settlements(groupId),

@@ -47,6 +47,13 @@ export default function LoanRow({ loan, onRepay, showLedger = false }) {
   // Clamped: an overpayment is reported honestly in the figures but must not overflow the bar.
   const pct = principal > 0 ? Math.min(100, Math.round((repaid / principal) * 100)) : 0;
   const due = dueLabel(loan.dueDate, loan.overdue);
+  // Inside a ledger every loan is with the same person, so the title says which loan it is.
+  const title = showLedger
+    ? loan.counterpartyName
+    : (loan.note || (lent ? 'Money you lent' : 'Money you borrowed'));
+  const lentOn = loan.loanDate
+    ? new Date(`${loan.loanDate}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : null;
 
   return (
     <Box sx={{
@@ -57,8 +64,13 @@ export default function LoanRow({ loan, onRepay, showLedger = false }) {
     }}>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14.5, fontWeight: 800, color: T.textPrimary, minWidth: 0 }}>
-          {loan.counterpartyName}
+          {title}
         </Typography>
+        {lentOn && (
+          <Typography noWrap sx={{ fontSize: 11.5, color: T.textFaint, flexShrink: 0 }}>
+            {lentOn}
+          </Typography>
+        )}
         {showLedger && loan.groupName && loan.groupName !== loan.counterpartyName && (
           <Typography noWrap sx={{ fontSize: 11.5, color: T.textFaint, minWidth: 0 }}>
             in {loan.groupName}
@@ -108,7 +120,7 @@ export default function LoanRow({ loan, onRepay, showLedger = false }) {
             {loan.overdue ? '' : 'due '}{due}
           </Typography>
         )}
-        {loan.note && !due && (
+        {showLedger && loan.note && !due && (
           <Typography noWrap sx={{ fontSize: 11.5, color: T.textFaint, minWidth: 0 }}>
             {loan.note}
           </Typography>

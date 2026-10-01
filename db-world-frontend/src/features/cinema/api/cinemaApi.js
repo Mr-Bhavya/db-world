@@ -27,8 +27,7 @@ export const removeContinueWatching = (recordId) =>
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */
-export const tmdbImg = (path, quality = 'original') =>
-  path ? `https://image.tmdb.org/t/p/${quality}${path}` : null;
+export { tmdbImg, tmdbSrcSet, TMDB_WIDTHS } from './tmdbImage';
 
 /** Unwrap ApiResponse<T> → T */
 const unwrap = (r) => r.data?.data ?? r.data;
@@ -216,10 +215,10 @@ export const fetchCollection = (id) =>
 
 // ─── Catalog Ingest Requests (new titles not yet in the catalog) ─────────────
 
-/** GET /api/cinema/tmdb/search?type=MOVIE&query=... → TmdbSearchItemDto[] */
-export const searchTmdbForRequest = (type, query, year) =>
+/** GET /api/cinema/tmdb/search?type=MOVIE&query=...&page=1 → { page, totalPages, totalResults, results } */
+export const searchTmdbForRequest = ({ type, query, year, page = 1, signal }) =>
   axiosInstance
-    .get(`${BASE}/tmdb/search`, { params: { type, query, year } })
+    .get(`${BASE}/tmdb/search`, { params: { type, query, year, page }, signal })
     .then(unwrap);
 
 /**

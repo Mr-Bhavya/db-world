@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { NativeBiometric } from '@capgo/capacitor-native-biometric';
+import { NativeBiometric, BiometryType } from '@capgo/capacitor-native-biometric';
 import { enrollDevice, exchangeDeviceToken, revokeDevice } from '@features/auth/api/biometricApi';
 
 /** Keystore credential namespace for the stored device token. */
@@ -8,6 +8,16 @@ const DEVICE_ID_KEY = 'dbworld_device_id';
 const ENABLED_KEY = 'dbworld_biometric_enabled';
 
 const isNative = () => Capacitor.getPlatform() === 'android';
+
+/**
+ * How many tries the system sheet allows before it gives up.
+ *
+ * The plugin defaults this to ONE, so a single non-match dismissed Android's sheet and dropped the
+ * user back on our screen to press "Try again" — replacing the retry the OS does perfectly well by
+ * itself. Three keeps it on the sheet, saying "Not recognised", which is what a fingerprint prompt
+ * is expected to do. Android caps it at five.
+ */
+const BIOMETRIC_MAX_ATTEMPTS = 3;
 
 /**
  * Stable per-device identifier — one enrolled credential per user + device.
@@ -76,11 +86,19 @@ export function isBiometricEnabled() {
   return isNative() && localStorage.getItem(ENABLED_KEY) === '1';
 }
 
-/** Whether the device has usable biometrics enrolled (hardware present + a fingerprint/face set). */
+/**
+ * Whether the device has usable biometrics enrolled (hardware present + a fingerprint/face set).
+ *
+ * `useFallback: FALSE`, deliberately. This answers "can we offer biometric LOGIN", and that gate
+ * exchanges a Keystore device token — it is biometric-only by design. Asking with the fallback on
+ * counts a bare PIN as availability, so a phone with a screen lock and no enrolled finger was
+ * offered a switch that enrolled a credential nothing could ever present: the next launch prompted,
+ * failed as not-enrolled, and the gate quietly tore the enrollment back down.
+ */
 export async function isBiometricAvailable() {
   if (!isNative()) return { available: false, reason: 'not-native' };
   try {
-    const res = await NativeBiometric.isAvailable({ useFallback: true });
+    const res = await NativeBiometric.isAvailable({ useFallback: false });
     return { available: !!res.isAvailable, biometryType: res.biometryType, reason: res.errorCode };
   } catch {
     return { available: false, reason: 'error' };
@@ -106,7 +124,30 @@ export async function canLockApp() {
  * Resolves on success; throws on cancel/failure. Not tied to the login token flow.
  */
 export async function verifyDeviceOwner(reason = 'Unlock DB World') {
-  await NativeBiometric.verifyIdentity({ reason, title: 'DB World', subtitle: reason, useFallback: true });
+  await NativeBiometric.verifyIdentity({
+    reason, title: 'DB World', subtitle: reason,
+    /**
+     * `useFallback` is IOS-ONLY and was a no-op here.
+     *
+     * The plugin is explicit: "On Android, this parameter is ignored due to BiometricPrompt API
+     * constraints: DEVICE_CREDENTIAL authenticator and negative button (cancel) are mutually
+     * exclusive." But `isAvailable` DOES honour it on Android — so canLockApp() saw a secure
+     * device and said yes while this prompt could only ever do biometrics. On a phone with a PIN
+     * and no enrolled finger the two disagreed, the prompt failed as not-enrolled, and the lock
+     * screen had nothing left to offer.
+     *
+     * Naming DEVICE_CREDENTIAL is what actually admits the PIN, and it is the one option that
+     * makes the two calls agree. The documented cost is the sheet's cancel button, which is why
+     * the gate has to carry its own way out.
+     */
+    allowedBiometryTypes: [
+      BiometryType.FINGERPRINT,
+      BiometryType.FACE_AUTHENTICATION,
+      BiometryType.IRIS_AUTHENTICATION,
+      BiometryType.DEVICE_CREDENTIAL,
+    ],
+    maxAttempts: BIOMETRIC_MAX_ATTEMPTS,
+  });
   return true;
 }
 
@@ -203,7 +244,12 @@ export function classifyBiometricError(e) {
  *   remaining wait is network
  */
 export async function biometricUnlock(reason = 'Unlock DB World', { onVerified } = {}) {
-  await NativeBiometric.verifyIdentity({ reason, title: 'Unlock DB World', useFallback: true });
+  // Biometric ONLY: this releases a stored login credential, so a PIN — which Android classifies
+  // WEAK, never STRONG — is not enough. The gate's "Use password instead" is the route for anyone
+  // who cannot scan, and it is always on screen.
+  await NativeBiometric.verifyIdentity({
+    reason, title: 'Unlock DB World', maxAttempts: BIOMETRIC_MAX_ATTEMPTS,
+  });
   const cred = await NativeBiometric.getCredentials({ server: SERVER });
   const token = cred?.password;
   if (!token) throw new Error('No stored device credential');

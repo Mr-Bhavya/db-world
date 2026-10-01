@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CloseIcon from '@mui/icons-material/Close';
@@ -14,6 +14,8 @@ import { useT } from '@shared/theme';
 import { createRecord, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 import SheetDialog from '@shared/components/SheetDialog';
+import InfiniteListFooter from '@shared/components/InfiniteListFooter';
+import useTmdbSearch from '@shared/hooks/useTmdbSearch';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 
@@ -36,13 +38,13 @@ export default function RecordCreateModal({ open, onClose }) {
 
   const [query,         setQuery]         = useState('');
   const [year,          setYear]          = useState('');
-  const [results,       setResults]       = useState([]);
+  const [debounced,     setDebounced]     = useState({ q: '', y: '' });
   const [selected,      setSelected]      = useState(null);
-  const [searching,     setSearching]     = useState(false);
-  const [searchError,   setSearchError]   = useState('');
-  const searchTimer = useRef(null);
 
-  useEffect(() => () => clearTimeout(searchTimer.current), []);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced({ q: query.trim(), y: year.trim() }), 500);
+    return () => clearTimeout(t);
+  }, [query, year]);
 
   const { control, handleSubmit, watch, reset } = useForm({
     resolver: zodResolver(createRecordSchema),
@@ -50,27 +52,16 @@ export default function RecordCreateModal({ open, onClose }) {
   });
   const typeValue = watch('type');
 
-  const doSearch = async (q, type, y) => {
-    if (!q.trim()) { setResults([]); return; }
-    setSearching(true); setSearchError('');
-    try {
-      const data = await searchTmdb(type, q, y || undefined);
-      setResults(Array.isArray(data) ? data : []);
-    } catch { setSearchError('TMDB search failed'); }
-    finally { setSearching(false); }
-  };
+  const search = useTmdbSearch({
+    search: searchTmdb, scope: 'admin', type: typeValue,
+    query: debounced.q, year: debounced.y, enabled: open,
+  });
+  const { results, isSearching: searching } = search;
+  const searchError = search.isError ? 'TMDB search failed' : '';
 
-  const handleQueryChange = (e) => {
-    const v = e.target.value; setQuery(v); setSelected(null);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => doSearch(v, typeValue, year), 500);
-  };
+  const handleQueryChange = (e) => { setQuery(e.target.value); setSelected(null); };
 
-  const handleYearChange = (e) => {
-    const v = e.target.value; setYear(v); setSelected(null);
-    clearTimeout(searchTimer.current);
-    if (query.trim()) searchTimer.current = setTimeout(() => doSearch(query, typeValue, v), 500);
-  };
+  const handleYearChange = (e) => { setYear(e.target.value); setSelected(null); };
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId }),
@@ -84,7 +75,7 @@ export default function RecordCreateModal({ open, onClose }) {
   };
 
   const handleClose = () => {
-    setQuery(''); setYear(''); setResults([]); setSelected(null); setSearchError('');
+    setQuery(''); setYear(''); setDebounced({ q: '', y: '' }); setSelected(null);
     reset({ type: 'MOVIE' });
     onClose();
   };
@@ -100,7 +91,7 @@ export default function RecordCreateModal({ open, onClose }) {
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Controller name="type" control={control} render={({ field }) => (
             <ToggleButtonGroup exclusive size="small" value={field.value}
-              onChange={(_, v) => { if (v) { field.onChange(v); setResults([]); setSelected(null); } }}
+              onChange={(_, v) => { if (v) { field.onChange(v); setSelected(null); } }}
               sx={{ '& .MuiToggleButton-root': {
                 flex: 1, textTransform: 'none', gap: 0.75, fontSize: 13,
                 color: T.textMuted, borderColor: T.glassBorder,
@@ -137,7 +128,7 @@ export default function RecordCreateModal({ open, onClose }) {
           {results.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 300, overflowY: 'auto',
               '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 2 } }}>
-              {results.slice(0, 10).map(r => {
+              {results.map(r => {
                 const isSelected = selected?.id === r.id;
                 return (
                   <Box key={r.id} onClick={() => setSelected(isSelected ? null : r)}
@@ -163,6 +154,15 @@ export default function RecordCreateModal({ open, onClose }) {
 
                 );
               })}
+              <InfiniteListFooter
+                sentinelRef={search.sentinelRef}
+                isFetchingNextPage={search.isFetchingNextPage}
+                hasNextPage={search.hasNextPage}
+                isNextPageError={search.isNextPageError}
+                onRetry={search.retry}
+                loaded={results.length}
+                total={search.totalResults}
+              />
             </Box>
           )}
 

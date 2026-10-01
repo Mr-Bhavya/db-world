@@ -8,6 +8,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
@@ -259,5 +260,21 @@ class CatalogServiceVisibilityTest {
         assertThat(r.getVisibility()).isEqualTo(RecordVisibility.UNLISTED);
         verify(tmdbIngestionService, never()).ingestMovie(any(Long.class));
         verify(tmdbIngestionService, never()).ingestTvSeries(any(Long.class));
+    }
+
+    @Test
+    void deleteRecord_clearsManagedTmdbBackReferenceBeforeDelete() {
+        MovieTmdbEntity tmdb = new MovieTmdbEntity();
+        RecordEntity r = RecordEntity.builder()
+                .id(2348L).name("Acme").type(RecordType.MOVIE)
+                .visibility(RecordVisibility.DRAFT).tmdb(tmdb).build();
+        tmdb.setRecord(r);
+        when(recordRepository.findByIdWithTmdb(2348L)).thenReturn(Optional.of(r));
+
+        service.deleteRecord(2348L);
+
+        assertThat(tmdb.getRecord()).isNull();
+        verify(recordRepository).delete(r);
+        verify(publisher).publishEvent(any(RecordChangedEvent.class));
     }
 }

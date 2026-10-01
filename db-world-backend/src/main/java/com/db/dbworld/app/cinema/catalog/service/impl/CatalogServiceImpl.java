@@ -434,6 +434,10 @@ public class CatalogServiceImpl implements CatalogService {
         log.debug("deleteRecord entry; recordId={}", recordId);
 
         RecordEntity record = getRecordOrThrow(recordId);
+        TmdbEntity tmdb = record.getTmdb();
+        if (tmdb != null) {
+            tmdb.setRecord(null);
+        }
 
         recordRepository.delete(record);
 

@@ -10,7 +10,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
 
-import HeroCardStack, { PEEK_ROOM, LEFT_ROOM, MAX_CARD_W } from './HeroCardStack';
+import SpotlightMobileHero, { CARD_INSET, MAX_SPOTLIGHT_W } from './SpotlightMobileHero';
 import SpotlightHero from '../Billboard/SpotlightHero';
 import CategoryBillboard from '../Billboard/CategoryBillboard';
 
@@ -45,47 +45,41 @@ const SkeletonBlock = (props) => (
 );
 
 /**
- * Mirrors HeroCardStack.
+ * Mirrors SpotlightMobileHero.
  *
- * One card, drawn the way the real one is: the deck's own frame width and gutters, and
- * the card's furniture sketched ON the artwork — badge, meta chips, the two round
- * actions — because that is where HeroCardStack puts them. Its predecessor drew two
- * cards side by side with a caption underneath, which was the horizontal rail the deck
- * replaced: wrong silhouette, and ~19px too tall for a caption the deck doesn't have.
- *
- * The card still leaves the deck's own margins either side — room for the turned-past
- * card on the left, room for the deck to peek into on the right — even though nothing is
- * drawn in them, so the real hero lands at exactly this size and position.
+ * Same gutters, same card ratio, the same room left for the peeking neighbour, and the
+ * same two blocks underneath IN THE SAME ORDER — a full-width primary with two square
+ * actions, then the position marks. The point is that the real hero lands at exactly
+ * this size and position, so nothing shifts when it arrives.
  */
 const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
-  const gutter = isXs ? 14 : 20;            // HeroCardStack's own gutter
-  const actionSize = isXs ? 50 : 54;        // DeckCard's round actions
-  const frameW = `min(100%, ${LEFT_ROOM + MAX_CARD_W + PEEK_ROOM}px)`;
+  const gutter = isXs ? 16 : 24;            // SpotlightMobileHero's own gutter
+  const ratio = isXs ? '3 / 2' : '16 / 9';  // and its card ratio
 
   return (
     <Box sx={{
       position: 'relative',
       overflowX: 'clip',
       pt: HERO_TOP_INSET,
-      pb: 3,
+      pb: 2.5,
       px: `${gutter}px`,
     }}>
-      {/* Movies / TV draw a breadcrumb-and-heading line above the deck; Home does not. */}
+      {/* Movies / TV draw a breadcrumb-and-heading line above the card; Home does not. */}
       {variant !== 'spotlight' && (
         <SkeletonBlock width={150} height={20} sx={{ borderRadius: 0.8, mb: 1.5 }} />
       )}
 
-      <Box sx={{ width: frameW, maxWidth: '100%', mx: 'auto' }}>
+      <Box sx={{ width: '100%', maxWidth: MAX_SPOTLIGHT_W, mx: 'auto' }}>
         <Box sx={{
           position: 'relative',
-          width: `calc(100% - ${LEFT_ROOM + PEEK_ROOM}px)`,
-          ml: `${LEFT_ROOM}px`,
-          aspectRatio: '2 / 3',
+          // The hero leaves this much of its own width to the next card's peeking edge.
+          width: `calc(100% - ${CARD_INSET}px)`,
+          aspectRatio: ratio,
           borderRadius: 4,
           overflow: 'hidden',
           bgcolor: shimmerStrong,
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 22px 48px rgba(0,0,0,0.55)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
         }}>
           {/* badge chip, top-left */}
           <SkeletonBlock
@@ -93,24 +87,32 @@ const HeroSkeletonMobile = ({ isXs, variant = 'spotlight' }) => {
             sx={{ position: 'absolute', top: 12, left: 12, borderRadius: 999, bgcolor: shimmerOnCard }}
           />
 
-          {/* title + meta chips, bottom-left — clear of the action column, as on the card */}
-          <Box sx={{ position: 'absolute', left: 14, right: 72, bottom: 14 }}>
-            <SkeletonBlock height={20} sx={{ width: '82%', borderRadius: 0.8, bgcolor: shimmerOnCard }} />
-            <Box sx={{ display: 'flex', gap: 0.6, mt: 0.9 }}>
-              {[54, 44, 62].map((w) => (
-                <SkeletonBlock key={w} width={w} height={20} sx={{ borderRadius: 1, bgcolor: shimmerOnCard }} />
-              ))}
-            </Box>
+          {/* title block + meta line, bottom-left — where the logo and meta land */}
+          <Box sx={{ position: 'absolute', left: isXs ? 14 : 20, right: isXs ? 14 : 20, bottom: isXs ? 14 : 20 }}>
+            <SkeletonBlock
+              height={isXs ? 34 : 44}
+              sx={{ width: '58%', borderRadius: 1, bgcolor: shimmerOnCard, mb: 1 }}
+            />
+            <SkeletonBlock height={14} sx={{ width: '72%', borderRadius: 0.8, bgcolor: shimmerOnCard }} />
           </Box>
+        </Box>
 
-          {/* the two round actions, bottom-right */}
-          <Box sx={{
-            position: 'absolute', right: 12, bottom: 14,
-            display: 'flex', flexDirection: 'column', gap: 1.25,
-          }}>
-            <SkeletonBlock width={actionSize} height={actionSize} sx={{ borderRadius: '50%', bgcolor: shimmerOnCard }} />
-            <SkeletonBlock width={actionSize} height={actionSize} sx={{ borderRadius: '50%', bgcolor: shimmerOnCard }} />
-          </Box>
+        {/* Play, then My List and More Info — the hero's action row, same heights, gap
+            and offset, so the buttons land without pushing the first rail down. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.25 }}>
+          <SkeletonBlock height={48} sx={{ flex: 1, borderRadius: 999 }} />
+          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
+          <SkeletonBlock width={48} height={48} sx={{ borderRadius: 2, flexShrink: 0 }} />
+        </Box>
+
+        {/* position marks last, as in the live hero */}
+        <Box sx={{
+          display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center',
+          height: 28, mt: 1,
+        }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <SkeletonBlock key={i} width={22} height={3} sx={{ borderRadius: 999 }} />
+          ))}
         </Box>
       </Box>
     </Box>
@@ -302,7 +304,7 @@ const HeroBanner = ({
   const record = featured[idx] ?? null;
   // useMemo for the `?? {}`: that literal allocated a NEW object on every render
   // whenever the lookup missed, which is most renders for a title with no
-  // interactions yet. `ix` goes straight into HeroCardStack, so an unstable
+  // interactions yet. `ix` goes straight into the mobile hero, so an unstable
   // identity here defeated its React.memo no matter what the deck did.
   const ix = useMemo(
     () => interactions[record?.id] ?? EMPTY_INTERACTION,
@@ -380,17 +382,18 @@ const HeroBanner = ({
   // gets shown on tablets and desktop (backdrop-first) and on any title whose
   // clean poster is missing — so the page wash was sometimes keyed to artwork
   // that was never on screen.
+  //
+  // Every tier is backdrop-first now that the phone hero is a spotlight rather than a
+  // poster deck, so there is one rule instead of a mobile branch.
   const colorImage = useMemo(() => {
     if (!record) return null;
     const path = heroArtCandidates(record, {
-      portrait: isMobileLike,
+      portrait: false,
       hasLogo: Boolean(record.logoPath),
-      // Phones and tablets show the card stack, which paints the poster WITH its own
-      // title art and draws no logo of its own.
-      titled: isMobileLike,
+      titled: false,
     }).find(Boolean);
     return path ? tmdbImg(path, 'w342') : null;
-  }, [record, isMobileLike]);
+  }, [record]);
 
   useHeroColor(colorImage, {
     darkenFactor: isMobileLike ? 0.42 : 0.36,
@@ -400,23 +403,39 @@ const HeroBanner = ({
     },
   });
 
-  // Preload next backdrop
+  // Warm BOTH neighbours, at the size this tier will actually request and via the same
+  // candidate list the hero paints from. Only the next one was warmed before, and only by
+  // raw backdropPath — so a backward swipe mounted a card whose artwork had never been
+  // fetched. It appeared empty for a beat, which reads as a flicker at exactly the moment
+  // the turn starts.
   useEffect(() => {
-    if (featured.length < 2) return;
+    if (featured.length < 2 || typeof Image === 'undefined') return;
 
-    const nextIdx = (idx + 1) % featured.length;
-    const nextRecord = featured[nextIdx];
+    const size = isMobileLike ? (isXs ? 'w780' : 'w1280') : 'original';
 
-    const nextUrl = tmdbImg(
-      nextRecord?.backdropPath ?? nextRecord?.backdropPathText,
-      'original'
-    );
-
-    if (nextUrl) {
-      const img = new Image();
-      img.src = nextUrl;
-    }
-  }, [idx, featured]);
+    [
+      (idx + 1) % featured.length,
+      (idx - 1 + featured.length) % featured.length,
+    ].forEach((i) => {
+      const next = featured[i];
+      const path = heroArtCandidates(next, {
+        portrait: false,
+        hasLogo: Boolean(next?.logoPath),
+        titled: false,
+      }).find(Boolean);
+      if (path) {
+        const img = new Image();
+        img.src = tmdbImg(path, size);
+      }
+      // The TITLE LOGO too, not just the backdrop. It is a separate request that only
+      // starts when the slide mounts, so it lands a beat after the artwork — which is
+      // how the hero ends up on screen showing a picture, a rating and no name at all.
+      if (next?.logoPath) {
+        const logo = new Image();
+        logo.src = tmdbImg(next.logoPath, 'w500');
+      }
+    });
+  }, [idx, featured, isMobileLike, isXs]);
 
   if (loading && !record) {
     return isMobileLike ? (
@@ -445,13 +464,10 @@ const HeroBanner = ({
 
   if (isMobileLike) {
     return (
-      <HeroCardStack
+      <SpotlightMobileHero
         {...commonProps}
         isXs={isXs}
         isTablet={isTablet}
-        // The whole map, not just the active record's slice: the stack shows more than
-        // one card at a time and each needs its own My List state.
-        interactions={interactions}
         variant={variant}
         heading={heading}
         breadcrumb={breadcrumb}

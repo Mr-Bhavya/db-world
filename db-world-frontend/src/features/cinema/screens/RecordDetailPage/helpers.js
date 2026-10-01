@@ -85,3 +85,20 @@ export function getCodec(videoFormat) {
   if (f.includes('VP9'))  return 'VP9';
   return videoFormat.split('(')[0].trim().split(' ')[0] || null;
 }
+
+/**
+ * A TMDB episode name that just restates its own number.
+ *
+ * Shows like "India's Got Latent" ship names of the form "Episode 1 : Ft. Alia Bhatt",
+ * so a row that also carried an E01 plate and sat first in an ordered list said the
+ * number three times. The prefix goes; the numeral beside the title is the one place
+ * that information now lives.
+ */
+export const EPISODE_NAME_PREFIX = /^\s*(?:episode|ep\.?)\s*\d+\s*(?:[:.–—-]\s*)?/i;
+
+export const distinctEpisodeName = (name) => {
+  if (!name) return null;
+  const stripped = name.replace(EPISODE_NAME_PREFIX, '').trim();
+  // A name of exactly "Episode 12" leaves nothing behind — there was never a title.
+  return stripped || null;
+};

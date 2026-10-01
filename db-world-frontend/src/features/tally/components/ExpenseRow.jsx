@@ -16,7 +16,7 @@ import {
  * what it means for *you*. The last one is the reason this is a custom row rather than a list
  * item — "₹1,200 groceries" tells you nothing you can act on, and "You owe ₹400" does.
  */
-export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid, index = 0 }) {
+export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid, index = 0, loan = null }) {
   const T = useT();
   const reduce = useReducedMotion();
   const [menuAt, setMenuAt] = useState(null);
@@ -24,6 +24,22 @@ export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid
   const impact = expenseImpact(expense, myMemberId);
   const label = impactLabel(impact);
   const tint = label.kind === 'settled' ? T.textMuted : balanceColor(impact.net, T);
+
+  // A loan's row reports what is still out, not the amount on the day it was made.
+  const lent = loan?.direction === 'LENT';
+  const right = loan
+    ? loan.settled
+      ? { amount: 'Paid back', caption: null, color: T.textMuted }
+      : {
+        amount: formatMoney(loan.outstanding),
+        caption: lent ? 'YOU GET BACK' : 'YOU OWE',
+        color: balanceColor(lent ? 1 : -1, T),
+      }
+    : {
+      amount: label.kind === 'settled' ? label.text : formatMoney(Math.abs(impact.net)),
+      caption: label.kind === 'settled' ? null : impact.net > 0 ? 'YOU GET BACK' : 'YOU OWE',
+      color: tint,
+    };
 
   return (
     <Box
@@ -58,13 +74,13 @@ export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid
 
       <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
         <Typography sx={{
-          fontSize: 13.5, fontWeight: 800, color: tint, whiteSpace: 'nowrap', lineHeight: 1.3,
+          fontSize: 13.5, fontWeight: 800, color: right.color, whiteSpace: 'nowrap', lineHeight: 1.3,
         }}>
-          {label.kind === 'settled' ? label.text : formatMoney(Math.abs(impact.net))}
+          {right.amount}
         </Typography>
-        {label.kind !== 'settled' && (
+        {right.caption && (
           <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: T.textMuted, letterSpacing: 0.2 }}>
-            {impact.net > 0 ? 'YOU GET BACK' : 'YOU OWE'}
+            {right.caption}
           </Typography>
         )}
       </Box>
