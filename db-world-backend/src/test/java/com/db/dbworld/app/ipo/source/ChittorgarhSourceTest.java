@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -212,13 +213,25 @@ class ChittorgarhSourceTest {
         verify(httpClient, never()).get(eq(LIST_URL_PAGE2), any()); // totalPages=1 → no second page
     }
 
+    /** No list means the source did not answer, which the poll has to be able to count. */
     @Test
-    void fetchAll_httpClientThrows_returnsEmptyList() {
+    void fetchAll_httpClientThrows_throwsSoThePollCountsIt() {
         when(httpClient.get(eq(LIST_URL_PAGE1), any())).thenThrow(new SourceFetchException("blocked"));
 
-        List<IpoDto> result = newSource().fetchAll();
+        assertThatThrownBy(() -> newSource().fetchAll())
+                .isInstanceOf(SourceFetchException.class)
+                .hasMessageContaining("blocked");
+    }
 
-        assertThat(result).isEmpty();
+    /** A blocked or changed response, not an empty year. */
+    @Test
+    void fetchAll_responseWithoutReportArray_throws() {
+        when(httpClient.get(eq(LIST_URL_PAGE1), any()))
+                .thenReturn(new IpoHttpResponse("{\"msg\":\"denied\"}", new HttpHeaders()));
+
+        assertThatThrownBy(() -> newSource().fetchAll())
+                .isInstanceOf(SourceFetchException.class)
+                .hasMessageContaining("reportTableData");
     }
 
     @Test

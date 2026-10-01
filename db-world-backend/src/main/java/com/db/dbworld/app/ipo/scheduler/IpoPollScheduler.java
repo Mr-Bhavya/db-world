@@ -9,6 +9,7 @@ import com.db.dbworld.app.ipo.service.IpoSourcePollService;
 import com.db.dbworld.app.ipo.service.NseHolidayService;
 import com.db.dbworld.app.ipo.source.IpoSource;
 import com.db.dbworld.app.ipo.source.IpoSourceRegistry;
+import com.db.dbworld.app.ipo.source.SourceFetchException;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -30,11 +31,10 @@ import java.util.function.Supplier;
  * dependency and is safe to call directly (e.g. from a test or an admin "run now" action).
  *
  * <p>One bad source must never abort the others: each source is fetched inside its own
- * try/catch. {@link IpoSource} implementations are contractually expected to swallow their own
- * expected upstream failures and return {@code List.of()} instead of throwing (see
- * {@link IpoSource#fetchAll()}), so the catch here is a defensive backstop, not the primary
- * failure path — but when it does trigger, the remaining sources still run and the cycle still
- * merges + ingests whatever was collected.
+ * try/catch. A source throws {@link SourceFetchException} when it could not be read (see
+ * {@link IpoSource#fetchAll()}); that is recorded as a failure with the exception's status and
+ * counted, and the remaining sources still run and the cycle still merges + ingests whatever was
+ * collected. A source with no credentials is recorded as skipped, not failed.
  */
 @Log4j2
 @Component
@@ -43,7 +43,6 @@ public class IpoPollScheduler {
     /** Scheduler job id used in scheduler_job_config (mirrors MediaSyncService.JOB_ID). */
     public static final String JOB_ID = "ipo-poll";
 
-    private static final String STATUS_FAILED = "FAILED";
 
     private final IpoSourceRegistry registry;
     private final IpoMergeService mergeService;
@@ -86,6 +85,7 @@ public class IpoPollScheduler {
         List<IpoSource> sources = registry.enabled();
         List<IpoDto> allDtos = new ArrayList<>();
         int sourcesFailed = 0;
+        int sourcesSkipped = 0;
 
         for (IpoSource source : sources) {
             Instant polledAt = now.get();
@@ -93,10 +93,23 @@ public class IpoPollScheduler {
                 List<IpoDto> dtos = source.fetchAll();
                 allDtos.addAll(dtos);
                 pollService.recordSuccess(source.key(), polledAt);
+            } catch (SourceFetchException e) {
+                if (e.notConfigured()) {
+                    sourcesSkipped++;
+                    pollService.recordSkipped(source.key(), polledAt, e.status());
+                    log.info("IPO poll: source '{}' skipped — {}", source.key(), e.getMessage());
+                } else {
+                    sourcesFailed++;
+                    pollService.recordFailure(source.key(), polledAt, e.status());
+                    log.warn("IPO poll: source '{}' failed ({}) — continuing: {}",
+                            source.key(), e.status(), e.getMessage());
+                }
             } catch (Exception e) {
+                // Not an upstream failure the source anticipated: a bug in the source. Still one
+                // source, so it must not stop the others.
                 sourcesFailed++;
-                pollService.recordFailure(source.key(), polledAt, STATUS_FAILED);
-                log.warn("IPO poll: source '{}' threw — recorded failure and continuing: {}",
+                pollService.recordFailure(source.key(), polledAt, SourceFetchException.FAILED);
+                log.warn("IPO poll: source '{}' threw unexpectedly — recorded failure and continuing: {}",
                         source.key(), e.toString());
             }
         }
@@ -123,12 +136,16 @@ public class IpoPollScheduler {
         // without manual upkeep. Self-guarded: never throws, so it can't affect the poll outcome.
         holidayService.refreshIfNeeded();
 
-        log.info("IPO poll complete: sourcesPolled={} sourcesFailed={} rawCount={} ipoCount={}",
-                sources.size(), sourcesFailed, allDtos.size(), merged.size());
+        log.info("IPO poll complete: sourcesPolled={} sourcesFailed={} sourcesSkipped={} rawCount={} ipoCount={}",
+                sources.size(), sourcesFailed, sourcesSkipped, allDtos.size(), merged.size());
 
-        return new IpoPollResult(sources.size(), sourcesFailed, merged.size());
+        return new IpoPollResult(sources.size(), sourcesFailed, sourcesSkipped, merged.size());
     }
 
-    /** Minimal per-cycle summary, mainly for logging/admin "run now" feedback. */
-    public record IpoPollResult(int sourcesPolled, int sourcesFailed, int ipoCount) {}
+    /**
+     * Minimal per-cycle summary, mainly for logging/admin "run now" feedback.
+     *
+     * @param sourcesSkipped sources not polled because they are not configured; not failures
+     */
+    public record IpoPollResult(int sourcesPolled, int sourcesFailed, int sourcesSkipped, int ipoCount) {}
 }

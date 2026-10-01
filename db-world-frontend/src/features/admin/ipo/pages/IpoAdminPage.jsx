@@ -31,10 +31,16 @@ const fmtIst = (iso) => {
   } catch { return '—'; }
 };
 
-/** Health tier for a source row: never polled (unknown) / healthy / warning (a few failures) / failing. */
+/**
+ * Health tier for a source row: never polled (unknown) / not configured / healthy / warning (a few
+ * failures) / failing. Not configured means no credentials, so it was skipped rather than failed.
+ */
 function healthTier(row, T, S) {
   if (!row.lastPolledAt) {
     return { label: 'Never polled', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
+  }
+  if (row.lastStatus === 'NOT_CONFIGURED') {
+    return { label: 'Not configured', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
   }
   if (row.consecutiveFailures === 0 && row.lastStatus === 'OK') {
     return { label: 'Healthy', color: T.success, bg: T.successBg, Icon: CheckCircleIcon };
