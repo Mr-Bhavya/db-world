@@ -1,5 +1,6 @@
 package com.db.dbworld;
 
+import com.db.dbworld.infrastructure.logging.mdc.ReactorLogContext;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
 import org.springframework.boot.SpringApplication;
@@ -30,6 +31,10 @@ public class DbWorldApplication {
         // discard the lowest-priority records (TRACE/DEBUG) rather than block.
         System.setProperty("log4j2.asyncQueueFullPolicy", "Discard");
         System.setProperty("log4j2.discardThreshold", "DEBUG");
+
+        // Keep jobRunId / traceId on log lines written from Reactor and Netty threads, so a
+        // scheduler run's log includes its WebClient responses, retries and failures.
+        ReactorLogContext.install();
 
         SpringApplication.run(DbWorldApplication.class, args);
     }
