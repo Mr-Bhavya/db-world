@@ -47,6 +47,19 @@ public class IpoSourcePollService {
         repository.save(entity);
     }
 
+    /**
+     * Upsert: lastPolledAt = now, lastStatus = status. For a source that was not polled because it
+     * is not configured: not a success (lastSuccessAt is left alone, so it can't make stale data
+     * look fresh) and not an upstream failure (the failure streak is left alone too).
+     */
+    @Transactional
+    public void recordSkipped(String source, Instant now, String status) {
+        IpoSourcePollEntity entity = findOrCreate(source);
+        entity.setLastPolledAt(now);
+        entity.setLastStatus(status);
+        repository.save(entity);
+    }
+
     /** Max {@code lastSuccessAt} across every tracked source; empty if no source has ever succeeded. */
     public Optional<Instant> lastSuccessAcrossSources() {
         return repository.findAll().stream()

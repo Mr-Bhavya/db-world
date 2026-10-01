@@ -188,6 +188,72 @@ class JobRunRecorderTest {
         assertThat(saved.getMessage()).contains("Cancelled");
     }
 
+    /**
+     * PersonSync and LiveHealth notice the interrupt and return normally instead of throwing.
+     * That used to be filed as SUCCESS, with LiveHealth's zeros reading as "nothing to probe".
+     */
+    @Test
+    void cancel_aJobThatStopsQuietly_isStillCancelled() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        Thread worker = new Thread(() -> {
+            recorder.run("PersonSyncScheduler", TriggerSource.MANUAL, null, summary -> {
+                started.countDown();
+                try {
+                    Thread.sleep(10_000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); // swallow, as the real jobs do
+                }
+                summary.count("synced", 3);
+                return null;
+            });
+            done.countDown();
+        }, "test-quiet-cancel");
+        worker.setDaemon(true);
+        worker.start();
+
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(recorder.cancel("PersonSyncScheduler")).isTrue();
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+
+        SchedulerJobHistoryEntity saved = captureSaved();
+        assertThat(saved.getStatus()).isEqualTo("CANCELLED");
+        assertThat(saved.getMessage()).contains("Cancelled");
+        assertThat(saved.getSummaryJson()).contains("\"synced\":3");
+    }
+
+    /**
+     * TMDB sync only reports its totals once it finishes; until then the numbers live in its
+     * progress supplier. A run that dies mid-way must keep what the page was showing.
+     */
+    @Test
+    void failedRun_keepsItsLastLiveProgress_whenItNeverReportedTotals() {
+        AtomicLong synced = new AtomicLong();
+        assertThatThrownBy(() ->
+                recorder.run("TmdbMovieSync", TriggerSource.SCHEDULED, null, summary -> {
+                    summary.progress(() -> Map.of("synced", synced.get()));
+                    synced.set(600);
+                    throw new IllegalStateException("TMDB went away");
+                }))
+                .isInstanceOf(IllegalStateException.class);
+
+        SchedulerJobHistoryEntity saved = captureSaved();
+        assertThat(saved.getStatus()).isEqualTo("FAILED");
+        assertThat(saved.getSummaryJson()).contains("\"synced\":600");
+    }
+
+    /** On success the job's own totals are the record; live keys are not mixed in. */
+    @Test
+    void successfulRun_ignoresLiveProgress() {
+        recorder.run("TmdbMovieSync", TriggerSource.SCHEDULED, null, summary -> {
+            summary.progress(() -> Map.of("liveOnly", 5L));
+            summary.count("synced", 10);
+            return null;
+        });
+
+        assertThat(captureSaved().getSummaryJson()).contains("\"synced\":10").doesNotContain("liveOnly");
+    }
+
     @Test
     void cancel_returnsFalseWhenNothingIsRunning() {
         assertThat(recorder.cancel("TmdbMovieSync")).isFalse();

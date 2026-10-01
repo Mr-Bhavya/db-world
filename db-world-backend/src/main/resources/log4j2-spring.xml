@@ -241,40 +241,50 @@
             <AppenderRef ref="AppErrorJson"/>
         </Logger>
 
-        <!-- ╭────────── Third-party noise tuning ──────────╮ -->
+        <!-- ╭────────── Third-party noise tuning ──────────╮
+             Levels only: these loggers are additive, so their events land on Root's appenders
+             (everything at the logger's level on the console, WARN and up in the files). -->
 
         <!-- Spring family: INFO. Quiet down the per-class chattiness we don't need. -->
-        <Logger name="org.springframework"             level="INFO" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
-        <Logger name="org.springframework.web.servlet.DispatcherServlet"  level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
-        <Logger name="org.springframework.boot.web.context.servlet"      level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
-        <Logger name="org.springframework.data.repository.config"        level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
-        <Logger name="org.springframework.orm.jpa"                       level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springframework"             level="INFO"/>
+        <Logger name="org.springframework.web.servlet.DispatcherServlet"  level="WARN"/>
+        <Logger name="org.springframework.boot.web.context.servlet"      level="WARN"/>
+        <Logger name="org.springframework.data.repository.config"        level="WARN"/>
+        <Logger name="org.springframework.orm.jpa"                       level="WARN"/>
 
         <!-- Jasypt: prints one INFO line per property source on every startup. -->
-        <Logger name="com.ulisesbocchio.jasyptspringboot" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="com.ulisesbocchio.jasyptspringboot" level="WARN"/>
 
         <!-- Hibernate: WARN by default; flip to DEBUG for SQL when needed. -->
-        <Logger name="org.hibernate"     level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
-        <Logger name="org.hibernate.SQL" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.hibernate"     level="WARN"/>
+        <Logger name="org.hibernate.SQL" level="WARN"/>
 
         <!-- Jetty: INFO drowns startup; WARN is enough for prod. -->
-        <Logger name="org.eclipse.jetty" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.eclipse.jetty" level="WARN"/>
 
         <!-- Hikari: keep INFO so we see pool start/stop. -->
-        <Logger name="com.zaxxer.hikari" level="INFO" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="com.zaxxer.hikari" level="INFO"/>
 
         <!-- Apache httpclient / commons: WARN. -->
-        <Logger name="org.apache" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.apache" level="WARN"/>
 
         <!-- Springdoc startup banner is fine, runtime should be quiet. -->
-        <Logger name="org.springdoc" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springdoc" level="WARN"/>
 
         <!--
           ╭────────── Root ──────────╮
-          Catches anything not matched above. INFO is the prod default.
+          Catches anything not matched above, plus the third-party loggers above, which only
+          set a level. INFO is the prod default.
         -->
         <Root level="INFO">
             <AppenderRef ref="ConsoleApp"/>
+            <!-- WARN and up also reach the files the Log Viewer and the Scheduler page's run log
+                 read. Before, a Hibernate SQL error, a Hikari pool timeout or a Reactor error
+                 raised mid-run went to the console only, so the run log could never show it. -->
+            <AppenderRef ref="AppInfoFile"  level="WARN"/>
+            <AppenderRef ref="AppInfoJson"  level="WARN"/>
+            <AppenderRef ref="AppErrorFile" level="WARN"/>
+            <AppenderRef ref="AppErrorJson" level="WARN"/>
         </Root>
     </Loggers>
 </Configuration>

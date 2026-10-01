@@ -5,6 +5,7 @@ import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepositor
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.client.TmdbNotFound;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
 import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
@@ -101,17 +102,27 @@ public class TmdbRecordSyncService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailed(Long tmdbId, RecordType type, String errorMessage) {
-        log.debug("markFailed: tmdbId={}, type={}, error={}", tmdbId, type, errorMessage);
+        fail(tmdbId, type, errorMessage, false);
+    }
+
+    /** Also flags the row when the failure is TMDB answering 404 for the title itself. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markFailed(Long tmdbId, RecordType type, Throwable cause) {
+        boolean notFound = TmdbNotFound.isTitleGone(cause, type, tmdbId);
+        if (notFound) {
+            log.warn("TMDB no longer has {} {}; flagged for review on the Records page", type, tmdbId);
+        }
+        fail(tmdbId, type, rootMessage(cause), notFound);
+    }
+
+    private void fail(Long tmdbId, RecordType type, String errorMessage, boolean notFound) {
+        log.debug("markFailed: tmdbId={}, type={}, notFound={}, error={}", tmdbId, type, notFound, errorMessage);
         TmdbRecordSyncEntity entity = getOrCreate(tmdbId, type);
         entity.setLastCheckedAt(Instant.now());
         entity.setStatus(SyncStatus.FAILED);
         entity.setErrorMessage(truncate(errorMessage, 1000));
+        entity.setTmdbNotFound(notFound);
         repository.save(entity);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markFailed(Long tmdbId, RecordType type, Throwable cause) {
-        markFailed(tmdbId, type, rootMessage(cause));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -138,6 +149,7 @@ public class TmdbRecordSyncService {
             entity.setLastSyncedAt(now);
             entity.setSyncVersion(System.currentTimeMillis());
             entity.setErrorMessage(null); // clear previous error on success
+            entity.setTmdbNotFound(false);
         }
 
         if (status != null) {

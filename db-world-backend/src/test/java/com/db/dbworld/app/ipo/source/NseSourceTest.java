@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -268,24 +269,22 @@ class NseSourceTest {
     // ── Bootstrap / failure handling ─────────────────────────────────────────────────────────────
 
     @Test
-    void fetchAll_bootstrapFails_returnsEmptyListWithoutCallingDataEndpoints() {
+    void fetchAll_bootstrapFails_throwsWithoutCallingDataEndpoints() {
         when(httpClient.get(eq(HOME_URL), any())).thenThrow(new SourceFetchException("blocked"));
 
-        List<IpoDto> result = newSource().fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThatThrownBy(() -> newSource().fetchAll()).isInstanceOf(SourceFetchException.class);
         verify(httpClient, never()).get(eq(CURRENT_URL), any());
         verify(httpClient, never()).get(eq(UPCOMING_URL), any());
     }
 
     @Test
-    void fetchAll_noCookiesReturned_returnsEmptyListWithoutCallingDataEndpoints() {
+    void fetchAll_noCookiesReturned_throwsWithoutCallingDataEndpoints() {
         when(httpClient.get(eq(HOME_URL), any()))
                 .thenReturn(new IpoHttpResponse("<html></html>", new HttpHeaders()));
 
-        List<IpoDto> result = newSource().fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThatThrownBy(() -> newSource().fetchAll())
+                .isInstanceOf(SourceFetchException.class)
+                .hasMessageContaining("cookie");
         verify(httpClient, never()).get(eq(CURRENT_URL), any());
         verify(httpClient, never()).get(eq(UPCOMING_URL), any());
     }
@@ -303,6 +302,27 @@ class NseSourceTest {
         assertThat(result.get(0).companyName()).isEqualTo("Xtranet Technologies Limited");
     }
 
+    @Test
+    void fetchAll_bothEndpointsFail_throws() {
+        stubHomeWithCookie();
+        when(httpClient.get(eq(CURRENT_URL), any())).thenThrow(new SourceFetchException("403"));
+        stubResponse(UPCOMING_URL, "{\"unexpected\":true}");
+
+        assertThatThrownBy(() -> newSource().fetchAll())
+                .isInstanceOf(SourceFetchException.class)
+                .hasMessageContaining("both");
+    }
+
+    @Test
+    void fetchAll_currentEndpointFails_stillReturnsUpcomingIssues() {
+        stubHomeWithCookie();
+        when(httpClient.get(eq(CURRENT_URL), any())).thenThrow(new SourceFetchException("403"));
+        stubResponse(UPCOMING_URL, "[ { \"symbol\": \"EPSILON\", \"status\": \"Active\" } ]");
+
+        assertThat(newSource().fetchAll()).hasSize(1);
+    }
+
+    /** Both feeds answering with nothing is a quiet market, not a failure. */
     @Test
     void fetchAll_bothEndpointsEmpty_returnsEmptyList() {
         stubHomeWithCookie();

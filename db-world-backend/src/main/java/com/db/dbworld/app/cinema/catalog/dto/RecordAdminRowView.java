@@ -30,4 +30,5 @@ public class RecordAdminRowView implements RecordAdminRowDto {
     private final String syncError;
     private final Long mediaFileCount;
     private final Long mediaTotalSize;
+    private final Boolean tmdbNotFound;
 }

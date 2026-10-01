@@ -45,6 +45,9 @@ public class LogsService {
      */
     private static final int RUN_SCAN_LINE_CAP = 400_000;
 
+    /** Matches kept per file by a run-log search; far above any real run, it only bounds memory. */
+    private static final int RUN_MATCH_CAP = 10_000;
+
     public LogsService(AppProperties props) {
         this.props = props;
         this.appParsers = initParsers();
@@ -224,35 +227,48 @@ public class LogsService {
      * @param date    the run's start date; null means today
      * @param maxLines cap on lines returned
      */
-    public LogResponse findRunLogs(String runId, LocalDate date, Integer maxLines) throws IOException {
+    public RunLogs findRunLogs(String runId, LocalDate date, Integer maxLines) throws IOException {
         int max = (maxLines != null && maxLines > 0) ? maxLines : DEFAULT_MAX_LINES;
         String needle = "\"jobRunId\":\"" + runId + "\"";
         LocalDate runDate = (date != null) ? date : LocalDate.now();
 
+        // Collect every match first and cap afterwards. Capping while scanning spent the whole
+        // budget on the info file before debug was opened (a chatty run showed no DEBUG lines
+        // at all) and on the run's first day before the second, and which end of the run you
+        // got depended on the day: the newest lines today, the oldest ones afterwards.
         List<String> matches = new ArrayList<>();
         // A run that starts before midnight finishes writing into the next day's file, so the
         // day after the run is searched too whenever it exists.
         for (LocalDate day : datesToSearch(runDate)) {
             for (String subType : RUN_LOG_SUBTYPES) {
-                if (matches.size() >= max) break;
-                matches.addAll(scanForNeedle(subType, day, needle, max - matches.size()));
+                matches.addAll(scanForNeedle(subType, day, needle, RUN_MATCH_CAP));
             }
         }
 
         // Interleave info and debug back into real time order — they were scanned separately.
         matches.sort(Comparator.comparing(l -> Objects.requireNonNullElse(extractJsonTimestamp(l), "")));
 
-        List<Object> parsed = new ArrayList<>(matches.size());
+        int total = matches.size();
+        List<Object> parsed = new ArrayList<>(Math.min(total, max));
         AppLogParser parser = new AppLogParser();
-        for (String line : matches) {
+        // The run from its first line, so the slice is the same whenever it is looked at.
+        for (String line : matches.subList(0, Math.min(total, max))) {
             try {
                 parsed.add(parser.parse(line).payload());
             } catch (Exception e) {
                 log.debug("Skipping unparseable run-log line: {}", e.getMessage());
             }
         }
-        return new LogResponse(parsed, parsed.size(), true);
+        return new RunLogs(parsed, total, total > max);
     }
+
+    /**
+     * One run's lines in time order.
+     *
+     * @param total     every line found for the run, which is more than {@code entries} when
+     *                  {@code truncated}
+     */
+    public record RunLogs(List<Object> entries, int total, boolean truncated) {}
 
     /** Today for a same-day run, otherwise the run's day plus the day after it. */
     private List<LocalDate> datesToSearch(LocalDate runDate) {

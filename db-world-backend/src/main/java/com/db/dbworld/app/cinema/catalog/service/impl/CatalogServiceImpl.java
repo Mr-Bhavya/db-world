@@ -414,13 +414,15 @@ public class CatalogServiceImpl implements CatalogService {
             Integer year,
             SyncStatus status,
             RecordVisibility visibility,
+            boolean tmdbNotFound,
             Pageable pageable
     ) {
         // Sort is applied inside the repository's hand-built native query from a
         // safe allowlist — no alias-remap needed (and it can sort joined columns).
         return recordRepository.findAdminTable(
                 recordId, name, type != null ? type.name() : null, tmdbId, year,
-                status != null ? status.name() : null, visibility != null ? visibility.name() : null, pageable
+                status != null ? status.name() : null, visibility != null ? visibility.name() : null,
+                tmdbNotFound, pageable
         );
     }
 

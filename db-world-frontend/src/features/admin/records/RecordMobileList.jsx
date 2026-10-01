@@ -12,13 +12,7 @@ import { useRecordStore } from '../stores/useRecordStore';
 import { useRecordSync } from './useRecordSync';
 import VisibilityControl from './VisibilityControl';
 import RecordTagsInline from './RecordTagsInline';
-
-const SYNC_META = {
-  SUCCESS: { label: 'Synced',  color: '#10b981' },
-  FAILED:  { label: 'Failed',  color: '#ef4444' },
-  SKIPPED: { label: 'Skipped', color: '#6b7280' },
-  RUNNING: { label: 'Running', color: '#f59e0b' },
-};
+import { NOT_ON_TMDB, syncMeta } from './syncConstants';
 
 const fmtSize = (b) => {
   if (!b) return '0 B';
@@ -52,7 +46,7 @@ export default function RecordMobileList({ rows, onDelete }) {
     <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
       {rows.map(row => {
         const sel     = selected.has(row.recordId);
-        const meta    = SYNC_META[row.syncStatus];
+        const meta    = syncMeta(row);
         const count   = row.mediaFileCount ?? 0;
         const syncing = syncMut.isPending && syncMut.variables === row.recordId;
         return (
@@ -126,7 +120,11 @@ export default function RecordMobileList({ rows, onDelete }) {
               )}
             </Box>
 
-            {row.syncStatus === 'FAILED' && row.syncError && (
+            {row.tmdbNotFound ? (
+              <Typography sx={{ fontSize: 10, color: NOT_ON_TMDB.color, mt: 0.5, pl: 4.25 }}>
+                {NOT_ON_TMDB.short}
+              </Typography>
+            ) : row.syncStatus === 'FAILED' && row.syncError && (
               <Typography sx={{ fontSize: 10, color: T.error, mt: 0.5, pl: 4.25,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {row.syncError}

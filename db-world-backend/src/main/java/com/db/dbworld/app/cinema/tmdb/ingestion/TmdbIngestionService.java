@@ -131,7 +131,7 @@ public interface TmdbIngestionService {
     void deleteMedia(List<Long> tmdbIds);
 
     /**
-     * Delete a single person.
+     * Delete a single person, along with their cast/crew credits and TV "created by" links.
      * @param personId TMDB person ID to delete
      * @throws com.db.dbworld.app.cinema.tmdb.exception.TmdbNotFoundException if person doesn't exist
      */

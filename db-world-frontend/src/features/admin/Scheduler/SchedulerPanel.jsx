@@ -44,7 +44,7 @@ import {
 import RunLogPanel from './RunLogPanel';
 import JobCard from './JobCard';
 import { JOB_META } from './jobMeta';
-import { completionMessage, describeSchedule } from './schedulerUtils';
+import { completionMessage, describeSchedule, formatDuration } from './schedulerUtils';
 import SheetDialog from '@shared/components/SheetDialog';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -720,7 +720,8 @@ const HEADER_H = 76;
 const fmtStarted = (iso) => (iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 /** "840 ms" / "1.4 s" — plenty of these runs are sub-second, and "0.0 s" would hide that. */
-const fmtRunMs = (ms) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+// The cards' format, so a run reads "6m 52s" in both places rather than "411.5 s" in one.
+const fmtRunMs = formatDuration;
 
 /** Which run is expanded, keyed by id where the row has one. Shared so the table and the cards
  *  agree on the identity of a row — they read the same `expandedRun`. */

@@ -127,7 +127,15 @@ public class JobRunRecorder {
         String status  = "SUCCESS";
         String message = null;
         try {
-            return body.run(summary);
+            T result = body.run(summary);
+            if (cancelRequested.get()) {
+                // The job saw the interrupt and stopped early without throwing (PersonSync and
+                // LiveHealth return quietly). That is still a cancelled run, not a success.
+                status  = "CANCELLED";
+                message = "Cancelled after " + (System.currentTimeMillis() - startMs) + "ms";
+                log.info("Job {} cancelled after {}ms", jobId, System.currentTimeMillis() - startMs);
+            }
+            return result;
         } catch (Exception e) {
             if (cancelRequested.get()) {
                 status  = "CANCELLED";
@@ -145,8 +153,9 @@ public class JobRunRecorder {
             // TaskScheduler thread, and leaving it interrupted would make the next unrelated
             // job to land on it die instantly.
             Thread.interrupted();
-            persist(jobId, runId, startedAt, System.currentTimeMillis() - startMs,
-                    status, message, summary.build(), source, user);
+            persist(jobId, runId, startedAt, System.currentTimeMillis() - startMs, status, message,
+                    "SUCCESS".equals(status) ? summary.build() : summary.buildWithLiveProgress(),
+                    source, user);
             restore(MdcKeys.JOB, prevJob);
             restore(MdcKeys.JOB_RUN_ID, prevRunId);
         }
