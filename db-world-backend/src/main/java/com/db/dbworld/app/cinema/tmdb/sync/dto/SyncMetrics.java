@@ -11,6 +11,9 @@ public class SyncMetrics {
 
     private final Instant startTime = Instant.now();
 
+    /** Every id TMDB listed as changed in the window, ours or not. */
+    private final AtomicInteger tmdbChanges = new AtomicInteger();
+    /** Of those, the ones that are titles in our library: what the run actually works through. */
     private final AtomicInteger total = new AtomicInteger();
     private final AtomicInteger success = new AtomicInteger();
     private final AtomicInteger failed = new AtomicInteger();
@@ -38,7 +41,8 @@ public class SyncMetrics {
 
     public String summary() {
         return String.format(
-                "Total=%d, Success=%d, Failed=%d, Skipped=%d, Duration=%ds",
+                "TmdbChanges=%d, InLibrary=%d, Success=%d, Failed=%d, Skipped=%d, Duration=%ds",
+                tmdbChanges.get(),
                 total.get(),
                 success.get(),
                 failed.get(),

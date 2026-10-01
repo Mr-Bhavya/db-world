@@ -16,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 
@@ -52,11 +53,17 @@ public class TmdbSyncScheduler {
             // Owned here, not inside the orchestrator, so the admin page can watch these
             // climb during a run that takes minutes instead of staring at a spinner.
             SyncMetrics metrics = new SyncMetrics();
-            summary.progress(() -> Map.of(
-                    "changed", (long) metrics.getTotal().get(),
-                    "synced",  (long) metrics.getSuccess().get(),
-                    "failed",  (long) metrics.getFailed().get(),
-                    "skipped", (long) metrics.getSkipped().get()));
+            // Ordered: the card shows the first non-zero ones, and Map.of iterates in an
+            // unspecified order that changes from one JVM start to the next.
+            summary.progress(() -> {
+                Map<String, Long> live = new LinkedHashMap<>();
+                live.put("inLibrary",   (long) metrics.getTotal().get());
+                live.put("synced",      (long) metrics.getSuccess().get());
+                live.put("failed",      (long) metrics.getFailed().get());
+                live.put("skipped",     (long) metrics.getSkipped().get());
+                live.put("tmdbChanges", (long) metrics.getTmdbChanges().get());
+                return live;
+            });
 
             if (type == RecordType.MOVIE) {
                 syncService.syncMovies(window, metrics);
@@ -82,12 +89,19 @@ public class TmdbSyncScheduler {
      * four hundred records or none.
      */
     private void report(JobRunSummary.Builder summary, SyncMetrics metrics) {
-        summary.count("changed", metrics.getTotal().get())
-               .count("synced",  metrics.getSuccess().get())
-               .count("failed",  metrics.getFailed().get())
-               .count("skipped", metrics.getSkipped().get());
-        if (metrics.getTotal().get() == 0) {
+        // "inLibrary" was "changed", which read like TMDB's own count but was only the changed
+        // ids that are titles here. The log line "changes fetched: count=" is TMDB's count, so
+        // the two never agreed; now both are on the row.
+        summary.count("inLibrary",   metrics.getTotal().get())
+               .count("synced",      metrics.getSuccess().get())
+               .count("failed",      metrics.getFailed().get())
+               .count("skipped",     metrics.getSkipped().get())
+               .count("tmdbChanges", metrics.getTmdbChanges().get());
+        if (metrics.getTmdbChanges().get() == 0) {
             summary.note("TMDB reported no changes in the window — nothing to sync");
+        } else if (metrics.getTotal().get() == 0) {
+            summary.note("TMDB reported " + metrics.getTmdbChanges().get()
+                    + " changes, none of them titles in the library");
         }
     }
 

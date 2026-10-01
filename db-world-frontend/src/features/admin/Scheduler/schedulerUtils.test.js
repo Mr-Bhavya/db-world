@@ -39,6 +39,13 @@ describe('formatDuration', () => {
     expect(formatDuration(120000)).toBe('2m');
   });
 
+  it('never shows a 60 in the seconds place when rounding rolls over', () => {
+    expect(formatDuration(119600)).toBe('2m');
+    expect(formatDuration(59600)).toBe('1m');
+    expect(formatDuration(9970)).toBe('10s');
+    expect(formatDuration(3_599_700)).toBe('1h 0m');
+  });
+
   it('rolls over into hours', () => {
     expect(formatDuration(3900000)).toBe('1h 5m');
   });

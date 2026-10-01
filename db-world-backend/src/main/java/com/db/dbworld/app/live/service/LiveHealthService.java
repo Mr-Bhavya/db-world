@@ -82,7 +82,18 @@ public class LiveHealthService {
             .build();
 
     /** Outcome of one probe sweep. */
-    public record HealthResult(int probed, int up, int down, int channelsUp, int channelsDown) {}
+    /**
+     * @param probed    probes that completed; one cut short by a timeout or shutdown is neither
+     *                  up nor down, and leaves the source's last verdict alone
+     * @param discarded why a sweep that had sources to probe recorded nothing; null otherwise
+     */
+    public record HealthResult(int probed, int up, int down, int channelsUp, int channelsDown, String discarded) {
+        static final HealthResult NOTHING_TO_PROBE = new HealthResult(0, 0, 0, 0, 0, null);
+
+        static HealthResult discarded(String why) {
+            return new HealthResult(0, 0, 0, 0, 0, why);
+        }
+    }
 
     /** Probe the next slice of eligible sources and roll the verdicts up onto their channels. */
     public HealthResult probeAll() {
@@ -95,7 +106,7 @@ public class LiveHealthService {
     }
 
     private HealthResult probe(List<LiveChannelSourceEntity> queue) {
-        if (queue.isEmpty()) return new HealthResult(0, 0, 0, 0, 0);
+        if (queue.isEmpty()) return HealthResult.NOTHING_TO_PROBE;
 
         var results = runProbes(queue);
         // A shutdown interrupts the pool mid-sweep. Writing the partial verdicts would be
@@ -103,7 +114,11 @@ public class LiveHealthService {
         if (Thread.currentThread().isInterrupted()) {
             log.warn("Live health sweep interrupted after {} of {} probes — discarding this run",
                     results.size(), queue.size());
-            return new HealthResult(0, 0, 0, 0, 0);
+            return HealthResult.discarded("Interrupted after " + results.size() + " of " + queue.size()
+                    + " probes; nothing was recorded");
+        }
+        if (results.isEmpty()) {
+            return HealthResult.discarded("None of the " + queue.size() + " probes finished; nothing was recorded");
         }
         // The probing above is HTTP and needs no lock; these writes DO. An import holds
         // the lock for minutes, so wait for it rather than throw away results we already
@@ -112,7 +127,8 @@ public class LiveHealthService {
         if (!writeLock.acquire("Recording channel health", WRITE_LOCK_WAIT)) {
             log.warn("Live health sweep probed {} sources but could not take the write lock; "
                     + "discarding this run's verdicts", queue.size());
-            return new HealthResult(0, 0, 0, 0, 0);
+            return HealthResult.discarded("Probed " + results.size() + " sources, but an import held the"
+                    + " write lock, so nothing was recorded");
         }
         RollUp rolled;
         try {
@@ -126,9 +142,14 @@ public class LiveHealthService {
             writeLock.release();
         }
 
+        // Down is "answered and failed", out of the probes that finished. queue.size() - up also
+        // counted every probe that timed out or was cut short, which persist() never marks down.
         var up = (int) results.values().stream().filter(Boolean::booleanValue).count();
-        log.info("Live health sweep — {} sources probed, {} up, {} down", queue.size(), up, queue.size() - up);
-        return new HealthResult(queue.size(), up, queue.size() - up, rolled.up(), rolled.down());
+        var down = results.size() - up;
+        var unfinished = queue.size() - results.size();
+        log.info("Live health sweep — {} sources probed, {} up, {} down{}", results.size(), up, down,
+                unfinished > 0 ? ", " + unfinished + " did not finish" : "");
+        return new HealthResult(results.size(), up, down, rolled.up(), rolled.down(), null);
     }
 
     /** Run the probes on a bounded pool, keyed by source id. */

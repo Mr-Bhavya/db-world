@@ -8,9 +8,13 @@ export function formatDuration(ms) {
   if (ms == null) return '—';
   if (ms < 1000) return `${ms} ms`;
   const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`;
-  const m = Math.floor(s / 60);
-  const rem = Math.round(s % 60);
+  // Thresholds sit where the rounded value would roll over, so 9.97s is "10s" not "10.0s",
+  // 59.6s is "1m" not "60s", and 119.6s is "2m" not "1m 60s".
+  if (s < 9.95) return `${s.toFixed(1)}s`;
+  if (s < 59.5) return `${Math.round(s)}s`;
+  const whole = Math.round(s);
+  const m = Math.floor(whole / 60);
+  const rem = whole % 60;
   if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`;
   const h = Math.floor(m / 60);
   return `${h}h ${m % 60}m`;

@@ -25,6 +25,10 @@ public class LiveHealthScheduler {
 
     public void check(JobRunSummary.Builder summary) {
         var result = health.probeAll();
+        if (result.discarded() != null) {
+            summary.count("probed", 0).note(result.discarded());
+            return;
+        }
         if (result.probed() == 0) {
             summary.count("probed", 0).note("Nothing to probe — no live stream URLs yet");
             return;
