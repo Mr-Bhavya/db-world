@@ -1,0 +1,129 @@
+name: Backend image
+
+# Builds the backend container image (db-world-backend/Dockerfile) for the Pi (linux/arm64).
+#
+#   • push to development, feat/**, fix/** — build only, nothing published. This is the early
+#     warning: when an upstream change breaks an install step (a package renamed, a release
+#     asset moved), it fails here instead of on the Pi.
+#   • Deploy & Release      — calls this with push: true and deploys the tag it returns.
+#   • manual run            — build, and optionally publish, any ref.
+#
+# Images go to ghcr.io/<owner>/db-world-backend tagged sha-<12-char commit>, one tag per commit,
+# so rolling back is deploying an older tag. No secrets are baked in: configuration and
+# credentials are mounted on the Pi at runtime.
+
+on:
+  push:
+    branches: [development, 'feat/**', 'fix/**']
+    paths:
+      - 'db-world-backend/**'
+      - '.github/workflows/backend-image.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to build. Blank = the ref you launched from."
+        required: false
+      push:
+        description: Publish the image to GHCR
+        type: boolean
+        default: false
+      ytdlp:
+        description: "yt-dlp release, e.g. 2026.08.19. Blank = the Dockerfile's pin; 'latest' = newest."
+        required: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      push:
+        type: boolean
+        default: true
+      ytdlp:
+        type: string
+        required: false
+    outputs:
+      image:
+        description: Image reference that was built, e.g. ghcr.io/mr-bhavya/db-world-backend:sha-0123456789ab
+        value: ${{ jobs.image.outputs.image }}
+      tag:
+        description: The tag alone, e.g. sha-0123456789ab
+        value: ${{ jobs.image.outputs.tag }}
+
+permissions:
+  contents: read
+  packages: write
+
+# A newer push to the same branch supersedes a build-only check still running. Publishing runs
+# (deploys) are never cancelled.
+concurrency:
+  group: backend-image-${{ github.ref }}-${{ inputs.push == true && 'publish' || 'check' }}
+  cancel-in-progress: ${{ inputs.push != true }}
+
+jobs:
+  image:
+    name: Build backend image (arm64)
+    # Native arm64 runner (free for public repositories): no QEMU, so apt and the tool checks in
+    # the Dockerfile run at full speed.
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Resolve tag and tool versions
+        id: vars
+        env:
+          YTDLP: ${{ inputs.ytdlp }}
+          PUSH: ${{ inputs.push == true }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="sha-$(git rev-parse --short=12 HEAD)"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/db-world-backend:${tag}"
+          echo "tag=${tag}"                     >> "$GITHUB_OUTPUT"
+          echo "image=${image}"                 >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "${YTDLP:-}" = "latest" ]; then
+            YTDLP=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+                      https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest \
+                    | python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])')
+          fi
+          echo "ytdlp_arg=${YTDLP:+YTDLP_VERSION=${YTDLP}}" >> "$GITHUB_OUTPUT"
+          echo "Building ${image}${YTDLP:+ with yt-dlp ${YTDLP}}"
+          {
+            echo "### Backend image"
+            echo "\`${image}\`${YTDLP:+ (yt-dlp ${YTDLP})}"
+            if [ "${PUSH}" = "true" ]; then
+              echo
+              echo "On the Pi: \`sudo dbworld-compose update ${tag}\` (or \`switch ${tag}\` the first time)"
+            else
+              echo
+              echo "Built only, not published."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: db-world-backend
+          platforms: linux/arm64
+          push: ${{ inputs.push == true }}
+          tags: ${{ steps.vars.outputs.image }}
+          build-args: ${{ steps.vars.outputs.ytdlp_arg }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.vars.outputs.revision }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
