@@ -7,6 +7,7 @@ import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.pipeline.DefaultIngestionPipeline;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
+import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.spi.DownloadStrategy;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
@@ -58,7 +59,8 @@ public class IngestionConfig {
             CatalogService           catalogService,
             SmartTrackFilterService  smartTrackFilterService,
             TrackReviewCoordinator   trackReviewCoordinator,
-            SettingsService          settingsService
+            SettingsService          settingsService,
+            FileStorageService       fileStorageService
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -77,7 +79,8 @@ public class IngestionConfig {
                 catalogService,
                 smartTrackFilterService,
                 trackReviewCoordinator,
-                settingsService
+                settingsService,
+                fileStorageService
         );
     }
 }

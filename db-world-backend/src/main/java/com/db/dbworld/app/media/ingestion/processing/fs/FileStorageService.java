@@ -17,4 +17,10 @@ public interface FileStorageService {
     void prepareDirectories(IngestionContext ctx);
 
     void moveToFinal(IngestionContext ctx);
+
+    /**
+     * Removes the job's temp folder, and any parents below the temp root, once they are empty.
+     * Called after the job's temp artifacts are deleted. Best-effort: never throws.
+     */
+    void removeEmptyTempDirs(IngestionContext ctx);
 }

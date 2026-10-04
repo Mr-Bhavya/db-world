@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Default file storage implementation.
@@ -96,6 +98,26 @@ public class DefaultFileStorageService implements FileStorageService {
         } catch (Exception e) {
             throw new RuntimeException("Move to final failed for job: " + ctx.getJobId(), e);
         }
+    }
+
+    @Override
+    public void removeEmptyTempDirs(IngestionContext ctx) {
+        Path tempRoot = runtimeProperties.getTempPath();
+        if (tempRoot == null) return;
+
+        // Where the artifacts lived, plus the job's own folder. The folder alone is not enough:
+        // linking a record mid-flight changes the folder name, so the download may sit elsewhere.
+        Set<Path> dirs = new LinkedHashSet<>();
+        for (Path artifact : ctx.getTempArtifacts()) {
+            if (artifact != null && artifact.getParent() != null) dirs.add(artifact.getParent());
+        }
+        try {
+            dirs.add(resolveTempDir(ctx));
+        } catch (Exception e) {
+            // The folder name can need a record lookup; the artifact parents are still worth pruning.
+            log.debug("[{}] Could not resolve the temp folder for cleanup: {}", ctx.getJobId(), e.toString());
+        }
+        dirs.forEach(dir -> TempDirPruner.pruneEmptyDirs(tempRoot, dir));
     }
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -27,7 +27,15 @@
         <Property name="LOG_DIR">${spring:app.paths.logs:-logs}</Property>
         <Property name="ARCHIVE_DIR">${LOG_DIR}/rotated</Property>
 
-        <!-- ╭───────────────── rotation policy ──────────╮ -->
+        <!-- ╭───────────────── rotation policy ──────────╮
+             Every RollingFile prunes its OWN archives on rollover: anything older than
+             RETENTION_DAYS goes, and so does anything beyond TOTAL_SIZE_CAP of that appender's
+             newest archives. Each <Delete> is scoped by IfFileName to the appender's filePattern,
+             so one appender can never delete another's files.
+             The two limits sit under <IfAny> on purpose. Conditions listed directly under
+             <Delete> are ANDed, which is how it used to be written: a file had to be older than
+             RETENTION_DAYS AND sit behind more than 3GB of newer old archives, so in practice
+             nothing was deleted and rotated/ kept every archive back to February. -->
         <Property name="MAX_FILE_SIZE">100MB</Property>
         <Property name="MAX_FILES_PER_DAY">30</Property>
         <Property name="RETENTION_DAYS">14</Property>
@@ -100,9 +108,13 @@
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
             <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
-                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="2">
-                    <IfLastModified age="${RETENTION_DAYS}d"/>
-                    <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-info-*.log.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
                 </Delete>
             </DefaultRolloverStrategy>
             <Filters>
@@ -118,7 +130,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-debug-*.log.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
             <Filters>
                 <LevelRangeFilter minLevel="DEBUG" maxLevel="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
@@ -132,7 +153,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-error-*.log.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
@@ -148,7 +178,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-info-*.json.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
             <Filters>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
@@ -162,7 +201,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-debug-*.json.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
             <Filters>
                 <LevelRangeFilter minLevel="DEBUG" maxLevel="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
@@ -176,7 +224,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-error-*.json.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
@@ -193,9 +250,13 @@
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
             <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
-                <Delete basePath="${ARCHIVE_DIR}/request" maxDepth="2">
-                    <IfLastModified age="${RETENTION_DAYS}d"/>
-                    <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                <Delete basePath="${ARCHIVE_DIR}/request" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-request-*.log.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
                 </Delete>
             </DefaultRolloverStrategy>
         </RollingFile>
@@ -208,7 +269,16 @@
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/request" maxDepth="1">
+                    <IfFileName glob="${APP_NAME}-request-*.json.gz">
+                        <IfAny>
+                            <IfLastModified age="${RETENTION_DAYS}d"/>
+                            <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                        </IfAny>
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
         </RollingFile>
     </Appenders>
 
