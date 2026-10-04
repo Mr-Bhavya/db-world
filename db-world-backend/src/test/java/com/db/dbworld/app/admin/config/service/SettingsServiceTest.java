@@ -45,8 +45,8 @@ class SettingsServiceTest {
         assertThat(store.size()).isEqualTo(after1);
         // 44 as before + 6 IPO notification-hygiene knobs (gmp-notify-enabled, gmp-min-absolute,
         // cooldown-hours, max-per-day, digest-threshold, investorgain-fetch-budget)
-        // + 2 scheduler run-history retention knobs.
-        assertThat(after1).isEqualTo(52);
+        // + 2 scheduler run-history retention knobs + 2 host health alert switches.
+        assertThat(after1).isEqualTo(54);
     }
 
     @Test

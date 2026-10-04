@@ -4,7 +4,7 @@ import {
   AutoAwesomeRounded, InsightsRounded, CloudRounded, VpnKeyRounded,
   AccountBalanceWalletRounded, MovieRounded, TrendingUpRounded,
   NotificationsRounded, CloudUploadRounded, ScheduleRounded, TuneRounded,
-  AppsRounded,
+  AppsRounded, MonitorHeartRounded,
 } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
@@ -28,6 +28,7 @@ const ICONS = {
   'Push Notifications':  NotificationsRounded,
   'Media Ingestion':     CloudUploadRounded,
   'Scheduler':           ScheduleRounded,
+  'System Health':       MonitorHeartRounded,
 };
 const iconFor = (category) => ICONS[category] ?? TuneRounded;
 
