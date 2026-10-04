@@ -23,6 +23,7 @@ public final class SettingsCatalog {
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
     private static final String C_INGESTION = "Media Ingestion";
+    private static final String C_LIBRARY   = "Media Library";
     private static final String C_SCHEDULER = "Scheduler";
 
     /**
@@ -230,6 +231,16 @@ public final class SettingsCatalog {
              + "ingestion. Turn off to skip it entirely — noticeably less CPU/time per job, at the cost "
              + "of no hover-scrub thumbnails in the player for newly ingested files. Applies on the next job.",
              true, 3),
+
+        // ── Media Library ─────────────────────────────────────────────────
+        intg(MEDIA_SYNC_MAX_REMOVAL_PERCENT, C_LIBRARY, "Max removal per scan (%)",
+             "Largest share of the media library one MediaSync scan may remove because the files are "
+             + "gone from disk. A scan that would remove more removes nothing and is recorded as FAILED, "
+             + "so a media disk that is unmounted or failing cannot wipe every media record, symlink and "
+             + "storyboard. Up to 5 removals are always allowed. If you really did delete that many files "
+             + "over the share, raise this for one scan. 100 turns the limit off; an empty media folder "
+             + "is refused regardless.",
+             20, 1L, 100L, 0),
 
         // ── Scheduler ────────────────────────────────────────────────────
         intg(SCHEDULER_HISTORY_RETENTION_DAYS, C_SCHEDULER, "Run history retention (days)",

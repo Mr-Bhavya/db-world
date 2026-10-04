@@ -93,6 +93,9 @@ public final class ConfigKeys {
     // Master switch for scrub-preview storyboard generation during ingestion.
     public static final String INGESTION_STORYBOARD_ENABLED           = "ingestion.storyboard.enabled";
 
+    // Media Library — largest share of media_files one MediaSync scan may delete before it refuses.
+    public static final String MEDIA_SYNC_MAX_REMOVAL_PERCENT         = "media.sync.max-removal-percent";
+
     // Scheduler — how long scheduler_job_history rows are kept before the nightly prune.
     public static final String SCHEDULER_HISTORY_RETENTION_DAYS        = "scheduler.history.retention-days";
     public static final String SCHEDULER_HISTORY_RETENTION_DAYS_FREQUENT = "scheduler.history.retention-days-frequent";
