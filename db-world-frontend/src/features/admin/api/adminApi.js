@@ -341,3 +341,19 @@ export const refreshServerInfoCache = () =>
 // server has no report (every dev box), so the page can say why instead of erroring.
 export const getHostHealth = () =>
   axiosInstance.get('/api/server/host-health').then(r => r.data.data);
+
+// Server actions, run as root by the host's action broker; the app only queues them. The list
+// is always 200: `available: false` + `reason` on a server without the broker (every dev box).
+export const getHostActions = () =>
+  axiosInstance.get('/api/server/host-actions').then(r => r.data.data);
+
+export const getHostAction = (id) =>
+  axiosInstance.get(`/api/server/host-actions/${encodeURIComponent(id)}`).then(r => r.data.data);
+
+// Resolves to { id, status: 'queued' }. A broken rule is a 400 with a readable message, another
+// power request still queued is a 409, no broker is a 503.
+export const submitHostAction = ({ action, args = {}, confirm }) =>
+  axiosInstance.post('/api/server/host-actions', { action, args, confirm }).then(r => r.data.data);
+
+export const getHostPower = () =>
+  axiosInstance.get('/api/server/host-power').then(r => r.data.data);

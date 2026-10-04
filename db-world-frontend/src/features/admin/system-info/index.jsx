@@ -20,6 +20,8 @@ import {
 } from '../api/adminApi';
 import HostHealthSection from './HostHealthSection';
 import { HOST_HEALTH_QUERY_KEY } from './hostHealthUtils';
+import HostActionsSection from './HostActionsSection';
+import { HOST_ACTIONS_QUERY_KEY, HOST_POWER_QUERY_KEY } from './hostActionsUtils';
 
 /* ── Health metadata ─────────────────────────────────────────── */
 
@@ -574,6 +576,8 @@ export default function SystemInfoPage() {
       queryClient.invalidateQueries({ queryKey: ['server-info-quick'] });
       queryClient.invalidateQueries({ queryKey: ['server-health'] });
       queryClient.invalidateQueries({ queryKey: HOST_HEALTH_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: HOST_ACTIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: HOST_POWER_QUERY_KEY });
     },
     onError: () => notify.error('Refresh failed'),
   });
@@ -632,6 +636,9 @@ export default function SystemInfoPage() {
     >
       {/* Host health first: the admin phone alerts deep-link to this page for it */}
       <HostHealthSection />
+
+      {/* What can be done about it, carried out by the host's root action broker, not by the app */}
+      <HostActionsSection />
 
       {/* Live stats */}
       <StatGrid min={150} sx={{ mb: 3 }}>

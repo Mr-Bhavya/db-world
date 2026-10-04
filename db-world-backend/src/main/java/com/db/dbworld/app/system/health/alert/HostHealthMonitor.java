@@ -38,13 +38,16 @@ public class HostHealthMonitor {
      * for app builds that predate the key: they resolve a full {@code link} directly and would
      * otherwise drop the admin on the home page. It carries the legacy {@code /db-world} prefix for
      * the reason {@code RequestPushLinks} gives: that form resolves on old and new builds alike.
+     *
+     * <p>Public because the reboot and shutdown pushes from {@code HostActionsService} open the
+     * same page, where the server actions sit under host health.
      */
-    static final Map<String, String> DEEP_LINK = Map.of(
+    public static final Map<String, String> DEEP_LINK = Map.of(
             "route", "admin/system-info",
             "link", "/db-world/admin/system-info");
 
     /** The Android notification channel admin alerts already use. */
-    static final String CHANNEL = "admin";
+    public static final String CHANNEL = "admin";
 
     private final HostHealthService healthService;
     private final HostHealthAlertPolicy policy;
