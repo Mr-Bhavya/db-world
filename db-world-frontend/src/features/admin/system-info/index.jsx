@@ -18,6 +18,8 @@ import {
   getServerHealth,
   refreshServerInfoCache,
 } from '../api/adminApi';
+import HostHealthSection from './HostHealthSection';
+import { HOST_HEALTH_QUERY_KEY } from './hostHealthUtils';
 
 /* ── Health metadata ─────────────────────────────────────────── */
 
@@ -571,6 +573,7 @@ export default function SystemInfoPage() {
       queryClient.invalidateQueries({ queryKey: ['server-info'] });
       queryClient.invalidateQueries({ queryKey: ['server-info-quick'] });
       queryClient.invalidateQueries({ queryKey: ['server-health'] });
+      queryClient.invalidateQueries({ queryKey: HOST_HEALTH_QUERY_KEY });
     },
     onError: () => notify.error('Refresh failed'),
   });
@@ -627,6 +630,9 @@ export default function SystemInfoPage() {
         </Box>
       }
     >
+      {/* Host health first: the admin phone alerts deep-link to this page for it */}
+      <HostHealthSection />
+
       {/* Live stats */}
       <StatGrid min={150} sx={{ mb: 3 }}>
         {[

@@ -25,6 +25,7 @@ public final class SettingsCatalog {
     private static final String C_INGESTION = "Media Ingestion";
     private static final String C_LIBRARY   = "Media Library";
     private static final String C_SCHEDULER = "Scheduler";
+    private static final String C_SYSTEM_HEALTH = "System Health";
 
     /**
      * Default NSE market-holiday seed. Fixed-date national holidays are written as recurring
@@ -251,7 +252,18 @@ public final class SettingsCatalog {
              "Shorter retention for jobs that run on a minutes-scale interval — MediaSync alone writes "
              + "a row every 60s, which is ~98% of all history. Keeping those as long as the daily jobs "
              + "buries the interesting runs and grows the table without bound.",
-             3, 1L, 365L, 1)
+             3, 1L, 365L, 1),
+
+        // ── System Health ────────────────────────────────────────────────
+        bool(SYSTEM_HEALTH_ALERTS_ENABLED, C_SYSTEM_HEALTH, "Host health alerts",
+             "Push admin phones when a host health check (disks, SMART, services, backups, "
+             + "certificates) starts failing, when it recovers, every 24h while it stays failing, and "
+             + "when the health report stops updating. Only changes notify, never every 5-minute "
+             + "re-check. Also needs Push enabled.", true, 0),
+        bool(SYSTEM_HEALTH_ALERT_ON_WARN, C_SYSTEM_HEALTH, "Alert on warnings too",
+             "Also push when a check enters WARN, not only FAIL. Off by default: warnings such as "
+             + "pending updates or a disk at 80% are worth seeing on the System Info page but rarely "
+             + "worth a buzz.", false, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

@@ -336,3 +336,8 @@ export const getServerHealth = () =>
 
 export const refreshServerInfoCache = () =>
   axiosInstance.post('/api/server/cache/refresh').then(r => r.data);
+
+// The host's `dbworldctl doctor` report. Always 200: `available: false` + `reason` when the
+// server has no report (every dev box), so the page can say why instead of erroring.
+export const getHostHealth = () =>
+  axiosInstance.get('/api/server/host-health').then(r => r.data.data);

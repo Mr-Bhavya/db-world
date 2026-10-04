@@ -14,6 +14,7 @@ const ADMIN = Constants.DB_ADMIN_BASE_ROUTE;   // /admin
 const ROUTE_MAP = {
   'admin/requests':  `${ADMIN}/requests`,
   'admin/ingestion': `${ADMIN}/ingestion`,
+  'admin/system-info': `${ADMIN}/system-info`,
 };
 
 /**

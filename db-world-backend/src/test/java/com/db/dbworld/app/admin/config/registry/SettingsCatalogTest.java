@@ -44,7 +44,7 @@ class SettingsCatalogTest {
     @Test
     void catalogCoversExpectedKeyCount() {
         // 10 recommend + 9 tracking + 1 weather + 3 cdn + 2 wallet + 1 cinema + 17 ipo + 3 push
-        //   + 4 media-ingestion + 1 media-library + 2 scheduler = 53
+        //   + 4 media-ingestion + 1 media-library + 2 scheduler + 2 system-health = 55
         // (cinema: record auto-publish-on-media; ipo: sources-enabled + 4 per-source base URLs
         //  [ipoguru, nse, chittorgarh, investorgain] + investorgain-fetch-budget + hide-listed-after-days
         //  + notify-window-start-hour + notify-window-end-hour + market-holidays + market-holidays-auto
@@ -52,7 +52,8 @@ class SettingsCatalogTest {
         //  cooldown-hours, max-per-day, digest-threshold];
         //  push: enabled + ipo-topic + ttl-seconds; ingestion: track-review enabled + timeout
         //  + processing-threads + storyboard-enabled; media-library: MediaSync max removal %;
-        //  scheduler: run-history retention days + the shorter retention for frequent jobs)
-        assertThat(SettingsCatalog.ALL).hasSize(53);
+        //  scheduler: run-history retention days + the shorter retention for frequent jobs;
+        //  system-health: alerts-enabled + alert-on-warn)
+        assertThat(SettingsCatalog.ALL).hasSize(55);
     }
 }
