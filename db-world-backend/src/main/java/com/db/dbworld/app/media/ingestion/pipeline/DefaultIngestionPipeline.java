@@ -8,6 +8,7 @@ import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.enrichment.TrackFilter;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
+import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.spi.*;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
@@ -71,6 +72,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final SmartTrackFilterService smartTrackFilterService;
     private final TrackReviewCoordinator  trackReviewCoordinator;
     private final SettingsService         settingsService;
+
+    private final FileStorageService      fileStorageService;
 
     /** Container extensions considered "media" when picking a representative file to probe. */
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
@@ -597,6 +600,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
      * Best-effort removal of this job's temp artifacts (downloaded archive/file + extract dir) once the
      * job ends — success, failure, or cancel. The final media already moved to the stream dir is NOT a
      * temp artifact (untouched); local source files are never tracked, so they're never deleted.
+     * Then the job's temp folder goes too, but only if that left it empty.
      */
     private void cleanupTempArtifacts(IngestionContext ctx) {
         for (Path p : ctx.getTempArtifacts()) {
@@ -616,6 +620,14 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             } catch (Exception e) {
                 log.warn("[{}] Temp cleanup failed for {}: {}", ctx.getJobId(), p, e.getMessage());
             }
+        }
+        // The loop above empties the job's temp folder but never removed the folder itself, so
+        // every finished job left an empty <recordId>-<Title> behind. Runs from execute()'s finally,
+        // so a failure here must not escape and skip releasing the download slot.
+        try {
+            fileStorageService.removeEmptyTempDirs(ctx);
+        } catch (Exception e) {
+            log.debug("[{}] Empty temp folder cleanup failed: {}", ctx.getJobId(), e.toString());
         }
     }
 
