@@ -76,7 +76,10 @@ public final class AppConstants {
     // ── Public (unauthenticated) API paths ────────────────────────────────────
 
     public static final String[] PUBLIC_APIS = {
-            "/api/server/**",
+            // Only the uptime probe. The rest of /api/server is admin-only (@AdminAccess),
+            // and since it can now reboot and shut the host down, it should not even reach
+            // method security without a login. It used to be "/api/server/**".
+            "/api/server/health/check",
             "/api/app/version",
             "/api/app/download",
             "/api/cinema/admin/bootstrap",
