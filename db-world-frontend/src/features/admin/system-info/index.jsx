@@ -22,6 +22,7 @@ import HostHealthSection from './HostHealthSection';
 import { HOST_HEALTH_QUERY_KEY } from './hostHealthUtils';
 import HostActionsSection from './HostActionsSection';
 import { HOST_ACTIONS_QUERY_KEY, HOST_POWER_QUERY_KEY } from './hostActionsUtils';
+import ServerToolsSection from './ServerToolsSection';
 
 /* ── Health metadata ─────────────────────────────────────────── */
 
@@ -639,6 +640,9 @@ export default function SystemInfoPage() {
 
       {/* What can be done about it, carried out by the host's root action broker, not by the app */}
       <HostActionsSection />
+
+      {/* The dashboards beside the app (Pironman, AriaNg), behind Cloudflare Access */}
+      <ServerToolsSection />
 
       {/* Live stats */}
       <StatGrid min={150} sx={{ mb: 3 }}>
