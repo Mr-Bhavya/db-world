@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.sync;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity.TriggerSource;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
@@ -78,6 +80,10 @@ import java.util.stream.Stream;
  *   <li><b>No race conditions</b> — because there is one writer, the
  *       admin/watcher race that produced StaleObjectStateException is
  *       architecturally impossible here.</li>
+ *   <li><b>Refuses mass removal</b> — a pass that would delete more than
+ *       {@link ConfigKeys#MEDIA_SYNC_MAX_REMOVAL_PERCENT} of the library, or that
+ *       finds the stream root empty, changes nothing and fails. See
+ *       {@link #refuseSuspiciousRemoval}.</li>
  * </ul>
  */
 @Service
@@ -89,6 +95,12 @@ public class MediaSyncService {
     /** Scheduler job id used both in scheduler_job_config and scheduler_job_history. */
     public static final String JOB_ID = "MediaSync";
 
+    /**
+     * Removals a pass may always make, whatever the percentage limit. Without it a small
+     * library trips the limit on ordinary deletes: 2 of 8 files is already 25%.
+     */
+    static final int ALWAYS_ALLOWED_REMOVALS = 5;
+
     private final MediaSyncProperties           props;
     private final MediaInfoService              mediaInfoService;
     private final MediaFileRepository           mediaFileRepository;
@@ -96,6 +108,7 @@ public class MediaSyncService {
     private final AppProperties                 appProperties;
     private final SchedulerJobConfigRepository  schedulerConfigRepo;
     private final JobRunRecorder                recorder;
+    private final SettingsService               settingsService;
 
     /**
      * Live stability window. Read from {@code scheduler_job_config.stability_window_seconds}
@@ -187,25 +200,29 @@ public class MediaSyncService {
             var onDisk = walkRoot(root);
             var inDb   = loadDbState();
 
-            var toAdd    = setDifference(onDisk.keySet(), inDb.keySet());
-            var toRemove = setDifference(inDb.keySet(),   onDisk.keySet());
+            var toAdd    = setDifference(onDisk.files().keySet(), inDb.keySet());
+            // A file we saw but could not stat is still there — never treat it as deleted.
+            var toRemove = setDifference(setDifference(inDb.keySet(), onDisk.files().keySet()),
+                                         onDisk.unreadable());
 
-            int added   = applyAdditions(toAdd, onDisk);
+            refuseSuspiciousRemoval(root, onDisk.seen(), inDb.size(), toRemove.size(), summary);
+
+            int added   = applyAdditions(toAdd, onDisk.files());
             int removed = applyRemovals(toRemove, inDb);
 
             long duration = System.currentTimeMillis() - start;
-            SyncReport report = new SyncReport(added, removed, onDisk.size(), duration, false);
+            SyncReport report = new SyncReport(added, removed, onDisk.seen(), duration, false);
 
             if (report.changed()) {
                 log.info("MediaSync: added={} removed={} total-on-disk={} took={}ms",
-                        added, removed, onDisk.size(), duration);
+                        added, removed, onDisk.seen(), duration);
             } else {
                 log.debug("MediaSync: no changes (total-on-disk={}, took {}ms)",
-                        onDisk.size(), duration);
+                        onDisk.seen(), duration);
             }
             summary.count("added", added)
                    .count("removed", removed)
-                   .count("filesOnDisk", onDisk.size());
+                   .count("filesOnDisk", onDisk.seen());
             if (!report.changed()) {
                 summary.note("No changes — the stream directory matches the database");
             }
@@ -216,26 +233,81 @@ public class MediaSyncService {
         }
     }
 
+    // ── Removal guard ────────────────────────────────────────────────────────
+
+    /**
+     * Fails the pass, before anything is applied, when the removals it computed look like
+     * a disk problem rather than deleted files.
+     *
+     * <p>A wrong removal is not undone by the file coming back. Deleting the row also drops
+     * its symlink and storyboard and unlinks it from its record, so the next pass re-adds it
+     * as a new, unassigned file. That is why this refuses rather than trims.
+     *
+     * <p>The case it exists for: {@code /srv/dbworld} is a USB disk mounted {@code nofail},
+     * so a boot without the disk leaves a bare directory on the SD card. If anything then
+     * recreates {@code streams} there (an aria2 torrent, an ingestion job, a {@code mkdir}),
+     * the walk finds nothing and every row in the database looks deleted.
+     */
+    private void refuseSuspiciousRemoval(Path root, int seenOnDisk, int inDb, int toRemove,
+                                         JobRunSummary.Builder summary) {
+        if (toRemove == 0) return;
+
+        if (seenOnDisk == 0) {
+            refuse(summary, seenOnDisk, inDb, toRemove, String.format(
+                    "%s has no media files but the database lists %d, so the media disk is probably "
+                    + "not mounted. Nothing was changed.", root, inDb));
+        }
+
+        int maxPercent = settingsService.getInt(ConfigKeys.MEDIA_SYNC_MAX_REMOVAL_PERCENT);
+        if (maxPercent >= 100) return;
+        long allowed = Math.max(ALWAYS_ALLOWED_REMOVALS, (long) inDb * maxPercent / 100);
+        if (toRemove > allowed) {
+            refuse(summary, seenOnDisk, inDb, toRemove, String.format(
+                    "This scan would remove %d of %d media records (%d%%), above the %d%% limit. "
+                    + "Nothing was changed. Check that the media disk is mounted and healthy. If the "
+                    + "files really were deleted, raise \"Max removal per scan\" in Settings for one scan.",
+                    toRemove, inDb, (long) toRemove * 100 / inDb, maxPercent));
+        }
+    }
+
+    /** Records what the refused pass saw, so the FAILED history row says why, then throws. */
+    private static void refuse(JobRunSummary.Builder summary, int seenOnDisk, int inDb, int toRemove,
+                               String message) {
+        summary.count("filesOnDisk", seenOnDisk)
+               .count("inDatabase", inDb)
+               .count("wouldRemove", toRemove);
+        throw new IllegalStateException(message);
+    }
+
     // ── Walk + filter ────────────────────────────────────────────────────────
 
-    private Map<String, FileSnapshot> walkRoot(Path root) {
-        var out = new HashMap<String, FileSnapshot>();
+    /**
+     * Lists the candidate files under {@code root}.
+     *
+     * <p>A walk that cannot even start throws instead of returning nothing: an empty result
+     * would make every row look deleted. Errors partway through already throw
+     * {@link java.io.UncheckedIOException} out of the stream, which fails the pass the same way.
+     */
+    private DiskState walkRoot(Path root) {
+        var files      = new HashMap<String, FileSnapshot>();
+        var unreadable = new HashSet<String>();
         try (Stream<Path> stream = Files.walk(root)) {
             stream.filter(Files::isRegularFile)
                   .filter(this::isCandidate)
                   .forEach(p -> {
+                      String key = p.toAbsolutePath().toString();
                       try {
                           var attrs = Files.readAttributes(p, BasicFileAttributes.class);
-                          out.put(p.toAbsolutePath().toString(),
-                                  new FileSnapshot(p, attrs.lastModifiedTime(), attrs.size()));
+                          files.put(key, new FileSnapshot(p, attrs.lastModifiedTime(), attrs.size()));
                       } catch (IOException e) {
                           log.debug("MediaSync: unreadable {} ({}); skipping", p, e.getMessage());
+                          unreadable.add(key);
                       }
                   });
         } catch (IOException e) {
-            log.error("MediaSync: walk failed for {}: {}", root, e.getMessage(), e);
+            throw new IllegalStateException("could not walk stream root " + root + ": " + e.getMessage(), e);
         }
-        return out;
+        return new DiskState(files, unreadable);
     }
 
     /**
@@ -368,4 +440,12 @@ public class MediaSyncService {
 
     /** Per-file snapshot captured during the walk. */
     private record FileSnapshot(Path path, FileTime mtime, long size) {}
+
+    /**
+     * What one walk found. {@code unreadable} holds files that exist but could not be
+     * stat'ed. They are kept out of both additions and removals until they read again.
+     */
+    private record DiskState(Map<String, FileSnapshot> files, Set<String> unreadable) {
+        int seen() { return files.size() + unreadable.size(); }
+    }
 }
