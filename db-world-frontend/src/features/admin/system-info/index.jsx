@@ -23,6 +23,7 @@ import { HOST_HEALTH_QUERY_KEY } from './hostHealthUtils';
 import HostActionsSection from './HostActionsSection';
 import { HOST_ACTIONS_QUERY_KEY, HOST_POWER_QUERY_KEY } from './hostActionsUtils';
 import ServerToolsSection from './ServerToolsSection';
+import { compactRatio, compactUptime } from './statFormat';
 
 /* ── Health metadata ─────────────────────────────────────────── */
 
@@ -56,8 +57,9 @@ const bytes = (n) => {
 function MiniStatCard({ label, value, pctValue, color, icon }) {
   const T = useT();
   const S = adminSurface(T);
+  const long = String(value ?? '').length > 9;
   return (
-    <Card elevation={0} sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.card }}>
+    <Card elevation={0} sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.card, height: '100%' }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
           <Box sx={{ color, display: 'flex' }}>{icon}</Box>
@@ -65,16 +67,27 @@ function MiniStatCard({ label, value, pctValue, color, icon }) {
             {label}
           </Typography>
         </Box>
-        <Typography sx={{ fontSize: String(value ?? '').length > 10 ? '0.95rem' : '1.4rem', fontWeight: 800, color: T.text, lineHeight: 1, mb: 0.75 }}>
+        {/* One line, always: a value that wrapped made its card taller than the rest. */}
+        <Typography
+          title={String(value ?? '')}
+          sx={{
+            fontSize: long ? '1.05rem' : '1.4rem', fontWeight: 800, color: T.text, mb: 0.75,
+            lineHeight: '1.4rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
           {value}
         </Typography>
-        {pctValue != null && (
+        {/* The bar's slot is kept even without a bar, so every card is the same height. */}
+        {pctValue != null ? (
           <LinearProgress
             variant="determinate"
             value={Math.min(pctValue, 100)}
             sx={{ height: 3, borderRadius: 2, bgcolor: `${color}22`,
               '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 } }}
           />
+        ) : (
+          <Box sx={{ height: 3 }} />
         )}
       </CardContent>
     </Card>
@@ -604,7 +617,7 @@ export default function SystemInfoPage() {
   const tempC   = info?.temperature?.maxTemperatureCelsius ?? info?.temperature?.highestTemperatureCelsius;
   const tempColor = tempC == null ? '#6b7280' : tempC < 60 ? '#10b981' : tempC < 75 ? '#f59e0b' : '#ef4444';
   const memValue = liveMem?.usedFormatted && liveMem?.totalFormatted
-    ? `${liveMem.usedFormatted} / ${liveMem.totalFormatted}`
+    ? compactRatio(liveMem.usedFormatted, liveMem.totalFormatted)
     : `${memPct.toFixed(0)}%`;
 
   const si = info?.serverInfo;
@@ -653,7 +666,7 @@ export default function SystemInfoPage() {
           { label: 'Net ↓',      value: netRx ?? '—',                                          pctValue: null, color: '#3b82f6', icon: <ArrowDownward /> },
           { label: 'Net ↑',      value: netTx ?? '—',                                          pctValue: null, color: '#6366f1', icon: <ArrowUpward /> },
           { label: 'Temperature', value: tempC != null ? `${tempC.toFixed(1)}°C` : '—',        pctValue: tempC != null ? Math.min(tempC, 100) : null, color: tempColor, icon: <Thermostat /> },
-          { label: 'Uptime',     value: quick?.performance?.uptime ?? info?.performance?.uptime ?? si?.uptime ?? '—', pctValue: null, color: '#8b5cf6', icon: <Monitor /> },
+          { label: 'Uptime',     value: compactUptime(quick?.performance?.uptime ?? info?.performance?.uptime ?? si?.uptime) ?? '—', pctValue: null, color: '#8b5cf6', icon: <Monitor /> },
         ].map((sItem) => (
           <MiniStatCard key={sItem.label} {...sItem} />
         ))}
