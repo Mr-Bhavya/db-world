@@ -20,6 +20,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
 import { groupedAdminModules } from '@features/admin/adminModules';
+import ToolNavItem from '@features/admin/tools/ToolNavItem';
+import useServerToolsStatus from '@features/admin/tools/useServerToolsStatus';
 import { useAdminMuiTheme, useAdminHeaderValue } from '@features/admin/adminUi';
 
 // Sidebar sections are derived from the single admin module registry — add a
@@ -86,6 +88,9 @@ const AdminLayoutInner = () => {
   // Live pending-request counter (media + catalog). Drives the numeric badge on
   // the 'Requests' sidebar item so admins notice new requests without opening the page.
   const { total: pendingRequests } = usePendingRequestCounts();
+
+  // Status dots for the Tools section (CloudBeaver, Pironman, AriaNg), from the doctor report.
+  const toolStatus = useServerToolsStatus();
 
   // Active page header (single-header model) — pages register it via AdminPage.
   const header = useAdminHeaderValue();
@@ -163,6 +168,9 @@ const AdminLayoutInner = () => {
             <Collapse in={!collapsed[section.group]} timeout="auto">
               <List dense disablePadding sx={{ px: showFull ? 1 : 0.5 }}>
                 {section.items.map((item) => {
+                  if (item.external) {
+                    return <ToolNavItem key={item.id} item={item} showFull={showFull} indicator={toolStatus[item.id]} />;
+                  }
                   const active = currentPath === item.path || location.pathname.endsWith('/' + item.path);
                   // Live numeric badge for 'requests' overrides any static label.
                   const dynamicBadge = item.id === 'requests' && pendingRequests > 0
