@@ -60,7 +60,7 @@ const queryClient = new QueryClient({
 import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 // Admin module route components come from the single registry (auto-wires
 // sidebar + dashboard + router). Add a module there, not here.
-import { ADMIN_MODULES } from '@features/admin/adminModules';
+import { routedAdminModules } from '@features/admin/adminModules';
 
 // Lazy load heavy components for better performance
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
@@ -526,7 +526,8 @@ const ThemedApp = () => {
                   <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
                     <Route index element={<Navigate to="dashboard" replace />} />
                     {/* All module routes come from the registry — one source of truth. */}
-                    {ADMIN_MODULES.map((m) => {
+                    {/* External tools (the sidebar's Tools section) have no route of their own. */}
+                    {routedAdminModules().map((m) => {
                       const El = m.element;
                       return <Route key={m.id} path={m.path} element={<El />} />;
                     })}
