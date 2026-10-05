@@ -27,6 +27,13 @@ export const SERVER_TOOLS = [
     url: 'https://ariang.db-world.in',
     service: 'aria2',
   },
+  {
+    id: 'cloudbeaver',
+    name: 'CloudBeaver',
+    description: 'MySQL in the browser: SQL editor, table data, import/export, ER diagrams.',
+    url: 'https://db.db-world.in',
+    service: 'cloudbeaver',
+  },
 ];
 
 /** The Cloudflare Tunnel that carries every link above. */
