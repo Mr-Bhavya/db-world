@@ -28,9 +28,11 @@ export default function ServerToolsSection() {
 
   return (
     <SectionCard title="Server tools" icon={HandymanRounded} action={<TunnelChip report={report} />} sx={{ mb: 3 }}>
+      {/* auto-fit, not auto-fill: the tiles stretch across the card instead of leaving
+          empty columns on the right */}
       <Box sx={{
         display: 'grid', gap: 1.5,
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(260px, 1fr))' },
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(260px, 1fr))' },
       }}>
         {SERVER_TOOLS.map((tool) => (
           <ToolTile key={tool.id} tool={tool} status={serviceStatus(report, tool.service)} />

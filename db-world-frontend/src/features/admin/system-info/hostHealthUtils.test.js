@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { formatAge, formatInterval, groupChecks, normalizeStatus, statusRank } from './hostHealthUtils';
+import {
+  columnsForWidth, distributeGroups, formatAge, formatInterval, groupChecks, normalizeStatus, statusRank,
+} from './hostHealthUtils';
 
 const check = (id, group, status) => ({ id, group, name: id, status, value: '', detail: '', hint: '' });
 
@@ -81,5 +83,71 @@ describe('formatInterval', () => {
     expect(formatInterval(5400)).toBe('1.5 h');
     expect(formatInterval(30)).toBe('30 s');
     expect(formatInterval(0)).toBeNull();
+  });
+});
+
+describe('columnsForWidth', () => {
+  it('fits as many 340 px columns as the width allows, at most 3', () => {
+    expect(columnsForWidth(320)).toBe(1);
+    expect(columnsForWidth(700)).toBe(2);
+    expect(columnsForWidth(1100)).toBe(3);
+    expect(columnsForWidth(2400)).toBe(3);
+  });
+
+  it('is 1 before the container has been measured', () => {
+    expect(columnsForWidth(0)).toBe(1);
+    expect(columnsForWidth(undefined)).toBe(1);
+    expect(columnsForWidth(Number.NaN)).toBe(1);
+  });
+});
+
+describe('distributeGroups', () => {
+  const group = (name, rows, problems = 0) => ({
+    group: name,
+    checks: Array.from({ length: rows }, (_, i) => ({ id: `${name}.${i}`, status: i < problems ? 'warn' : 'ok' })),
+  });
+
+  // The report from the Pi on 2026-10-05: one warning on Disks, 14 Services checks.
+  const pi = [
+    group('Disks', 4, 1), group('Hardware', 3), group('Services', 14),
+    group('Backups', 4), group('Security', 6), group('Network', 3), group('System', 3),
+  ];
+  const names = (cols) => cols.map((c) => c.map((g) => g.group));
+
+  it('gives the tall Services group a column of its own and balances the rest', () => {
+    expect(names(distributeGroups(pi, 3))).toEqual([
+      ['Disks', 'Security', 'System'],
+      ['Hardware', 'Backups', 'Network'],
+      ['Services'],
+    ]);
+  });
+
+  it('keeps every group exactly once, in the order given within each column', () => {
+    for (const n of [1, 2, 3]) {
+      const cols = distributeGroups(pi, n);
+      expect(cols).toHaveLength(n);
+      expect(cols.flat()).toHaveLength(pi.length);
+      for (const c of cols) {
+        const order = c.map((g) => pi.indexOf(g));
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+      }
+    }
+  });
+
+  it('is a single column when one fits, or the count is nonsense', () => {
+    expect(names(distributeGroups(pi, 1))).toEqual([pi.map((g) => g.group)]);
+    expect(distributeGroups(pi, 0)).toHaveLength(1);
+    expect(distributeGroups(pi, Number.NaN)).toHaveLength(1);
+  });
+
+  it('counts an open problem row as taller than a healthy one', () => {
+    // Same row count, but A carries two problems: B goes beside it, C under B.
+    const cols = distributeGroups([group('A', 3, 2), group('B', 3), group('C', 1)], 2);
+    expect(names(cols)).toEqual([['A'], ['B', 'C']]);
+  });
+
+  it('leaves extra columns empty rather than inventing groups', () => {
+    expect(names(distributeGroups([group('Only', 2)], 3))).toEqual([['Only'], [], []]);
+    expect(distributeGroups(undefined, 2)).toEqual([[], []]);
   });
 });

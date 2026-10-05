@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Box, Typography, Chip, Collapse, IconButton, Tooltip } from '@mui/material';
 import {
   HealthAndSafetyRounded, CheckCircle, Warning, Error as ErrorIcon, HelpOutline,
@@ -10,7 +10,8 @@ import { useT } from '@shared/theme';
 import { SectionCard, ErrorState, LoadingState, adminSurface } from '@features/admin/adminUi';
 import { getHostHealth } from '../api/adminApi';
 import {
-  HOST_HEALTH_QUERY_KEY, STATUS_LABEL, formatAge, formatInterval, groupChecks, normalizeStatus,
+  HOST_HEALTH_QUERY_KEY, STATUS_LABEL, columnsForWidth, distributeGroups, formatAge, formatInterval,
+  groupChecks, normalizeStatus,
 } from './hostHealthUtils';
 
 /**
@@ -101,7 +102,6 @@ function Unavailable({ reason }) {
 
 function Report({ report }) {
   const T = useT();
-  const S = adminSurface(T);
   const groups = groupChecks(report.checks);
   const age = formatAge(report.ageSeconds);
   const every = formatInterval(report.intervalSeconds);
@@ -140,30 +140,64 @@ function Report({ report }) {
           The report has no checks.
         </Typography>
       ) : (
-        <Box sx={{
-          display: 'grid', gap: 1.5, alignItems: 'start',
-          gridTemplateColumns: { xs: '1fr', md: 'repeat(auto-fill, minmax(360px, 1fr))' },
-          opacity: report.stale ? 0.7 : 1,
-        }}>
-          {groups.map((g) => (
-            <Box key={g.group} sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.inset, overflow: 'hidden' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 1, borderBottom: `1px solid ${S.divider}` }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusMeta(T, g.worst).color, flexShrink: 0 }} />
-                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  {g.group}
-                </Typography>
-                <Typography sx={{ fontSize: '0.68rem', color: T.textFaint, ml: 'auto' }}>
-                  {g.checks.length} check{g.checks.length !== 1 ? 's' : ''}
-                </Typography>
-              </Box>
-              {g.checks.map((c, i) => (
-                <CheckRow key={c.id ?? i} check={c} last={i === g.checks.length - 1} />
-              ))}
-            </Box>
-          ))}
-        </Box>
+        <GroupColumns groups={groups} stale={report.stale} />
       )}
     </>
+  );
+}
+
+/**
+ * The groups as balanced columns (masonry), not a grid: a grid row is as tall as its
+ * tallest card, which left a tall empty gap beside the 14-check Services group. How many
+ * columns fit is read from this box's own width, not the window's, so the admin sidebar
+ * opening or closing is taken into account.
+ */
+function GroupColumns({ groups, stale }) {
+  const boxRef = useRef(null);
+  const [width, setWidth] = useState(0);
+
+  // Before the first paint, so the page never shows one column and then jumps to three.
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return undefined;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const columns = distributeGroups(groups, columnsForWidth(width));
+
+  return (
+    <Box ref={boxRef} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', opacity: stale ? 0.7 : 1 }}>
+      {columns.map((column, i) => (
+        <Box key={i} sx={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {column.map((g) => <GroupCard key={g.group} group={g} />)}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function GroupCard({ group: g }) {
+  const T = useT();
+  const S = adminSurface(T);
+  return (
+    <Box sx={{ border: `1px solid ${S.border}`, borderRadius: 2, bgcolor: S.inset, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 1, borderBottom: `1px solid ${S.divider}` }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusMeta(T, g.worst).color, flexShrink: 0 }} />
+        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          {g.group}
+        </Typography>
+        <Typography sx={{ fontSize: '0.68rem', color: T.textFaint, ml: 'auto' }}>
+          {g.checks.length} check{g.checks.length !== 1 ? 's' : ''}
+        </Typography>
+      </Box>
+      {g.checks.map((c, i) => (
+        <CheckRow key={c.id ?? i} check={c} last={i === g.checks.length - 1} />
+      ))}
+    </Box>
   );
 }
 

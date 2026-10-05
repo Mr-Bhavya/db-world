@@ -54,6 +54,45 @@ export function groupChecks(checks) {
       || a.group.localeCompare(b.group));
 }
 
+/** A group card is never narrower than this; the columns are as many as fit (max 3). */
+export const GROUP_MIN_WIDTH = 340;
+export const GROUP_GAP = 12;
+
+/** How many group columns fit a container `width` px wide: 1 to 3. */
+export function columnsForWidth(width, min = GROUP_MIN_WIDTH, gap = GROUP_GAP, max = 3) {
+  const w = Number(width);
+  if (!Number.isFinite(w) || w <= 0) return 1;
+  return Math.max(1, Math.min(max, Math.floor((w + gap) / (min + gap))));
+}
+
+/**
+ * Splits groups into `columns` stacks of about equal height, for a masonry layout. In a
+ * grid every row is as tall as its tallest card, so the 14-row Services group left the
+ * cards beside it with a tall empty gap underneath.
+ *
+ * Greedy and order-keeping: each group, in the order given (problems first), goes to the
+ * column that is shortest so far, ties to the left. Height is estimated rather than
+ * measured: the header counts as two rows, and a row with a problem counts twice because
+ * it opens with its detail and hint. Measuring would make a card hop to another column
+ * when someone expands a row.
+ *
+ * @returns {object[][]} exactly `columns` arrays, some possibly empty
+ */
+export function distributeGroups(groups, columns) {
+  const n = Math.max(1, Math.floor(Number(columns)) || 1);
+  const stacks = Array.from({ length: n }, () => ({ height: 0, groups: [] }));
+  for (const g of groups ?? []) {
+    if (!g) continue;
+    const checks = g.checks ?? [];
+    const open = checks.filter((c) => normalizeStatus(c?.status) !== 'ok').length;
+    let target = stacks[0];
+    for (const s of stacks) if (s.height < target.height) target = s;
+    target.groups.push(g);
+    target.height += 2 + checks.length + open;
+  }
+  return stacks.map((s) => s.groups);
+}
+
 /** "just now", "4 min ago", "3 h ago", "2 days ago". Null when the age is unknown. */
 export function formatAge(seconds) {
   if (seconds == null || !Number.isFinite(Number(seconds))) return null;
