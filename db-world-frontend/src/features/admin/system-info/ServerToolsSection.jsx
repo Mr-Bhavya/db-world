@@ -13,7 +13,7 @@ import {
 
 /**
  * Server tools: the dashboards that run on the Pi beside the app (the Pironman case,
- * AriaNg), one click away. Each sits behind Cloudflare Access, so the link signs you in
+ * AriaNg, CloudBeaver), one click away. Each sits behind Cloudflare Access, so the link signs you in
  * at Cloudflare first. Their up/down state comes from the same doctor report as Host
  * health; this reuses that query, so it costs no extra request.
  */

@@ -654,7 +654,7 @@ export default function SystemInfoPage() {
       {/* What can be done about it, carried out by the host's root action broker, not by the app */}
       <HostActionsSection />
 
-      {/* The dashboards beside the app (Pironman, AriaNg), behind Cloudflare Access */}
+      {/* The dashboards beside the app (Pironman, AriaNg, CloudBeaver), behind Cloudflare Access */}
       <ServerToolsSection />
 
       {/* Live stats */}
