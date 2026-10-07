@@ -10,6 +10,9 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,8 +59,14 @@ class MediaSyncServiceTest {
         when(appProps.getStreamPath()).thenReturn(streams);
         when(repo.findAll()).thenAnswer(a -> dbRows);
         when(settings.getInt(ConfigKeys.MEDIA_SYNC_MAX_REMOVAL_PERCENT)).thenReturn(20);
-        service = new MediaSyncService(new MediaSyncProperties(Duration.ZERO), mediaInfo, repo, symlinks,
-                appProps, mock(SchedulerJobConfigRepository.class), mock(JobRunRecorder.class), settings);
+        // The dev default: no marker configured. Every pre-existing test below runs with it, which
+        // is what shows the guard changes nothing on a machine without a marker.
+        service = serviceWith(MediaDiskGuards.off());
+    }
+
+    private MediaSyncService serviceWith(MediaDiskGuard guard) {
+        return new MediaSyncService(new MediaSyncProperties(Duration.ZERO), mediaInfo, repo, symlinks,
+                appProps, mock(SchedulerJobConfigRepository.class), mock(JobRunRecorder.class), settings, guard);
     }
 
     /** {@code onDisk} of {@code total} indexed files still exist; the rest are gone from disk. */
@@ -191,5 +200,80 @@ class MediaSyncServiceTest {
 
         assertThat(report.added()).isEqualTo(50);
         verify(mediaInfo, times(50)).collectAndPersist(any(), any(), any());
+    }
+
+    // ── Media-disk guard ─────────────────────────────────────────────────────
+
+    @TempDir Path disk;
+
+    private Path marker() {
+        return disk.resolve(".dbworld-media-disk");
+    }
+
+    @Test
+    void diskMissing_refusesTheWholeScan_beforeTouchingTheDatabase() throws IOException {
+        library(30, 30); // the files would all be there; the guard does not care, it never looks
+        JobRunSummary.Builder summary = JobRunSummary.builder();
+
+        assertThatThrownBy(() -> serviceWith(MediaDiskGuards.withMarker(marker())).scan(summary))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("media disk is not mounted")
+                .hasMessageContaining("Media sync was not started");
+
+        verify(repo, never()).findAll();
+        verify(mediaInfo, never()).deleteByFilePath(anyString());
+        verify(mediaInfo, never()).collectAndPersist(any(), any(), any());
+        verify(symlinks, never()).deleteById(anyString());
+    }
+
+    @Test
+    void diskMissing_isRefusedEvenWhenTheOtherGuardsWouldAllowTheRemovals() throws IOException {
+        library(100, 95); // 5 gone: within the floor, so only the disk guard stands in the way
+        when(settings.getInt(ConfigKeys.MEDIA_SYNC_MAX_REMOVAL_PERCENT)).thenReturn(100);
+
+        assertThatThrownBy(() -> serviceWith(MediaDiskGuards.withMarker(marker())).scan(JobRunSummary.builder()))
+                .hasMessageContaining("not mounted");
+        verify(mediaInfo, never()).deleteByFilePath(anyString());
+    }
+
+    @Test
+    void diskMounted_scanRunsAsBefore() throws IOException {
+        Files.createFile(marker());
+        library(100, 85);
+
+        var report = serviceWith(MediaDiskGuards.withMarker(marker())).scan(JobRunSummary.builder());
+
+        assertThat(report.removed()).isEqualTo(15);
+        verify(mediaInfo, times(15)).deleteByFilePath(anyString());
+    }
+
+    /**
+     * The disk is there for the walk and gone before the deletes. Here it drops while the scan is
+     * indexing a new file, which is what sits between the two; the pass must refuse the removals.
+     */
+    @Test
+    void diskDisappearsBetweenWalkAndDelete_nothingIsRemoved() throws IOException {
+        Files.createFile(marker());
+        library(100, 90); // 10 gone: within the 20% limit, so the existing guards would allow it
+        Path fresh = streams.resolve("new-film.mkv");
+        Files.writeString(fresh, "x");
+        Files.setLastModifiedTime(fresh, FileTime.from(Instant.now().minusSeconds(3600)));
+        when(mediaInfo.collectAndPersist(any(), any(), any())).thenAnswer(a -> {
+            Files.delete(marker()); // the USB disk drops out mid-scan
+            return null;
+        });
+        JobRunSummary.Builder summary = JobRunSummary.builder();
+
+        assertThatThrownBy(() -> serviceWith(MediaDiskGuards.withMarker(marker())).scan(summary))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("media disk is not mounted")
+                .hasMessageContaining("nothing was removed");
+
+        verify(mediaInfo, never()).deleteByFilePath(anyString());
+        verify(symlinks, never()).deleteById(anyString());
+        assertThat(summary.build().counters())
+                .containsEntry("added", 1L)
+                .containsEntry("wouldRemove", 10L)
+                .containsEntry("inDatabase", 100L);
     }
 }

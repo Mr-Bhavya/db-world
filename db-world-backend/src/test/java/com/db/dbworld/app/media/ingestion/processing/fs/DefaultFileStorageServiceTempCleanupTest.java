@@ -4,6 +4,8 @@ import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.IngestionRequest;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -13,6 +15,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,15 +26,57 @@ class DefaultFileStorageServiceTempCleanupTest {
     @TempDir
     Path tempRoot;
 
+    @TempDir
+    Path disk;
+
+    AppProperties props;
     RecordRepository recordRepository;
     DefaultFileStorageService storage;
 
     @BeforeEach
     void setUp() {
-        AppProperties props = mock(AppProperties.class);
+        props = mock(AppProperties.class);
         when(props.getTempPath()).thenReturn(tempRoot);
+        when(props.getStreamPath()).thenReturn(tempRoot.resolve("streams"));
         recordRepository = mock(RecordRepository.class);
-        storage = new DefaultFileStorageService(props, recordRepository);
+        storage = new DefaultFileStorageService(props, recordRepository, MediaDiskGuards.off());
+    }
+
+    // ── Media-disk guard ─────────────────────────────────────────────────────
+
+    private DefaultFileStorageService storageWithDiskMissing() {
+        return new DefaultFileStorageService(props, recordRepository,
+                MediaDiskGuards.withMarker(disk.resolve(".dbworld-media-disk"), tempRoot));
+    }
+
+    @Test
+    void diskMissing_emptyFoldersAreLeftAlone() throws Exception {
+        Path job = Files.createDirectories(tempRoot.resolve("42-Inception"));
+
+        storageWithDiskMissing().removeEmptyTempDirs(jobWithFolder("42-Inception"));
+
+        assertThat(job).isDirectory();
+    }
+
+    /** Both download strategies call this right before aria2 / yt-dlp would start writing. */
+    @Test
+    void diskMissing_downloadIsRefused_andNoFolderIsCreated() {
+        IngestionContext ctx = jobWithFolder("42-Inception");
+
+        assertThatThrownBy(() -> storageWithDiskMissing().prepareDirectories(ctx))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("Download was not started");
+
+        assertThat(tempRoot.resolve("42-Inception")).doesNotExist();
+        assertThat(tempRoot.resolve("streams")).doesNotExist();
+    }
+
+    @Test
+    void guardOff_prepareDirectoriesCreatesBothFolders() {
+        storage.prepareDirectories(jobWithFolder("42-Inception"));
+
+        assertThat(tempRoot.resolve("42-Inception")).isDirectory();
+        assertThat(tempRoot.resolve("streams/unassigned/42-Inception")).isDirectory();
     }
 
     @Test

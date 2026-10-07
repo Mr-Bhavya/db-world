@@ -190,6 +190,9 @@ public class WalletDocumentService {
     @Transactional
     public void delete(Long userId, String id) {
         WalletDocumentEntity e = getOwnedEntity(userId, id);
+        // With the disk missing the blob delete below finds nothing, so the user's document would
+        // read as deleted while its file stayed on the disk. Refuse before touching the row.
+        storage.requireAvailable("Deleting the document");
         // Delete the DB row (and its shares) first, then the physical blob last: storage.delete
         // is best-effort and never throws, so if docRepo.delete were to throw after the blob was
         // already removed, the transaction would roll back but the file would be gone for good.

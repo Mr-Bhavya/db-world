@@ -44,6 +44,7 @@ public class AppProperties {
     private ApiKeys apiKeys;
     private Tokens tokens;
     private Cdn cdn;
+    private MediaDisk mediaDisk;
 
     // ── Runtime fields (resolved in @PostConstruct) ───────────────────────────
 
@@ -60,6 +61,8 @@ public class AppProperties {
     private Path torrentsPath;
     private Path externalVideosPath;
     private List<Path> mediaBasePaths;
+    private List<Path> mediaTreeRoots;
+    private Path mediaDiskMarker;
 
     private Path logsPath;
     private Path mainLogPath;
@@ -134,6 +137,15 @@ public class AppProperties {
         mediaBasePaths = Stream.of(tempPath, integrationPath)
                 .filter(Objects::nonNull).toList();
 
+        // Everything that lives on the media disk. In prod all of it sits under data-path; the
+        // other roots are listed so a media dir configured elsewhere still counts as media.
+        mediaTreeRoots = Stream.of(dataPathR, streamPathR, symlinkPathR, tempPath,
+                        downloadsPath, integrationPath, torrentsPath)
+                .filter(Objects::nonNull)
+                .map(p -> p.toAbsolutePath().normalize())
+                .distinct().toList();
+        mediaDiskMarker = mediaDisk != null ? norm(mediaDisk.marker()) : null;
+
         createDirs();
     }
 
@@ -154,6 +166,15 @@ public class AppProperties {
     public Path         getTorrentsPath()       { return torrentsPath; }
     public Path         getExternalVideosPath() { return externalVideosPath; }
     public List<Path>   getMediaBasePaths()     { return mediaBasePaths; }
+
+    /** Absolute roots of the tree that lives on the media disk (data, streams, symlinks, temp...). */
+    public List<Path>   getMediaTreeRoots()     { return mediaTreeRoots; }
+
+    /**
+     * File the host admin created once ON the media disk. Present means the disk is mounted.
+     * Null when {@code app.media-disk.marker} is blank, which turns the check off.
+     */
+    public Path         getMediaDiskMarker()    { return mediaDiskMarker; }
 
     public Path         getLogsPath()           { return logsPath; }
     public Path         getMainLogPath()        { return mainLogPath; }
@@ -210,6 +231,7 @@ public class AppProperties {
     public void setApiKeys(ApiKeys v)   { this.apiKeys = v; }
     public void setTokens(Tokens v)     { this.tokens = v; }
     public void setCdn(Cdn v)           { this.cdn = v; }
+    public void setMediaDisk(MediaDisk v) { this.mediaDisk = v; }
 
     // ── Nested config records ─────────────────────────────────────────────────
 
@@ -254,6 +276,12 @@ public class AppProperties {
         ) {}
     }
 
+    /**
+     * {@code marker}: a file on the media disk itself, e.g. {@code /srv/dbworld/.dbworld-media-disk}.
+     * Blank turns the media-disk guard off (dev machines have no marker).
+     */
+    public record MediaDisk(String marker) {}
+
     // ── Utilities ─────────────────────────────────────────────────────────────
 
     private static Path norm(String value) {
@@ -269,6 +297,11 @@ public class AppProperties {
      * home) — failures are logged at {@code ERROR}. Optional dirs may live on
      * removable/external storage — failures are logged at {@code WARN} since
      * they're expected to be transient (e.g. disk unmounted).
+     * <p>
+     * When the media-disk marker is configured but absent, the disk is not mounted and
+     * {@code data-path} is just the empty mount point on the SD card. Nothing in the media tree
+     * is created then: a tree built there would take writes onto the SD and be hidden again the
+     * moment the disk mounts over it.
      */
     private void createDirs() {
         Map<String, Path> critical = new LinkedHashMap<>();
@@ -283,6 +316,16 @@ public class AppProperties {
         optional.put("downloadsPath", downloadsPath);
         optional.put("integrationPath", integrationPath);
 
+        if (mediaDiskMarker != null && !Files.exists(mediaDiskMarker)) {
+            List<String> skipped = new ArrayList<>();
+            skipped.addAll(removeMediaTreeDirs(critical));
+            skipped.addAll(removeMediaTreeDirs(optional));
+            if (!skipped.isEmpty()) {
+                log.warn("Startup: media disk marker {} is missing, so the media disk is not mounted. "
+                        + "Not creating {} under {}: {}", mediaDiskMarker, skipped.size(), dataPathR, skipped);
+            }
+        }
+
         List<String> missing = new ArrayList<>();
         missing.addAll(createDirs(critical, true));
         missing.addAll(createDirs(optional, false));
@@ -293,6 +336,23 @@ public class AppProperties {
         } else {
             log.info("Startup: all {} configured directories are ready", total);
         }
+    }
+
+    /** Drops every dir inside the media tree from {@code dirs}; returns "name (path)" for each one dropped. */
+    private List<String> removeMediaTreeDirs(Map<String, Path> dirs) {
+        List<String> removed = new ArrayList<>();
+        dirs.entrySet().removeIf(entry -> {
+            Path dir = entry.getValue();
+            if (dir == null || !isInMediaTree(dir)) return false;
+            removed.add(entry.getKey() + " (" + dir + ")");
+            return true;
+        });
+        return removed;
+    }
+
+    private boolean isInMediaTree(Path dir) {
+        Path p = dir.toAbsolutePath().normalize();
+        return mediaTreeRoots.stream().anyMatch(p::startsWith);
     }
 
     /** Attempts to create each named dir; returns the names of those that failed. Never throws. */

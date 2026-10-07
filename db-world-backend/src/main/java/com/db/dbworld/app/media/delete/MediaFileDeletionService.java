@@ -3,6 +3,7 @@ package com.db.dbworld.app.media.delete;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,19 @@ public class MediaFileDeletionService {
 
     private final MediaInfoService mediaInfoService;
     private final SymlinkService   symlinkService;
+    private final MediaDiskGuard   mediaDiskGuard;
 
     /**
      * @param deletePhysicalFile true to also erase the file from disk (permanent
      *                           delete); false to keep the file (remove-from-library).
      */
     public MediaFileDeleteResult deleteById(String id, boolean deletePhysicalFile) {
+        // A permanent delete with the disk missing could only drop the row: the file would read
+        // "already gone", survive on the disk, and come back as an unassigned file once it mounts.
+        // Remove-from-library (keep the file) is a database change only and stays allowed.
+        if (deletePhysicalFile) {
+            mediaDiskGuard.requireMounted("Deleting the file from disk");
+        }
         MediaFileDto dto = mediaInfoService.getById(id).orElse(null);
         if (dto == null) {
             log.info("Media file delete: id={} not found (nothing to do)", id);

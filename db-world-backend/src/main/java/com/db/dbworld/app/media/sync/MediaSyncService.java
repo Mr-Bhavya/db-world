@@ -12,6 +12,7 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -84,6 +85,8 @@ import java.util.stream.Stream;
  *       {@link ConfigKeys#MEDIA_SYNC_MAX_REMOVAL_PERCENT} of the library, or that
  *       finds the stream root empty, changes nothing and fails. See
  *       {@link #refuseSuspiciousRemoval}.</li>
+ *   <li><b>Refuses without the disk</b> — {@link MediaDiskGuard} is asked before the walk and
+ *       again right before removals; a missing media disk fails the pass with nothing removed.</li>
  * </ul>
  */
 @Service
@@ -109,6 +112,7 @@ public class MediaSyncService {
     private final SchedulerJobConfigRepository  schedulerConfigRepo;
     private final JobRunRecorder                recorder;
     private final SettingsService               settingsService;
+    private final MediaDiskGuard                mediaDiskGuard;
 
     /**
      * Live stability window. Read from {@code scheduler_job_config.stability_window_seconds}
@@ -189,6 +193,11 @@ public class MediaSyncService {
         long start = System.currentTimeMillis();
 
         try {
+            // Before anything else: with the disk missing, the stream root is an empty folder on
+            // the SD card (or not there at all), and every row would look deleted. Thrown like the
+            // guards below, so the run is recorded as FAILED with the reason.
+            mediaDiskGuard.requireMounted("Media sync");
+
             Path root = appProperties.getStreamPath();
             if (root == null || !Files.isDirectory(root)) {
                 // Thrown rather than returned so the run is recorded as FAILED — a scanner
@@ -208,6 +217,15 @@ public class MediaSyncService {
             refuseSuspiciousRemoval(root, onDisk.seen(), inDb.size(), toRemove.size(), summary);
 
             int added   = applyAdditions(toAdd, onDisk.files());
+
+            // Look again right before deleting. The disk can drop out mid-scan, and a walk over a
+            // disappearing disk sees nothing, so the diff above may be a picture of the outage.
+            if (!mediaDiskGuard.isMounted()) {
+                summary.count("added", added);
+                refuse(summary, onDisk.seen(), inDb.size(), toRemove.size(),
+                        mediaDiskGuard.notMountedMessage("Removing missing media")
+                        + " It went missing during the scan; nothing was removed.");
+            }
             int removed = applyRemovals(toRemove, inDb);
 
             long duration = System.currentTimeMillis() - start;

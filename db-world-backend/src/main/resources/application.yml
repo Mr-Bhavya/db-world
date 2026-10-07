@@ -233,6 +233,14 @@ app:
     # against public-base-url.
     fallback-image: /icons/icon-192.png
 
+  # Media-disk guard. `marker` is a file that exists only ON the media disk; while it is
+  # missing the disk counts as NOT mounted: media sync and cleanup remove nothing, startup
+  # creates no media dirs, and ingestion, symlinks, storyboards and uploads are refused rather
+  # than written to the empty mount point underneath. Blank (the default) turns the guard off,
+  # which is what a dev machine wants. application-prod.yml sets it.
+  media-disk:
+    marker:
+
   # Browser origins allowed to make CREDENTIALED cross-origin calls. This list is the
   # whole access-control boundary for the browser: an origin named here can read any
   # response the signed-in user can, because allowCredentials is on.

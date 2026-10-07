@@ -6,6 +6,7 @@ import com.db.dbworld.app.filemanager.upload.dto.InitUploadRequest;
 import com.db.dbworld.app.filemanager.upload.dto.UploadSessionDto;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,11 +55,53 @@ class UploadSessionServiceTest {
             return null;
         }).when(repo).delete(any(UploadSessionEntity.class));
 
-        svc = new UploadSessionService(repo, locationService, props);
+        svc = new UploadSessionService(repo, locationService, props, MediaDiskGuards.off());
     }
 
     private Path partOf(String uploadId) {
         return tempPath.resolve("uploads").resolve(uploadId + ".part");
+    }
+
+    // ── Media-disk guard: the part files live in temp, on the media disk ─────
+
+    private Path marker;
+
+    /** A service whose disk is mounted while {@link #marker} exists; temp is the media tree. */
+    private UploadSessionService svcWatchingMarker() throws Exception {
+        marker = Files.createTempDirectory("fm-disk").resolve(".dbworld-media-disk");
+        Files.createFile(marker);
+        return new UploadSessionService(repo, locationService, props,
+                MediaDiskGuards.withMarker(marker, tempPath));
+    }
+
+    @Test
+    void diskMissing_init_isRefused_noSessionAndNoPartFile() throws Exception {
+        UploadSessionService guarded = svcWatchingMarker();
+        Files.delete(marker);
+
+        assertThatThrownBy(() -> guarded.init(new InitUploadRequest("l", "/", "big.bin", 20, null, null, null)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("Upload was not started");
+
+        verify(repo, never()).save(any());
+        assertThat(tempPath.resolve("uploads")).doesNotExist();
+    }
+
+    @Test
+    void diskDropsMidUpload_chunkIsRefused_andAbortKeepsTheSession() throws Exception {
+        UploadSessionService guarded = svcWatchingMarker();
+        UploadSessionDto s = guarded.init(new InitUploadRequest("l", "/", "hi.txt", 5, 4, null, null));
+        Files.delete(marker);
+
+        assertThatThrownBy(() -> guarded.appendChunk(s.getUploadId(), 0, new byte[]{'h', 'e', 'l', 'l'}))
+                .hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.abort(s.getUploadId()))
+                .hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.complete(s.getUploadId()))
+                .hasMessageContaining("not mounted");
+
+        assertThat(store).containsKey(s.getUploadId());
+        assertThat(store.get(s.getUploadId()).getReceivedBytes()).isZero();
     }
 
     @Test

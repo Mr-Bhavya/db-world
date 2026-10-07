@@ -5,6 +5,7 @@ import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -52,6 +53,7 @@ public class StoryboardService {
     private final ProcessExecutor     processExecutor;
     private final MediaFileRepository mediaFileRepository;
     private final SettingsService     settingsService;
+    private final MediaDiskGuard      mediaDiskGuard;
 
     /** Sprites live in a sibling dir of the symlink root: {dataRoot}/storyboards. */
     private Path storyboardDir() {
@@ -142,6 +144,12 @@ public class StoryboardService {
     public void generate(String mediaFileId, Path videoFile, long durationMs, ProgressListener progress) {
         if (mediaFileId == null || videoFile == null || durationMs <= 0) {
             log.debug("Storyboard skipped (missing id/file/duration) for {}", mediaFileId);
+            return;
+        }
+        // The sprite goes under {dataRoot}/storyboards; with the disk missing that is the SD card.
+        if (!mediaDiskGuard.isMounted()) {
+            log.warn("Storyboard skipped for {}: {}", mediaFileId,
+                    mediaDiskGuard.notMountedMessage("Storyboard generation"));
             return;
         }
 

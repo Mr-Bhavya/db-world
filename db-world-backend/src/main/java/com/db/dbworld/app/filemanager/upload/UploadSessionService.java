@@ -8,6 +8,7 @@ import com.db.dbworld.app.filemanager.upload.dto.InitUploadRequest;
 import com.db.dbworld.app.filemanager.upload.dto.UploadSessionDto;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import com.db.dbworld.utils.FileIdentityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -35,9 +36,11 @@ public class UploadSessionService {
     private final UploadSessionRepository repo;
     private final FileLocationService locationService;
     private final AppProperties appProperties;
+    private final MediaDiskGuard mediaDiskGuard;
 
     public UploadSessionDto init(InitUploadRequest req) throws IOException {
         locationService.resolveBase(req.locationId()); // validates location exists & is enabled
+        requireMediaDisk("Upload");
         int chunkSize = (req.chunkSize() == null || req.chunkSize() <= 0) ? DEFAULT_CHUNK_SIZE : req.chunkSize();
         String onConflict = req.onConflict() != null ? req.onConflict() : DEFAULT_ON_CONFLICT;
 
@@ -69,6 +72,7 @@ public class UploadSessionService {
 
     public UploadSessionDto appendChunk(String uploadId, int index, byte[] data) throws IOException {
         UploadSessionEntity entity = getOrThrow(uploadId);
+        requireMediaDisk("Upload");
 
         // Idempotent no-op: chunk already received (e.g. client retry after a dropped ack).
         if (index < entity.getNextIndex()) {
@@ -99,6 +103,7 @@ public class UploadSessionService {
 
     public FileItemDto complete(String uploadId) throws IOException {
         UploadSessionEntity entity = getOrThrow(uploadId);
+        requireMediaDisk("Finishing the upload");
         Path part = partFile(uploadId);
 
         if (Files.size(part) != entity.getTotalSize()) {
@@ -113,6 +118,7 @@ public class UploadSessionService {
 
         Path base = locationService.resolveBase(entity.getLocationId());
         Path dest = PathJail.resolve(base, entity.getTargetPath() + "/" + safeName(entity.getFileName()));
+        mediaDiskGuard.requireMountedFor(dest, "Finishing the upload");
         String onConflict = entity.getOnConflict();
         boolean overwrite = false;
 
@@ -146,6 +152,9 @@ public class UploadSessionService {
 
     public void abort(String uploadId) throws IOException {
         UploadSessionEntity entity = getOrThrow(uploadId);
+        // Dropping the row with the disk missing would orphan the .part file on the disk for good:
+        // the sweeper only finds part files through their session row.
+        requireMediaDisk("Cancelling the upload");
         Path part = partFile(uploadId);
         try {
             Files.deleteIfExists(part);
@@ -163,6 +172,11 @@ public class UploadSessionService {
 
     private Path uploadsDir() {
         return appProperties.getTempPath().resolve("uploads");
+    }
+
+    /** Part files live in temp on the media disk; without the disk they would go to the SD card. */
+    private void requireMediaDisk(String operation) {
+        mediaDiskGuard.requireMountedFor(uploadsDir(), operation);
     }
 
     private Path partFile(String uploadId) {
