@@ -2,6 +2,8 @@ package com.db.dbworld.app.wallet.service;
 
 import com.db.dbworld.app.wallet.crypto.WalletFileCryptor;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,16 +20,33 @@ import static org.mockito.Mockito.when;
 class WalletStorageServiceTest {
 
     @TempDir Path dataRoot;
+    @TempDir Path disk;
     WalletStorageService storage;
+    AppProperties props;
+    WalletFileCryptor cryptor;
 
     @BeforeEach
     void setUp() {
         byte[] key = new byte[32];
         for (int i = 0; i < 32; i++) key[i] = (byte) (i + 7);
-        WalletFileCryptor cryptor = new WalletFileCryptor(Base64.getEncoder().encodeToString(key), "");
-        AppProperties props = mock(AppProperties.class);
+        cryptor = new WalletFileCryptor(Base64.getEncoder().encodeToString(key), "");
+        props = mock(AppProperties.class);
         when(props.getDataPath()).thenReturn(dataRoot);
-        storage = new WalletStorageService(props, cryptor);
+        storage = new WalletStorageService(props, cryptor, MediaDiskGuards.off());
+    }
+
+    @Test
+    void diskMissing_storeIsRefused_andNothingIsWritten() {
+        WalletStorageService guarded = new WalletStorageService(props, cryptor,
+                MediaDiskGuards.withMarker(disk.resolve(".dbworld-media-disk"), dataRoot));
+
+        assertThatThrownBy(() -> guarded.store(9L, "doc-1.enc", "PAN".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("Saving the document was not started");
+        assertThatThrownBy(() -> guarded.requireAvailable("Deleting the document"))
+                .hasMessageContaining("Deleting the document was not started");
+
+        assertThat(dataRoot.resolve("wallet")).doesNotExist();
     }
 
     @Test

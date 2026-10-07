@@ -15,6 +15,7 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.*;
 import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import com.db.dbworld.core.push.PushService;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
@@ -74,6 +75,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final SettingsService         settingsService;
 
     private final FileStorageService      fileStorageService;
+    private final MediaDiskGuard          mediaDiskGuard;
 
     /** Container extensions considered "media" when picking a representative file to probe. */
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
@@ -148,6 +150,11 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             ctx.log("PIPELINE", "Job started: " + jobId);
             log.info("[{}] Pipeline execute START — recordName={}, recordId={}",
                     jobId, recordName, ctx.getRequest().getRecordId());
+
+            // Every job writes into the media tree. With the disk missing those writes would land on
+            // the SD card under the empty mount point, so the job fails here with the reason, through
+            // the normal FAILED path (history row, admin push, Rerun once the disk is back).
+            mediaDiskGuard.requireMounted("Ingestion");
 
             // ── Local file shortcut (link-existing) ──────────────────────────
             String localFilePath = ctx.getRequest().getLocalFilePath();
@@ -258,6 +265,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private void runProcessing(IngestionContext ctx, String recordName) throws Exception {
         String  jobId     = ctx.getJobId();
 
+        // Phase boundaries are the cheap places to look again: a download can run for hours, and
+        // extraction and FFmpeg both write into temp and the stream folder.
+        mediaDiskGuard.requireMounted("Processing");
+
         // ── Archive preparation ──────────────────────────────────────────────────
         // If the download is an archive, extract it BEFORE the track-review probe so the probe (and
         // the later FFmpeg pass) see the real media files, and the one selection applies to them all.
@@ -286,6 +297,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 return; // finally will release globalProcessingSemaphore
             }
             try {
+                // Again after the slot waits and any track review, which can each take a while.
+                mediaDiskGuard.requireMounted("Processing");
                 trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
                 ctx.setStatus(MirrorStatus.PROCESSING);
 

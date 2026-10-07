@@ -9,6 +9,7 @@ import com.db.dbworld.app.system.info.dto.*;
 import com.db.dbworld.app.system.info.dto.os.linux.LinuxServerInfo;
 import com.db.dbworld.app.system.info.dto.os.raspberrypi.RaspberryPiServerInfo;
 import com.db.dbworld.app.system.info.dto.os.windows.WindowsServerInfo;
+import com.db.dbworld.app.system.info.snapshot.HostInfoSnapshot;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,6 +36,7 @@ public class ServerInfoService {
     private static final DateTimeFormatter FORMATTER     = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long CACHE_TTL_FULL_MS          = 5_000;
     private static final long CACHE_TTL_QUICK_MS         = 1_000;
+    private static final String DEVICE_TREE_MODEL        = "/proc/device-tree/model";
 
     private record CacheEntry<T>(T data, long timestamp) {}
 
@@ -47,6 +49,9 @@ public class ServerInfoService {
     private final LinuxServerInfoCollector       linuxCollector;
     private final UnsupportedOSCollector         unsupportedOSCollector;
 
+    /** The host's own readings in container mode; never read in host mode. */
+    private final HostInfoSnapshot hostSnapshot;
+
     private final ServerInfoCollector activeCollector;
 
     @Autowired
@@ -54,12 +59,15 @@ public class ServerInfoService {
             @Qualifier("windowsServerInfoCollector")     WindowsServerInfoCollector windowsCollector,
             @Qualifier("raspberryPiServerInfoCollector") RaspberryPiServerInfoCollector raspberryPiCollector,
             @Qualifier("linuxServerInfoCollector")       LinuxServerInfoCollector linuxCollector,
-            @Qualifier("unsupportedOSCollector")         UnsupportedOSCollector unsupportedOSCollector) {
+            @Qualifier("unsupportedOSCollector")         UnsupportedOSCollector unsupportedOSCollector,
+            HostInfoSnapshot hostSnapshot) {
 
         this.windowsCollector      = windowsCollector;
         this.raspberryPiCollector  = raspberryPiCollector;
         this.linuxCollector        = linuxCollector;
         this.unsupportedOSCollector = unsupportedOSCollector;
+        // Assigned before detectCollector(): the Pi check below reads the snapshot in container mode.
+        this.hostSnapshot          = hostSnapshot != null ? hostSnapshot : HostInfoSnapshot.disabled();
         this.activeCollector       = detectCollector();
         log.info("ServerInfoService initialized — collector: {}", activeCollector.getClass().getSimpleName());
     }
@@ -177,6 +185,10 @@ public class ServerInfoService {
             BaseServerInfo result = activeCollector.collect();
             tagOsFlags(result);
             result.setHealthStatus(activeCollector.calculateHealthStatus(result));
+            // Container mode only: when the host data in this reading was captured on the host.
+            if (hostSnapshot.containerMode()) {
+                hostSnapshot.generatedAt().ifPresent(at -> result.setHostSnapshotAt(at.toString()));
+            }
             log.info("Full system info collected in {}ms via {}",
                     System.currentTimeMillis() - start, activeCollector.getClass().getSimpleName());
             return result;
@@ -240,7 +252,14 @@ public class ServerInfoService {
 
     private boolean isRaspberryPi() {
         try {
-            java.nio.file.Path model = java.nio.file.Path.of("/proc/device-tree/model");
+            // A container has no /proc/device-tree (Docker masks it), so in container mode the host's
+            // model comes from the snapshot. Skipped in host mode; with no fresh snapshot yet it falls
+            // through to the live reads below: /proc/cpuinfo is the host kernel's in a container
+            // too, so a Pi is still recognised before the host's first snapshot.
+            if (hostSnapshot.containerMode() && hostSnapshot.file(DEVICE_TREE_MODEL)
+                    .map(model -> model.toLowerCase().contains("raspberry pi"))
+                    .orElse(false)) return true;
+            java.nio.file.Path model = java.nio.file.Path.of(DEVICE_TREE_MODEL);
             if (java.nio.file.Files.exists(model) &&
                     java.nio.file.Files.readString(model).toLowerCase().contains("raspberry pi")) return true;
             java.nio.file.Path cpuinfo = java.nio.file.Path.of("/proc/cpuinfo");
@@ -298,6 +317,7 @@ public class ServerInfoService {
         if (info.getTemperature()  != null) map.put("temperature",  info.getTemperature());
         if (info.getBiosInfo()     != null) map.put("biosInfo",     info.getBiosInfo());
         if (info.getError()        != null) map.put("error",        info.getError());
+        if (info.getHostSnapshotAt() != null) map.put("hostSnapshotAt", info.getHostSnapshotAt());
         return map;
     }
 

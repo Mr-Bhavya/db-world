@@ -1,0 +1,139 @@
+name: Infra images
+
+# Builds the Pi's nginx, Redis, aria2 and MySQL images (deploy/images/<service>/Dockerfile) for
+# linux/arm64 and publishes them to ghcr.io/<owner>/dbworld-<service>.
+#
+#   • weekly (Tuesday)          picks up Ubuntu's security fixes; the Pi's dbworld-images-update.timer
+#                               deploys nginx/Redis/aria2 on Wednesday, health-checked, with the way back
+#   • push to development       when a Dockerfile or this file changes
+#   • manual run                any or all services; "force" publishes even when nothing changed
+#
+# Tags are <yyyymmdd>-<hash>. The hash covers the image's installed package list and its Dockerfile,
+# so an unchanged week publishes nothing, and the Pi only ever sees a new tag when the image really
+# differs. `latest` follows the newest. A scheduled run only fires from the default branch (main).
+#
+# A package GHCR creates on first push starts private. Make each one public once (Packages →
+# dbworld-<service> → Package settings), or the Pi cannot pull it without a token.
+
+on:
+  schedule:
+    - cron: '30 1 * * 2'        # Tuesday 01:30 UTC (07:00 IST)
+  push:
+    branches: [development]
+    paths:
+      - 'deploy/images/**'
+      - '.github/workflows/infra-images.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Which image
+        type: choice
+        options: [all, nginx, redis, aria2, mysql]
+        default: all
+      force:
+        description: Publish even if the package set is unchanged
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: infra-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Which images this run builds: all of them, or the one picked in a manual run. (A job-level
+  # `if` cannot see the matrix, hence a list computed here.)
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.pick.outputs.services }}
+    steps:
+      - id: pick
+        env:
+          ONLY: ${{ inputs.service || 'all' }}
+        run: |
+          if [ "$ONLY" = all ]; then
+            echo 'services=["nginx","redis","aria2","mysql"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "services=[\"${ONLY}\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  image:
+    name: ${{ matrix.service }} (arm64)
+    needs: plan
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.plan.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: deploy/images/${{ matrix.service }}
+          platforms: linux/arm64
+          load: true
+          pull: true
+          tags: dbworld-${{ matrix.service }}:build
+          # A new stamp every run, so the cached apt layer runs again and gets the week's updates.
+          build-args: APT_STAMP=${{ github.run_id }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=infra-${{ matrix.service }}
+          cache-to: type=gha,scope=infra-${{ matrix.service }},mode=max
+
+      - name: Tag, and publish if the image changed
+        env:
+          SERVICE: ${{ matrix.service }}
+          FORCE: ${{ inputs.force == true }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/dbworld-${SERVICE}"
+          docker run --rm --entrypoint cat "dbworld-${SERVICE}:build" /usr/share/dbworld-image/packages.txt > packages.txt
+          hash="$(cat packages.txt "deploy/images/${SERVICE}/Dockerfile" | sha256sum | cut -c1-8)"
+          tag="$(date -u +%Y%m%d)-${hash}"
+          main="$(case "$SERVICE" in nginx) echo nginx ;; redis) echo redis-server ;; aria2) echo aria2 ;; mysql) echo mysql-server-core-8.0 ;; esac)"
+          version="$(awk -v p="$main" '$1 == p {print $2}' packages.txt)"
+
+          # Is this exact package set already published? Any tag ending in -<hash> means yes.
+          path="${repo#ghcr.io/}"
+          token="$(curl -fsS -u "${GITHUB_ACTOR}:${GH_TOKEN}" "https://ghcr.io/token?scope=repository:${path}:pull" | jq -r '.token // empty' || true)"
+          existing=""
+          if [ -n "$token" ]; then
+            existing="$(curl -fsS -H "Authorization: Bearer ${token}" "https://ghcr.io/v2/${path}/tags/list?n=1000" 2>/dev/null \
+                         | jq -r '.tags[]?' | grep -E -- "-${hash}\$" | sort | tail -1 || true)"
+          fi
+
+          {
+            echo "### dbworld-${SERVICE}"
+            echo "\`${main}\` ${version}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$existing" ] && [ "$FORCE" != "true" ]; then
+            echo "Unchanged: already published as ${existing}" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker tag "dbworld-${SERVICE}:build" "${repo}:${tag}"
+          docker tag "dbworld-${SERVICE}:build" "${repo}:latest"
+          docker push -q "${repo}:${tag}"
+          docker push -q "${repo}:latest"
+          {
+            echo "Published \`${repo}:${tag}\`"
+            echo
+            echo "On the Pi: \`sudo dbworld-compose deploy ${SERVICE} ${tag}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

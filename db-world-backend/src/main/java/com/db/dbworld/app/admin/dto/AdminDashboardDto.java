@@ -47,6 +47,8 @@ public class AdminDashboardDto {
     @Data @Builder
     public static class MediaStats {
         private long totalFiles;
+        /** False while the media-disk marker is missing (see MediaDiskGuard); always true when the guard is off. */
+        private boolean mediaDiskMounted;
     }
 
     @Data @Builder

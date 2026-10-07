@@ -95,6 +95,23 @@ class WalletDocumentServiceTest {
         verify(docRepo).delete(e);
     }
 
+    /** With the disk missing the blob cannot be deleted, so the row must not be either. */
+    @Test
+    void delete_mediaDiskMissing_touchesNothing() {
+        WalletDocumentEntity e = new WalletDocumentEntity();
+        e.setId("d1"); e.setUserId(5L); e.setStoredFileName("d1.enc");
+        when(docRepo.findByIdAndUserId("d1", 5L)).thenReturn(Optional.of(e));
+        doThrow(new DbWorldException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "The media disk is not mounted (/srv/dbworld). Deleting the document was not started."))
+                .when(storage).requireAvailable("Deleting the document");
+
+        assertThatThrownBy(() -> service.delete(5L, "d1")).hasMessageContaining("not mounted");
+
+        verify(shareRepo, never()).deleteByDocumentId(anyString());
+        verify(docRepo, never()).delete(any());
+        verify(storage, never()).delete(any(), anyString());
+    }
+
     @Test
     void update_whenNotOwner_throwsNotFound() {
         when(docRepo.findByIdAndUserId("d1", 99L)).thenReturn(Optional.empty());

@@ -4,6 +4,7 @@ import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.app.wallet.service.WalletThumbnailer;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -38,7 +39,20 @@ class ThumbnailServiceTest {
         BufferedImage img = new BufferedImage(50, 50, BufferedImage.TYPE_INT_RGB);
         ImageIO.write(img, "png", base.resolve("pic.png").toFile());
 
-        svc = new ThumbnailService(locationService, new WalletThumbnailer(), appProperties);
+        svc = new ThumbnailService(locationService, new WalletThumbnailer(), appProperties, MediaDiskGuards.off());
+    }
+
+    /** The cache is in temp on the media disk: without the disk, render but write nothing there. */
+    @Test
+    void diskMissing_stillRendersAFileFromOtherStorage_butCachesNothing() throws Exception {
+        Path missingMarker = Files.createTempDirectory("thumbs-disk").resolve(".dbworld-media-disk");
+        ThumbnailService guarded = new ThumbnailService(locationService, new WalletThumbnailer(), appProperties,
+                MediaDiskGuards.withMarker(missingMarker, tempPath));
+
+        byte[] jpeg = guarded.thumbnail("l1", "/pic.png");
+
+        assertThat(jpeg).isNotEmpty();
+        assertThat(tempPath.resolve("fm-thumbs")).doesNotExist();
     }
 
     @Test

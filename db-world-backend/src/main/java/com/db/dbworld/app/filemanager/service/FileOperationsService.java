@@ -6,6 +6,7 @@ import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.app.filemanager.mapper.FileMetadataMapper;
 import com.db.dbworld.app.filemanager.path.PathJail;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -34,6 +35,7 @@ public class FileOperationsService {
     private static final int MAX_SEARCH_DEPTH = 8;
 
     private final FileLocationService locationService;
+    private final MediaDiskGuard mediaDiskGuard;
 
     public FileListDto list(String locationId, String path, String sortBy, String order) throws IOException {
         log.debug("list locationId={} path={} sortBy={} order={}", locationId, path, sortBy, order);
@@ -122,6 +124,7 @@ public class FileOperationsService {
         log.info("mkdir locationId={} parent={} name={}", locationId, parentPath, name);
         Path base = locationService.resolveBase(locationId);
         Path parent = PathJail.resolve(base, parentPath); // validates parentPath is within jail and exists
+        requireMediaDisk("Creating the folder", parent);
         if (!Files.isDirectory(parent)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Parent path is not a directory: " + parentPath);
         rejectUnsafeName(name);
         Path newDir = PathJail.resolve(base, parentPath + "/" + name);
@@ -139,6 +142,7 @@ public class FileOperationsService {
         log.info("renameItem locationId={} path={} newName={}", locationId, path, newName);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, path);
+        requireMediaDisk("Renaming", source);
         rejectUnsafeName(newName);
         Path dest = PathJail.resolve(base, PathJail.toRelative(base, source.getParent()) + "/" + newName);
         if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists");
@@ -157,6 +161,7 @@ public class FileOperationsService {
         log.info("moveItem locationId={} source={} dest={}", locationId, sourcePath, destinationPath);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, sourcePath);
+        requireMediaDisk("Moving", source, PathJail.resolve(base, destinationPath));
         Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a move, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
@@ -175,6 +180,7 @@ public class FileOperationsService {
     public FileItemDto copyItem(String locationId, String sourcePath, String destinationPath) throws IOException {
         log.info("copyItem locationId={} source={} dest={}", locationId, sourcePath, destinationPath);
         Path base = locationService.resolveBase(locationId);
+        requireMediaDisk("Copying", PathJail.resolve(base, sourcePath), PathJail.resolve(base, destinationPath));
         Path source = PathJail.resolveReal(base, sourcePath); // symlink-sensitive: following a link must not escape the jail
         Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a copy, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
@@ -216,6 +222,7 @@ public class FileOperationsService {
         log.info("delete locationId={} path={}", locationId, path);
         Path base = locationService.resolveBase(locationId);
         Path target = PathJail.resolve(base, path);
+        requireMediaDisk("Deleting", target);
         if (!Files.exists(target)) throw new NoSuchFileException(path);
         try {
             if (Files.isDirectory(target)) {
@@ -241,6 +248,14 @@ public class FileOperationsService {
                 }
             }
         }
+    }
+
+    /**
+     * Refuses a write that touches the media tree while the media disk is missing: it would land
+     * on the SD card under the empty mount point. Locations on other storage are not affected.
+     */
+    private void requireMediaDisk(String operation, Path... targets) {
+        for (Path target : targets) mediaDiskGuard.requireMountedFor(target, operation);
     }
 
     private static void rejectUnsafeName(String name) {

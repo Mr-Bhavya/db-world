@@ -16,6 +16,7 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.push.PushService;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -60,7 +61,8 @@ public class IngestionConfig {
             SmartTrackFilterService  smartTrackFilterService,
             TrackReviewCoordinator   trackReviewCoordinator,
             SettingsService          settingsService,
-            FileStorageService       fileStorageService
+            FileStorageService       fileStorageService,
+            MediaDiskGuard           mediaDiskGuard
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -80,7 +82,8 @@ public class IngestionConfig {
                 smartTrackFilterService,
                 trackReviewCoordinator,
                 settingsService,
-                fileStorageService
+                fileStorageService,
+                mediaDiskGuard
         );
     }
 }

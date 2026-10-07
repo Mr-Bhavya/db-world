@@ -28,4 +28,12 @@ public class BaseServerInfo {
     private HealthStatus healthStatus;
     private TemperatureInfo temperature;
     private String error;
+
+    /**
+     * When the host data in this reading was captured, as an ISO-8601 instant
+     * ({@code 2026-10-07T18:00:00Z}). Set only when the backend runs in a container and answered
+     * the host's commands and files from the host's snapshot, which is up to a minute old; null
+     * when it ran them itself. /proc and /sys figures (CPU, memory, network) are live either way.
+     */
+    private String hostSnapshotAt;
 }
