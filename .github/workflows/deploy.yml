@@ -1,7 +1,8 @@
 name: Deploy & Release
 
 # Builds AND ships each ticked component. Manual only (workflow_dispatch). Tick any combination:
-#   • Backend  — build the WAR and deploy it to the Pi
+#   • Backend  — build the WAR and deploy it to the Pi, or (backend_runtime: docker) build the
+#                container image, push it to GHCR and run it on the Pi with dbworld-compose
 #   • Frontend — build the web bundle and deploy it to the Pi
 #   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
 #                (the source the in-app updater reads)
@@ -20,6 +21,17 @@ on:
     inputs:
       backend:
         description: Deploy the backend WAR to the Pi
+        type: boolean
+        default: false
+      backend_runtime:
+        description: "Backend: 'war' (systemd + dbworldctl) or 'docker' (container + dbworld-compose). Use docker only once the Pi has been switched over."
+        type: choice
+        options:
+          - war
+          - docker
+        default: war
+      ytdlp_latest:
+        description: "Backend (docker): build with the newest yt-dlp release instead of the Dockerfile's pin — for when YouTube downloads break"
         type: boolean
         default: false
       frontend:
@@ -65,7 +77,7 @@ jobs:
   # ── Backend: build the WAR on a cloud runner ───────────────────────────────
   backend-build:
     name: Backend · build WAR
-    if: ${{ github.event.inputs.backend == 'true' }}
+    if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime != 'docker' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -107,6 +119,33 @@ jobs:
           set -euxo pipefail
           WAR=$(ls war/*.war | head -1)
           sudo /usr/local/bin/dbworldctl update "$WAR"
+
+  # ── Backend (docker): build + push the image, then run it on the Pi ─────────
+  backend-image:
+    name: Backend · build image
+    if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime == 'docker' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/backend-image.yml
+    with:
+      ref: ${{ github.event.inputs.ref }}
+      push: true
+      ytdlp: ${{ github.event.inputs.ytdlp_latest == 'true' && 'latest' || '' }}
+
+  backend-deploy-docker:
+    name: Backend · deploy container to Pi
+    needs: backend-image
+    runs-on: self-hosted
+    environment: production
+    steps:
+      # Pull, restart, health-check, and on failure start the previous tag again: the same
+      # contract as `dbworldctl update`. To roll back later, run `sudo dbworld-compose rollback`
+      # on the Pi, or deploy an older ref here.
+      - name: Deploy image
+        env:
+          TAG: ${{ needs.backend-image.outputs.tag }}
+        run: sudo /usr/local/bin/dbworld-compose update "$TAG"
 
   # ── Frontend: build the web bundle on a cloud runner ───────────────────────
   frontend-build:

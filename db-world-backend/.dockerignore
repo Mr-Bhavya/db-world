@@ -1,0 +1,8 @@
+# The build context is only what the Dockerfile copies: pom.xml and src/. Everything else stays
+# out, above all anything that could hold a secret (JWT keys under runtime/, env files).
+*
+!pom.xml
+!src/
+**/*.key
+**/*.pem
+**/.env*
