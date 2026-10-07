@@ -4,8 +4,8 @@
 #
 # The app shells out to ffmpeg/ffprobe, mediainfo, 7z and yt-dlp by name (app.tools.* in
 # application-prod.yml), so they live in this image next to the JVM. MySQL, Redis, aria2 and
-# nginx are separate services; on the Pi they stay on the host for now (see compose.yml in
-# db-world-config/server_config).
+# nginx are separate services, each with its own container on the Pi (compose.yml in
+# db-world-config/server_config; their images are built from deploy/images/).
 #
 # Versions are pinned so a rebuild months from now produces the same tools, and an upgrade is a
 # diff somebody chose to make. The base tags pin the Java major and the Ubuntu release, but not
@@ -64,8 +64,8 @@ RUN set -eux; \
     rm -f /tmp/yt-dlp_* /tmp/deno-*; \
     yt-dlp --version; deno --version; ffmpeg -hide_banner -version | head -1; mediainfo --version; 7z i > /dev/null
 
-# The container runs as the host's dbworld_admin UID (compose.yml), which has no entry in this
-# image, so HOME is a directory any UID can write: yt-dlp and deno keep their caches under it.
+# The container runs as the host's dbworld UID (compose.yml), which has no entry in this image,
+# so HOME is a directory any UID can write: yt-dlp and deno keep their caches under it.
 # TZ matches the Pi: the JVM's default zone drives LocalDate.now() across the app, and a
 # container's default is UTC. UTF-8 so file names outside ASCII survive the JVM's file APIs.
 ENV HOME=/home/dbworld \
@@ -80,9 +80,11 @@ WORKDIR /opt/db_world
 COPY --from=build /db-world.war /opt/db_world/db-world.war
 
 EXPOSE 9090
-# Same probe and the same five-minute startup allowance as dbworldctl.
+# Same probe and the same five-minute startup allowance as dbworldctl. 127.0.0.1, not localhost:
+# `harden app` binds the app there (SERVER_ADDRESS), and localhost tries ::1 first. compose.yml
+# repeats this with a faster start_interval.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
-  CMD curl -fsS "http://localhost:${SERVER_PORT:-9090}/actuator/health" > /dev/null || exit 1
+  CMD curl -fsS "http://127.0.0.1:${SERVER_PORT:-9090}/actuator/health" > /dev/null || exit 1
 
 # JVM flags come from JDK_JAVA_OPTIONS (set in compose.yml), which the java launcher reads itself,
 # so this stays exec-form and Java is PID 1's direct child under `init: true`.

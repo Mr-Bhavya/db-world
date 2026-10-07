@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       backend_runtime:
-        description: "Backend: 'war' (systemd + dbworldctl) or 'docker' (container + dbworld-compose). Use docker only once the Pi has been switched over."
+        description: "Backend: 'docker' builds the image and runs it with dbworld-compose (while the Pi still runs the WAR, it deploys the WAR from that image); 'war' is the old Maven WAR + dbworldctl path."
         type: choice
         options:
           - war
@@ -140,12 +140,15 @@ jobs:
     environment: production
     steps:
       # Pull, restart, health-check, and on failure start the previous tag again: the same
-      # contract as `dbworldctl update`. To roll back later, run `sudo dbworld-compose rollback`
-      # on the Pi, or deploy an older ref here.
+      # contract as `dbworldctl update`. While the Pi still runs the WAR, the WAR inside this
+      # image is deployed through `dbworldctl update` instead, so this path works before and
+      # after `dbworld-compose switch app`. To roll back later: `sudo dbworld-compose rollback app`
+      # on the Pi, or deploy an older ref here. The runner's sudo rule allows exactly
+      # `dbworld-compose deploy app <tag>` (sudoers.d/dbworld-deploy in db-world-config).
       - name: Deploy image
         env:
           TAG: ${{ needs.backend-image.outputs.tag }}
-        run: sudo /usr/local/bin/dbworld-compose update "$TAG"
+        run: sudo /usr/local/bin/dbworld-compose deploy app "$TAG"
 
   # ── Frontend: build the web bundle on a cloud runner ───────────────────────
   frontend-build:
