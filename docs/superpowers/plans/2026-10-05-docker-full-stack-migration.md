@@ -463,13 +463,22 @@ The containers mount `/srv` with `rslave` propagation, so the HDD mounting or un
 - Phase 1: the app, as a container, image `sha-d0b98b0dae68`. Deployed by Deploy & Release, then `switch app`.
 - Phase 2: Redis and aria2.
 - Phase 3: nginx, plus certbot on `dbworld-certbot.timer` (the dry run passed). The host certbot.timer stays as a backup until the container's first real renewal, which then switches it off.
-- Phase 4 (MySQL) follows after `rehearse mysql`.
+- Phase 4: MySQL, switched 2026-10-08 14:50 IST (2.5 min of downtime) after a rehearsal on a copy of the night's datadir. Then the rebuilt image `20261008-a0b93947` was deployed (27 s without MySQL).
 
 Problems met and fixed on the way:
 - A first container create takes up to ~80 s on the SD card, so wait-healthy now waits it out.
 - A failed deploy lost the rollback target.
 - The switched-off aria2.service was left "failed".
 - The first 1.5 GB image pull took 17 min.
+- **The MySQL image's mysqld read none of `/etc/mysql/mysql.conf.d`.** Without the `mysql-server-8.0` package, the `my.cnf` alternative is `my.cnf.fallback`, which includes `conf.d/` only. It therefore had no `lower_case_table_names = 1` and refused the datadir, and no loopback bind. The rehearsal caught it. Fixed by `--defaults-file=/etc/mysql/mysql.cnf` plus the alternative in the image, and every deploy now compares `mysqld --print-defaults` with the reference.
+- The MySQL healthcheck (`mysqladmin ping` with no user) logged a `sha256_password` deprecation warning every 15 s, through MySQL's decoy login for unknown accounts. It now names `debian-sys-maint`.
+
+**Phase 5: prepared, not run.** `sudo dbworld-compose decommission` checks and shows what would go; `--yes` does it. It deviates from the plan in three places, each for a reason found while building it:
+- **The masks and `Conflicts=` stay.** With them, a reinstalled package cannot start next to its container. `revert` after Phase 5 says what to install first.
+- **The removed packages are fenced off from `prune-software`, not added to it.** Their purge scripts delete what the containers run from: nginx-common runs `rm -rf /etc/nginx`, certbot `rm -rf /etc/letsencrypt`, redis-tools `userdel redis` + `rm -rf /var/lib/redis /etc/redis`, and mysql-server-8.0 can delete `/var/lib/mysql`. A plain remove leaves them in the "rc" state, which `prune-software` used to purge wholesale. It now keeps their leftover config (`PRUNE_KEEP_CONFIG_RE`).
+- **A temporary `policy-rc.d`** forbids every start and stop during the removal. MySQL's postrm pings mysqld through the shared socket, gets the container's answer, and would otherwise go on to stop "the server" through `invoke-rc.d`.
+
+Also added: `dbworld-compose up`, which starts services straight as containers on a Pi without host packages (`switch` needs a running host service to compare with). `SETUP.txt` is rewritten for the Docker world, and `scripts/setup-linux.sh`, which installed the host packages, is gone. Phase 5 itself waits for the NVMe move, 30 days on the containers, and the certbot container's first real renewal.
 
 Code: db-world `development` (merge `d0b98b0d`), db-world-config `master`.
 
