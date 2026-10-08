@@ -1,8 +1,9 @@
 name: Deploy & Release
 
 # Builds AND ships each ticked component. Manual only (workflow_dispatch). Tick any combination:
-#   • Backend  — build the WAR and deploy it to the Pi, or (backend_runtime: docker) build the
-#                container image, push it to GHCR and run it on the Pi with dbworld-compose
+#   • Backend  — (backend_runtime: docker, the default) build the container image, push it to
+#                GHCR and run it on the Pi with dbworld-compose; or (war) build the WAR and deploy
+#                it with dbworldctl, only while the Pi runs the WAR
 #   • Frontend — build the web bundle and deploy it to the Pi
 #   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
 #                (the source the in-app updater reads)
@@ -20,16 +21,16 @@ on:
   workflow_dispatch:
     inputs:
       backend:
-        description: Deploy the backend WAR to the Pi
+        description: Build and deploy the backend to the Pi (how is set by backend_runtime below)
         type: boolean
         default: false
       backend_runtime:
-        description: "Backend: 'docker' builds the image and runs it with dbworld-compose (while the Pi still runs the WAR, it deploys the WAR from that image); 'war' is the old Maven WAR + dbworldctl path."
+        description: "Backend: 'docker' (the default since the app runs as a container, 2026-10-08) builds the image and runs it with dbworld-compose; if the Pi runs the WAR again (dbworld-compose revert app), it deploys the WAR from that image. 'war' is the old Maven WAR + dbworldctl path, only for a Pi on the WAR."
         type: choice
         options:
-          - war
           - docker
-        default: war
+          - war
+        default: docker
       ytdlp_latest:
         description: "Backend (docker): build with the newest yt-dlp release instead of the Dockerfile's pin — for when YouTube downloads break"
         type: boolean
