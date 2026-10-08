@@ -24,4 +24,12 @@ RUN echo "${APT_STAMP}" > /dev/null \
  && dpkg-query -W -f '${Package} ${Version}\n' | sort > /usr/share/dbworld-image/packages.txt \
  && mysqld --version
 
-CMD ["mysqld"]
+# /etc/mysql/my.cnf is the host's (mounted), a link to /etc/alternatives/my.cnf, which resolves in
+# THIS image. Without mysql-server-8.0 the alternative is mysql-common's my.cnf.fallback, which
+# includes conf.d/ only, so mysqld read none of mysql.conf.d/ (lower_case_table_names, the bind
+# addresses): it refused the datadir. Point it where the server package points it on the host.
+# compose.yml also starts mysqld with --defaults-file=/etc/mysql/mysql.cnf, so neither alone is
+# load-bearing. The target only exists once the host's /etc/mysql is mounted.
+RUN ln -sfn /etc/mysql/mysql.cnf /etc/alternatives/my.cnf
+
+CMD ["mysqld", "--defaults-file=/etc/mysql/mysql.cnf"]
