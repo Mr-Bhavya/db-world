@@ -458,7 +458,22 @@ The containers mount `/srv` with `rslave` propagation, so the HDD mounting or un
 
 ## 4b. Implementation status (2026-10-08)
 
-Nothing committed, pushed, or changed on the Pi. Code is in:
+**Live on the Pi:**
+- Phase 0 installed.
+- Phase 1: the app, as a container, image `sha-d0b98b0dae68`. Deployed by Deploy & Release, then `switch app`.
+- Phase 2: Redis and aria2.
+- Phase 3: nginx, plus certbot on `dbworld-certbot.timer` (the dry run passed). The host certbot.timer stays as a backup until the container's first real renewal, which then switches it off.
+- Phase 4 (MySQL) follows after `rehearse mysql`.
+
+Problems met and fixed on the way:
+- A first container create takes up to ~80 s on the SD card, so wait-healthy now waits it out.
+- A failed deploy lost the rollback target.
+- The switched-off aria2.service was left "failed".
+- The first 1.5 GB image pull took 17 min.
+
+Code: db-world `development` (merge `d0b98b0d`), db-world-config `master`.
+
+What follows describes the branch as it was first built:
 - **db-world** branch `feat/docker-stack` (off `development` aac254e1, uncommitted):
   - the Docker branch squashed in;
   - Dockerfile fixes;
