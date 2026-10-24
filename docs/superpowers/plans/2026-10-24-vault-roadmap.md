@@ -119,11 +119,11 @@ Desk findings, 2026-10-24 (second pass):
 **Interfaces:**
 - Produces: `enum CustomFieldType { HIDDEN, TEXT, URL, MULTILINE }`; `CustomFieldEntity.fieldType` and `CustomFieldDto.fieldType` (`@Enumerated(STRING)`, column `field_type VARCHAR(16)`, `null` means `HIDDEN`); frontend `<FieldValue field={{fieldKey, fieldValue, fieldType}} onCopy={fn} />` and `export const isSecretField = (f) => f.fieldType == null || f.fieldType === 'HIDDEN' || f.fieldType === 'MULTILINE'` in `entryUtils.js`.
 
-- [ ] **Step 1: Write failing tests.** Service: `aCustomFieldWithoutATypeIsSavedAsHidden` (add with `fieldType=null`, assert the stored field reads `HIDDEN` through `toDto`). Frontend: `isSecretField` is true for `HIDDEN`, `MULTILINE`, `null`, and false for `TEXT`, `URL`.
-- [ ] **Step 2: Run both; expect FAIL** (`CustomFieldType` not defined; `isSecretField` not exported).
-- [ ] **Step 3: Implement** the enum, the column and DTO field (default applied in `PasswordManagerServiceImpl.addCredential`/`updateCredential` when null), the migration (V3: add `field_type VARCHAR(16)` to `credential_custom_fields` only if the table exists and lacks it, then backfill `HIDDEN` where null), and `isSecretField`.
-- [ ] **Step 4: UI.** Each custom-field row in `AddPassword.js` and `EditCustomFieldRow` gets a small select (Hidden/Text/URL/Multi-line). `FieldValue.jsx` renders: HIDDEN masked + show + copy; TEXT plain + copy; URL as a link opening in a new tab with `rel="noopener noreferrer"` + copy; MULTILINE in a `pre-wrap` monospace box, collapsed to 3 lines with "show all", masked until shown, + copy. `CredentialCard` uses it in place of `SecretValueRow` for custom fields.
-- [ ] **Step 5: Run tests and lint; expect PASS and no ESLint output.** Commit `feat(vault): custom fields have a type: hidden, text, URL, multi-line`.
+- [x] **Step 1: Write failing tests.** Service: `aCustomFieldWithoutATypeIsSavedAsHidden` (add with `fieldType=null`, assert the stored field reads `HIDDEN` through `toDto`). Frontend: `isSecretField` is true for `HIDDEN`, `MULTILINE`, `null`, and false for `TEXT`, `URL`.
+- [x] **Step 2: Run both; expect FAIL** (`CustomFieldType` not defined; `isSecretField` not exported).
+- [x] **Step 3: Implement** the enum, the column and DTO field (default applied in `PasswordManagerServiceImpl.addCredential`/`updateCredential` when null), the migration (V3: add `field_type VARCHAR(16)` to `credential_custom_fields` only if the table exists and lacks it, then backfill `HIDDEN` where null), and `isSecretField`.
+- [x] **Step 4: UI.** Each custom-field row in `AddPassword.js` and `EditCustomFieldRow` gets a small select (Hidden/Text/URL/Multi-line). `FieldValue.jsx` renders: HIDDEN masked + show + copy; TEXT plain + copy; URL as a link opening in a new tab with `rel="noopener noreferrer"` + copy; MULTILINE in a `pre-wrap` monospace box, collapsed to 3 lines with "show all", masked until shown, + copy. `CredentialCard` uses it in place of `SecretValueRow` for custom fields.
+- [x] **Step 5: Run tests and lint; expect PASS and no ESLint output.** Commit `feat(vault): custom fields have a type: hidden, text, URL, multi-line`.
 
 ### Task 1.2: Trash
 

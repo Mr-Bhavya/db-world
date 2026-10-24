@@ -4,6 +4,7 @@ import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
+import com.db.dbworld.app.pm.entity.CustomFieldType;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapper;
@@ -25,7 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.MalformedURLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -165,6 +168,10 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
      */
     private void prepare(CredentialDto dto, String host) {
         if (dto.getType() == null) dto.setType(CredentialType.LOGIN);
+        if (dto.getCustomFields() != null) {
+            dto.getCustomFields().stream().filter(f -> f.getFieldType() == null)
+                    .forEach(f -> f.setFieldType(CustomFieldType.HIDDEN));
+        }
         String name = dto.getName() == null ? "" : dto.getName().trim();
         if (name.isEmpty()) name = host == null ? "" : host;
         if (name.isEmpty()) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Name is required");
@@ -291,6 +298,12 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         }
         checkNotDuplicate(targetHost, credentialDto, credential.getId());
 
+        // An older client sends no type: a field it sends back keeps the type it had (HIDDEN if none).
+        // Read before updateEntityFromDto, which overwrites the stored fields.
+        Map<String, CustomFieldType> storedTypes = new HashMap<>();
+        credential.getCustomFields().stream().filter(f -> f.getId() != null && f.getFieldType() != null)
+                .forEach(f -> storedTypes.put(f.getId(), f.getFieldType()));
+
         String newUrl = credentialDto.getUrl();
         mapper.updateEntityFromDto(credentialDto, credential);
         if (newUrl != null) credential.setUrl(newUrl.isBlank() ? null : newUrl);
@@ -303,6 +316,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         credential.getCustomFields().clear();
         if (credentialDto.getCustomFields() != null) {
             credentialDto.getCustomFields().forEach(f -> {
+                if (f.getFieldType() == null) {
+                    f.setFieldType(storedTypes.getOrDefault(f.getId(), CustomFieldType.HIDDEN));
+                }
                 var entity = mapper.toEntity(f);
                 entity.setCredential(credential);
                 credential.getCustomFields().add(entity);

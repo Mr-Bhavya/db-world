@@ -1,8 +1,11 @@
 package com.db.dbworld.app.pm.service;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
+import com.db.dbworld.app.pm.entity.CustomFieldEntity;
+import com.db.dbworld.app.pm.entity.CustomFieldType;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapper;
@@ -210,4 +213,77 @@ class PasswordManagerServiceImplTest {
     }
 
     private record PasswordManagerDtoHolder(com.db.dbworld.app.pm.dto.PasswordManagerDto dto) {}
+
+    private static CustomFieldDto field(String key, String value, CustomFieldType type) {
+        CustomFieldDto f = new CustomFieldDto();
+        f.setFieldKey(key);
+        f.setFieldValue(value);
+        f.setFieldType(type);
+        return f;
+    }
+
+    @Test
+    void aCustomFieldWithoutATypeIsSavedAsHidden() {
+        CredentialDto d = dto("db-world SSH", "dbworld_admin", CredentialType.LOGIN);
+        d.setCustomFields(List.of(field("Token", "s3cret", null), field("Site", "https://x.io", CustomFieldType.URL)));
+
+        service.addCredential(null, d);
+
+        // The stored entity itself carries the type, not just the mapper's read default.
+        var fields = saved().getCredentials().get(0).getCustomFields();
+        assertThat(fields.get(0).getFieldType()).isEqualTo(CustomFieldType.HIDDEN);
+        assertThat(fields.get(1).getFieldType()).isEqualTo(CustomFieldType.URL);
+        assertThat(mapper.toDto(fields.get(0)).getFieldType()).isEqualTo(CustomFieldType.HIDDEN);
+    }
+
+    private static CustomFieldEntity storedField(String id, String key, String value, CustomFieldType type) {
+        CustomFieldEntity f = new CustomFieldEntity(key, value, null);
+        f.setId(id);
+        f.setFieldType(type);
+        return f;
+    }
+
+    @Test
+    void anUpdateFromAnOlderClientKeepsTheTypeOfAFieldItSendsBack() {
+        PasswordManagerEntity pm = stored("c1", "github.com", "GitHub", "me");
+        pm.getCredentials().get(0).getCustomFields().add(storedField("f1", "Console", "https://x.io", CustomFieldType.URL));
+        pm.getCredentials().get(0).getCustomFields().add(storedField("f2", "Key", "-----BEGIN-----", CustomFieldType.MULTILINE));
+        CredentialDto d = edit("c1", "GitHub", "me", null);
+        CustomFieldDto back1 = field("Console", "https://x.io", null);
+        back1.setId("f1");
+        CustomFieldDto back2 = field("Key", "-----BEGIN-----", null);
+        back2.setId("f2");
+        d.setCustomFields(List.of(back1, back2));
+
+        service.updateCredential("pm-c1", d);
+
+        var fields = pm.getCredentials().get(0).getCustomFields();
+        assertThat(fields).extracting(CustomFieldEntity::getFieldKey).containsExactly("Console", "Key");
+        assertThat(fields).extracting(CustomFieldEntity::getFieldType)
+                .containsExactly(CustomFieldType.URL, CustomFieldType.MULTILINE);
+    }
+
+    @Test
+    void anUpdatedFieldWithNoTypeAndNoStoredMatchIsHidden() {
+        PasswordManagerEntity pm = stored("c1", "github.com", "GitHub", "me");
+        pm.getCredentials().get(0).getCustomFields().add(storedField("f1", "Console", "https://x.io", CustomFieldType.URL));
+        CredentialDto d = edit("c1", "GitHub", "me", null);
+        CustomFieldDto unknown = field("New", "v", null);
+        unknown.setId("not-stored");
+        d.setCustomFields(List.of(unknown, field("Brand new", "v", null)));
+
+        service.updateCredential("pm-c1", d);
+
+        var fields = pm.getCredentials().get(0).getCustomFields();
+        assertThat(fields).extracting(CustomFieldEntity::getFieldType)
+                .containsExactly(CustomFieldType.HIDDEN, CustomFieldType.HIDDEN);
+    }
+
+    @Test
+    void aStoredFieldWithNoTypeReadsAsHidden() {
+        var old = new CustomFieldEntity("Old", "v", null);   // a row from before types existed
+
+        assertThat(old.getFieldType()).isNull();
+        assertThat(mapper.toDto(old).getFieldType()).isEqualTo(CustomFieldType.HIDDEN);
+    }
 }

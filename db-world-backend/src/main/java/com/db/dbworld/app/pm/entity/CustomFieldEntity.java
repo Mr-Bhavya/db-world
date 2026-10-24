@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -31,6 +33,12 @@ public class CustomFieldEntity {
     @Lob
     @Column(name = "field_value", columnDefinition = "LONGTEXT")
     private String fieldValue;
+
+    // Null on rows from before types existed, which are HIDDEN. VARCHAR on purpose, as CredentialEntity.type.
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "field_type", length = 16)
+    private CustomFieldType fieldType;
 
     public CustomFieldEntity(String fieldKey, String fieldValue, CredentialEntity credential) {
         this.fieldKey = fieldKey;

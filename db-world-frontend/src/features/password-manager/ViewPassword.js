@@ -10,7 +10,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Box, Button, Chip, CircularProgress, Container, Dialog,
   DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-  InputAdornment, Skeleton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  InputAdornment, MenuItem, Skeleton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
   useMediaQuery, useTheme,
 } from '@mui/material';
 
@@ -23,7 +23,8 @@ import {
 } from '@mui/icons-material';
 
 import BrandLogo, { domainFromUrl } from '@shared/brand/BrandLogo';
-import { looksLikeSite, withScheme, isValidUrl, siteKey, findDuplicate } from './entryUtils';
+import { looksLikeSite, withScheme, isValidUrl, siteKey, findDuplicate, FIELD_TYPES, isSecretField } from './entryUtils';
+import FieldValue from './FieldValue';
 import useSiteFromName from './useSiteFromName';
 
 import { useT, getFieldSx } from '@shared/theme';
@@ -171,22 +172,29 @@ SecretValueRow.displayName = 'SecretValueRow';
 
 const EditCustomFieldRow = memo(({ field, index, onChange, onRemove, T, FIELD }) => {
   const [showVal, setShowVal] = useState(false);
+  const secret = isSecretField(field);
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(120px, 0.42fr) minmax(0, 1fr) auto' }, gap: 1, alignItems: 'flex-start', minWidth: 0 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(100px, 0.38fr) 116px minmax(0, 1fr) auto' }, gap: 1, alignItems: 'flex-start', minWidth: 0 }}>
       <TextField size="small" label="Label" value={field.fieldKey ?? ''} onChange={(e) => onChange(index, 'fieldKey', e.target.value)} sx={FIELD} />
+      <TextField
+        select size="small" label="Type" value={field.fieldType ?? 'HIDDEN'}
+        onChange={(e) => onChange(index, 'fieldType', e.target.value)} sx={FIELD}
+      >
+        {FIELD_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+      </TextField>
       <TextField
         size="small" label="Value" value={field.fieldValue ?? ''}
         onChange={(e) => onChange(index, 'fieldValue', e.target.value)}
         // multiline so a pasted key keeps its line breaks; masked with CSS, as type=password is single-line
-        multiline minRows={1} maxRows={8}
-        slotProps={{ htmlInput: { style: showVal ? undefined : { WebkitTextSecurity: 'disc' } } }}
-        InputProps={{ endAdornment: (
+        multiline={secret} minRows={1} maxRows={8}
+        slotProps={{ htmlInput: { style: secret && !showVal ? { WebkitTextSecurity: 'disc' } : undefined } }}
+        InputProps={secret ? { endAdornment: (
           <InputAdornment position="end">
             <IconButton size="small" onClick={() => setShowVal((v) => !v)} sx={{ color: T.teal }} aria-label="Toggle value visibility">
               {showVal ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
             </IconButton>
           </InputAdornment>
-        ) }}
+        ) } : undefined}
         sx={FIELD}
       />
       <Tooltip title="Remove">
@@ -251,7 +259,7 @@ const EditDialog = ({ target, vault, onClose }) => {
     mutationFn: (data) => updateCredential(target.pmId, {
       id: target.cred.id, ...data,
       url: data.url ? withScheme(data.url) : '',   // blank removes the site
-      customFields: customFields.map((f) => ({ ...f, fieldKey: f.fieldKey?.trim() ?? '', fieldValue: f.fieldValue ?? '' })).filter((f) => f.fieldKey),
+      customFields: customFields.map((f) => ({ ...f, fieldKey: f.fieldKey?.trim() ?? '', fieldValue: f.fieldValue ?? '', fieldType: f.fieldType ?? 'HIDDEN' })).filter((f) => f.fieldKey),
     }),
     onSuccess: () => { notify.success('Credential updated'); queryClient.invalidateQueries({ queryKey: ['pm-vault'] }); onClose(); },
     onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to update'),
@@ -259,7 +267,7 @@ const EditDialog = ({ target, vault, onClose }) => {
 
   const updateField = useCallback((i, k, v) => setCustomFields((p) => p.map((f, idx) => (idx === i ? { ...f, [k]: v } : f))), []);
   const removeField = useCallback((i) => setCustomFields((p) => p.filter((_, idx) => idx !== i)), []);
-  const addField = useCallback(() => setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '' }]), []);
+  const addField = useCallback(() => setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', fieldType: 'HIDDEN' }]), []);
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
@@ -496,7 +504,7 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
           )}
           {visibleCustomFields.map((f, index) => {
             const id = f.id ?? `${f.fieldKey}-${index}`;
-            return <SecretValueRow key={id} label={f.fieldKey || 'Custom'} value={f.fieldValue} maskedText="••••••" copied={copiedKey} copiedKey={`custom-${id}`} onCopy={copy} T={T} />;
+            return <FieldValue key={id} field={f} copied={copiedKey === `custom-${id}`} onCopy={(v) => copy(v, `custom-${id}`)} />;
           })}
         </Stack>
       )}

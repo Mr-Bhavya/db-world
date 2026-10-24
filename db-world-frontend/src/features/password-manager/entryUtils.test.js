@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate } from './entryUtils';
+import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate, isSecretField } from './entryUtils';
 
 describe('withScheme / isValidUrl / siteKey', () => {
   it('assumes https for a bare host and leaves other schemes alone', () => {
@@ -70,5 +70,18 @@ describe('findDuplicate', () => {
   });
   it('does not mix site and site-less entries', () => {
     expect(findDuplicate(vault, { url: 'x.io', name: 'db-world SSH', username: 'dbworld_admin' })).toBeNull();
+  });
+});
+
+describe('isSecretField', () => {
+  it('masks hidden, multi-line and untyped (old) fields', () => {
+    expect(isSecretField({ fieldType: 'HIDDEN' })).toBe(true);
+    expect(isSecretField({ fieldType: 'MULTILINE' })).toBe(true);
+    expect(isSecretField({ fieldType: null })).toBe(true);
+    expect(isSecretField({})).toBe(true);
+  });
+  it('shows text and URL fields as they are', () => {
+    expect(isSecretField({ fieldType: 'TEXT' })).toBe(false);
+    expect(isSecretField({ fieldType: 'URL' })).toBe(false);
   });
 });

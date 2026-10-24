@@ -7,7 +7,7 @@ import { notify } from '@shared/notify';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Box, Button, Chip, CircularProgress, Collapse, Container, IconButton,
-  InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  InputAdornment, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import {
   SaveRounded, LockRounded, Visibility, VisibilityOff, AutoAwesomeRounded,
@@ -21,7 +21,7 @@ import CommonServices from '@shared/services/CommonServices';
 import BrandLogo from '@shared/brand/BrandLogo';
 import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
-import { withScheme, isValidUrl, siteKey, findDuplicate } from './entryUtils';
+import { withScheme, isValidUrl, siteKey, findDuplicate, FIELD_TYPES, isSecretField } from './entryUtils';
 import useSiteFromName from './useSiteFromName';
 import useVaultQuery from './useVault';
 
@@ -122,7 +122,7 @@ const AddPassword = () => {
     else notify.error('Copy failed');
   };
 
-  const addCustomField    = () => { setShowMore(true); setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', showValue: false }]); };
+  const addCustomField    = () => { setShowMore(true); setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', fieldType: 'HIDDEN', showValue: false }]); };
   const removeCustomField = (i) => setCustomFields((p) => p.filter((_, idx) => idx !== i));
   const updateCustomField = (i, k, v) => setCustomFields((p) => p.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
   const toggleCustomVis   = (i) => setCustomFields((p) => p.map((f, idx) => (idx === i ? { ...f, showValue: !f.showValue } : f)));
@@ -130,7 +130,7 @@ const AddPassword = () => {
   const onSubmit = (data) => {
     const validCustomFields = customFields
       .filter((f) => f.fieldKey.trim())
-      .map(({ fieldKey, fieldValue }) => ({ fieldKey: fieldKey.trim(), fieldValue }));
+      .map(({ fieldKey, fieldValue, fieldType }) => ({ fieldKey: fieldKey.trim(), fieldValue, fieldType }));
     save({
       ...data,
       name: data.name.trim(),
@@ -398,20 +398,26 @@ const AddPassword = () => {
                       {customFields.map((field, index) => (
                         <Box
                           key={index}
-                          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(110px, 0.42fr) 1fr auto' }, gap: 1, alignItems: 'flex-start' }}
+                          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(100px, 0.38fr) 116px 1fr auto' }, gap: 1, alignItems: 'flex-start' }}
                         >
                           <TextField size="small" label="Label" placeholder="e.g. mPIN" value={field.fieldKey} onChange={(e) => updateCustomField(index, 'fieldKey', e.target.value)} sx={FIELD} />
+                          <TextField
+                            select size="small" label="Type" value={field.fieldType}
+                            onChange={(e) => updateCustomField(index, 'fieldType', e.target.value)} sx={FIELD}
+                          >
+                            {FIELD_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+                          </TextField>
                           <TextField
                             size="small"
                             label="Value"
                             // multiline so a pasted key keeps its line breaks; masked with CSS, as type=password is single-line
-                            multiline
+                            multiline={isSecretField(field)}
                             minRows={1}
                             maxRows={8}
-                            slotProps={{ htmlInput: { style: field.showValue ? undefined : { WebkitTextSecurity: 'disc' } } }}
+                            slotProps={{ htmlInput: { style: isSecretField(field) && !field.showValue ? { WebkitTextSecurity: 'disc' } : undefined } }}
                             value={field.fieldValue}
                             onChange={(e) => updateCustomField(index, 'fieldValue', e.target.value)}
-                            InputProps={{
+                            InputProps={isSecretField(field) ? {
                               endAdornment: (
                                 <InputAdornment position="end">
                                   <IconButton size="small" onClick={() => toggleCustomVis(index)} sx={{ color: T.teal }} aria-label="Toggle value visibility">
@@ -419,7 +425,7 @@ const AddPassword = () => {
                                   </IconButton>
                                 </InputAdornment>
                               ),
-                            }}
+                            } : undefined}
                             sx={FIELD}
                           />
                           <Tooltip title="Remove field">

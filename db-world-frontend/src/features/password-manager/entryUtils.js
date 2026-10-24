@@ -5,6 +5,17 @@
 
 export const ENTRY_TYPES = ['LOGIN', 'SERVER', 'NOTE'];
 
+/** How a custom field is shown. The first is the default, and what a field saved before types existed is. */
+export const FIELD_TYPES = [
+  { value: 'HIDDEN', label: 'Hidden' },
+  { value: 'TEXT', label: 'Text' },
+  { value: 'URL', label: 'URL' },
+  { value: 'MULTILINE', label: 'Multi-line' },
+];
+
+/** Masked until shown. A field with no type is an old one, and old fields were all masked. */
+export const isSecretField = (f) => f.fieldType == null || f.fieldType === 'HIDDEN' || f.fieldType === 'MULTILINE';
+
 const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 /** "example.com" is as good as "https://example.com": assume https when no scheme was typed. */
