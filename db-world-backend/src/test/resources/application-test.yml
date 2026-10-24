@@ -8,6 +8,10 @@
 # =====================================================================
 spring:
 
+  # The migrations are MySQL SQL; the tests build their schema from the entities on H2.
+  flyway:
+    enabled: false
+
   datasource:
     # Every clause here earns its place:
     #

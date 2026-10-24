@@ -36,6 +36,22 @@ spring:
       leak-detection-threshold: 60000
 
   # =========================================================
+  # Flyway: versioned schema migrations (db/migration/V<n>__<what>.sql)
+  # =========================================================
+  # The production database predates Flyway and Hibernate (ddl-auto=update) built it, so the
+  # first start BASELINES it as version 1 and applies V2 and later. Flyway runs before Hibernate,
+  # so every migration must be safe on a database that does not have the table yet (a fresh
+  # install: Hibernate creates it afterwards) and on one that already has the change. Look at V2.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: "1"
+    validate-on-migrate: true
+    # A file named V3_x.sql (one underscore) is silently ignored by default; fail the start instead.
+    validate-migration-naming: true
+
+  # =========================================================
   # JPA
   # =========================================================
   jpa:

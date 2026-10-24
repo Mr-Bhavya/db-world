@@ -4,6 +4,8 @@ import com.db.dbworld.security.crypto.StringCryptoConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +33,10 @@ public class CredentialEntity {
     private String name;
 
     // LOGIN unless the user picked another kind. Null on old rows, which are logins.
+    // VARCHAR on purpose: Hibernate would otherwise create a MySQL ENUM column, and adding a value
+    // later (PASSKEY) would need an ALTER on every database.
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 16)
     private CredentialType type;
 

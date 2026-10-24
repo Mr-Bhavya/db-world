@@ -18,7 +18,7 @@
 - **Passkeys are device-local first.** The server holds the encryption key, so syncing passkey private keys through it would let the server read them. Syncing is a later, separate decision.
 - **Save-from-site on Android opens the web add form prefilled** instead of calling the API natively. The JWT lives in the WebView, so this avoids giving native code a token.
 - **Autofill needs its own native encrypted store.** The offline cache is in the WebView's IndexedDB and a native `AutofillService` cannot read it.
-- **Manual SQL stays** (Flyway not adopted; decided 2026-10-24: it is not required, and adopting it on the existing database needs a baseline step for no gain here). Every phase that changes the schema ships one `.sql` file with a "before deploy" and "after first start" section, like `vault_entries_name_type_optional_site.sql`.
+- **Flyway is adopted (2026-10-24), so nobody runs SQL by hand any more.** Versioned files `V<n>__<what>.sql` in `db-world-backend/src/main/resources/db/migration/` run at startup, before Hibernate. The existing production database is baselined as V1 on its first start; V2 is the vault change. `ddl-auto: update` stays for now. Tested against real MySQL 8.0.39 on a fresh database, a production-like one and a restart (see "Migrations" in Global Constraints). Every phase that changes the schema ships one `.sql` file with a "before deploy" and "after first start" section, like `vault_entries_name_type_optional_site.sql`.
 - **No Claude co-author trailer in commits.** Branch: work on `development` only, one commit per task, no push until asked.
 
 ## Global Constraints
@@ -28,6 +28,7 @@
 - `String.equals(enum)` compiles and is always false: compare enums with `==`.
 - Frontend: TanStack Query, RHF + Zod, MUI; use `useT()` inside the component body, never a module-level theme object.
 - Every `.ps1` stays ASCII.
+- **Migrations (Flyway).** The next free number is V3. One file per change, named `V<n>__snake_case.sql` (two underscores; `validate-migration-naming` fails the start on a typo). Flyway runs *before* Hibernate, so every statement must be safe on a database that does not have the table yet (fresh install: Hibernate creates it afterwards) and on one that already has the change: write each step as "run this only if needed" with the `information_schema` + `PREPARE` pattern in `V2__vault_entries_name_type_optional_site.sql`. Never edit a file that has been released: add a new version. Enum columns that may gain values are `@JdbcTypeCode(SqlTypes.VARCHAR)`, never MySQL ENUMs. Tests run with `spring.flyway.enabled=false` (H2); anything a migration does is verified against a real MySQL (a throwaway local `mysqld` works).
 - Backend verify: `cd db-world-backend && "$MVN" test -q -Dtest=<Class>` (MVN path is in CLAUDE.md). Frontend verify: `cd db-world-frontend && npx vitest run <path>` and `npx eslint src/features/password-manager`.
 - `package-lock.json` is never regenerated on Windows.
 
@@ -99,7 +100,7 @@ Read-only findings so far (code reviewed, device not):
 **Files:**
 - Create: `db-world-backend/src/main/java/com/db/dbworld/app/pm/entity/CustomFieldType.java`
 - Modify: `.../pm/entity/CustomFieldEntity.java`, `.../pm/dto/CustomFieldDto.java`
-- Create: `db-world-backend/src/main/resources/db/migration/vault_field_types.sql`
+- Create: `db-world-backend/src/main/resources/db/migration/V3__vault_field_types.sql`
 - Modify: `db-world-frontend/src/features/password-manager/AddPassword.js`, `ViewPassword.js`
 - Create: `db-world-frontend/src/features/password-manager/FieldValue.jsx`
 - Test: `db-world-backend/src/test/java/com/db/dbworld/app/pm/service/PasswordManagerServiceImplTest.java`, `db-world-frontend/src/features/password-manager/entryUtils.test.js`
@@ -109,7 +110,7 @@ Read-only findings so far (code reviewed, device not):
 
 - [ ] **Step 1: Write failing tests.** Service: `aCustomFieldWithoutATypeIsSavedAsHidden` (add with `fieldType=null`, assert the stored field reads `HIDDEN` through `toDto`). Frontend: `isSecretField` is true for `HIDDEN`, `MULTILINE`, `null`, and false for `TEXT`, `URL`.
 - [ ] **Step 2: Run both; expect FAIL** (`CustomFieldType` not defined; `isSecretField` not exported).
-- [ ] **Step 3: Implement** the enum, the column and DTO field (default applied in `PasswordManagerServiceImpl.addCredential`/`updateCredential` when null), the migration (`ALTER TABLE` is unnecessary: `ddl-auto` adds the column; the file holds only the backfill `UPDATE ... SET field_type='HIDDEN' WHERE field_type IS NULL`), and `isSecretField`.
+- [ ] **Step 3: Implement** the enum, the column and DTO field (default applied in `PasswordManagerServiceImpl.addCredential`/`updateCredential` when null), the migration (V3: add `field_type VARCHAR(16)` to `credential_custom_fields` only if the table exists and lacks it, then backfill `HIDDEN` where null), and `isSecretField`.
 - [ ] **Step 4: UI.** Each custom-field row in `AddPassword.js` and `EditCustomFieldRow` gets a small select (Hidden/Text/URL/Multi-line). `FieldValue.jsx` renders: HIDDEN masked + show + copy; TEXT plain + copy; URL as a link opening in a new tab with `rel="noopener noreferrer"` + copy; MULTILINE in a `pre-wrap` monospace box, collapsed to 3 lines with "show all", masked until shown, + copy. `CredentialCard` uses it in place of `SecretValueRow` for custom fields.
 - [ ] **Step 5: Run tests and lint; expect PASS and no ESLint output.** Commit `feat(vault): custom fields have a type: hidden, text, URL, multi-line`.
 
@@ -117,7 +118,7 @@ Read-only findings so far (code reviewed, device not):
 
 **Files:**
 - Modify: `.../pm/entity/CredentialEntity.java`, `.../pm/repository/CredentialsRepository.java`, `PasswordManagerRepository.java`, `.../pm/service/PasswordManagerService.java` + `impl`, `PasswordManagerController.java`
-- Create: `.../pm/service/impl/TrashPurgeJob.java`, `db-world-backend/src/main/resources/db/migration/vault_trash.sql`
+- Create: `.../pm/service/impl/TrashPurgeJob.java`, `db-world-backend/src/main/resources/db/migration/V4__vault_trash.sql`
 - Create: `db-world-frontend/src/features/password-manager/VaultTrash.js`
 - Modify: `ViewPassword.js`, `ApiServices.js`, `app/App.jsx` (route), `PasswordManagement.js` (link)
 - Test: `PasswordManagerServiceImplTest.java`
@@ -127,7 +128,7 @@ Read-only findings so far (code reviewed, device not):
 
 - [ ] **Step 1: Write failing tests.** `deleteMovesTheEntryToTrashInsteadOfRemovingIt`; `trashedEntriesAreNotInTheVaultList`; `aTrashedEntryDoesNotCountAsADuplicate`; `restoringOntoALiveDuplicateIsRefusedWith409` (Review Focus 2); `deletingASiteTrashesEveryCredentialOnIt`; `purgeJobRemovesEntriesTrashedMoreThan30DaysAgo` (inject a `Clock`).
 - [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement.** Soft delete filters via `deletedAt IS NULL` in `getPasswordManagerByUser`, `findAllBy...` duplicate lookups and `getCredentialById`. `TrashPurgeJob` follows the existing scheduler pattern (look at how `ipo` and `tally` jobs register and write run logs) and runs daily. Migration: nothing to alter (column added by `ddl-auto`); file documents that.
+- [ ] **Step 3: Implement.** Soft delete filters via `deletedAt IS NULL` in `getPasswordManagerByUser`, `findAllBy...` duplicate lookups and `getCredentialById`. `TrashPurgeJob` follows the existing scheduler pattern (look at how `ipo` and `tally` jobs register and write run logs) and runs daily. Migration V4: add `deleted_at DATETIME(6) NULL` to `credentials` (guarded), plus an index on it.
 - [ ] **Step 4: UI.** Delete dialogs say "Moves to Trash for 30 days". `VaultTrash.js` lists trashed entries with Restore / Delete forever, and an "Empty trash" confirm. Show the 409 message from the server.
 - [ ] **Step 5: Run tests and lint; commit** `feat(vault): trash with 30-day restore`.
 
@@ -237,13 +238,13 @@ Read-only findings so far (code reviewed, device not):
 
 **Files:**
 - Modify: `CredentialEntity.java` (`url` gets `StringCryptoConverter`, length 4096), `PasswordManagerServiceImpl.java`, `HostEntity`/`PasswordManagerEntity` usage
-- Create: `.../pm/service/impl/HostBlindIndex.java`, `db-world-backend/src/main/resources/db/migration/vault_encrypt_urls.sql`
+- Create: `.../pm/service/impl/HostBlindIndex.java`, `db-world-backend/src/main/resources/db/migration/V<next>__vault_encrypt_urls.sql`
 - Test: `HostBlindIndexTest.java`, `PasswordManagerServiceImplTest.java`
 
 **Interfaces:**
 - Produces: `String HostBlindIndex.of(Long userId, String host)` — HMAC-SHA256 of `userId + ":" + host` with a key from config `app.vault.host-index-key`, hex, so grouping and duplicate lookups still work without storing the host in clear; `PasswordManagerEntity.hostIndex` replaces the `HOST` foreign key for lookups (the `HOST` table stops being written).
 
-- [ ] **Step 1: Failing tests:** `sameHostSameUserGivesTheSameIndex`, `sameHostDifferentUserGivesADifferentIndex`, `urlIsStoredEncrypted`, `groupingStillFindsEntriesByHost`. **Step 2: run, expect FAIL.** **Step 3: implement, plus a one-off `CryptoMigrationService`-style method that re-saves every credential so `url` is encrypted and `hostIndex` is filled (idempotent; run from the admin console like the existing migration).** **Step 4: SQL file: before-deploy adds the column; after-first-start runs the migration, then a manual `DROP` of the old FK as a commented step.** **Step 5: commit** `feat(vault): site URLs are encrypted at rest`.
+- [ ] **Step 1: Failing tests:** `sameHostSameUserGivesTheSameIndex`, `sameHostDifferentUserGivesADifferentIndex`, `urlIsStoredEncrypted`, `groupingStillFindsEntriesByHost`. **Step 2: run, expect FAIL.** **Step 3: implement, plus a one-off `CryptoMigrationService`-style method that re-saves every credential so `url` is encrypted and `hostIndex` is filled (idempotent; run from the admin console like the existing migration).** **Step 4: Flyway file adds the `host_index` column and its index (guarded). The re-save of every credential is the admin-console migration from Step 3, run once after deploy; dropping the old `host` FK is a later V<n>, after the data has been verified.** **Step 5: commit** `feat(vault): site URLs are encrypted at rest`.
 
 ### Task 3.5: Breach check
 
@@ -338,4 +339,4 @@ Order: 0 → 1 → 2 → 3 → 4 → 5. Task 0.2 (offline) comes before Phase 2.
 
 - **Coverage:** every item from the conversation maps to a task: field types 1.1, trash 1.2, history 1.3, limits 1.4, reveal-on-demand 2.1, clipboard 2.2, organisation 3.1, export 3.2, import 3.3, URL encryption 3.4, breach check 3.5, autofill 4.1-4.3, passkeys 5.x, model switching 0.1. TOTP and zero-knowledge are excluded in Decisions.
 - **Depth is uneven on purpose.** Phases 1-3 are written to implementation depth. Phases 4-5 stop at interfaces and decisions, with a spike first, because on-device behaviour decides signatures I cannot know from the desk. Each gets its detailed task list when it starts.
-- **Open decision for the user:** passkey sync across devices (deferred). CSV export, Flyway and the execution style were settled on 2026-10-24 (see Decisions).
+- **Open decision for the user:** passkey sync across devices (deferred). CSV export, Flyway and the execution style were settled on 2026-10-24 (see Decisions). Flyway is done: it was built and verified before Phase 0.
