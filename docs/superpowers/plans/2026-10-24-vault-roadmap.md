@@ -63,9 +63,9 @@
 **Interfaces:**
 - Produces: a project skill `vault-phase` taking one argument, a phase number 0-5.
 
-- [ ] **Step 1: Write the skill.** Frontmatter `name: vault-phase`, `description: Run one phase of docs/superpowers/plans/2026-10-24-vault-roadmap.md in its own session on the model that phase calls for`. Body, in order: read the "Model per task" table; map the phase to a model id (Haiku → `claude-haiku-5-5`, Sonnet → `claude-sonnet-5-5`, Opus → `claude-opus-5-5`); if that model is the same family as this session or cheaper, call `start_session` with `initiation: "user_asked"`, `model: <id>`, a `prompt` of "Execute Phase N of the roadmap with superpowers:subagent-driven-development", and `background` naming the roadmap path and the Decisions section; if it is more expensive than this session, stop and tell the user to switch this session's model in the model menu, then re-run.
-- [ ] **Step 2: Verify.** In a fresh session run `/vault-phase 0`. Expected: a new session starts on Haiku 5.5, and `/vault-phase 2` from a Sonnet session stops with the "switch model" message.
-- [ ] **Step 3: Commit.** `git add .claude/skills/vault-phase && git commit -m "chore(vault): /vault-phase command that starts a phase on the model it needs"`
+- [x] **Step 1: Write the skill.** Done 2026-10-24: `.claude/skills/vault-phase/SKILL.md`. Besides picking the model it refuses to start when the session's model is cheaper than the phase needs, when another `vault-phase-*` session is still running (they share this checkout), when an earlier phase is open, or when the tree is dirty.
+- [x] **Step 2: Verify.** Checked by reading only: skills load when a session starts, so the first real run is `/vault-phase 1` in a new session. Expected there: from an Opus session it starts `vault-phase-1` on Sonnet 5.5; from a Sonnet session `/vault-phase 2` stops with the "switch model" message.
+- [x] **Step 3: Commit.** `chore(vault): /vault-phase command that starts a phase on the model it needs`
 
 ### Task 0.2: Offline vault and wallet show "failed to load" in flight mode
 
