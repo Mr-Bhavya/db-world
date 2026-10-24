@@ -5,6 +5,8 @@ import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldEntity;
+import com.db.dbworld.app.pm.entity.CustomFieldType;
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapperImpl;
@@ -136,8 +138,10 @@ class CredentialHistoryJpaTest {
     private PasswordManagerServiceImpl serviceFor(UserEntity me, Clock clock) {
         UserContext userContext = mock(UserContext.class);
         when(userContext.userId()).thenReturn(me.getUserId());
+        UserService userService = mock(UserService.class);
+        when(userService.getUserEntityById(me.getUserId())).thenReturn(me);   // the owner of a group made by a move
         return new PasswordManagerServiceImpl(groups, hosts, credentials, history,
-                mock(UserService.class), userContext, new PasswordManagerMapperImpl(), clock);
+                userService, userContext, new PasswordManagerMapperImpl(), clock);
     }
 
     @Test
@@ -269,6 +273,59 @@ class CredentialHistoryJpaTest {
         assertThat(em.find(CredentialEntity.class, c.getId()).getPassword()).isEqualTo("pw2");
         assertThat(service.getHistory(c.getId())).extracting(PasswordHistoryDto::password)
                 .containsExactly("pw7", "pw6", "pw5", "pw4", "pw3");
+    }
+
+    @Test
+    void changingThePasswordAndTheSiteOfAnEntryWithCustomFieldsSavesEverything() {
+        UserEntity me = user("me@x.com");
+        PasswordManagerEntity pm = group(me, "netflix.com");
+        CredentialEntity c = credential(pm, "me", "old-pw", null);
+        CustomFieldEntity console = new CustomFieldEntity("Console", "https://console.x.io", c);
+        console.setFieldType(CustomFieldType.URL);
+        c.getCustomFields().add(console);
+        em.persist(console);
+        em.flush();
+        em.clear();
+        PasswordManagerServiceImpl service = serviceFor(me, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        // What an older client sends: the stored field back by id with no type, and one new field.
+        CredentialDto d = new CredentialDto();
+        d.setId(c.getId());
+        d.setName("me");
+        d.setUsername("me");
+        d.setPassword("new-pw");
+        d.setUrl("https://ssh.example.org");   // a different site: the entry moves to another group
+        CustomFieldDto back = new CustomFieldDto();
+        back.setId(console.getId());
+        back.setFieldKey("Console");
+        back.setFieldValue("https://console.x.io");
+        CustomFieldDto fresh = new CustomFieldDto();
+        fresh.setFieldKey("Token");
+        fresh.setFieldValue("s3cret");
+        d.setCustomFields(List.of(back, fresh));
+
+        service.updateCredential(pm.getId(), d);
+        em.flush();   // the failure used to surface here or at the history query: a detached CustomFieldEntity
+        em.clear();
+
+        CredentialEntity saved = em.find(CredentialEntity.class, c.getId());
+        assertThat(saved.getPassword()).isEqualTo("new-pw");
+        assertThat(service.getHistory(c.getId())).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+        assertThat(saved.getPasswordManager().getHost().getName()).isEqualTo("ssh.example.org");
+        assertThat(saved.getPasswordManager().getId()).isNotEqualTo(pm.getId());
+        assertThat(saved.getCustomFields()).extracting(CustomFieldEntity::getFieldKey).containsExactlyInAnyOrder("Console", "Token");
+        assertThat(saved.getCustomFields()).filteredOn(f -> f.getFieldKey().equals("Console"))
+                .singleElement().satisfies(f -> {
+                    assertThat(f.getId()).isEqualTo(console.getId());
+                    assertThat(f.getFieldType()).isEqualTo(CustomFieldType.URL);   // kept: the client sent none
+                    assertThat(f.getFieldValue()).isEqualTo("https://console.x.io");
+                });
+        assertThat(saved.getCustomFields()).filteredOn(f -> f.getFieldKey().equals("Token"))
+                .singleElement().satisfies(f -> {
+                    assertThat(f.getFieldType()).isEqualTo(CustomFieldType.HIDDEN);
+                    assertThat(f.getFieldValue()).isEqualTo("s3cret");
+                });
+        assertThat(em.createQuery("select count(f) from CustomFieldEntity f", Long.class).getSingleResult()).isEqualTo(2);
     }
 
     @Test

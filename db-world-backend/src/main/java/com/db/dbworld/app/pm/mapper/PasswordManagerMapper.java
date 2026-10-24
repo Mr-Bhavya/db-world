@@ -51,5 +51,8 @@ public interface PasswordManagerMapper {
     // url is not part of the edit payload — preserve the value stored at add time.
     @Mapping(target = "url", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
+    // The custom fields are replaced by the service (clear + re-add, with their types kept). Mapped
+    // here they would swap the managed list for unsaved entities, and the next query's flush fails.
+    @Mapping(target = "customFields", ignore = true)
     void updateEntityFromDto(CredentialDto dto, @MappingTarget CredentialEntity entity);
 }
