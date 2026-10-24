@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,13 +16,14 @@ import {
 } from '@mui/icons-material';
 import { useT, getFieldSx } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { addCredential, getCredential } from '@shared/services/ApiServices';
+import { addCredential } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import BrandLogo from '@shared/brand/BrandLogo';
 import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
 import { withScheme, isValidUrl, siteKey, findDuplicate } from './entryUtils';
 import useSiteFromName from './useSiteFromName';
+import useVaultQuery from './useVault';
 
 // A site is optional: a server, an app or a note has none. When one is typed it must be usable.
 const schema = z.object({
@@ -89,12 +90,7 @@ const AddPassword = () => {
   } = useSiteFromName({ name, enabled: type !== 'NOTE', setUrl });
 
   // ── Duplicate check against the vault the person already has ───────────────
-  const { data: vault } = useQuery({
-    queryKey: ['pm-vault'],
-    queryFn: async () => (await getCredential()).data ?? [],
-    staleTime: 2 * 60 * 1000,
-    retry: false,
-  });
+  const { data: vault } = useVaultQuery();
   const duplicate = useMemo(
     () => ((username.trim() || type === 'NOTE') ? findDuplicate(vault, { url, name, username }) : null),
     [vault, url, name, username, type],

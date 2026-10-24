@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Box, Typography, Container, Skeleton } from '@mui/material';
 import {
@@ -17,11 +16,9 @@ import {
 import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
-import { getCredential } from '@shared/services/ApiServices';
-import { useAuth } from '@features/auth/context/Authentication';
 import { analyzeVault } from './passwordUtils';
 import { VaultAurora, SecurityRing, GlassPanel, useScrollTop } from './vaultShared';
-import { cacheVault } from './offline/vaultCache';
+import useVaultQuery from './useVault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -176,21 +173,8 @@ const PasswordManagement = () => {
 
   const T = useT();
   const reduce = useReducedMotion();
-  const { auth } = useAuth();
-
-  // Gated on auth: the hub is a public route, but the vault endpoint is
-  // protected — firing it while logged out would 401 and trip the refresh flow.
-  const userId = auth?.user?.id ?? auth?.user?.userId ?? auth?.user?.username ?? auth?.user?.email ?? null;
-  const { data: vault = [], isLoading } = useQuery({
-    queryKey: ['pm-vault'],
-    queryFn: async () => {
-      const data = (await getCredential()).data ?? [];
-      cacheVault(userId, data); // keep the offline snapshot fresh (native only, no prompt)
-      return data;
-    },
-    staleTime: 2 * 60 * 1000,
-    enabled: auth.isAuthenticated,
-  });
+  // Same query as the list, so in flight mode the hub opens the offline copy too.
+  const { data: vault = [], isLoading } = useVaultQuery();
 
   const { health, total, weak, reused, sites } = useMemo(() => {
     const a = analyzeVault(vault);

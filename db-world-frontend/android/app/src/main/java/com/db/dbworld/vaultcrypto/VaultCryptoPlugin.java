@@ -22,9 +22,12 @@ import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.MGF1ParameterSpec;
 import java.util.concurrent.Executor;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 
 /**
  * Hardware-backed key wrapping for the offline vault cache.
@@ -36,9 +39,14 @@ import javax.crypto.Cipher;
  * unlock can decrypt the cache. Wrapping uses the public key and needs no auth,
  * so refreshing the cache while online never shows a prompt.
  *
- * Both RSA operations stay native (wrap + unwrap on the same AndroidKeyStore
- * key) and both AES operations stay in JS — so there is no cross-implementation
- * OAEP/MGF1 mismatch to worry about; each side is self-consistent.
+ * Both RSA operations stay native and both AES operations stay in JS. That is NOT enough on
+ * its own to keep RSA-OAEP consistent: wrapping uses the certificate's public key, so an
+ * ordinary provider does it, while unwrapping runs inside AndroidKeyStore. The transformation
+ * string does not pin the MGF1 digest, and the two sides picked different ones, so every
+ * snapshot was written and none could be opened (keystore2: "Finish failed ... UNKNOWN_ERROR"
+ * right after a successful unlock; seen on a Galaxy S24 FE, Android 16, 2026-10-24). Both
+ * sides now pass {@link #OAEP} explicitly: SHA-256 for OAEP, SHA-1 for MGF1, which is the MGF1
+ * digest AndroidKeyStore supports on every API level.
  *
  * The key uses a short auth-validity window (time-bound), which:
  *   - lets biometric AND the device screen-lock both authorise decryption, and
@@ -56,6 +64,8 @@ public class VaultCryptoPlugin extends Plugin {
     private static final String ALIAS = "com.db.dbworld.vault.v1";
     private static final String TRANSFORM = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
     private static final int AUTH_VALIDITY_SECONDS = 30;
+    private static final OAEPParameterSpec OAEP = new OAEPParameterSpec(
+            "SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT);
 
     private static final int ALLOWED_AUTHENTICATORS =
             BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -109,7 +119,7 @@ public class VaultCryptoPlugin extends Plugin {
             ensureKey();
             PublicKey pub = loadKeyStore().getCertificate(ALIAS).getPublicKey();
             Cipher cipher = Cipher.getInstance(TRANSFORM);
-            cipher.init(Cipher.ENCRYPT_MODE, pub);
+            cipher.init(Cipher.ENCRYPT_MODE, pub, OAEP);
             byte[] wrapped = cipher.doFinal(Base64.decode(keyB64, Base64.NO_WRAP));
             JSObject r = new JSObject();
             r.put("wrapped", Base64.encodeToString(wrapped, Base64.NO_WRAP));
@@ -160,7 +170,7 @@ public class VaultCryptoPlugin extends Plugin {
                             // Time-bound key: the auth we just passed authorises this decrypt.
                             PrivateKey pk = (PrivateKey) loadKeyStore().getKey(ALIAS, null);
                             Cipher cipher = Cipher.getInstance(TRANSFORM);
-                            cipher.init(Cipher.DECRYPT_MODE, pk);
+                            cipher.init(Cipher.DECRYPT_MODE, pk, OAEP);
                             byte[] raw = cipher.doFinal(Base64.decode(wrappedB64, Base64.NO_WRAP));
                             JSObject r = new JSObject();
                             r.put("key", Base64.encodeToString(raw, Base64.NO_WRAP));

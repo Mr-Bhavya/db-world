@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -31,14 +31,13 @@ import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
 
 import {
-  getCredential, updateCredential, deleteCredentialByCredentialId, deleteHostById,
+  updateCredential, deleteCredentialByCredentialId, deleteHostById,
 } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 
-import { useAuth } from '@features/auth/context/Authentication';
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
 import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr } from './vaultShared';
-import { cacheVault, readOfflineVault } from './offline/vaultCache';
+import useVaultQuery, { useVaultOffline } from './useVault';
 
 // Compact "3 min ago" for the offline-snapshot banner.
 const relativeTime = (ts) => {
@@ -601,37 +600,14 @@ const ViewPassword = () => {
   const reduce = useReducedMotion();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { auth } = useAuth();
-  const userId = auth?.user?.id ?? auth?.user?.userId ?? auth?.user?.username ?? auth?.user?.email ?? null;
-
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | weak | reused
   const [editTarget, setEditTarget] = useState(null);
   const [deleteCredTarget, setDelCred] = useState(null);
   const [deleteHostTarget, setDelHost] = useState(null);
-  const [offline, setOffline] = useState(null); // { syncedAt } | { locked } | { invalidated } | null
+  const offline = useVaultOffline(); // { syncedAt } | { locked } | { invalidated } | null
 
-  const { data: vault = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['pm-vault'],
-    retry: false, // the offline fallback prompts for biometrics — never silently re-run it
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      try {
-        const data = (await getCredential()).data ?? [];
-        setOffline(null);
-        cacheVault(userId, data); // best-effort write-through snapshot (native only, no prompt)
-        return data;
-      } catch (err) {
-        // Server unreachable → try the encrypted offline snapshot (prompts biometric / device lock).
-        const res = await readOfflineVault(userId);
-        if (res.status === 'ok') { setOffline({ syncedAt: res.syncedAt }); return res.vault; }
-        if (res.status === 'locked') setOffline({ locked: true });
-        else if (res.status === 'invalidated') setOffline({ invalidated: true });
-        else setOffline(null);
-        throw err;
-      }
-    },
-  });
+  const { data: vault = [], isLoading, isError, refetch } = useVaultQuery();
 
   const { flags, weak, reused, total } = useMemo(() => analyzeVault(vault), [vault]);
 
