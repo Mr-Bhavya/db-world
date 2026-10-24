@@ -59,12 +59,13 @@ const same = (a, b) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLow
  * username and same name (the name defaults to the site), among entries on the same site, or
  * among site-less entries when there is none.
  */
-export const findDuplicate = (vault, { url, name, username }) => {
+export const findDuplicate = (vault, { url, name, username, ignoreId }) => {
   const site = siteKey(url);
   const wanted = (name ?? '').trim() || site;
   if (!wanted) return null;
   for (const pm of vault ?? []) {
     for (const cred of pm.credentials ?? []) {
+      if (ignoreId && cred.id === ignoreId) continue;
       const credSite = siteKey(cred.url) || (looksLikeSite(pm.host) ? siteKey(pm.host) : '');
       const sameGroup = site ? credSite === site : !credSite;
       const credName = (cred.name ?? '').trim() || credSite;

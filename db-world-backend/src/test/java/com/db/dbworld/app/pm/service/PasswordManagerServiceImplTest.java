@@ -147,4 +147,67 @@ class PasswordManagerServiceImplTest {
 
         service.addCredential(null, dto("Netflix", "dbworld_admin", null)); // same name as a SITE entry: fine
     }
+
+    // ── update ───────────────────────────────────────────────────────────────────
+
+    private PasswordManagerEntity stored(String id, String host, String name, String username) {
+        PasswordManagerEntity pm = existing(host, name, username);
+        pm.setId("pm-" + id);
+        pm.getCredentials().get(0).setId(id);
+        when(pmRepo.findByIdAndUserEntityUserIdAndCredentialsId("pm-" + id, 7L, id)).thenReturn(Optional.of(pm));
+        return pm;
+    }
+
+    private static CredentialDto edit(String id, String name, String username, String url) {
+        CredentialDto d = dto(name, username, null);
+        d.setId(id);
+        d.setUrl(url);
+        return d;
+    }
+
+    @Test
+    void anUpdateWithoutAUrlLeavesTheEntryWhereItIs() {
+        PasswordManagerEntity pm = stored("c1", "netflix.com", "Netflix", "me@x.com");
+
+        service.updateCredential("pm-c1", edit("c1", "Netflix UK", "me@x.com", null));
+
+        assertThat(pm.getCredentials().get(0).getName()).isEqualTo("Netflix UK");
+        assertThat(pm.getHost().getName()).isEqualTo("netflix.com");
+    }
+
+    @Test
+    void givingASiteMovesAnEntryOutOfItsSiteLessGroupAndDropsTheEmptyGroup() {
+        PasswordManagerEntity old = stored("c1", null, "db-world SSH", "dbworld_admin");
+
+        PasswordManagerDtoHolder r = new PasswordManagerDtoHolder(
+                service.updateCredential("pm-c1", edit("c1", "db-world SSH", "dbworld_admin", "https://ssh.db-world.in")));
+
+        assertThat(r.dto.getHost().getName()).isEqualTo("ssh.db-world.in");
+        assertThat(old.getCredentials()).isEmpty();
+        verify(pmRepo).delete(old);
+    }
+
+    @Test
+    void blankUrlRemovesTheSite() {
+        stored("c1", "github.com", "GitHub", "me");
+
+        var r = service.updateCredential("pm-c1", edit("c1", "GitHub", "me", ""));
+
+        assertThat(r.getHost()).isNull();
+    }
+
+    @Test
+    void renamingOntoAnotherEntrysNameAndUsernameIsRejectedButKeepingYourOwnIsNot() {
+        PasswordManagerEntity a = stored("c1", "netflix.com", "Netflix", "me@x.com");
+        PasswordManagerEntity b = existing("netflix.com", "Netflix Kids", "me@x.com");
+        b.getCredentials().get(0).setId("c2");
+        when(pmRepo.findAllByHostNameAndUserEntityUserId("netflix.com", 7L)).thenReturn(List.of(a, b));
+
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", edit("c1", "Netflix Kids", "me@x.com", null)))
+                .isInstanceOf(DbWorldException.class).hasMessageContaining("already");
+
+        service.updateCredential("pm-c1", edit("c1", "Netflix", "me@x.com", null)); // itself: fine
+    }
+
+    private record PasswordManagerDtoHolder(com.db.dbworld.app.pm.dto.PasswordManagerDto dto) {}
 }

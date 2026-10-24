@@ -10,7 +10,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Box, Button, Chip, CircularProgress, Container, Dialog,
   DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-  InputAdornment, Skeleton, Stack, TextField, Tooltip, Typography,
+  InputAdornment, Skeleton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
   useMediaQuery, useTheme,
 } from '@mui/material';
 
@@ -18,11 +18,13 @@ import {
   AddRounded, ArrowBackRounded, CheckCircleRounded, ContentCopyRounded,
   DeleteOutlineRounded, EditRounded, ErrorOutlineRounded,
   LockRounded, SearchRounded, Visibility, VisibilityOff, ClearRounded,
-  AutoAwesomeRounded, CloudOffRounded, LockOpenRounded,
+  AutoAwesomeRounded, CloudOffRounded, LockOpenRounded, DnsRounded, StickyNote2Rounded,
+  WarningAmberRounded,
 } from '@mui/icons-material';
 
 import BrandLogo, { domainFromUrl } from '@shared/brand/BrandLogo';
-import { looksLikeSite } from './entryUtils';
+import { looksLikeSite, withScheme, isValidUrl, siteKey, findDuplicate } from './entryUtils';
+import useSiteFromName from './useSiteFromName';
 
 import { useT, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -54,14 +56,27 @@ const relativeTime = (ts) => {
 
 const editSchema = z.object({
   name: z.string().optional().default(''),
-  username: z.string().min(1, 'Username is required'),
+  type: z.enum(['LOGIN', 'SERVER', 'NOTE']).default('LOGIN'),
+  url: z.string().trim().optional().default(''),
+  username: z.string().optional().default(''),
   password: z.string().optional().default(''),
   pin: z.string().optional().default(''),
   notes: z.string().optional().default(''),
+}).superRefine((v, ctx) => {
+  if (v.url && !isValidUrl(v.url)) {
+    ctx.addIssue({ code: 'custom', path: ['url'], message: 'Enter a site like example.com, or leave it empty' });
+  }
+  if (v.type !== 'NOTE' && !v.username.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['username'], message: 'Username is required' });
+  }
 });
 
-// A note has no username to insist on.
-const noteEditSchema = editSchema.extend({ username: z.string().optional().default('') });
+// What each kind of entry looks like in the list and in the edit dialog.
+const TYPE_META = {
+  LOGIN:  { label: 'Login',  Icon: LockRounded },
+  SERVER: { label: 'Server', Icon: DnsRounded },
+  NOTE:   { label: 'Note',   Icon: StickyNote2Rounded },
+};
 
 const hasValue = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 const hasPinValue = (v) => hasValue(v) && String(v).trim() !== '0';
@@ -195,7 +210,7 @@ const ResponsiveDialogActions = ({ children }) => (
 // Edit dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
-const EditDialog = ({ target, onClose }) => {
+const EditDialog = ({ target, vault, onClose }) => {
   const T = useT();
   const FIELD = getFieldSx(T);
   const theme = useTheme();
@@ -207,9 +222,11 @@ const EditDialog = ({ target, onClose }) => {
   const [customFields, setCustomFields] = useState((target?.cred?.customFields ?? []).map((f) => ({ ...f })));
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-    resolver: zodResolver(target?.cred?.type === 'NOTE' ? noteEditSchema : editSchema),
+    resolver: zodResolver(editSchema),
     defaultValues: {
       name: target?.cred?.name ?? '',
+      type: target?.cred?.type ?? 'LOGIN',
+      url: target?.cred?.url ?? '',
       username: target?.cred?.username ?? '',
       password: target?.cred?.password ?? '',
       pin: hasPinValue(target?.cred?.pin) ? String(target.cred.pin) : '',
@@ -218,10 +235,23 @@ const EditDialog = ({ target, onClose }) => {
   });
 
   const pwValue = watch('password');
+  const [name, type, url, username] = watch(['name', 'type', 'url', 'username']);
+
+  // A site that is already saved is left alone; an entry with none can find one from its name.
+  const setUrl = useCallback((v) => setValue('url', v, { shouldValidate: false }), [setValue]);
+  const { autoSite, suggestion, detecting, markTyped, dropSite, takeSuggestion } = useSiteFromName({
+    name, enabled: type !== 'NOTE', setUrl, startTouched: !!target?.cred?.url,
+  });
+
+  const duplicate = useMemo(
+    () => findDuplicate(vault, { url, name, username, ignoreId: target?.cred?.id }),
+    [vault, url, name, username, target?.cred?.id],
+  );
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data) => updateCredential(target.pmId, {
       id: target.cred.id, ...data,
+      url: data.url ? withScheme(data.url) : '',   // blank removes the site
       customFields: customFields.map((f) => ({ ...f, fieldKey: f.fieldKey?.trim() ?? '', fieldValue: f.fieldValue ?? '' })).filter((f) => f.fieldKey),
     }),
     onSuccess: () => { notify.success('Credential updated'); queryClient.invalidateQueries({ queryKey: ['pm-vault'] }); onClose(); },
@@ -250,12 +280,47 @@ const EditDialog = ({ target, onClose }) => {
       </DialogTitle>
 
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important', px: { xs: 2, sm: 3 } }}>
-        <Controller name="name" control={control} render={({ field }) => (
-          <TextField {...field} label="Name" size="small" placeholder={target.host} sx={FIELD} />
+        <Controller name="type" control={control} render={({ field }) => (
+          <ToggleButtonGroup exclusive fullWidth size="small" value={field.value} aria-label="Entry type"
+            onChange={(_, v) => { if (v) field.onChange(v); }}
+            sx={{ '& .MuiToggleButton-root': { color: T.textMuted, borderColor: T.glassBorder, fontWeight: 700, gap: 0.75, textTransform: 'none', '&.Mui-selected': { color: T.teal, bgcolor: T.tealBg, borderColor: `${T.teal}66` } } }}>
+            {Object.entries(TYPE_META).map(([value, { label, Icon }]) => (
+              <ToggleButton key={value} value={value}><Icon sx={{ fontSize: 17 }} />{label}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
         )} />
-        <Controller name="username" control={control} render={({ field }) => (
-          <TextField {...field} label="Username / Email" size="small" error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
+        <Box>
+          <Controller name="name" control={control} render={({ field }) => (
+            <TextField {...field} fullWidth label="Name" size="small" placeholder={target.host} autoComplete="off"
+              InputProps={{ endAdornment: (
+                <InputAdornment position="end">
+                  {detecting ? <CircularProgress size={16} sx={{ color: T.teal }} />
+                    : siteKey(url) ? <BrandLogo logoDomain={siteKey(url)} companyName={name} size={24} radius={1.5} /> : null}
+                </InputAdornment>
+              ) }} sx={FIELD} />
+          )} />
+          {(autoSite || suggestion) && (
+            <Box sx={{ pt: 1 }}>
+              {autoSite ? (
+                <Chip size="small" label={`${autoSite.domain} · site found`} onDelete={dropSite}
+                  sx={{ color: T.textPrimary, bgcolor: T.tealBg, border: `1px solid ${T.teal}44`, fontWeight: 700, '& .MuiChip-deleteIcon': { color: T.textMuted } }} />
+              ) : (
+                <Chip size="small" clickable variant="outlined" onClick={takeSuggestion} label={`Use ${suggestion.domain}?`}
+                  sx={{ color: T.teal, borderColor: `${T.teal}66`, fontWeight: 700 }} />
+              )}
+            </Box>
+          )}
+        </Box>
+        <Controller name="url" control={control} render={({ field }) => (
+          <TextField {...field} label={type === 'SERVER' ? 'Address (optional)' : 'Website (optional)'} size="small" placeholder="example.com" autoComplete="off"
+            error={!!errors.url} helperText={errors.url?.message}
+            onChange={(e) => { markTyped(); field.onChange(e); }} sx={FIELD} />
         )} />
+        {type !== 'NOTE' && (
+          <Controller name="username" control={control} render={({ field }) => (
+            <TextField {...field} label={type === 'SERVER' ? 'Server user' : 'Username / Email'} size="small" error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
+          )} />
+        )}
         <Box>
           <Controller name="password" control={control} render={({ field }) => (
             <TextField {...field} fullWidth label="Password" size="small" type={showPw ? 'text' : 'password'}
@@ -273,7 +338,18 @@ const EditDialog = ({ target, onClose }) => {
               ) }} sx={FIELD} />
           )} />
           {pwValue ? <Box sx={{ pt: 1, px: 0.25 }}><StrengthMeter password={pwValue} /></Box> : null}
+          {!pwValue && type !== 'NOTE' && (
+            <Typography sx={{ mt: 0.75, ml: 0.25, display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.74rem', fontWeight: 600, color: '#f59e0b' }}>
+              <WarningAmberRounded sx={{ fontSize: 15 }} /> No password yet: this will be saved without one.
+            </Typography>
+          )}
         </Box>
+        {duplicate && (
+          <Typography role="alert" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: '0.8rem', fontWeight: 700, color: '#f87171' }}>
+            <WarningAmberRounded sx={{ fontSize: 17 }} />
+            You already have this entry{duplicate.pm?.host ? ` (${duplicate.pm.host})` : ''}. Change the name or username.
+          </Typography>
+        )}
         <Controller name="pin" control={control} render={({ field }) => (
           <TextField {...field} label="PIN" size="small" type={showPin ? 'text' : 'password'} inputProps={{ inputMode: 'numeric', autoComplete: 'off' }}
             InputProps={{ endAdornment: (
@@ -309,7 +385,7 @@ const EditDialog = ({ target, onClose }) => {
 
       <ResponsiveDialogActions>
         <Button onClick={onClose} sx={{ color: T.textMuted, fontWeight: 700 }}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit((d) => mutate(d))} disabled={isPending}
+        <Button variant="contained" onClick={handleSubmit((d) => mutate(d))} disabled={isPending || !!duplicate}
           startIcon={isPending ? <CircularProgress size={14} color="inherit" /> : null}
           sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: '#0f766e' } }}>
           {isPending ? 'Saving…' : 'Save Changes'}
@@ -368,6 +444,11 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
     [cred.customFields]
   );
 
+  // Under the username: the entry's own name when it says more than the site does, and its kind.
+  const showName = !!(cred.username && cred.name && cred.name.trim().toLowerCase() !== (host ?? '').trim().toLowerCase());
+  const { Icon: TypeIcon, label: typeLabel } = TYPE_META[cred.type] ?? TYPE_META.LOGIN;
+  const showSubline = showName || (cred.type && cred.type !== 'LOGIN');
+
   const hasAnySecret = hasValue(cred.password) || hasPinValue(cred.pin) || visibleCustomFields.length > 0;
 
   return (
@@ -381,8 +462,20 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
         {flag ? <StrengthDot {...flag} /> : <Box sx={{ width: 9 }} />}
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ color: T.textPrimary, fontWeight: 800, fontSize: { xs: '0.88rem', sm: '0.94rem' }, lineHeight: 1.35, ...getTextClampSx(2) }} title={cred.username}>
-            {cred.username || 'No username'}
+            {cred.username || cred.name || 'No username'}
           </Typography>
+          {showSubline ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, mt: 0.1 }}>
+              {cred.type && cred.type !== 'LOGIN' && (
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, color: T.teal, fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, flexShrink: 0 }}>
+                  <TypeIcon sx={{ fontSize: 13 }} />{typeLabel}
+                </Box>
+              )}
+              {showName && (
+                <Typography sx={{ color: T.textMuted, fontSize: '0.74rem', ...getTextClampSx(1) }} title={cred.name}>{cred.name}</Typography>
+              )}
+            </Box>
+          ) : null}
           {flag?.reused && (
             <Typography sx={{ fontSize: '0.66rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: 0.5 }}>Reused</Typography>
           )}
@@ -718,7 +811,7 @@ const ViewPassword = () => {
         )}
       </Container>
 
-      {editTarget && <EditDialog target={editTarget} onClose={() => setEditTarget(null)} />}
+      {editTarget && <EditDialog target={editTarget} vault={vault} onClose={() => setEditTarget(null)} />}
       {deleteCredTarget && (
         <ConfirmDialog title="Delete Credential" body={`Remove "${deleteCredTarget.label}" from your vault? This cannot be undone.`} loading={deletingCred} onConfirm={() => deleteCred(deleteCredTarget.credId)} onClose={() => setDelCred(null)} />
       )}

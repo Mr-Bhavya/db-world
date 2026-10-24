@@ -11,6 +11,7 @@ import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
+import com.db.dbworld.app.pm.util.SiteUrl;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
@@ -22,8 +23,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -97,6 +100,51 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         passwordManagerRepository.save(pm);
         log.info("Credential added: host={}, username={}, userId={}",
                 finalHost, credential.getUsername(), userContext.userId());
+    }
+
+    /**
+     * Same name and username as another entry, among entries on the same site, or among entries
+     * with no site. Compared here, not in SQL, because the values are encrypted at rest.
+     */
+    private void checkNotDuplicate(String host, CredentialDto dto, String ignoreId) {
+        List<CredentialEntity> group = host != null
+                ? passwordManagerRepository.findAllByHostNameAndUserEntityUserId(host, userContext.userId()).stream()
+                        .filter(p -> p.getCredentials() != null)
+                        .flatMap(p -> p.getCredentials().stream()).toList()
+                : passwordManagerRepository.findAllByUserEntityUserId(userContext.userId()).stream()
+                        .filter(p -> p.getHost() == null && p.getCredentials() != null)
+                        .flatMap(p -> p.getCredentials().stream()).toList();
+        boolean exists = group.stream().anyMatch(c ->
+                !Objects.equals(c.getId(), ignoreId)
+                        && sameText(c.getUsername(), dto.getUsername())
+                        && sameText(displayName(c, host), dto.getName()));
+        if (exists) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, host != null
+                    ? "You already have this login for " + host
+                    : "You already have an entry with this name and username");
+        }
+    }
+
+    /** Moves an entry to the group of its new site (or to a group of its own when it has none). */
+    private PasswordManagerEntity moveTo(PasswordManagerEntity from, CredentialEntity credential, String host) {
+        PasswordManagerEntity to;
+        if (host == null) {
+            to = createNewPasswordManager(null);
+        } else {
+            HostEntity hostEntity = hostRepository.findById(host)
+                    .orElseGet(() -> hostRepository.save(new HostEntity(host)));
+            to = passwordManagerRepository.findAllByHostNameAndUserEntityUserId(host, userContext.userId())
+                    .stream().findFirst().orElseGet(() -> createNewPasswordManager(hostEntity));
+        }
+        from.getCredentials().removeIf(c -> Objects.equals(c.getId(), credential.getId()));
+        credential.setPasswordManager(to);
+        if (to.getCredentials() == null) to.setCredentials(new ArrayList<>());
+        to.getCredentials().add(credential);
+        passwordManagerRepository.save(to);
+        if (from.getCredentials().isEmpty()) passwordManagerRepository.delete(from);
+        log.info("Credential moved: credentialId={}, from={}, to={}", credential.getId(),
+                from.getHost() == null ? "(no site)" : from.getHost().getName(), host == null ? "(no site)" : host);
+        return to;
     }
 
     private PasswordManagerEntity createNewPasswordManager(HostEntity host) {
@@ -222,9 +270,34 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         if (credentialDto.getType() == null) {
             credentialDto.setType(credential.getType() == null ? CredentialType.LOGIN : credential.getType());
         }
+        String currentHost = pm.getHost() == null ? null : pm.getHost().getName();
+        if (credentialDto.getName() == null || credentialDto.getName().isBlank()) {
+            credentialDto.setName(currentHost);   // an entry that never had a name is named after its site
+        }
+        if (credentialDto.getName() == null || credentialDto.getName().isBlank()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Name is required");
+        }
         requireUsername(credentialDto);
 
+        // The website: null leaves it alone, blank removes it, anything else moves the entry.
+        String targetHost = currentHost;
+        if (credentialDto.getUrl() != null) {
+            try {
+                String h = SiteUrl.hostOf(credentialDto.getUrl());
+                targetHost = h == null ? null : normalizeHost(h);
+            } catch (MalformedURLException ex) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Invalid website: " + credentialDto.getUrl());
+            }
+        }
+        checkNotDuplicate(targetHost, credentialDto, credential.getId());
+
+        String newUrl = credentialDto.getUrl();
         mapper.updateEntityFromDto(credentialDto, credential);
+        if (newUrl != null) credential.setUrl(newUrl.isBlank() ? null : newUrl);
+
+        if (!Objects.equals(targetHost, currentHost)) {
+            pm = moveTo(pm, credential, targetHost);
+        }
 
         // Replace custom fields: clear and re-add so orphanRemoval triggers
         credential.getCustomFields().clear();
@@ -238,7 +311,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
         credentialsRepository.save(credential);
         log.info("Credential updated: pmId={}, credentialId={}, userId={}",
-                pmId, credential.getId(), userContext.userId());
+                pm.getId(), credential.getId(), userContext.userId());
 
         return new PasswordManagerDto(
                 pm.getId(),

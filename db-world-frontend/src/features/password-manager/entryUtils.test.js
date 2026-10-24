@@ -63,6 +63,11 @@ describe('findDuplicate', () => {
   it('treats a nameless old entry as named after its site', () => {
     expect(findDuplicate(vault, { url: 'github.com', name: '', username: 'old' })).not.toBeNull();
   });
+  it('ignores the entry being edited, so keeping its own name and username is fine', () => {
+    const v = [{ host: 'netflix.com', credentials: [{ id: 'c1', url: 'https://netflix.com', name: 'Netflix', username: 'me' }] }];
+    expect(findDuplicate(v, { url: 'netflix.com', name: 'Netflix', username: 'me' })).not.toBeNull();
+    expect(findDuplicate(v, { url: 'netflix.com', name: 'Netflix', username: 'me', ignoreId: 'c1' })).toBeNull();
+  });
   it('does not mix site and site-less entries', () => {
     expect(findDuplicate(vault, { url: 'x.io', name: 'db-world SSH', username: 'dbworld_admin' })).toBeNull();
   });

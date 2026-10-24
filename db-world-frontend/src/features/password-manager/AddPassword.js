@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,12 +16,13 @@ import {
 } from '@mui/icons-material';
 import { useT, getFieldSx } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { addCredential, getCredential, searchBrands } from '@shared/services/ApiServices';
+import { addCredential, getCredential } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import BrandLogo from '@shared/brand/BrandLogo';
 import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
-import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate } from './entryUtils';
+import { withScheme, isValidUrl, siteKey, findDuplicate } from './entryUtils';
+import useSiteFromName from './useSiteFromName';
 
 // A site is optional: a server, an app or a note has none. When one is typed it must be usable.
 const schema = z.object({
@@ -82,49 +83,10 @@ const AddPassword = () => {
   const copy = COPY[type] ?? COPY.LOGIN;
 
   // ── Site from the name ─────────────────────────────────────────────────────
-  // Typing "Netflix" or "net flix" fills in netflix.com. It never overwrites a site the person
-  // typed (urlTouched), and a loose match is only offered as a chip, not applied.
-  const [urlTouched, setUrlTouched] = useState(false);
-  const [autoSite, setAutoSite]     = useState(null); // { domain, name } currently applied by us
-  const [suggestion, setSuggestion] = useState(null);
-  const [detecting, setDetecting]   = useState(false);
-  const seq = useRef(0);
-
-  const applyAuto = useCallback((site) => {
-    setAutoSite(site);
-    setValue('url', site ? `https://${site.domain}` : '', { shouldValidate: false });
-  }, [setValue]);
-
-  useEffect(() => {
-    if (urlTouched || type === 'NOTE') return undefined;
-    const typed = (name ?? '').trim().replace(/\s+/g, ' ');
-    const mine = ++seq.current;
-
-    if (typed.length < 2) { applyAuto(null); setSuggestion(null); setDetecting(false); return undefined; }
-
-    if (looksLikeSite(typed)) { // already an address: no lookup needed
-      setSuggestion(null); setDetecting(false);
-      applyAuto({ domain: siteKey(typed), name: typed });
-      return undefined;
-    }
-
-    setDetecting(true);
-    const timer = setTimeout(async () => {
-      const res = await searchBrands(typed);
-      if (mine !== seq.current) return; // a newer keystroke owns the answer now
-      const { auto, suggest } = pickSite(typed, res?.data);
-      setDetecting(false);
-      setSuggestion(suggest);
-      applyAuto(auto ? { domain: auto.domain, name: auto.name || auto.domain } : null);
-    }, 420);
-    return () => clearTimeout(timer);
-  }, [name, type, urlTouched, applyAuto]);
-
-  const dropSite = () => { setUrlTouched(true); applyAuto(null); setSuggestion(null); };
-  const takeSuggestion = () => {
-    applyAuto({ domain: suggestion.domain, name: suggestion.name || suggestion.domain });
-    setSuggestion(null);
-  };
+  const setUrl = useCallback((v) => setValue('url', v, { shouldValidate: false }), [setValue]);
+  const {
+    autoSite, suggestion, detecting, markTyped, dropSite, takeSuggestion, reset: resetSite,
+  } = useSiteFromName({ name, enabled: type !== 'NOTE', setUrl });
 
   // ── Duplicate check against the vault the person already has ───────────────
   const { data: vault } = useQuery({
@@ -146,9 +108,7 @@ const AddPassword = () => {
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
       reset(DEFAULTS);
       setCustomFields([]);
-      setUrlTouched(false);
-      setAutoSite(null);
-      setSuggestion(null);
+      resetSite();
       setTimeout(() => setFocus('name'), 0);
     },
     onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to save'),
@@ -397,7 +357,7 @@ const AddPassword = () => {
                         autoComplete="off"
                         error={!!errors.url}
                         helperText={errors.url?.message}
-                        onChange={(e) => { setUrlTouched(true); setAutoSite(null); setSuggestion(null); field.onChange(e); }}
+                        onChange={(e) => { markTyped(); field.onChange(e); }}
                         sx={FIELD}
                       />
                     )}

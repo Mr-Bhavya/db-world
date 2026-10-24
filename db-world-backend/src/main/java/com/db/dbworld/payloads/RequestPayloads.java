@@ -45,6 +45,8 @@ public class RequestPayloads {
         private String id;
         private String name;
         private CredentialType type;
+        // null = leave the website as it is; blank = remove it; otherwise move the entry to that site.
+        private String url;
         private String username;
         private String password;
         private String pin;
