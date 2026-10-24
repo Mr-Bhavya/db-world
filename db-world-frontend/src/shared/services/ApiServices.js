@@ -647,6 +647,28 @@ export const deleteCredentialByCredentialId = async (credentialId) => {
   }
 };
 
+// Password history: the last 5 passwords an entry had, newest first. 404 for another user's entry or one in Trash.
+export const getHistory = async (credentialId) => {
+  try {
+    const response = await axiosInstance.get(`/api/pm/credential/${credentialId}/history`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching password history:', error);
+    throw error;
+  }
+};
+
+// Puts a history password back as the current one; the password it replaces goes into the history.
+export const restorePassword = async (credentialId, historyId) => {
+  try {
+    const response = await axiosInstance.post(`/api/pm/credential/${credentialId}/history/${historyId}/restore`);
+    return response.data;
+  } catch (error) {
+    console.error('Error restoring password:', error);
+    throw error;
+  }
+};
+
 // Vault Trash
 export const getTrash = async () => {
   try {

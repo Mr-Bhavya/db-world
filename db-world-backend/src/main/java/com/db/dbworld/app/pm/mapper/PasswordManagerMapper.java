@@ -3,8 +3,10 @@ package com.db.dbworld.app.pm.mapper;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.HostDto;
+import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
+import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldType;
 import com.db.dbworld.app.pm.entity.HostEntity;
@@ -25,6 +27,8 @@ public interface PasswordManagerMapper {
     CredentialDto toDto(CredentialEntity entity);
 
     HostDto toDto(HostEntity entity);
+
+    PasswordHistoryDto toDto(CredentialHistoryEntity entity);
 
     List<PasswordManagerDto> toDtoList(List<PasswordManagerEntity> entities);
 

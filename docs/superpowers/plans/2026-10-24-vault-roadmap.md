@@ -156,8 +156,10 @@ Desk findings, 2026-10-24 (second pass):
 - Produces: `CredentialHistoryEntity(id, credential, password @Convert encrypted LONGTEXT, changedAt Instant)`; service `List<PasswordHistoryDto> getHistory(String credentialId)` (newest first, max 5) and `void restorePassword(String credentialId, String historyId)`; endpoints `GET /api/pm/credential/{id}/history`, `POST /api/pm/credential/{id}/history/{hid}/restore`; `record PasswordHistoryDto(String id, String password, Instant changedAt)`.
 - Consumes: Task 2.1 later replaces `password` in this DTO with a reveal call; until then it is returned (same exposure as the list today).
 
-- [ ] **Step 1: Write failing tests.** `changingThePasswordKeepsTheOldOneInHistory`; `historyKeepsOnlyTheLastFive`; `savingWithTheSamePasswordAddsNothing`; `restoringAnOldPasswordPutsItBackAndRecordsTheCurrentOne`; `historyOfAnotherUsersCredentialIs404`.
-- [ ] **Step 2: Run; expect FAIL.** **Step 3: Implement**, trimming the oldest rows after each insert. **Step 4: UI:** a History icon on the card opens `PasswordHistoryDialog` (masked values, show/copy, "Restore"). **Step 5: tests, lint, commit** `feat(vault): keep the last 5 passwords of an entry`.
+- [x] **Step 1: Write failing tests.** `changingThePasswordKeepsTheOldOneInHistory`; `historyKeepsOnlyTheLastFive`; `savingWithTheSamePasswordAddsNothing`; `restoringAnOldPasswordPutsItBackAndRecordsTheCurrentOne`; `historyOfAnotherUsersCredentialIs404`. Done 2026-10-24: those five plus six more (clearing the password, first password, another entry's row, trashed entry, purge and daily purge delete history first). Ran RED: 10 of 41 failed.
+- [x] **Step 2: Run; expect FAIL.** **Step 3: Implement**, trimming the oldest rows after each insert. Done 2026-10-24: `recordHistory` in `PasswordManagerServiceImpl` (insert, then trim beyond 5); restore consumes the chosen row and records the replaced password; `removeForGood` deletes the history first (`CredentialHistoryRepository.deleteByCredentialId`, a bulk delete), so purge and the daily job never hit the foreign key. No Flyway file: Hibernate creates `credential_history`. `CredentialHistoryJpaTest` covers it on real tables.
+- [x] **Step 4: UI.** A History icon on the card opens `PasswordHistoryDialog` (masked values, show/copy via `FieldValue`, "Restore"). Done 2026-10-24: no confirm on Restore (it is undoable from the same list); notes get no icon.
+- [x] **Step 5: tests, lint, commit** `feat(vault): keep the last 5 passwords of an entry`.
 
 ### Task 1.4: Size limits
 

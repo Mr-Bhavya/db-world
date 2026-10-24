@@ -1,13 +1,16 @@
 package com.db.dbworld.app.pm.service.impl;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
+import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
 import com.db.dbworld.app.pm.entity.CustomFieldType;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapper;
+import com.db.dbworld.app.pm.repository.CredentialHistoryRepository;
 import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
@@ -41,6 +44,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     private final PasswordManagerRepository passwordManagerRepository;
     private final HostRepository hostRepository;
     private final CredentialsRepository credentialsRepository;
+    private final CredentialHistoryRepository historyRepository;
     private final UserService userService;
     private final UserContext userContext;
     private final PasswordManagerMapper mapper;
@@ -50,10 +54,11 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
                                       HostRepository hostRepository,
                                       CredentialsRepository credentialsRepository,
+                                      CredentialHistoryRepository historyRepository,
                                       UserService userService,
                                       UserContext userContext,
                                       PasswordManagerMapper mapper) {
-        this(passwordManagerRepository, hostRepository, credentialsRepository, userService,
+        this(passwordManagerRepository, hostRepository, credentialsRepository, historyRepository, userService,
                 userContext, mapper, Clock.systemUTC());
     }
 
@@ -61,6 +66,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
                                       HostRepository hostRepository,
                                       CredentialsRepository credentialsRepository,
+                                      CredentialHistoryRepository historyRepository,
                                       UserService userService,
                                       UserContext userContext,
                                       PasswordManagerMapper mapper,
@@ -68,6 +74,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         this.passwordManagerRepository = passwordManagerRepository;
         this.hostRepository = hostRepository;
         this.credentialsRepository = credentialsRepository;
+        this.historyRepository = historyRepository;
         this.userService = userService;
         this.userContext = userContext;
         this.mapper = mapper;
@@ -355,18 +362,74 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     }
 
     /**
-     * The one way an entry leaves the database: "Delete forever" and the daily purge both end here,
-     * so anything that must go with an entry is removed in one place. A group left with no entries
-     * goes too.
+     * How an entry leaves the database when the vault removes it: "Delete forever" and the daily
+     * purge both end here, so whatever must go with an entry (its history) is removed in one place.
+     * A group left with no entries goes too. Deleting a whole account is the other path: it clears
+     * the vault with SQL in {@code AccountDeletionService}, which must delete the same child rows.
      */
     private void removeForGood(CredentialEntity credential) {
         PasswordManagerEntity pm = credential.getPasswordManager();
         if (pm != null && pm.getCredentials() != null) {
             pm.getCredentials().removeIf(c -> Objects.equals(c.getId(), credential.getId()));
         }
+        // History first, in its own statement: its rows point at the entry, so the entry cannot go before them.
+        historyRepository.deleteByCredentialId(credential.getId());
         credentialsRepository.delete(credential);
         if (pm != null && (pm.getCredentials() == null || pm.getCredentials().isEmpty())) {
             passwordManagerRepository.delete(pm);
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // PASSWORD HISTORY
+    // ─────────────────────────────────────────────
+    /** How many earlier passwords an entry keeps. */
+    private static final int HISTORY_LIMIT = 5;
+
+    /** The caller's own LIVE entry. An entry in Trash has no reachable history: it is "not found". */
+    private CredentialEntity ownLiveCredential(String credentialId) {
+        CredentialEntity credential = ownCredential(credentialId);
+        if (credential.getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Credentials", "credentialId", credentialId);
+        }
+        return credential;
+    }
+
+    @Override
+    public List<PasswordHistoryDto> getHistory(String credentialId) {
+        CredentialEntity credential = ownLiveCredential(credentialId);
+        // INFO like getCredentialById: old passwords are decrypted and returned. Ids only.
+        log.info("Password history read: credentialId={}, userId={}", credentialId, userContext.userId());
+        return historyRepository.findAllByCredentialIdOrderByChangedAtDescIdDesc(credential.getId()).stream()
+                .limit(HISTORY_LIMIT)
+                .map(mapper::toDto)
+                .toList();
+    }
+
+    @Override
+    public void restorePassword(String credentialId, String historyId) {
+        CredentialEntity credential = ownLiveCredential(credentialId);
+        CredentialHistoryEntity row = historyRepository.findByIdAndCredentialId(historyId, credential.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Password history", "historyId", historyId));
+
+        String current = credential.getPassword();
+        credential.setPassword(row.getPassword());
+        historyRepository.delete(row);          // the restored row is used up...
+        recordHistory(credential, current);     // ...and the password it replaced takes its place
+        log.info("Password restored from history: credentialId={}, historyId={}, userId={}",
+                credentialId, historyId, userContext.userId());
+    }
+
+    /**
+     * Keeps a password the entry no longer uses, then drops the oldest rows beyond the limit. A blank
+     * password is not worth keeping.
+     */
+    private void recordHistory(CredentialEntity credential, String oldPassword) {
+        if (oldPassword == null || oldPassword.isBlank()) return;
+        historyRepository.save(new CredentialHistoryEntity(credential, oldPassword, clock.instant()));
+        List<CredentialHistoryEntity> rows = historyRepository.findAllByCredentialIdOrderByChangedAtDescIdDesc(credential.getId());
+        if (rows.size() > HISTORY_LIMIT) {
+            historyRepository.deleteAll(rows.subList(HISTORY_LIMIT, rows.size()));
         }
     }
 
@@ -431,7 +494,11 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                 .forEach(f -> storedTypes.put(f.getId(), f.getFieldType()));
 
         String newUrl = credentialDto.getUrl();
+        String oldPassword = credential.getPassword();   // read before the mapper overwrites it
         mapper.updateEntityFromDto(credentialDto, credential);
+        if (!Objects.equals(oldPassword, credential.getPassword())) {
+            recordHistory(credential, oldPassword);
+        }
         if (newUrl != null) credential.setUrl(newUrl.isBlank() ? null : newUrl);
 
         if (!Objects.equals(targetHost, currentHost)) {

@@ -83,6 +83,21 @@ public class AccountDeletionService {
     );
 
     /**
+     * The vault's child rows, deleted before PASSWORD_MANAGER, in the order the foreign keys need:
+     * password history and custom fields point at an entry, an entry points at its group. The group
+     * delete in {@link #PURGE_TABLES} fails while any of them is left (the keys have no ON DELETE
+     * CASCADE), so these run first. Each reaches the user through the group's {@code user} column.
+     */
+    private static final String VAULT_GROUPS = "(SELECT pm.id FROM PASSWORD_MANAGER pm WHERE pm.user = :userId)";
+    private static final String VAULT_ENTRIES =
+            "(SELECT c.id FROM CREDENTIALS c WHERE c.password_manager IN " + VAULT_GROUPS + ")";
+    private static final List<String> VAULT_PURGE_SQL = List.of(
+            "DELETE FROM CREDENTIAL_HISTORY WHERE credential_id IN " + VAULT_ENTRIES,
+            "DELETE FROM CREDENTIAL_CUSTOM_FIELDS WHERE credential_id IN " + VAULT_ENTRIES,
+            "DELETE FROM CREDENTIALS WHERE password_manager IN " + VAULT_GROUPS
+    );
+
+    /**
      * Rows kept with the user reference nulled.
      *
      * <p>Reviews stay so other people's threads and the rating averages keep their shape, and
@@ -180,6 +195,13 @@ public class AccountDeletionService {
             if (updated > 0) {
                 log.info("Detached {} rows in {}.{} from userId={}",
                         updated, target.table(), target.column(), userId);
+            }
+        }
+
+        for (final String sql : VAULT_PURGE_SQL) {
+            final int deleted = executeUpdate(sql, userId);
+            if (deleted > 0) {
+                log.info("Purged {} vault rows by [{}] for userId={}", deleted, sql, userId);
             }
         }
 

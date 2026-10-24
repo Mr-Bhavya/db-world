@@ -1,6 +1,7 @@
 package com.db.dbworld.app.pm.service;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 
 import java.time.Instant;
@@ -42,6 +43,23 @@ public interface PasswordManagerService {
      * @return how many entries were removed
      */
     int purgeTrashedBefore(Instant cutoff);
+
+    /**
+     * The earlier passwords of a live entry, newest first, at most five.
+     *
+     * @throws com.db.dbworld.core.exception.ResourceNotFoundException another user's entry, an
+     *         unknown id, or an entry in Trash
+     */
+    List<PasswordHistoryDto> getHistory(String credentialId);
+
+    /**
+     * Puts an earlier password back as the current one. The password it replaces goes into the
+     * history, so the restore can be undone; the restored row is used up.
+     *
+     * @throws com.db.dbworld.core.exception.ResourceNotFoundException the entry is not the caller's
+     *         (or is in Trash), or the history row does not belong to it
+     */
+    void restorePassword(String credentialId, String historyId);
 
     List<String> getAllHosts();
 

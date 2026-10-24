@@ -2,6 +2,7 @@ package com.db.dbworld.app.pm.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.mapper.CredentialMapper;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
@@ -118,6 +119,20 @@ public class PasswordManagerController {
     public ApiResponse<Void> deleteCredentialById(@Valid @NotEmpty @PathVariable String credentialId) {
         passwordManagerService.trashCredential(credentialId);
         return ApiResponse.success("Moved to Trash.");
+    }
+
+    @GetMapping("/credential/{credentialId}/history")
+    @AnyRole
+    public ApiResponse<List<PasswordHistoryDto>> getPasswordHistory(@Valid @NotEmpty @PathVariable String credentialId) {
+        return ApiResponse.success(passwordManagerService.getHistory(credentialId));
+    }
+
+    @PostMapping("/credential/{credentialId}/history/{historyId}/restore")
+    @AnyRole
+    public ApiResponse<Void> restorePassword(@Valid @NotEmpty @PathVariable String credentialId,
+                                             @Valid @NotEmpty @PathVariable String historyId) {
+        passwordManagerService.restorePassword(credentialId, historyId);
+        return ApiResponse.success("Password restored.");
     }
 
     @GetMapping("/trash")

@@ -181,6 +181,24 @@ class AccountDeletionServiceTest {
                 sql.contains("UPDATE media_requests SET fulfilled_by_user_id = NULL"));
     }
 
+    /**
+     * The vault's foreign keys have no ON DELETE CASCADE: password history and custom fields must
+     * go before their entries, and the entries before the group, or the group delete is refused.
+     */
+    @Test
+    void purgeClearsTheVaultChildRowsBeforeTheirGroup() {
+        service.purge(9L);
+
+        int history = firstIndexMatching("DELETE FROM CREDENTIAL_HISTORY");
+        int fields = firstIndexMatching("DELETE FROM CREDENTIAL_CUSTOM_FIELDS");
+        int entries = firstIndexMatching("DELETE FROM CREDENTIALS ");
+        int group = firstIndexMatching("DELETE FROM PASSWORD_MANAGER");
+        assertThat(history).isNotEqualTo(Integer.MAX_VALUE);
+        assertThat(history).isLessThan(entries);
+        assertThat(fields).isLessThan(entries);
+        assertThat(entries).isLessThan(group);
+    }
+
     /** Detaching must happen first, or a foreign key could take a kept row with it. */
     @Test
     void detachesBeforeDeleting() {

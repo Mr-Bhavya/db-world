@@ -19,12 +19,13 @@ import {
   DeleteOutlineRounded, EditRounded, ErrorOutlineRounded,
   LockRounded, SearchRounded, Visibility, VisibilityOff, ClearRounded,
   AutoAwesomeRounded, CloudOffRounded, LockOpenRounded, DnsRounded, StickyNote2Rounded,
-  WarningAmberRounded,
+  WarningAmberRounded, HistoryRounded,
 } from '@mui/icons-material';
 
 import BrandLogo, { domainFromUrl } from '@shared/brand/BrandLogo';
 import { looksLikeSite, withScheme, isValidUrl, siteKey, findDuplicate, FIELD_TYPES, isSecretField } from './entryUtils';
 import FieldValue from './FieldValue';
+import PasswordHistoryDialog, { historyQueryKey } from './PasswordHistoryDialog';
 import useSiteFromName from './useSiteFromName';
 
 import { useT, getFieldSx } from '@shared/theme';
@@ -255,7 +256,13 @@ const EditDialog = ({ target, vault, onClose }) => {
       url: data.url ? withScheme(data.url) : '',   // blank removes the site
       customFields: customFields.map((f) => ({ ...f, fieldKey: f.fieldKey?.trim() ?? '', fieldValue: f.fieldValue ?? '', fieldType: f.fieldType ?? 'HIDDEN' })).filter((f) => f.fieldKey),
     }),
-    onSuccess: () => { notify.success('Credential updated'); queryClient.invalidateQueries({ queryKey: ['pm-vault'] }); onClose(); },
+    onSuccess: () => {
+      notify.success('Credential updated');
+      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      // A changed password adds a history row and may trim another: drop the cached list.
+      queryClient.invalidateQueries({ queryKey: historyQueryKey(target.cred.id) });
+      onClose();
+    },
     onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to update'),
   });
 
@@ -400,7 +407,7 @@ const EditDialog = ({ target, vault, onClose }) => {
 // Credential card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) => {
+const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete, onHistory }) => {
   const [copiedKey, setCopiedKey] = useState('');
 
   const copy = useCallback(async (text, key) => {
@@ -421,6 +428,8 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
   const showSubline = showName || (cred.type && cred.type !== 'LOGIN');
 
   const hasAnySecret = hasValue(cred.password) || hasPinValue(cred.pin) || visibleCustomFields.length > 0;
+  // A note has no password to keep a history of.
+  const hasHistory = cred.type !== 'NOTE';
 
   return (
     <Box sx={{
@@ -429,7 +438,7 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
       border: `1px solid ${T.glassBorder}`, transition: 'border-color .2s, background-color .2s', minWidth: 0,
       '&:hover': { borderColor: 'rgba(13,148,136,0.34)', bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' },
     }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto auto', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 }, mb: hasAnySecret ? 0.75 : 0, minWidth: 0 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: `auto minmax(0, 1fr)${' auto'.repeat(hasHistory ? 4 : 3)}`, alignItems: 'center', gap: { xs: 0.5, sm: 0.75 }, mb: hasAnySecret ? 0.75 : 0, minWidth: 0 }}>
         {flag ? <StrengthDot {...flag} /> : <Box sx={{ width: 9 }} />}
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ color: T.textPrimary, fontWeight: 800, fontSize: { xs: '0.88rem', sm: '0.94rem' }, lineHeight: 1.35, ...getTextClampSx(2) }} title={cred.username}>
@@ -455,6 +464,11 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete }) =>
         <Tooltip title="Edit credential">
           <IconButton size="small" onClick={() => onEdit({ pmId, cred, host })} sx={iconButtonSx(T, T.teal)} aria-label="Edit credential"><EditRounded fontSize="small" /></IconButton>
         </Tooltip>
+        {hasHistory && (
+          <Tooltip title="Password history">
+            <IconButton size="small" onClick={() => onHistory({ credId: cred.id, label: cred.name || cred.username, host })} sx={iconButtonSx(T, T.teal)} aria-label="Password history"><HistoryRounded fontSize="small" /></IconButton>
+          </Tooltip>
+        )}
         <Tooltip title="Delete credential">
           <IconButton size="small" onClick={() => onDelete({ credId: cred.id, label: cred.username || 'this credential' })} sx={iconButtonSx(T, '#f87171')} aria-label="Delete credential"><DeleteOutlineRounded fontSize="small" /></IconButton>
         </Tooltip>
@@ -487,7 +501,7 @@ CredentialCard.displayName = 'CredentialCard';
 // Host card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HostCard = memo(({ entry, flags, T, onEdit, onDeleteCred, onDeleteHost }) => {
+const HostCard = memo(({ entry, flags, T, onEdit, onDeleteCred, onDeleteHost, onHistory }) => {
   const credentialCount = entry.credentials?.length ?? 0;
   return (
     <GlassPanel sx={{ p: { xs: 1.5, sm: 2, md: 2.25 }, minWidth: 0 }}>
@@ -504,7 +518,7 @@ const HostCard = memo(({ entry, flags, T, onEdit, onDeleteCred, onDeleteHost }) 
       </Box>
       <Stack spacing={1.25}>
         {entry.credentials?.map((cred) => (
-          <CredentialCard key={cred.id} cred={cred} pmId={entry.id} host={entry.host} flag={flags?.[cred.id]} T={T} onEdit={onEdit} onDelete={onDeleteCred} />
+          <CredentialCard key={cred.id} cred={cred} pmId={entry.id} host={entry.host} flag={flags?.[cred.id]} T={T} onEdit={onEdit} onDelete={onDeleteCred} onHistory={onHistory} />
         ))}
       </Stack>
     </GlassPanel>
@@ -575,6 +589,7 @@ const ViewPassword = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | weak | reused
   const [editTarget, setEditTarget] = useState(null);
+  const [historyTarget, setHistoryTarget] = useState(null);   // { credId, label, host }
   const [deleteCredTarget, setDelCred] = useState(null);
   const [deleteHostTarget, setDelHost] = useState(null);
   const offline = useVaultOffline(); // { syncedAt } | { locked } | { invalidated } | null
@@ -757,7 +772,7 @@ const ViewPassword = () => {
                 <motion.div key={entry.id} layout
                   initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
                   transition={{ duration: 0.26, delay: Math.min(i * 0.035, 0.18) }} style={{ minWidth: 0 }}>
-                  <HostCard entry={entry} flags={flags} T={T} onEdit={setEditTarget} onDeleteCred={setDelCred} onDeleteHost={setDelHost} />
+                  <HostCard entry={entry} flags={flags} T={T} onEdit={setEditTarget} onDeleteCred={setDelCred} onDeleteHost={setDelHost} onHistory={setHistoryTarget} />
                 </motion.div>
               ))}
             </Box>
@@ -766,6 +781,10 @@ const ViewPassword = () => {
       </Container>
 
       {editTarget && <EditDialog target={editTarget} vault={vault} onClose={() => setEditTarget(null)} />}
+      {historyTarget && (
+        <PasswordHistoryDialog credentialId={historyTarget.credId} label={historyTarget.label} host={historyTarget.host}
+          onClose={() => setHistoryTarget(null)} />
+      )}
       {deleteCredTarget && (
         <ConfirmDialog title="Delete Credential" body={`Remove "${deleteCredTarget.label}" from your vault? Moves to Trash for 30 days, and can be restored from there until then.`} confirmLabel="Move to Trash" loadingLabel="Moving…" loading={deletingCred} onConfirm={() => deleteCred(deleteCredTarget.credId)} onClose={() => setDelCred(null)} />
       )}

@@ -2,7 +2,9 @@ package com.db.dbworld.app.pm.service;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
+import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
+import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
 import com.db.dbworld.app.pm.entity.CustomFieldEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldType;
@@ -10,6 +12,7 @@ import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapper;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapperImpl;
+import com.db.dbworld.app.pm.repository.CredentialHistoryRepository;
 import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
@@ -36,12 +39,17 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Comparator;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +60,7 @@ class PasswordManagerServiceImplTest {
     @Mock private PasswordManagerRepository pmRepo;
     @Mock private HostRepository hostRepo;
     @Mock private CredentialsRepository credentialsRepo;
+    @Mock private CredentialHistoryRepository historyRepo;
     @Mock private UserService userService;
     @Mock private UserContext userContext;
 
@@ -63,12 +72,38 @@ class PasswordManagerServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, userService, userContext, mapper, CLOCK);
+        service = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, historyRepo, userService, userContext, mapper, CLOCK);
+        fakeHistoryRepository();
         when(userContext.userId()).thenReturn(7L);
         when(hostRepo.findById(any())).thenReturn(Optional.empty());
         when(hostRepo.save(any(HostEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(pmRepo.findAllByHostNameAndUserEntityUserId(any(), any())).thenReturn(List.of());
         when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of());
+    }
+
+    /** What the history table holds. A new instance of this class per test, so it starts empty. */
+    private final List<CredentialHistoryEntity> historyRows = new ArrayList<>();
+    private final AtomicInteger historyIds = new AtomicInteger();
+
+    /** Backs the mocked history repository with a list, so the service's inserts and trims show. */
+    private void fakeHistoryRepository() {
+        when(historyRepo.save(any(CredentialHistoryEntity.class))).thenAnswer(i -> {
+            CredentialHistoryEntity h = i.getArgument(0);
+            if (h.getId() == null) h.setId("h" + historyIds.incrementAndGet());
+            if (!historyRows.contains(h)) historyRows.add(h);
+            return h;
+        });
+        when(historyRepo.findAllByCredentialIdOrderByChangedAtDescIdDesc(any())).thenAnswer(i -> historyRows.stream()
+                .filter(h -> h.getCredential().getId().equals(i.getArgument(0)))
+                .sorted(Comparator.comparing(CredentialHistoryEntity::getChangedAt).reversed())
+                .toList());
+        when(historyRepo.findByIdAndCredentialId(any(), any())).thenAnswer(i -> historyRows.stream()
+                .filter(h -> h.getId().equals(i.getArgument(0)) && h.getCredential().getId().equals(i.getArgument(1)))
+                .findFirst());
+        doAnswer(i -> historyRows.removeAll(i.<List<CredentialHistoryEntity>>getArgument(0)))
+                .when(historyRepo).deleteAll(any());
+        doAnswer(i -> historyRows.remove(i.<CredentialHistoryEntity>getArgument(0)))
+                .when(historyRepo).delete(any(CredentialHistoryEntity.class));
     }
 
     private static CredentialDto dto(String name, String username, CredentialType type) {
@@ -534,5 +569,174 @@ class PasswordManagerServiceImplTest {
         verify(pmRepo).delete(github);                          // its last entry went
         verify(pmRepo, never()).delete(pm);                     // "recent" still lives there
         assertThat(summary.build().counters()).containsEntry("entriesRemoved", 2L);
+    }
+
+    // ── password history ─────────────────────────────────────────────────────────
+
+    /** A service whose clock moves one minute per reading, so history rows have distinct times. */
+    private PasswordManagerServiceImpl serviceWithTickingClock() {
+        AtomicInteger minute = new AtomicInteger();
+        Clock ticking = new Clock() {
+            @Override public ZoneOffset getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public Instant instant() { return NOW.plus(Duration.ofMinutes(minute.incrementAndGet())); }
+        };
+        return new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, historyRepo, userService, userContext, mapper, ticking);
+    }
+
+    /** An entry of user 7 that the update path and the history lookups both find, with this password. */
+    private CredentialEntity entryWithPassword(String id, String password) {
+        PasswordManagerEntity pm = stored(id, "netflix.com", "Netflix", "me@x.com");
+        CredentialEntity c = pm.getCredentials().get(0);
+        c.setPassword(password);
+        c.setPasswordManager(pm);
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId(id, 7L)).thenReturn(Optional.of(c));
+        return c;
+    }
+
+    private static CredentialDto editWithPassword(String id, String password) {
+        CredentialDto d = edit(id, "Netflix", "me@x.com", null);
+        d.setPassword(password);
+        return d;
+    }
+
+    @Test
+    void changingThePasswordKeepsTheOldOneInHistory() {
+        CredentialEntity c = entryWithPassword("c1", "old-pw");
+
+        service.updateCredential("pm-c1", editWithPassword("c1", "new-pw"));
+
+        assertThat(c.getPassword()).isEqualTo("new-pw");
+        List<PasswordHistoryDto> history = service.getHistory("c1");
+        assertThat(history).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+        assertThat(history.get(0).changedAt()).isEqualTo(NOW);
+        assertThat(history.get(0).id()).isNotBlank();
+    }
+
+    @Test
+    void historyKeepsOnlyTheLastFive() {
+        PasswordManagerServiceImpl ticking = serviceWithTickingClock();
+        entryWithPassword("c1", "pw0");
+
+        for (int i = 1; i <= 7; i++) {
+            ticking.updateCredential("pm-c1", editWithPassword("c1", "pw" + i));
+        }
+
+        // pw0..pw6 were replaced; the oldest two are gone, the rest come newest first.
+        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password)
+                .containsExactly("pw6", "pw5", "pw4", "pw3", "pw2");
+        assertThat(historyRows).hasSize(5);
+    }
+
+    @Test
+    void savingWithTheSamePasswordAddsNothing() {
+        entryWithPassword("c1", "same-pw");
+
+        service.updateCredential("pm-c1", editWithPassword("c1", "same-pw"));
+
+        assertThat(service.getHistory("c1")).isEmpty();
+        verify(historyRepo, never()).save(any(CredentialHistoryEntity.class));
+    }
+
+    @Test
+    void settingTheFirstPasswordOfAnEntryAddsNoHistoryRow() {
+        entryWithPassword("c1", null);
+
+        service.updateCredential("pm-c1", editWithPassword("c1", "first-pw"));
+
+        assertThat(historyRows).isEmpty();
+    }
+
+    @Test
+    void clearingThePasswordKeepsTheOldOneInHistory() {
+        CredentialEntity c = entryWithPassword("c1", "old-pw");
+
+        service.updateCredential("pm-c1", editWithPassword("c1", ""));
+
+        assertThat(c.getPassword()).isEmpty();
+        assertThat(service.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+    }
+
+    @Test
+    void restoringAnOldPasswordPutsItBackAndRecordsTheCurrentOne() {
+        PasswordManagerServiceImpl ticking = serviceWithTickingClock();
+        CredentialEntity c = entryWithPassword("c1", "pw0");
+        ticking.updateCredential("pm-c1", editWithPassword("c1", "pw1"));   // history: pw0
+        ticking.updateCredential("pm-c1", editWithPassword("c1", "pw2"));   // history: pw1, pw0
+        String pw0Row = ticking.getHistory("c1").get(1).id();
+
+        ticking.restorePassword("c1", pw0Row);
+
+        assertThat(c.getPassword()).isEqualTo("pw0");
+        // The restored row is used up; the password it replaced is now the newest row.
+        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("pw2", "pw1");
+
+        // ...so the restore can itself be undone.
+        ticking.restorePassword("c1", ticking.getHistory("c1").get(0).id());
+        assertThat(c.getPassword()).isEqualTo("pw2");
+        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("pw0", "pw1");
+    }
+
+    @Test
+    void historyOfAnotherUsersCredentialIs404() {
+        // User 7's repo lookup finds nothing for an id that belongs to someone else.
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId("theirs", 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getHistory("theirs")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.restorePassword("theirs", "h1")).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void aHistoryRowOfAnotherEntryIs404AndChangesNothing() {
+        CredentialEntity mine = entryWithPassword("c1", "mine-now");
+        CredentialEntity other = entryWithPassword("c2", "other-now");
+        CredentialHistoryEntity row = new CredentialHistoryEntity(other, "other-before", NOW);
+        row.setId("h-other");
+        historyRows.add(row);
+
+        assertThatThrownBy(() -> service.restorePassword("c1", "h-other")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.restorePassword("c1", "no-such-row")).isInstanceOf(ResourceNotFoundException.class);
+
+        assertThat(mine.getPassword()).isEqualTo("mine-now");
+        assertThat(historyRows).containsExactly(row);
+    }
+
+    @Test
+    void aTrashedEntrysHistoryIsNotServedOrRestored() {
+        CredentialEntity c = entryWithPassword("c1", "now");
+        CredentialHistoryEntity row = new CredentialHistoryEntity(c, "before", NOW);
+        row.setId("h1");
+        historyRows.add(row);
+        c.setDeletedAt(NOW);
+
+        assertThatThrownBy(() -> service.getHistory("c1")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.restorePassword("c1", "h1")).isInstanceOf(ResourceNotFoundException.class);
+        assertThat(c.getPassword()).isEqualTo("now");
+    }
+
+    @Test
+    void purgingAnEntryRemovesItsHistoryBeforeTheEntryItself() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity gone = addTo(pm, "c1", "Netflix", "me@x.com", NOW);
+
+        service.purge("c1");
+
+        var order = inOrder(historyRepo, credentialsRepo);
+        order.verify(historyRepo).deleteByCredentialId("c1");
+        order.verify(credentialsRepo).delete(gone);
+    }
+
+    @Test
+    void theDailyPurgeRemovesTheHistoryOfEveryEntryItRemoves() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        addTo(pm, "c1", "Netflix", "me@x.com", NOW.minus(Duration.ofDays(31)));
+        addTo(pm, "c2", "Netflix Kids", "kids@x.com", NOW.minus(Duration.ofDays(40)));
+        when(credentialsRepo.findAllByDeletedAtBefore(any(Instant.class))).thenReturn(List.copyOf(pm.getCredentials()));
+
+        service.purgeTrashedBefore(NOW.minus(Duration.ofDays(30)));
+
+        verify(historyRepo).deleteByCredentialId("c1");
+        verify(historyRepo).deleteByCredentialId("c2");
+        verify(historyRepo, times(2)).deleteByCredentialId(any());
     }
 }
