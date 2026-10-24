@@ -98,8 +98,7 @@ function HistorySkeleton({ T, rows = 4 }) {
  * a page that also scrolls.
  *
  * <p>The wording of each entry is whatever was recorded at the time -- see the server-side
- * TallyActivityEntity. Nothing here is composed from live data, deliberately, so an old entry
- * still says what it said when it was written.
+ * TallyActivityEntity -- re-voiced by the server for the reader ("paid you", "You lent").
  */
 export default function GroupHistoryView({ entries = [], loading, onRestore, restoring }) {
   const T = useT();

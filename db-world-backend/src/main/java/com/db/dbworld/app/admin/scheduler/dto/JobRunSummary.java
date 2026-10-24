@@ -86,6 +86,18 @@ public record JobRunSummary(Map<String, Long> counters, String note) {
         }
 
         /**
+         * For a run that ended early (failed or cancelled): the counters it reported plus its
+         * last live progress. Most jobs only report totals once they finish, so without this a
+         * TMDB sync that died 600 records in was filed with no numbers at all, even though the
+         * page had been showing them the whole time.
+         */
+        public JobRunSummary buildWithLiveProgress() {
+            Map<String, Long> merged = new LinkedHashMap<>(counters);
+            liveCounters().forEach(merged::putIfAbsent);
+            return new JobRunSummary(merged, note);
+        }
+
+        /**
          * Counters as they stand right now, for a run still in flight. Empty when the job
          * registered no {@link #progress} supplier — such a job simply shows elapsed time
          * instead of progress, which is better than showing numbers that never move.

@@ -36,6 +36,9 @@ public interface RecordAdminRowDto {
 
     String getSyncError();
 
+    /** TMDB answered 404 for the title on the latest failed sync; null when never flagged. */
+    Boolean getTmdbNotFound();
+
     /* ── Media file rollup (per-record COUNT + SUM(file_size); 0 when none) ── */
 
     Long getMediaFileCount();

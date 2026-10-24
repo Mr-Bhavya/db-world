@@ -292,6 +292,9 @@ export default function RecordDetailContent({
 
   const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
   const [downloadLabel, setDownloadLabel] = useState(null);
+  // The episode the sheet is open for, when it was opened from an episode row. The
+  // sheet doubles as that episode's detail view, so it needs the TMDB side too.
+  const [downloadEp, setDownloadEp] = useState(null);
 
   /**
    * Whether the library holds anything for this title.
@@ -431,6 +434,7 @@ export default function RecordDetailContent({
   }, [launch, ensureMediaFiles, continueItem]);
 
   const openDownloads = useCallback(async () => {
+    setDownloadEp(null);
     setDownloadFiles(await ensureMediaFiles());
     setDownloadLabel(null);
   }, [ensureMediaFiles]);
@@ -441,6 +445,7 @@ export default function RecordDetailContent({
 
   const downloadEpisode = useCallback((ep) => {
     setDownloadFiles(ep?.files ?? []);
+    setDownloadEp(ep ?? null);
     setDownloadLabel(
       ep?.seasonNumber != null && ep?.episodeNumber != null
         ? `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
@@ -801,8 +806,27 @@ export default function RecordDetailContent({
 
       <DownloadSheet
         open={downloadFiles !== null}
+        /**
+         * Closing clears ONLY `downloadFiles`, which is what `open` reads.
+         *
+         * Clearing the episode here too looked tidier and froze the page: a dialog
+         * plays an exit transition, so for those few hundred milliseconds it is still
+         * mounted and still measured. Dropping the episode mid-flight tore the header
+         * out from under it, and SheetDialog's ResizeObserver — which sets the very
+         * height it is observing — got a size change while the paper was already
+         * animating and span instead of settling. Nothing below re-reads these until
+         * the next open, which sets both, so leaving them stale costs nothing. Same
+         * reason `downloadLabel` has never been cleared either.
+         */
         onClose={() => setDownloadFiles(null)}
         files={downloadFiles ?? []}
+        episode={downloadEp}
+        // The sheet is an episode's detail view, so it has to be able to do what the
+        // row behind it can. Opening details and finding no way to play or request was
+        // the whole reason it read as thinner than the row that opened it.
+        onPlayEpisode={handlePlayEpisode}
+        onRequestEpisode={handleRequest}
+        requests={requestIndex}
         record={record}
         subheading={downloadLabel}
       />

@@ -37,6 +37,7 @@ function resolveTarget(data) {
   const ROUTE_MAP = {
     'admin/requests': '/admin/requests',
     'admin/ingestion': '/admin/ingestion',
+    'admin/system-info': '/admin/system-info',
   };
   if (data && ROUTE_MAP[data.route]) return ROUTE_MAP[data.route];
   // The hub is the root now; it used to be '/db-world'. A `data.link` still arriving

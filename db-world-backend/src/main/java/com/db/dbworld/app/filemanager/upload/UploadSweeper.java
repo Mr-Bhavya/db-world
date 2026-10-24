@@ -1,6 +1,7 @@
 package com.db.dbworld.app.filemanager.upload;
 
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,9 +22,17 @@ public class UploadSweeper {
 
     private final UploadSessionRepository repo;
     private final AppProperties appProperties;
+    private final MediaDiskGuard mediaDiskGuard;
 
     @Scheduled(fixedDelayString = "${dbworld.filemanager.upload-sweep-ms:3600000}")
     public void sweepStale() {
+        // The part files are on the media disk. Sweeping without it would drop the rows and leave
+        // each .part behind on the disk with nothing pointing at it; the next sweep after the disk
+        // returns does both halves.
+        if (!mediaDiskGuard.isMounted()) {
+            log.debug("UploadSweeper: media disk not mounted; skipping");
+            return;
+        }
         Instant cutoff = Instant.now().minus(Duration.ofHours(24));
         List<UploadSessionEntity> stale = repo.findByStatusAndUpdatedAtBefore("PENDING", cutoff);
         for (UploadSessionEntity e : stale) {

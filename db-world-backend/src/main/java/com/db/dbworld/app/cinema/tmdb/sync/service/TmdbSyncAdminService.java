@@ -3,6 +3,7 @@ package com.db.dbworld.app.cinema.tmdb.sync.service;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.client.TmdbNotFound;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.sync.dto.SyncRecordDto;
@@ -47,10 +48,11 @@ public class TmdbSyncAdminService {
         long failed  = byStatus.getOrDefault(SyncStatus.FAILED.name(), 0L);
         long skipped = byStatus.getOrDefault(SyncStatus.SKIPPED.name(), 0L);
         long running = byStatus.getOrDefault(SyncStatus.RUNNING.name(), 0L);
+        long notFound = recordRepository.countLatestTmdbNotFound();
         Instant lastSyncedAt = repository.findTopByOrderByLastSyncedAtDesc()
                 .map(TmdbRecordSyncEntity::getLastSyncedAt)
                 .orElse(null);
-        return new SyncStatsDto(success, failed, skipped, running, lastSyncedAt);
+        return new SyncStatsDto(success, failed, skipped, running, notFound, lastSyncedAt);
     }
 
     /* ── Records (paginated) ──────────────────────────────────── */
@@ -156,6 +158,7 @@ public class TmdbSyncAdminService {
                 e.setLastSyncedAt(Instant.now());
                 e.setSyncVersion(System.currentTimeMillis());
                 e.setErrorMessage(null); // clear previous error on success
+                e.setTmdbNotFound(false);
                 repository.save(e);
                 log.info("Retry succeeded: id={} tmdbId={}", id, tmdbId);
             } catch (Exception ex) {
@@ -163,6 +166,7 @@ public class TmdbSyncAdminService {
                 repository.findById(id).ifPresent(e -> {
                     e.setStatus(SyncStatus.FAILED);
                     e.setErrorMessage(truncate(rootMessage(ex), 1000));
+                    e.setTmdbNotFound(TmdbNotFound.isTitleGone(ex, type, tmdbId));
                     repository.save(e);
                 });
             }

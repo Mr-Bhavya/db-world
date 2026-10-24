@@ -545,6 +545,9 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
         }
 
         try {
+            // Credits and TV "created by" links reference the person (FK), so they go first.
+            personRepository.deleteCreditsOf(personId);
+            personRepository.deleteTvCreatorLinksOf(personId);
             personRepository.deleteById(personId);
         } catch (Exception e) {
             log.error("Failed to delete person {}", personId, e);

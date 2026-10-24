@@ -24,7 +24,9 @@ export const GROUP_BALANCE_HERO_MIN_H = { xs: 105, sm: 115 };
  * balance. "You owe ₹65,000" tells you the problem; "one payment clears it: pay Jaykishan" tells
  * you what to do, and that is the whole reason the plan is computed.
  */
-export default function GroupBalanceHero({ balance, plan = [], myMemberId, onSettleUp, archived }) {
+export default function GroupBalanceHero({
+  balance, plan = [], myMemberId, onSettleUp, archived, counterpartName = null,
+}) {
   const T = useT();
   const reduce = useReducedMotion();
 
@@ -39,7 +41,7 @@ export default function GroupBalanceHero({ balance, plan = [], myMemberId, onSet
   const collecting = mine.filter((t) => t.toMemberId === myMemberId);
 
   const caption = () => {
-    if (square) return 'Nobody owes anybody anything here';
+    if (square) return counterpartName ? 'Neither of you owes the other anything' : 'Nobody owes anybody anything here';
     if (paying.length === 1) return `One payment clears it: pay ${paying[0].toMemberName}`;
     if (paying.length > 1) return `Clears with ${paying.length} payments, to ${joinNames(paying.map((t) => t.toMemberName))}`;
     if (collecting.length === 1) return `${collecting[0].fromMemberName} owes you this`;
@@ -68,7 +70,7 @@ export default function GroupBalanceHero({ balance, plan = [], myMemberId, onSet
           fontSize: 11, fontWeight: 800, letterSpacing: 0.55,
           textTransform: 'uppercase', color: T.textFaint,
         }}>
-          {square ? 'All square here' : `${tone.label}, in this group`}
+          {square ? 'All square here' : counterpartName ? tone.label : `${tone.label}, in this group`}
         </Typography>
 
         {square ? (
@@ -78,7 +80,7 @@ export default function GroupBalanceHero({ balance, plan = [], myMemberId, onSet
               fontSize: { xs: 19, sm: 22 }, fontWeight: 800,
               color: T.textPrimary, letterSpacing: -0.5,
             }}>
-              Everyone is settled up
+              {counterpartName ? `You and ${counterpartName} are all square` : 'Everyone is settled up'}
             </Typography>
           </Box>
         ) : (

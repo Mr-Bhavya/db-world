@@ -16,6 +16,7 @@ import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final AppProperties properties;
     private final StoryboardService storyboardService;
     private final SymlinkService symlinkService;
+    private final MediaDiskGuard mediaDiskGuard;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -60,6 +62,9 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     public MediaFileDto collectAndPersist(Path filePath, Long recordId, String ingestionJobId) {
         log.debug("collectAndPersist filePath={} recordId={} ingestionJobId={}",
                 filePath, recordId, ingestionJobId);
+        // This replaces any existing row for the path. With the disk missing, the probe below
+        // reads nothing real, so a rescan must not get as far as dropping the old row.
+        mediaDiskGuard.requireMountedFor(filePath, "Reading media info");
         String json = getRawJson(filePath);
 
         // Replace any existing entry for this path (avoids duplicates). Carry the scrub-preview
@@ -409,6 +414,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
 
         Path filePath = Path.of(entity.getFilePath());
+        // Says why, instead of the "source file not found" a missing disk would produce below.
+        mediaDiskGuard.requireMountedFor(filePath, "Storyboard generation");
         if (!Files.exists(filePath)) {
             throw new IllegalStateException("Source file not found on disk: " + entity.getFilePath());
         }

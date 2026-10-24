@@ -53,6 +53,14 @@ public class TmdbRecordSyncEntity {
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
+    /**
+     * The last failed refresh got a 404 for the title itself: TMDB deleted or merged it. The
+     * record keeps its metadata until an admin re-links or deletes it. Cleared on success.
+     * Nullable so {@code ddl-auto: update} can add the column to existing rows.
+     */
+    @Column(name = "tmdb_not_found")
+    private Boolean tmdbNotFound;
+
     /** Catalog record ID — FK to records.id. Populated on first sync; null for legacy rows. */
     @Column(name = "record_id")
     private Long recordId;

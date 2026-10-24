@@ -21,13 +21,7 @@ import { useRecordSync } from './useRecordSync';
 import { TmdbDetailBody } from './TmdbDetailModal';
 import { MediaFilesBody } from './MediaFilesModal';
 import SheetDialog from '@shared/components/SheetDialog';
-
-const SYNC_META = {
-  SUCCESS: { label: 'Synced',  color: '#10b981' },
-  FAILED:  { label: 'Failed',  color: '#ef4444' },
-  SKIPPED: { label: 'Skipped', color: '#6b7280' },
-  RUNNING: { label: 'Running', color: '#f59e0b' },
-};
+import { NOT_ON_TMDB, syncMeta } from './syncConstants';
 
 const TABS = [['overview', 'Overview'], ['tmdb', 'TMDB'], ['files', 'Files'], ['sync', 'Sync']];
 
@@ -104,10 +98,13 @@ function SyncPanel({ row }) {
   const syncMut = useRecordSync();
   if (!row) return <Typography sx={{ fontSize: 13, color: T.textMuted }}>Record not on the current page.</Typography>;
 
-  const m = SYNC_META[row.syncStatus] ?? null;
+  const m = syncMeta(row);
 
   return (
     <Box>
+      {row.tmdbNotFound && (
+        <Alert severity="warning" sx={{ mb: 2, fontSize: 12 }}>{NOT_ON_TMDB.hint}</Alert>
+      )}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         {m
           ? <Chip label={m.label} size="small" sx={{ bgcolor: `${m.color}22`, color: m.color, fontWeight: 700 }} />

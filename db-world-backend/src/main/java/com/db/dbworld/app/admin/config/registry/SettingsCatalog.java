@@ -23,7 +23,9 @@ public final class SettingsCatalog {
     private static final String C_IPO       = "IPO Tracker";
     private static final String C_PUSH      = "Push Notifications";
     private static final String C_INGESTION = "Media Ingestion";
+    private static final String C_LIBRARY   = "Media Library";
     private static final String C_SCHEDULER = "Scheduler";
+    private static final String C_SYSTEM_HEALTH = "System Health";
 
     /**
      * Default NSE market-holiday seed. Fixed-date national holidays are written as recurring
@@ -231,6 +233,16 @@ public final class SettingsCatalog {
              + "of no hover-scrub thumbnails in the player for newly ingested files. Applies on the next job.",
              true, 3),
 
+        // ── Media Library ─────────────────────────────────────────────────
+        intg(MEDIA_SYNC_MAX_REMOVAL_PERCENT, C_LIBRARY, "Max removal per scan (%)",
+             "Largest share of the media library one MediaSync scan may remove because the files are "
+             + "gone from disk. A scan that would remove more removes nothing and is recorded as FAILED, "
+             + "so a media disk that is unmounted or failing cannot wipe every media record, symlink and "
+             + "storyboard. Up to 5 removals are always allowed. If you really did delete that many files "
+             + "over the share, raise this for one scan. 100 turns the limit off; an empty media folder "
+             + "is refused regardless.",
+             20, 1L, 100L, 0),
+
         // ── Scheduler ────────────────────────────────────────────────────
         intg(SCHEDULER_HISTORY_RETENTION_DAYS, C_SCHEDULER, "Run history retention (days)",
              "How long a job's run history is kept before the nightly prune deletes it. Applies to "
@@ -240,7 +252,18 @@ public final class SettingsCatalog {
              "Shorter retention for jobs that run on a minutes-scale interval — MediaSync alone writes "
              + "a row every 60s, which is ~98% of all history. Keeping those as long as the daily jobs "
              + "buries the interesting runs and grows the table without bound.",
-             3, 1L, 365L, 1)
+             3, 1L, 365L, 1),
+
+        // ── System Health ────────────────────────────────────────────────
+        bool(SYSTEM_HEALTH_ALERTS_ENABLED, C_SYSTEM_HEALTH, "Host health alerts",
+             "Push admin phones when a host health check (disks, SMART, services, backups, "
+             + "certificates) starts failing, when it recovers, every 24h while it stays failing, and "
+             + "when the health report stops updating. Only changes notify, never every 5-minute "
+             + "re-check. Also needs Push enabled.", true, 0),
+        bool(SYSTEM_HEALTH_ALERT_ON_WARN, C_SYSTEM_HEALTH, "Alert on warnings too",
+             "Also push when a check enters WARN, not only FAIL. Off by default: warnings such as "
+             + "pending updates or a disk at 80% are worth seeing on the System Info page but rarely "
+             + "worth a buzz.", false, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

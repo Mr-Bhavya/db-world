@@ -29,6 +29,7 @@ public interface RecordRepositoryCustom {
             Integer year,
             String status,
             String visibility,
+            boolean tmdbNotFound,
             Pageable pageable
     );
 
@@ -47,4 +48,7 @@ public interface RecordRepositoryCustom {
      * over-counts due to orphaned / duplicate / stale non-latest rows).
      */
     java.util.Map<String, Long> countByLatestSyncStatus();
+
+    /** Records whose latest sync row is flagged {@code tmdb_not_found}, same join as above. */
+    long countLatestTmdbNotFound();
 }

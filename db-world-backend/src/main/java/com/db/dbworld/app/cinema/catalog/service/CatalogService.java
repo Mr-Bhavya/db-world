@@ -60,6 +60,7 @@ public interface CatalogService {
             Integer year,
             SyncStatus status,
             RecordVisibility visibility,
+            boolean tmdbNotFound,
             Pageable pageable
     );
 

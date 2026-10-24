@@ -13,6 +13,7 @@ import { useRecordStore } from '../stores/useRecordStore';
 import { useRecordSync } from './useRecordSync';
 import VisibilityControl from './VisibilityControl';
 import RecordTagsInline from './RecordTagsInline';
+import { NOT_ON_TMDB, syncMeta } from './syncConstants';
 
 const SORT_FIELD_MAP = {
   recordId: 'recordId', name: 'name', type: 'type',
@@ -25,14 +26,6 @@ const SORT_FIELD_MAP = {
 // must NOT be handed to the grid's controlled sortModel, or it reconciles them
 // away and resets the selection. They still drive the server query via the store.
 const GRID_SORTABLE_FIELDS = new Set(['name', 'lastSyncedAt']);
-
-// TMDB sync status → chip label + color (matches the sync-health strip).
-const SYNC_META = {
-  SUCCESS: { label: 'Synced',  color: '#10b981' },
-  FAILED:  { label: 'Failed',  color: '#ef4444' },
-  SKIPPED: { label: 'Skipped', color: '#6b7280' },
-  RUNNING: { label: 'Running', color: '#f59e0b' },
-};
 
 const fmtSize = (b) => {
   if (!b) return '0 B';
@@ -142,12 +135,19 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       field: 'syncStatus', headerName: 'Sync', width: 175, sortable: false,
       renderCell: ({ value, row }) => {
         if (!value) return <Box sx={{ color: T.textFaint, fontSize: 12 }}>—</Box>;
-        const m = SYNC_META[value] ?? { label: value, color: T.textMuted };
+        const m = syncMeta(row) ?? { label: value, color: T.textMuted };
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, minWidth: 0 }}>
             <Chip label={m.label} size="small"
               sx={{ alignSelf: 'flex-start', bgcolor: `${m.color}22`, color: m.color, fontWeight: 700, fontSize: 10 }} />
-            {value === 'FAILED' && row.syncError && (
+            {row.tmdbNotFound ? (
+              <Tooltip title={NOT_ON_TMDB.hint}>
+                <Box sx={{ fontSize: 10, color: NOT_ON_TMDB.color, lineHeight: 1.2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                  {NOT_ON_TMDB.short}
+                </Box>
+              </Tooltip>
+            ) : value === 'FAILED' && row.syncError && (
               <Tooltip title={row.syncError}>
                 <Box sx={{ fontSize: 10, color: T.error, lineHeight: 1.2,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>

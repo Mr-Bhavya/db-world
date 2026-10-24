@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -194,54 +195,65 @@ class IpoGuruSourceTest {
         assertThat(result.get(0).gmpPct()).isEqualByComparingTo("0");
     }
 
+    // A source that could not be read throws, so the poll can record and count it. Returning an
+    // empty list made every failure look like a successful poll with nothing listed.
+
+    private static SourceFetchException fetchFailure(IpoGuruSource source) {
+        SourceFetchException e = catchThrowableOfType(SourceFetchException.class, source::fetchAll);
+        assertThat(e).as("fetchAll should throw SourceFetchException").isNotNull();
+        return e;
+    }
+
     @Test
-    void fetchAll_httpClientThrows_returnsEmptyList() {
+    void fetchAll_httpClientThrows_throwsAsFailed() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL)).thenReturn(BASE_URL);
         when(httpClient.get(anyString(), any())).thenThrow(new SourceFetchException("boom"));
 
-        List<IpoDto> result = newSource("test-key").fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.FAILED);
     }
 
     @Test
-    void fetchAll_malformedJson_returnsEmptyList() {
+    void fetchAll_malformedJson_throwsAsFailed() {
         stubBaseUrlAndResponse("not json");
 
-        List<IpoDto> result = newSource("test-key").fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.FAILED);
     }
 
     @Test
-    void fetchAll_blankApiKey_returnsEmptyWithoutCallingHttpClient() {
-        List<IpoDto> result = newSource("   ").fetchAll();
+    void fetchAll_responseWithoutDataArray_throwsAsFailed() {
+        stubBaseUrlAndResponse("{\"message\":\"maintenance\"}");
 
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.FAILED);
+    }
+
+    /** No key is a setup gap, not an outage: reported as not configured, and nothing is called. */
+    @Test
+    void fetchAll_blankApiKey_isNotConfiguredWithoutCallingHttpClient() {
+        SourceFetchException e = fetchFailure(newSource("   "));
+
+        assertThat(e.notConfigured()).isTrue();
         verifyNoInteractions(httpClient);
     }
 
     @Test
-    void fetchAll_nullApiKey_returnsEmptyWithoutCallingHttpClient() {
-        List<IpoDto> result = newSource(null).fetchAll();
+    void fetchAll_nullApiKey_isNotConfiguredWithoutCallingHttpClient() {
+        SourceFetchException e = fetchFailure(newSource(null));
 
-        assertThat(result).isEmpty();
+        assertThat(e.status()).isEqualTo(SourceFetchException.NOT_CONFIGURED);
         verifyNoInteractions(httpClient);
     }
 
     @Test
-    void fetchAll_settingsServiceThrows_returnsEmptyList() {
+    void fetchAll_settingsServiceThrows_throwsAsFailed() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL))
                 .thenThrow(new RuntimeException("settings lookup boom"));
 
-        List<IpoDto> result = newSource("test-key").fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.FAILED);
         verifyNoInteractions(httpClient);
     }
 
     @Test
-    void fetchAll_httpTooManyRequests_logsRetryInfoAndReturnsEmptyListWithoutRetrying() {
+    void fetchAll_httpTooManyRequests_throwsAsRateLimitedWithoutRetrying() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL)).thenReturn(BASE_URL);
         String errorBody = "{\"message\":\"Rate limit exceeded\",\"retry_after\":60}";
         WebClientResponseException rateLimited = WebClientResponseException.create(
@@ -249,15 +261,13 @@ class IpoGuruSourceTest {
         when(httpClient.get(eq(BASE_URL + "/ipos"), any()))
                 .thenThrow(new SourceFetchException("HTTP 429 for GET " + BASE_URL + "/ipos", rateLimited));
 
-        List<IpoDto> result = newSource("test-key").fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.RATE_LIMITED);
         // Never retried in-process for a 429 — one call only, per the documented "plain failure" contract.
         verify(httpClient, times(1)).get(eq(BASE_URL + "/ipos"), any());
     }
 
     @Test
-    void fetchAll_httpTooManyRequestsWithResetsAtBody_returnsEmptyList() {
+    void fetchAll_httpTooManyRequestsWithResetsAtBody_throwsAsRateLimited() {
         when(settingsService.getString(ConfigKeys.IPO_IPOGURU_BASE_URL)).thenReturn(BASE_URL);
         String errorBody = "{\"message\":\"Daily quota exhausted\",\"resets_at\":\"2026-04-24T00:00:00Z\"}";
         WebClientResponseException rateLimited = WebClientResponseException.create(
@@ -265,8 +275,6 @@ class IpoGuruSourceTest {
         when(httpClient.get(eq(BASE_URL + "/ipos"), any()))
                 .thenThrow(new SourceFetchException("HTTP 429 for GET " + BASE_URL + "/ipos", rateLimited));
 
-        List<IpoDto> result = newSource("test-key").fetchAll();
-
-        assertThat(result).isEmpty();
+        assertThat(fetchFailure(newSource("test-key")).status()).isEqualTo(SourceFetchException.RATE_LIMITED);
     }
 }

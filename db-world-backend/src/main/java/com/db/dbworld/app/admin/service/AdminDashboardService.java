@@ -10,6 +10,7 @@ import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.user.repository.UserRepository;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 //import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -35,6 +36,7 @@ public class AdminDashboardService {
     private final RecordTagRepository      tagRepository;
     private final MediaFileRepository      mediaFileRepository;
     private final TagDefinitionRepository  tagDefinitionRepository;
+    private final MediaDiskGuard           mediaDiskGuard;
 
     @Transactional(readOnly = true)
     public AdminDashboardDto getStats() {
@@ -105,6 +107,7 @@ public class AdminDashboardService {
         long total = mediaFileRepository.count();
         return AdminDashboardDto.MediaStats.builder()
                 .totalFiles(total)
+                .mediaDiskMounted(mediaDiskGuard.isMounted())
                 .build();
     }
 

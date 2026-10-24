@@ -134,7 +134,7 @@ public class TallyReportService {
         if (mine.isEmpty()) {
             // Nothing to query against, and `in ()` is not a filter worth asking the database to
             // evaluate. A new user gets the same empty shape as a quiet month.
-            return assembleMine(window, today, List.of(), BigDecimal.ZERO, Map.of());
+            return assembleMine(window, today, List.of(), BigDecimal.ZERO, Map.of(), Map.of());
         }
 
         Set<String> groupIds = mine.stream()
@@ -155,8 +155,9 @@ public class TallyReportService {
         Map<String, TallyGroupEntity> byId = spentIn.isEmpty() ? Map.of()
                 : groups.findByIdIn(spentIn).stream()
                         .collect(Collectors.toMap(TallyGroupEntity::getId, Function.identity()));
+        Map<String, String> nameByGroup = TallyLedgerNames.forViewer(userId, byId.values(), members);
 
-        return assembleMine(window, today, lines, previousTotal, byId);
+        return assembleMine(window, today, lines, previousTotal, byId, nameByGroup);
     }
 
     /* ============================== one group ============================== */
@@ -298,7 +299,8 @@ public class TallyReportService {
                                                 LocalDate today,
                                                 List<Line> lines,
                                                 BigDecimal previousTotal,
-                                                Map<String, TallyGroupEntity> groupById) {
+                                                Map<String, TallyGroupEntity> groupById,
+                                                Map<String, String> nameByGroup) {
         BigDecimal total = sum(lines);
 
         return new TallySpendingReportDto(
@@ -315,7 +317,7 @@ public class TallyReportService {
                 window.unit(),
                 fill(window.buckets(), lines),
                 categories(lines),
-                ledgers(lines, groupById),
+                ledgers(lines, groupById, nameByGroup),
                 biggest(lines));
     }
 
@@ -361,7 +363,8 @@ public class TallyReportService {
     }
 
     private List<TallyReportLedgerDto> ledgers(List<Line> lines,
-                                               Map<String, TallyGroupEntity> groupById) {
+                                               Map<String, TallyGroupEntity> groupById,
+                                               Map<String, String> nameByGroup) {
         return lines.stream()
                 .collect(Collectors.groupingBy(Line::groupId,
                         Collectors.reducing(BigDecimal.ZERO, Line::amount, BigDecimal::add)))
@@ -373,7 +376,7 @@ public class TallyReportService {
                     TallyGroupEntity group = groupById.get(e.getKey());
                     return new TallyReportLedgerDto(
                             e.getKey(),
-                            group != null ? group.getName() : "Unknown",
+                            group != null ? nameByGroup.getOrDefault(e.getKey(), group.getName()) : "Unknown",
                             group != null ? group.getKind() : TallyGroupKind.GROUP,
                             group != null ? group.getIcon() : null,
                             e.getValue());

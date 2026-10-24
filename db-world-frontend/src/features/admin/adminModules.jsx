@@ -9,6 +9,8 @@
  * No more editing three hardcoded lists that drift apart.
  *
  * Each entry: { id, path, label, icon, group, badge?, element }
+ *   or, for a tool outside the app: { id, href, label, title, icon, group, external: true }.
+ *   An external entry has no route: the sidebar and the dashboard open href in a new tab.
  *   - icon:    an @mui/icons-material component (render as <icon />)
  *   - group:   sidebar section (see ADMIN_GROUPS for order)
  *   - badge:   'Live' | 'New' | 'requests' (dynamic pending count) | undefined
@@ -20,10 +22,19 @@ import {
   MoveToInboxRounded, SellRounded, DownloadingRounded, InsightsRounded,
   MonitorHeartRounded, TerminalRounded, MemoryRounded, FolderRounded,
   ScheduleRounded, TuneRounded, WalletRounded, CandlestickChartRounded, LiveTvRounded,
+  StorageRounded, DeveloperBoardRounded, CloudDownloadRounded, VerifiedUserRounded,
 } from '@mui/icons-material';
+import { SERVER_TOOLS } from './tools/serverTools';
 
 // Section order in the sidebar. 'Overview' renders without a header label.
-export const ADMIN_GROUPS = ['Overview', 'Content', 'Users', 'Insights', 'System', 'Apps'];
+export const ADMIN_GROUPS = ['Overview', 'Content', 'Users', 'Insights', 'System', 'Tools', 'Apps'];
+
+const TOOL_ICONS = {
+  'tool-database': StorageRounded,
+  'tool-pironman': DeveloperBoardRounded,
+  'tool-ariang':   CloudDownloadRounded,
+  'tool-access':   VerifiedUserRounded,
+};
 
 export const ADMIN_MODULES = [
   { id: 'dashboard',       path: 'dashboard',       label: 'Dashboard',           icon: SpaceDashboardRounded, group: 'Overview', element: lazy(() => import('./dashboard/AdminDashboard.jsx')) },
@@ -50,10 +61,19 @@ export const ADMIN_MODULES = [
   { id: 'scheduler',       path: 'scheduler',        label: 'Scheduler',           icon: ScheduleRounded,       group: 'System',   element: lazy(() => import('./Scheduler/SchedulerPanel.jsx')) },
   { id: 'settings',        path: 'settings',         label: 'Settings',            icon: TuneRounded,           group: 'System',   element: lazy(() => import('./settings/SettingsPanel.jsx')) },
 
+  // Tools: the web apps on the Pi (and Cloudflare's dashboard), behind Cloudflare Access.
+  // External: each opens in a new tab, with its status dot (tools/serverTools.js).
+  ...SERVER_TOOLS.map((t) => ({
+    id: t.id, href: t.url, label: t.label, title: t.title, icon: TOOL_ICONS[t.id], group: 'Tools', external: true,
+  })),
+
   // Standalone apps managed from admin
   { id: 'document-wallet', path: 'document-wallet',  label: 'Document Wallet',     icon: WalletRounded,         group: 'Apps',     element: lazy(() => import('./wallet')) },
   { id: 'ipo-admin',       path: 'ipo',              label: 'IPO Tracker',         icon: CandlestickChartRounded, group: 'Apps',   element: lazy(() => import('./ipo')) },
 ];
+
+/** Modules with a page of their own — for the router. External tools have none. */
+export const routedAdminModules = () => ADMIN_MODULES.filter((m) => !m.external);
 
 /** Modules grouped for the sidebar, in ADMIN_GROUPS order (empty groups dropped). */
 export const groupedAdminModules = () =>
@@ -61,5 +81,5 @@ export const groupedAdminModules = () =>
     .map((group) => ({ group, items: ADMIN_MODULES.filter((m) => m.group === group) }))
     .filter((s) => s.items.length > 0);
 
-/** Everything except the dashboard itself — for the dashboard's quick-nav grid. */
+/** Everything except the dashboard itself — for the dashboard's quick-nav grid (tools included). */
 export const quickNavModules = () => ADMIN_MODULES.filter((m) => m.id !== 'dashboard');

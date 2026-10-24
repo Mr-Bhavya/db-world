@@ -289,12 +289,13 @@ const CinemaPage = ({ pageType = 'home' }) => {
     if (isDesktop) {
       return { height: '200vh', solidEnd: 42, fadeMid: 62 };
     }
-    if (isTablet) {
-      return { height: '175vh', solidEnd: 44, fadeMid: 64 };
-    }
-    // mobile xs — the card deck; keep the wash solid around it, fade into the rails
-    return { height: '175vh', solidEnd: 52, fadeMid: 68 };
-  }, [isDesktop, isMonitor, isTablet, isTv]);
+    // Phones and tablets both show the ambient spotlight: card, progress marks, action
+    // row, landing near 52vh on a phone. `solidEnd` is a percentage of THIS element, not
+    // of the viewport, so 52vh of a 150vh element is 35% — the wash has to stay solid a
+    // little past that or the buttons sit on the fade. The element itself stays tall
+    // because its last stop is #141414, the page colour, and was never visible.
+    return { height: '150vh', solidEnd: 38, fadeMid: 58 };
+  }, [isDesktop, isMonitor, isTv]);
 
   // Reads `--cinema-wash`, tweened on rAF by useAnimatedRgbVar. A CSS
   // `transition: background` cannot interpolate gradients, so the colour used
@@ -322,7 +323,11 @@ const CinemaPage = ({ pageType = 'home' }) => {
       sx={{
         position: 'relative',
         minHeight: '100vh',
-        overflowX: 'hidden',
+        // `clip`, NOT `hidden`. With overflow-y left visible, `overflow-x: hidden` makes the
+        // used overflow-y `auto` — so this became a nested scroll container wrapping the
+        // whole page, and the browser dropped the main scroller's fast path. `clip` cuts the
+        // same overflow without creating a scroller.
+        overflowX: 'clip',
         background: '#141414',
         color: '#fff',
         pb: { xs: '96px', md: 8 },
@@ -343,7 +348,11 @@ const CinemaPage = ({ pageType = 'home' }) => {
           background: overlayGradient,
           opacity: showWash ? 1 : 0,
           transition: 'opacity 700ms ease',
-          willChange: 'opacity',
+          // NO will-change. This element is 175vh tall and full width, so promoting it
+          // permanently pinned a texture several times the size of the screen for an
+          // opacity change that only happens when you switch to Movies/TV. On a phone that
+          // memory pressure is what evicted the rails' own layers mid-scroll, which is the
+          // repaint that read as flicker.
         }}
       />
 

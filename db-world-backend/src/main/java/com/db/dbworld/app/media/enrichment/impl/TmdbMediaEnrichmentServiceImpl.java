@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -67,6 +69,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private final RecordRepository recordRepository;
     private final ProcessExecutor  processExecutor;
     private final TrackingService  trackingService;
+    private final ObjectMapper     objectMapper;
 
     /**
      * Self-reference through the Spring proxy.
@@ -359,10 +362,9 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
 
-        // Drop ALL source CONTAINER (global) metadata — this strips release-group /
-        // site tags (URLs, comments, "encoded by", etc.) that some rips embed.
-        // Per-stream metadata (track titles, languages) is NOT affected by this and
-        // survives via -c copy; the global title/description we want are re-added below.
+        // Drop ALL source metadata — global AND per-stream (an unscoped -map_metadata -1
+        // disables both). This strips release-group / site tags; the track languages,
+        // titles and global title/description we want are re-added explicitly below.
         cmd.addAll(List.of("-map_metadata", "-1"));
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
@@ -432,14 +434,24 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-metadata", "comment=" + overview));
         }
 
-        // ── MKV cover art as attachment ───────────────────────────────────────
+        // ── MKV attachments ───────────────────────────────────────────────────────────────────
+        // Source attachments (fonts, covers) are kept by -map 0 but lost their tags above, and
+        // the Matroska muxer rejects an attachment without filename/mimetype (EINVAL, exit 234).
+        List<AttachmentTags> sourceAttachments = isMkv ? probeAttachments(input, jobId) : List.of();
+        for (int i = 0; i < sourceAttachments.size(); i++) {
+            AttachmentTags tags = sourceAttachments.get(i);
+            cmd.addAll(List.of("-metadata:s:t:" + i, "filename=" + tags.filename()));
+            cmd.addAll(List.of("-metadata:s:t:" + i, "mimetype=" + tags.mimetype()));
+        }
+
         if (posterAsAttach) {
             String posterName = poster.getFileName().toString();
             String mime       = posterName.endsWith(".png") ? "image/png" : "image/jpeg";
             String coverName  = posterName.endsWith(".png") ? "cover.png" : "cover.jpg";
+            String spec       = "-metadata:s:t:" + sourceAttachments.size();
             cmd.addAll(List.of("-attach", poster.toAbsolutePath().toString()));
-            cmd.addAll(List.of("-metadata:s:t:0", "mimetype=" + mime));
-            cmd.addAll(List.of("-metadata:s:t:0", "filename=" + coverName));
+            cmd.addAll(List.of(spec, "mimetype=" + mime));
+            cmd.addAll(List.of(spec, "filename=" + coverName));
         }
 
         cmd.add(output.toAbsolutePath().toString());
@@ -448,6 +460,28 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 jobId, input.getFileName(), output.getFileName(), hasFilter, hasPoster);
 
         processExecutor.executeFfmpegCommand(cmd, new FfmpegProgressProcessor(jobId), null);
+    }
+
+    private record AttachmentTags(String filename, String mimetype) {}
+
+    /** Attachment streams of the source, in the order FFmpeg indexes them as {@code t:N}. */
+    private List<AttachmentTags> probeAttachments(Path input, String jobId) {
+        List<AttachmentTags> attachments = new ArrayList<>();
+        try {
+            JsonNode streams = objectMapper.readTree(processExecutor.runFfprobeStreamsJson(input)).path("streams");
+            for (JsonNode stream : streams) {
+                if (!"attachment".equalsIgnoreCase(stream.path("codec_type").asText(""))) continue;
+                JsonNode tags   = stream.path("tags");
+                String filename = tags.path("filename").asText("");
+                String mimetype = tags.path("mimetype").asText("");
+                attachments.add(new AttachmentTags(
+                        filename.isBlank() ? "attachment_" + attachments.size() : filename,
+                        mimetype.isBlank() ? "application/octet-stream" : mimetype));
+            }
+        } catch (Exception e) {
+            log.warn("[{}] Could not probe attachments of {}: {}", jobId, input.getFileName(), e.getMessage());
+        }
+        return attachments;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

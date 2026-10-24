@@ -101,7 +101,7 @@ class TallyActivityTest {
                 TallyActivityAction.GROUP_CREATED);
         assertThat(feed().getLast().summary()).isEqualTo("Created Home");
         assertThat(feed().getFirst().summary()).isEqualTo("Added Amma");
-        assertThat(feed().getFirst().actorName()).isEqualTo("Appa");
+        assertThat(feed().getFirst().actorName()).as("the reader is Appa").isEqualTo("You");
     }
 
     @Test
@@ -174,7 +174,10 @@ class TallyActivityTest {
         var payment = settlementService.record(ammaUser, groupId,
                 new RecordSettlementRequest(amma, appa, bd("50.00"), "UPI", null, null, null));
 
-        assertThat(feed().getFirst().summary()).isEqualTo("Amma paid Appa ₹50.00");
+        assertThat(feed().getFirst().summary()).isEqualTo("Amma paid you ₹50.00");
+        assertThat(groupService.activity(ammaUser, groupId, null, null, null).items().getFirst().summary())
+                .as("the same payment, read by the person who made it")
+                .isEqualTo("You paid Appa ₹50.00");
 
         settlementService.reverse(ammaUser, payment.id());
         assertThat(feed().getFirst()).satisfies(entry -> {

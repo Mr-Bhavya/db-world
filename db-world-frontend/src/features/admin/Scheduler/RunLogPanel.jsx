@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, CircularProgress, Button } from '@mui/material';
 import { ContentCopyRounded, OpenInNewRounded, TerminalRounded } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
@@ -9,8 +9,9 @@ import { notify } from '@shared/notify';
 import { fmtTimeShort, levelColor, shortLogger } from '@features/admin/logs/logUtils';
 import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
 
-/** Lines pulled for the inline preview. The full run is a click away in the Log Viewer. */
-const PREVIEW_LINES = 60;
+/** Lines pulled for the inline preview; "Show all" asks for up to ALL_LINES. */
+const PREVIEW_LINES = 200;
+const ALL_LINES = 5000;
 
 /** The Log Viewer's stack, so the two features render a log line identically. */
 const mono = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' };
@@ -24,7 +25,7 @@ const mono = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monos
 export const fetchRunLogs = (runId, date, lines = PREVIEW_LINES) =>
   axiosInstance
     .get(`/api/admin/logs/run/${runId}`, { params: { date, lines } })
-    .then(r => r.data?.data ?? { entries: [], count: 0 });
+    .then(r => r.data?.data ?? { entries: [], count: 0, total: 0, truncated: false });
 
 /** YYYY-MM-DD in local time — the backend indexes log archives by calendar day. */
 export function runDate(startedAt) {
@@ -169,24 +170,28 @@ function LogLine({ entry, startedAt, dark, T }) {
 /**
  * The log lines a single scheduler run emitted, shown inline under its history row.
  *
- * <p>This is a preview, not the Log Viewer: no filtering, no live tail, newest last, capped
- * at {@link PREVIEW_LINES}. Anything more and you want the real viewer, which is one button
- * away and lands pre-filtered on the same run.
+ * <p>This is a preview, not the Log Viewer: no filtering, no live tail, oldest first, capped
+ * at {@link PREVIEW_LINES} until "Show all". It covers DEBUG as well as INFO and above, which
+ * the Log Viewer link (a single-file view) does not.
  */
 export default function RunLogPanel({ runId, startedAt }) {
   const T = useT();
   const S = adminSurface(T);
   const dark = T.bg === '#000000';
   const date = runDate(startedAt);
+  const [showAll, setShowAll] = useState(false);
+  const limit = showAll ? ALL_LINES : PREVIEW_LINES;
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['scheduler-run-logs', runId, date],
-    queryFn:  () => fetchRunLogs(runId, date),
+  const { data, isLoading, isFetching, isError, error } = useQuery({
+    queryKey: ['scheduler-run-logs', runId, date, limit],
+    queryFn:  () => fetchRunLogs(runId, date, limit),
+    placeholderData: prev => prev,
     enabled:  !!runId,
     staleTime: 60_000,
   });
 
   const entries = data?.entries ?? [];
+  const total   = data?.total ?? entries.length;
 
   const actionSx = {
     fontSize: '0.66rem', textTransform: 'none', color: T.textMuted,
@@ -206,8 +211,15 @@ export default function RunLogPanel({ runId, startedAt }) {
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           Run <Box component="span" sx={{ ...mono, color: T.textMuted }}>{runId}</Box>
-          {entries.length > 0 && ` · ${entries.length} line${entries.length === 1 ? '' : 's'}`}
+          {entries.length > 0 && (data?.truncated
+            ? ` · ${entries.length.toLocaleString()} of ${total.toLocaleString()} lines`
+            : ` · ${entries.length.toLocaleString()} line${entries.length === 1 ? '' : 's'}`)}
         </Typography>
+        {data?.truncated && limit < ALL_LINES && (
+          <Button size="small" onClick={() => setShowAll(true)} disabled={isFetching} sx={actionSx}>
+            Show all
+          </Button>
+        )}
         {entries.length > 0 && (
           <Button
             size="small"

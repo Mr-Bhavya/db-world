@@ -1,6 +1,8 @@
 package com.db.dbworld.app.system.info.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
+import com.db.dbworld.app.system.health.HostHealthService;
+import com.db.dbworld.app.system.health.dto.HostHealthReport;
 import com.db.dbworld.app.system.info.ServerInfoService;
 import com.db.dbworld.app.system.info.dto.BaseServerInfo;
 import com.db.dbworld.app.system.info.dto.HealthStatus;
@@ -19,9 +21,12 @@ import java.time.Instant;
 public class SystemInfoController {
 
     private final ServerInfoService serverInfoService;
+    private final HostHealthService hostHealthService;
 
-    public SystemInfoController(@Qualifier("appServerInfoService") ServerInfoService serverInfoService) {
+    public SystemInfoController(@Qualifier("appServerInfoService") ServerInfoService serverInfoService,
+                                HostHealthService hostHealthService) {
         this.serverInfoService = serverInfoService;
+        this.hostHealthService = hostHealthService;
     }
 
     /* ── Full system info ─────────────────────────────────────── */
@@ -174,6 +179,18 @@ public class SystemInfoController {
                     .build();
         }
         return ApiResponse.success(hs);
+    }
+
+    /* ── Host health (dbworldctl doctor report) ──────────────── */
+
+    /**
+     * The latest report written by the host's doctor timer. Always 200: a missing or unreadable
+     * report comes back with {@code available=false} and a reason, which the page renders.
+     */
+    @AdminAccess
+    @GetMapping("/host-health")
+    public ApiResponse<HostHealthReport> getHostHealth() {
+        return ApiResponse.success(hostHealthService.read());
     }
 
     /* ── Cache refresh ────────────────────────────────────────── */

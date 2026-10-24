@@ -13,6 +13,7 @@ import java.time.Instant;
  * @param detail    the before-and-after, one change per line, or null when there is nothing
  *                  more to say than the summary already says
  * @param canRestore true only on a removed expense that has not already been put back
+ * @param restoreWarning set when putting it back would likely count the same money twice
  */
 public record TallyActivityDto(
         String id,
@@ -23,5 +24,6 @@ public record TallyActivityDto(
         String summary,
         String detail,
         boolean canRestore,
+        String restoreWarning,
         Instant createdAt
 ) {}

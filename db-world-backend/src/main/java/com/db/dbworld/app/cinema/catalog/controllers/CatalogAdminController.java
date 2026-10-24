@@ -133,6 +133,8 @@ public class CatalogAdminController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) SyncStatus status,
             @RequestParam(required = false) RecordVisibility visibility,
+            // Only titles TMDB answered 404 for on their latest sync: deleted or merged there.
+            @RequestParam(defaultValue = "false") boolean tmdbNotFound,
             Pageable pageable
     ) {
 
@@ -145,6 +147,7 @@ public class CatalogAdminController {
                         year,
                         status,
                         visibility,
+                        tmdbNotFound,
                         pageable
                 )
         );

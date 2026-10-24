@@ -36,10 +36,14 @@ public interface TallyMapper {
 
     /* ============================== groups ============================== */
 
+    /** @param displayName the group's name as the caller should read it; see TallyLedgerNames */
+    @Mapping(target = "name", source = "displayName")
     TallyGroupDetailDto toGroupDetail(TallyGroupEntity group, List<TallyMemberDto> members,
-                                      String myMemberId);
+                                      String myMemberId, String displayName);
 
-    TallyGroupSummaryDto toGroupSummary(TallyGroupEntity group, int memberCount, BigDecimal myBalance);
+    @Mapping(target = "name", source = "displayName")
+    TallyGroupSummaryDto toGroupSummary(TallyGroupEntity group, int memberCount, BigDecimal myBalance,
+                                        String displayName);
 
     /* ============================== expenses ============================== */
 
@@ -51,9 +55,12 @@ public interface TallyMapper {
 
     List<TallyExpenseShareDto> toShareDtos(List<TallyExpenseShareEntity> shares);
 
+    /** @param title what the reader should see as the description; a loan's depends on who reads it */
+    @Mapping(target = "description", source = "title")
     TallyExpenseDto toExpenseDto(TallyExpenseEntity expense,
                                  List<TallyExpensePayerDto> payers,
-                                 List<TallyExpenseShareDto> shares);
+                                 List<TallyExpenseShareDto> shares,
+                                 String title);
 
     /* ============================== settlements ============================== */
 

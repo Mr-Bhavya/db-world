@@ -123,6 +123,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Carries the Log4j2 ThreadContext (jobRunId, traceId) onto Reactor/Netty threads so
+             WebClient and retry log lines stay attached to their run. See ReactorLogContext. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
 
         <!-- ── WebSocket ─────────────────────────────────────────────── -->
         <dependency>

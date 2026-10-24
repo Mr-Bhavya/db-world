@@ -10,6 +10,7 @@ import CheckCircleIcon         from '@mui/icons-material/CheckCircle';
 import ErrorIcon               from '@mui/icons-material/Error';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import SyncIcon                from '@mui/icons-material/Sync';
+import LinkOffIcon             from '@mui/icons-material/LinkOff';
 import VisibilityIcon          from '@mui/icons-material/Visibility';
 import VisibilityOffIcon       from '@mui/icons-material/VisibilityOff';
 import DeleteIcon              from '@mui/icons-material/Delete';
@@ -33,6 +34,7 @@ import RecordMobileList   from './RecordMobileList';
 import RecordDetailDrawer from './RecordDetailDrawer';
 import RecordCreateModal  from './RecordCreateModal';
 import RecordEditModal    from './RecordEditModal';
+import { NOT_ON_TMDB }     from './syncConstants';
 
 // Sync-health metadata — the four status cards double as the status filter (click
 // to toggle). Colors match the former standalone TMDB Sync page so the visual
@@ -240,6 +242,7 @@ export default function RecordManagementV2() {
       ...(filters.recordId   && { recordId:   Number(filters.recordId) }),
       ...(filters.status     && { status:     filters.status }),
       ...(filters.visibility && { visibility: filters.visibility }),
+      ...(filters.tmdbNotFound && { tmdbNotFound: true }),
     };
     if (sortModel.length > 0) {
       base.sort = sortModel.map(s => `${s.field},${s.sort}`).join('&sort=');
@@ -349,11 +352,23 @@ export default function RecordManagementV2() {
               value={syncStats?.[c.key] ?? 0}
               accent={c.color}
               badge={active ? 'ON' : undefined}
-              onClick={() => setFilter('status', active ? '' : c.value)}
+              onClick={() => { setFilter('tmdbNotFound', ''); setFilter('status', active ? '' : c.value); }}
               loading={!syncStats}
             />
           );
         })}
+        {/* Titles TMDB has removed. Exclusive with the status cards: a flagged row reads
+            FAILED or SKIPPED, so stacking both filters would only ever hide rows. */}
+        <StatCard
+          index={SYNC_CHIPS.length + 1}
+          icon={LinkOffIcon}
+          label={NOT_ON_TMDB.label}
+          value={syncStats?.notFound ?? 0}
+          accent={NOT_ON_TMDB.color}
+          badge={filters.tmdbNotFound ? 'ON' : undefined}
+          onClick={() => { setFilter('status', ''); setFilter('tmdbNotFound', filters.tmdbNotFound ? '' : 'true'); }}
+          loading={!syncStats}
+        />
       </StatGrid>
 
       {/* Sticky filters / sort — pins to the top on scroll */}

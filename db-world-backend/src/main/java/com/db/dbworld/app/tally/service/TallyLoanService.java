@@ -18,6 +18,7 @@ import com.db.dbworld.app.tally.repository.TallyExpenseRepository;
 import com.db.dbworld.app.tally.repository.TallyExpenseShareRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupMemberRepository;
 import com.db.dbworld.app.tally.repository.TallyGroupRepository;
+import com.db.dbworld.app.tally.repository.TallyLedgerEntryRepository;
 import com.db.dbworld.app.tally.repository.TallyLedgerEntryRepository.MemberTotal;
 import com.db.dbworld.app.tally.repository.TallySettlementRepository;
 import com.db.dbworld.core.exception.DbWorldException;
@@ -33,6 +34,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,6 +74,8 @@ public class TallyLoanService {
     private final TallyGroupMemberRepository members;
     private final TallyGroupRepository groups;
     private final TallySettlementRepository settlements;
+    private final TallyLedgerEntryRepository ledger;
+    private final TallyActivityService activity;
     private final Clock clock;
 
     /** Due dates are read against the reader's day, and this app's readers are in India. */
@@ -85,9 +89,11 @@ public class TallyLoanService {
                             TallyExpenseShareRepository shares,
                             TallyGroupMemberRepository members,
                             TallyGroupRepository groups,
-                            TallySettlementRepository settlements) {
+                            TallySettlementRepository settlements,
+                            TallyLedgerEntryRepository ledger,
+                            TallyActivityService activity) {
         this(access, expenseService, expenses, payers, shares, members, groups, settlements,
-                Clock.systemUTC());
+                ledger, activity, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock, so "overdue" is deterministic. */
@@ -99,6 +105,8 @@ public class TallyLoanService {
                      TallyGroupMemberRepository members,
                      TallyGroupRepository groups,
                      TallySettlementRepository settlements,
+                     TallyLedgerEntryRepository ledger,
+                     TallyActivityService activity,
                      Clock clock) {
         this.access = access;
         this.expenseService = expenseService;
@@ -108,6 +116,8 @@ public class TallyLoanService {
         this.members = members;
         this.groups = groups;
         this.settlements = settlements;
+        this.ledger = ledger;
+        this.activity = activity;
         this.clock = clock;
     }
 
@@ -155,10 +165,8 @@ public class TallyLoanService {
         TallyGroupMemberEntity payer = lent ? me : them;
         TallyGroupMemberEntity owes  = lent ? them : me;
 
-        // The description is what the activity log and the expense list will show, so it is
-        // written as the sentence a reader wants rather than as a label plus a note they have to
-        // open. The note, if there is one, is the reason -- not the shape of the transaction.
-        String description = (lent ? "Lent to " : "Borrowed from ") + them.getDisplayName();
+        // Stored neutrally; every screen re-titles it for the reader (TallyLedgerNames#loanTitle).
+        String description = payer.getDisplayName() + " lent " + owes.getDisplayName();
 
         var expenseRequest = new CreateExpenseRequest(
                 description,
@@ -178,8 +186,14 @@ public class TallyLoanService {
                         // which is not a statement about money they personally borrowed.
                         owes.getId())));
 
+        boolean replay = request.idempotencyKey() != null && !request.idempotencyKey().isBlank()
+                && expenses.findByGroupIdAndIdempotencyKey(groupId, request.idempotencyKey()).isPresent();
+
         TallyExpenseEntity loan = expenseService.createEntity(
                 userId, groupId, expenseRequest, TallyExpenseKind.LOAN, request.dueDate());
+        if (!replay) {
+            activity.loanRecorded(loan, payer.getDisplayName(), owes.getDisplayName(), userId);
+        }
 
         log.debug("Recorded {} loan {} of {} between {} and {}",
                 request.direction(), loan.getId(), loan.getTotalAmount(), payer.getId(), owes.getId());
@@ -232,9 +246,11 @@ public class TallyLoanService {
         Map<String, String> owesByLoan = shares.findByExpenseIdIn(loanIds).stream()
                 .collect(Collectors.toMap(TallyExpenseShareEntity::getExpenseId,
                         TallyExpenseShareEntity::getBeneficiaryMemberId, (a, b) -> a));
-        Map<String, BigDecimal> repaidByLoan = settlements.sumRepaidByLoan(loanIds).stream()
+        Map<String, BigDecimal> linkedByLoan = settlements.sumRepaidByLoan(loanIds).stream()
                 .filter(t -> t.getMemberId() != null)
                 .collect(Collectors.toMap(MemberTotal::getMemberId, MemberTotal::getTotal));
+        Map<String, BigDecimal> repaidByLoan =
+                repaidByLoan(loans, payerByLoan, owesByLoan, linkedByLoan, groupIds);
         Map<String, TallyGroupMemberEntity> roster = members.findByGroupIdIn(groupIds).stream()
                 .collect(Collectors.toMap(TallyGroupMemberEntity::getId, Function.identity()));
         Map<String, TallyGroupEntity> groupById = groups.findByIdIn(groupIds).stream()
@@ -261,6 +277,71 @@ public class TallyLoanService {
                 .toList();
     }
 
+    /**
+     * How much of each loan has come back.
+     *
+     * <p>Two sources. A repayment that names the loan counts towards it, capped at the principal
+     * so paying 16,000 on a 15,000 loan reads as settled with the extra going to other dues. And
+     * a payment recorded against the balance still cleared money between those two people: the
+     * loans between a lender and a borrower can never show more outstanding than the borrower
+     * actually owes them, so any gap is credited to the oldest loans first.
+     */
+    private Map<String, BigDecimal> repaidByLoan(List<TallyExpenseEntity> loans,
+                                                 Map<String, String> payerByLoan,
+                                                 Map<String, String> owesByLoan,
+                                                 Map<String, BigDecimal> linkedByLoan,
+                                                 Collection<String> groupIds) {
+        Map<String, BigDecimal> owedByPair = new HashMap<>();
+        for (var pair : ledger.sumByPair(groupIds)) {
+            owedByPair.merge(pairKey(pair.getGroupId(), pair.getFromMemberId(), pair.getToMemberId()),
+                    pair.getTotal(), BigDecimal::add);
+        }
+
+        Map<String, List<TallyExpenseEntity>> byPair = loans.stream()
+                .filter(l -> payerByLoan.containsKey(l.getId()) && owesByLoan.containsKey(l.getId()))
+                .collect(Collectors.groupingBy(l ->
+                        pairKey(l.getGroupId(), owesByLoan.get(l.getId()), payerByLoan.get(l.getId()))));
+
+        Map<String, BigDecimal> repaid = new HashMap<>();
+        byPair.forEach((key, pairLoans) -> {
+            List<TallyExpenseEntity> oldestFirst = pairLoans.stream()
+                    .sorted(Comparator.comparing(TallyExpenseEntity::getExpenseDate)
+                            .thenComparing(TallyExpenseEntity::getCreatedAt,
+                                    Comparator.nullsLast(Comparator.naturalOrder())))
+                    .toList();
+
+            BigDecimal outstanding = BigDecimal.ZERO;
+            for (var loan : oldestFirst) {
+                BigDecimal linked = linkedByLoan.getOrDefault(loan.getId(), BigDecimal.ZERO)
+                        .min(loan.getTotalAmount());
+                repaid.put(loan.getId(), linked);
+                outstanding = outstanding.add(loan.getTotalAmount().subtract(linked));
+            }
+
+            // What the borrower owes the lender net of everything else between them.
+            TallyExpenseEntity any = oldestFirst.getFirst();
+            String borrower = owesByLoan.get(any.getId());
+            String lender = payerByLoan.get(any.getId());
+            BigDecimal owed = owedByPair.getOrDefault(pairKey(any.getGroupId(), borrower, lender), BigDecimal.ZERO)
+                    .subtract(owedByPair.getOrDefault(pairKey(any.getGroupId(), lender, borrower), BigDecimal.ZERO))
+                    .max(BigDecimal.ZERO);
+
+            BigDecimal credit = outstanding.subtract(owed);
+            for (var loan : oldestFirst) {
+                if (credit.signum() <= 0) break;
+                BigDecimal left = loan.getTotalAmount().subtract(repaid.get(loan.getId()));
+                BigDecimal take = credit.min(left);
+                repaid.merge(loan.getId(), take, BigDecimal::add);
+                credit = credit.subtract(take);
+            }
+        });
+        return repaid;
+    }
+
+    private static String pairKey(String groupId, String from, String to) {
+        return groupId + '|' + from + '|' + to;
+    }
+
     private TallyLoanDto view(TallyExpenseEntity loan, TallyGroupEntity group, boolean lent,
                               TallyGroupMemberEntity them, BigDecimal repaid) {
         BigDecimal principal = loan.getTotalAmount();
@@ -276,7 +357,9 @@ public class TallyLoanService {
         return new TallyLoanDto(
                 loan.getId(),
                 loan.getGroupId(),
-                group == null ? null : group.getName(),
+                // A one-to-one ledger is named after whoever is on the other side for this caller.
+                group == null ? null
+                        : group.getKind() == TallyGroupKind.DIRECT ? them.getDisplayName() : group.getName(),
                 them.getDisplayName(),
                 them.getId(),
                 lent ? TallyLoanDirection.LENT : TallyLoanDirection.BORROWED,

@@ -14,7 +14,7 @@ import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
 import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
-import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchItemDto;
+import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchPageDto;
 import com.db.dbworld.app.cinema.tmdb.search.service.TmdbSearchService;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -188,13 +188,14 @@ public class TmdbController {
        ========================= */
 
     @GetMapping("/search")
-    public ApiResponse<List<TmdbSearchItemDto>> search(
+    public ApiResponse<TmdbSearchPageDto> search(
             @RequestParam RecordType type,
             @RequestParam String query,
             @RequestParam(required = false, defaultValue = "en-US") String language,
-            @RequestParam(required = false) Integer year
+            @RequestParam(required = false) Integer year,
+            @RequestParam(defaultValue = "1") int page
     ) {
-        return ApiResponse.success(tmdbSearchService.search(type, query, language, year));
+        return ApiResponse.success(tmdbSearchService.search(type, query, language, year, page));
     }
 
     /* =========================

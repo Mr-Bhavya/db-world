@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppConstants;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -33,6 +34,7 @@ public class MediaAdminController {
     private final MediaInfoService        mediaInfoService;
     private final SymlinkService          symlinkService;
     private final MediaFileDeletionService deletionService;
+    private final MediaDiskGuard          mediaDiskGuard;
 
     /* â”€â”€ File info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
@@ -117,10 +119,14 @@ public class MediaAdminController {
 
     @PostMapping("/files/cleanup")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupMediaFiles() {
+        // "File not on disk" is exactly what every file looks like while the disk is missing.
+        mediaDiskGuard.requireMounted("Media file cleanup");
         List<MediaFileDto> all = mediaInfoService.findAll();
         int removed = 0;
         for (MediaFileDto dto : all) {
             if (dto.getFilePath() != null && !Files.exists(Path.of(dto.getFilePath()))) {
+                // Asked again per removal: a disk dropping out mid-loop makes every file after it look gone.
+                mediaDiskGuard.requireMounted("Media file cleanup");
                 // File already gone → keep-file mode; this also clears the symlink + storyboard.
                 deletionService.deleteById(dto.getId(), false);
                 removed++;

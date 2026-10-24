@@ -288,9 +288,14 @@ public class SchedulerAdminService {
             case "MediaSync"           -> mediaSyncService.scan(summary);
             case IpoPollScheduler.JOB_ID -> {
                 var result = ipoPollScheduler.pollOnce();
-                summary.count("sourcesPolled", result.sourcesPolled())
-                       .count("sourcesFailed", result.sourcesFailed())
-                       .count("iposSeen",      result.ipoCount());
+                summary.count("sourcesPolled",  result.sourcesPolled())
+                       .count("sourcesFailed",  result.sourcesFailed())
+                       .count("sourcesSkipped", result.sourcesSkipped())
+                       .count("iposSeen",       result.ipoCount());
+                int answered = result.sourcesPolled() - result.sourcesFailed() - result.sourcesSkipped();
+                if (result.sourcesPolled() > 0 && answered == 0) {
+                    summary.note("No source answered — nothing new was ingested");
+                }
             }
             case IpoLiveScheduler.JOB_ID -> ipoLiveScheduler.refreshOnce(summary);
             case SchedulerHistoryRetentionService.JOB_ID -> retentionService.prune(summary);

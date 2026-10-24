@@ -3,6 +3,7 @@ package com.db.dbworld.app.wallet.service;
 import com.db.dbworld.app.wallet.crypto.WalletFileCryptor;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,19 @@ public class WalletStorageService {
 
     private final AppProperties appProperties;
     private final WalletFileCryptor cryptor;
+    private final MediaDiskGuard mediaDiskGuard;
 
     private Path walletRoot() {
         return appProperties.getDataPath().toAbsolutePath().normalize().resolve("wallet");
+    }
+
+    /**
+     * Refuses {@code operation} while the disk holding the wallet folder is missing. Without it a
+     * store would write the encrypted file to the SD card under the empty mount point, and a delete
+     * would drop the row while the real file stayed behind on the disk.
+     */
+    public void requireAvailable(String operation) {
+        mediaDiskGuard.requireMountedFor(walletRoot(), operation);
     }
 
     /** Jailed absolute path for {userId}/{fileName}; rejects traversal. */
@@ -36,6 +47,7 @@ public class WalletStorageService {
     }
 
     public String store(Long userId, String storedFileName, byte[] plain) {
+        requireAvailable("Saving the document");
         Path dest = resolve(userId, storedFileName);
         try {
             Files.createDirectories(dest.getParent());

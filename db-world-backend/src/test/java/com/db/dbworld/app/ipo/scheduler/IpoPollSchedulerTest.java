@@ -10,6 +10,7 @@ import com.db.dbworld.app.ipo.service.IpoSourcePollService;
 import com.db.dbworld.app.ipo.service.NseHolidayService;
 import com.db.dbworld.app.ipo.source.IpoSource;
 import com.db.dbworld.app.ipo.source.IpoSourceRegistry;
+import com.db.dbworld.app.ipo.source.SourceFetchException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,9 +61,13 @@ class IpoPollSchedulerTest {
     }
 
     private static IpoSource fakeThrows(String key) {
+        return fakeThrows(key, new RuntimeException("upstream blew up"));
+    }
+
+    private static IpoSource fakeThrows(String key, RuntimeException failure) {
         IpoSource s = mock(IpoSource.class);
         when(s.key()).thenReturn(key);
-        when(s.fetchAll()).thenThrow(new RuntimeException("upstream blew up"));
+        when(s.fetchAll()).thenThrow(failure);
         return s;
     }
 
@@ -157,5 +162,42 @@ class IpoPollSchedulerTest {
         assertThat(result.sourcesPolled()).isZero();
         assertThat(result.sourcesFailed()).isZero();
         assertThat(result.ipoCount()).isZero();
+    }
+
+    /**
+     * Sources used to swallow their failures and return an empty list, which the poll recorded as
+     * a success: "sourcesFailed=0" next to "Chittorgarh list fetch failed" in the same run.
+     */
+    @Test
+    void pollOnce_aSourceThatCouldNotBeRead_isCountedAndRecordedWithItsStatus() {
+        IpoSource ipoguru = fakeThrows("ipoguru",
+                new SourceFetchException(SourceFetchException.RATE_LIMITED, "429", null));
+        IpoSource nse = fakeSuccess("nse", List.of(dto("nse")));
+        when(registry.enabled()).thenReturn(List.of(ipoguru, nse));
+        when(mergeService.merge(anyList())).thenReturn(List.of());
+
+        IpoPollResult result = scheduler.pollOnce();
+
+        verify(pollService).recordFailure("ipoguru", NOW, SourceFetchException.RATE_LIMITED);
+        verify(pollService, never()).recordSuccess(eq("ipoguru"), any());
+        verify(pollService).recordSuccess("nse", NOW);
+        assertThat(result.sourcesFailed()).isEqualTo(1);
+        assertThat(result.sourcesSkipped()).isZero();
+    }
+
+    /** A missing API key is a setup gap: skipped, not failed, and not a fresh "last success" either. */
+    @Test
+    void pollOnce_aSourceThatIsNotConfigured_isSkippedNotFailed() {
+        IpoSource ipoguru = fakeThrows("ipoguru", SourceFetchException.notConfigured("IPO_GURU_API_KEY is not set"));
+        when(registry.enabled()).thenReturn(List.of(ipoguru));
+        when(mergeService.merge(anyList())).thenReturn(List.of());
+
+        IpoPollResult result = scheduler.pollOnce();
+
+        verify(pollService).recordSkipped("ipoguru", NOW, SourceFetchException.NOT_CONFIGURED);
+        verify(pollService, never()).recordSuccess(any(), any());
+        verify(pollService, never()).recordFailure(any(), any(), any());
+        assertThat(result.sourcesFailed()).isZero();
+        assertThat(result.sourcesSkipped()).isEqualTo(1);
     }
 }

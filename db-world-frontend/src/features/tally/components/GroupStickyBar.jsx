@@ -3,6 +3,7 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useT } from '@shared/theme';
+import { TALLY_PAGE_MAX_W, TALLY_PAGE_PX } from '../utils/tallyLayout';
 import LedgerAvatar from './LedgerAvatar';
 import GroupTabs from './GroupTabs';
 
@@ -52,11 +53,13 @@ export const GROUP_STICKY_TOP = {
  * <p>Deliberately below the app bar in the stack and above everything else. Modals and drawers
  * sit higher still, so this never covers a dialog.
  */
-export default function GroupStickyBar({ group, groupId, active, onBack, onMenu }) {
+export default function GroupStickyBar({ group, groupId, active, onBack, onMenu, showTabs = true }) {
   const T = useT();
   const { scrollY } = useScroll();
 
   const opacity = useTransform(scrollY, BAR_FADE, [0, 1]);
+  // The backdrop goes solid well before the content arrives, so the page never shows through it.
+  const backdrop = useTransform(scrollY, [BAR_FADE[0], BAR_FADE[0] + 16], [0, 1]);
   const y = useTransform(scrollY, BAR_FADE, [-14, 0]);
   // Transparent chrome must not eat a tap meant for the page it is lying over.
   const pointerEvents = useTransform(scrollY, (value) => (value > BAR_FADE[0] ? 'auto' : 'none'));
@@ -64,16 +67,23 @@ export default function GroupStickyBar({ group, groupId, active, onBack, onMenu 
   return (
     <Box
       component={motion.div}
-      style={{ opacity, y, pointerEvents }}
+      style={{ pointerEvents }}
       sx={{
         position: 'fixed', left: 0, right: 0, top: APP_BAR_H,
         zIndex: (theme) => theme.zIndex.appBar - 10,
-        bgcolor: T.bg, borderBottom: `1px solid ${T.border}`,
-        px: { xs: 2, sm: 3, md: 4 },
+        px: TALLY_PAGE_PX,
       }}
     >
-      <Box sx={{
-        maxWidth: 1080, mx: 'auto', width: '100%', height: GROUP_BAR_H,
+      <Box
+        component={motion.div}
+        style={{ opacity: backdrop }}
+        sx={{ position: 'absolute', inset: 0, bgcolor: T.bg, borderBottom: `1px solid ${T.border}` }}
+      />
+      {/* The page's own width, so the back arrow and the menu sit exactly over the header's.
+          A flat 1080 overhung a 760px page by 160px each side. */}
+      <Box component={motion.div} style={{ opacity, y }} sx={{
+        position: 'relative',
+        maxWidth: TALLY_PAGE_MAX_W, mx: 'auto', width: '100%', height: GROUP_BAR_H,
         display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 },
       }}>
         <IconButton
@@ -94,7 +104,14 @@ export default function GroupStickyBar({ group, groupId, active, onBack, onMenu 
           {group?.name}
         </Typography>
 
-        <GroupTabs groupId={groupId} active={active} dense />
+        {/* Only once the page's own tabs are out of sight, so the two are never on screen together. */}
+        <Box sx={{
+          opacity: showTabs ? 1 : 0,
+          pointerEvents: showTabs ? 'auto' : 'none',
+          transition: 'opacity .18s ease',
+        }}>
+          <GroupTabs groupId={groupId} active={active} dense />
+        </Box>
 
         <IconButton
           onClick={onMenu}

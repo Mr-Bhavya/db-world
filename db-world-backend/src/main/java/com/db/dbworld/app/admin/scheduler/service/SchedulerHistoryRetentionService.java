@@ -13,7 +13,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Nightly prune of {@code scheduler_job_history}.
@@ -59,23 +61,25 @@ public class SchedulerHistoryRetentionService {
         LocalDateTime now = LocalDateTime.now();
 
         long totalDeleted = 0;
-        int jobsTouched = 0;
+        Map<String, Long> perJob = new LinkedHashMap<>();
 
         for (String jobName : historyRepo.findDistinctJobNames()) {
             int days = isFrequent(jobName) ? frequentDays : standardDays;
             long deleted = pruneJob(jobName, now.minusDays(days));
             if (deleted > 0) {
-                summary.count(jobName, deleted);
+                perJob.put(jobName, deleted);
                 totalDeleted += deleted;
-                jobsTouched++;
                 log.info("Pruned {} history rows for {} (retention {}d)", deleted, jobName, days);
             }
         }
 
-        summary.count("rowsDeleted", totalDeleted)
-               .note(totalDeleted == 0
-                       ? "Nothing to prune — all history is within retention"
-                       : "Deleted " + totalDeleted + " row(s) across " + jobsTouched + " job(s)");
+        // The total goes first: the card shows the first two non-zero counters, which used to be
+        // two job names with the total pushed off the end.
+        summary.count("rowsDeleted", totalDeleted);
+        perJob.forEach(summary::count);
+        summary.note(totalDeleted == 0
+                ? "Nothing to prune — all history is within retention"
+                : "Deleted " + totalDeleted + " row(s) across " + perJob.size() + " job(s)");
     }
 
     /**

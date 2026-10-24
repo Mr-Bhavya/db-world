@@ -134,25 +134,40 @@ public class NseSource implements IpoSource {
         return KEY;
     }
 
+    /**
+     * Throws when NSE could not be read at all: the bootstrap failed, or both feeds did. One feed
+     * failing still returns the other's rows, since the source did answer.
+     */
     @Override
     public List<IpoDto> fetchAll() {
+        Map<String, String> dataHeaders;
         try {
             String homeUrl = baseUrl() + HOME_PATH;
             IpoHttpResponse home = httpClient.get(homeUrl, browserHeaders(null));
             String cookie = buildCookieHeader(home.header(HttpHeaders.SET_COOKIE));
             if (cookie == null || cookie.isBlank()) {
-                log.warn("NSE: bootstrap request returned no session cookie — aborting");
-                return List.of();
+                throw new SourceFetchException("NSE: bootstrap request returned no session cookie");
             }
-
-            Map<String, String> dataHeaders = browserHeaders(homeUrl);
+            dataHeaders = browserHeaders(homeUrl);
             dataHeaders.put(HttpHeaders.COOKIE, cookie);
+        } catch (Exception e) {
+            // Anti-bot block, cookie/session failure, or a hard failure while bootstrapping.
+            log.warn("NSE fetch failed (likely anti-bot block or upstream change): {}", e.toString());
+            throw e instanceof SourceFetchException sfe ? sfe
+                    : new SourceFetchException("NSE bootstrap failed: " + e.getMessage(), e);
+        }
 
-            List<IpoDto> result = new ArrayList<>();
+        // Each feed is null when it failed, as opposed to an empty array from a feed that answered.
+        List<CurrentIssue> openIssues = fetchCurrentIssues(dataHeaders);
+        List<IpoDto> upcoming = fetchUpcoming(dataHeaders);
+        if (openIssues == null && upcoming == null) {
+            throw new SourceFetchException("NSE: both the current-issue and upcoming feeds failed");
+        }
 
-            // Open issues first (richest data), each optionally enriched from its detail page, so
-            // that if the same match key ever collided with an upcoming row the open one wins.
-            List<CurrentIssue> openIssues = fetchCurrentIssues(dataHeaders);
+        List<IpoDto> result = new ArrayList<>();
+        // Open issues first (richest data), each optionally enriched from its detail page, so
+        // that if the same match key ever collided with an upcoming row the open one wins.
+        if (openIssues != null) {
             int detailBudget = MAX_DETAIL_FETCHES;
             for (CurrentIssue open : openIssues) {
                 IpoDto dto = open.dto();
@@ -162,18 +177,17 @@ public class NseSource implements IpoSource {
                 }
                 result.add(dto);
             }
-
-            result.addAll(fetchUpcoming(dataHeaders));
-            return result;
-        } catch (Exception e) {
-            // Anti-bot block, cookie/session failure, or a hard failure while bootstrapping — all
-            // non-fatal by design. Never propagate; the scheduler just sees an empty result.
-            log.warn("NSE fetch failed (likely anti-bot block or upstream change): {}", e.toString());
-            return List.of();
         }
+        if (upcoming != null) {
+            result.addAll(upcoming);
+        }
+        return result;
     }
 
-    /** Currently-open issues (bare JSON array), each paired with its raw symbol/series for detail enrichment. */
+    /**
+     * Currently-open issues (bare JSON array), each paired with its raw symbol/series for detail
+     * enrichment. Null when the feed failed.
+     */
     private List<CurrentIssue> fetchCurrentIssues(Map<String, String> headers) {
         try {
             String currentUrl = baseUrl() + CURRENT_PATH;
@@ -181,7 +195,7 @@ public class NseSource implements IpoSource {
             JsonNode array = resolveArray(MAPPER.readTree(data.body()));
             if (array == null) {
                 log.warn("NSE: unexpected response shape at {}", currentUrl);
-                return List.of();
+                return null;
             }
             List<CurrentIssue> result = new ArrayList<>();
             for (JsonNode n : array) {
@@ -190,11 +204,11 @@ public class NseSource implements IpoSource {
             return result;
         } catch (Exception e) {
             log.warn("NSE: current-issue fetch failed: {}", e.toString());
-            return List.of();
+            return null;
         }
     }
 
-    /** Upcoming (not-yet-open) issues. Any failure yields {@code []} — never propagated. */
+    /** Upcoming (not-yet-open) issues. Null when the feed failed; never throws. */
     private List<IpoDto> fetchUpcoming(Map<String, String> headers) {
         try {
             String upcomingUrl = baseUrl() + UPCOMING_PATH;
@@ -202,7 +216,7 @@ public class NseSource implements IpoSource {
             JsonNode array = resolveArray(MAPPER.readTree(data.body()));
             if (array == null) {
                 log.warn("NSE: unexpected response shape at {}", upcomingUrl);
-                return List.of();
+                return null;
             }
             List<IpoDto> result = new ArrayList<>();
             for (JsonNode n : array) {
@@ -211,7 +225,7 @@ public class NseSource implements IpoSource {
             return result;
         } catch (Exception e) {
             log.warn("NSE: upcoming fetch failed: {}", e.toString());
-            return List.of();
+            return null;
         }
     }
 

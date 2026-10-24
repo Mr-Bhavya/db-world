@@ -9,6 +9,7 @@ import lombok.extern.log4j.Log4j2;
 
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -38,21 +39,30 @@ public class PersonSyncScheduler {
         // Live progress for the admin page: this run walks every unsynced person at TMDB's
         // rate limit, so it can take minutes and needs to look like it is getting somewhere.
         AtomicLong liveSynced = new AtomicLong();
+        AtomicLong liveGone   = new AtomicLong();
         AtomicLong liveFailed = new AtomicLong();
-        summary.progress(() -> Map.of(
-                "pending", unsynced,
-                "synced",  liveSynced.get(),
-                "failed",  liveFailed.get()));
+        // Same keys and order as the final counters below. Map.of iterates in an unspecified
+        // order, and the card shows only the first few non-zero values.
+        summary.progress(() -> {
+            Map<String, Long> live = new LinkedHashMap<>();
+            live.put("pending",      unsynced);
+            live.put("synced",       liveSynced.get());
+            live.put("goneFromTmdb", liveGone.get());
+            live.put("failed",       liveFailed.get());
+            return live;
+        });
 
-        PersonSyncReport report = personSyncService.syncUnsyncedPersons((s, f) -> {
+        PersonSyncReport report = personSyncService.syncUnsyncedPersons((s, g, f) -> {
             liveSynced.set(s);
+            liveGone.set(g);
             liveFailed.set(f);
         });
         log.info("PersonSync scheduled run completed; took={}ms", System.currentTimeMillis() - start);
 
-        summary.count("pending", report.pending())
-               .count("synced",  report.synced())
-               .count("failed",  report.failed());
+        summary.count("pending",      report.pending())
+               .count("synced",       report.synced())
+               .count("goneFromTmdb", report.gone())
+               .count("failed",       report.failed());
         if (report.interrupted()) {
             summary.note("Stopped early — the run thread was interrupted; the rest is picked up next run");
         }

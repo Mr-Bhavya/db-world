@@ -73,6 +73,32 @@ class IpoSourcePollServiceTest {
         assertThat(saved.getConsecutiveFailures()).isZero();
     }
 
+    /**
+     * A source skipped for missing credentials must not stamp lastSuccessAt (that drives the IPO
+     * list's "last updated") and must not add to the failure streak either.
+     */
+    @Test
+    void recordSkipped_setsStatusAndPollTimeOnly() {
+        IpoSourcePollEntity existing = IpoSourcePollEntity.builder()
+                .source("ipoguru")
+                .lastPolledAt(EARLIER)
+                .lastSuccessAt(EARLIER)
+                .lastStatus("OK")
+                .consecutiveFailures(2)
+                .build();
+        when(repository.findById("ipoguru")).thenReturn(Optional.of(existing));
+
+        service.recordSkipped("ipoguru", NOW, "NOT_CONFIGURED");
+
+        ArgumentCaptor<IpoSourcePollEntity> captor = ArgumentCaptor.forClass(IpoSourcePollEntity.class);
+        verify(repository).save(captor.capture());
+        IpoSourcePollEntity saved = captor.getValue();
+        assertThat(saved.getLastPolledAt()).isEqualTo(NOW);
+        assertThat(saved.getLastStatus()).isEqualTo("NOT_CONFIGURED");
+        assertThat(saved.getLastSuccessAt()).isEqualTo(EARLIER);
+        assertThat(saved.getConsecutiveFailures()).isEqualTo(2);
+    }
+
     @Test
     void recordFailure_noExistingRow_createsRowWithStatusAndOneFailure() {
         when(repository.findById("chittorgarh")).thenReturn(Optional.empty());

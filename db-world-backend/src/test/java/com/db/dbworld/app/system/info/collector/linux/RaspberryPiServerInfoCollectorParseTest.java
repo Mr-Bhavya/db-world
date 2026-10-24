@@ -538,6 +538,37 @@ class RaspberryPiServerInfoCollectorParseTest {
         }
 
         @Test
+        void ubuntusFirmwarePartitionConfigIsReadWhenThereIsNoBootConfigTxt() throws IOException {
+            // Regression: Ubuntu on the Pi keeps it at /boot/firmware/config.txt, so on the real
+            // server every config.txt-derived field was silently missing.
+            writeFile("/boot/firmware/config.txt", OVERCLOCKED_CONFIG);
+
+            assertThat(collector.getOverclockInfo().getArmFrequency()).isEqualTo(2800);
+            assertThat(collector.getCameraInfo().getCameraEnabled()).isTrue();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> overclock = (Map<String, Object>)
+                    ((Map<String, Object>) collector.getOsSpecificInfo()).get("overclockSettings");
+            assertThat(overclock).containsEntry("over_voltage", "6");
+        }
+
+        @Test
+        void firmwareConfigTxtIsAlsoTheArmFreqFallback() throws IOException {
+            writeModel("Raspberry Pi 5 Model B Rev 1.0");
+            writeFile("/proc/cpuinfo", PI5_CPUINFO);
+            writeFile("/boot/firmware/config.txt", "arm_freq=2600\n");
+
+            assertThat(collector.getCpuInfo().getCurrentFrequency()).isEqualTo(2_600_000_000L);
+        }
+
+        @Test
+        void bootConfigTxtWinsWhenBothExist() throws IOException {
+            writeFile("/boot/config.txt", "arm_freq=2800\n");
+            writeFile("/boot/firmware/config.txt", "arm_freq=2400\n");
+
+            assertThat(collector.getOverclockInfo().getArmFrequency()).isEqualTo(2800);
+        }
+
+        @Test
         void anAbsentCameraIsReportedAsUndetected() throws IOException {
             writeFile("/boot/config.txt", "start_x=0\n");
             cannedCommands.put(VCGENCMD + " get_camera", "supported=0 detected=0");

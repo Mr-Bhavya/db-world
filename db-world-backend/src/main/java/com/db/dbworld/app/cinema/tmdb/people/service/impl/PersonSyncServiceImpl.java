@@ -3,6 +3,7 @@ package com.db.dbworld.app.cinema.tmdb.people.service.impl;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.tmdb.client.TmdbClient;
 import com.db.dbworld.app.cinema.tmdb.client.dto.PersonTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.people.entity.PersonEntity;
 import com.db.dbworld.app.cinema.tmdb.people.repository.PersonRepository;
 import com.db.dbworld.app.cinema.tmdb.people.service.PersonSyncService;
@@ -10,9 +11,9 @@ import com.db.dbworld.app.cinema.tmdb.people.service.PersonSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,60 +25,83 @@ public class PersonSyncServiceImpl implements PersonSyncService {
 
     private static final int BATCH_SIZE = 50;
 
-    private final PersonRepository personRepository;
-    private final TmdbClient       tmdbClient;
+    private final PersonRepository     personRepository;
+    private final TmdbClient           tmdbClient;
+    private final TmdbIngestionService tmdbIngestionService;
+
+    private enum Outcome { SYNCED, GONE }
 
     @Override
     public PersonSyncReport syncUnsyncedPersons(ProgressListener onProgress) {
 
         long total   = personRepository.countByPersonSyncedFalse();
         long synced  = 0;
+        long gone    = 0;
         long failed  = 0;
-        int  pageNum = 0;
+        long afterId = 0;
+        int  batchNo = 0;
 
         log.info("PersonSync starting — {} persons need full detail fetch", total);
 
         while (true) {
-            Page<PersonEntity> batch = personRepository.findByPersonSyncedFalse(
-                    PageRequest.of(pageNum, BATCH_SIZE));
+            // Keyset, not "page 0 again": a person whose fetch fails stays unsynced, so once a
+            // full page of failures piled up at the front, re-reading page 0 handed the same
+            // rows back forever. Walking past the last id tries each person once per run.
+            List<PersonEntity> persons = personRepository
+                    .findByPersonSyncedFalseAndIdGreaterThanOrderByIdAsc(afterId, Limit.of(BATCH_SIZE));
 
-            if (batch.isEmpty()) break;
+            if (persons.isEmpty()) break;
 
-            List<PersonEntity> persons = batch.getContent();
-            log.info("PersonSync batch {} — {} persons", pageNum, persons.size());
+            log.info("PersonSync batch {} — {} persons", batchNo++, persons.size());
 
             for (PersonEntity person : persons) {
+                afterId = person.getId();
                 try {
-                    PersonTmdbResponse resp = tmdbClient.getPerson(person.getId()).block();
-                    if (resp != null) {
-                        applyDetails(person, resp);
-                        person.setPersonSynced(true);
-                        personRepository.save(person);
-                        synced++;
+                    switch (syncOne(person)) {
+                        case SYNCED -> synced++;
+                        case GONE   -> gone++;
                     }
                 } catch (Exception e) {
                     log.warn("PersonSync failed for id={}: {}", person.getId(), e.getMessage());
                     failed++;
                 }
+                onProgress.onProgress(synced, gone, failed);
 
                 // Rate-limit: stay within TMDB's ~50 requests/sec free-tier guideline
                 try { Thread.sleep(TmdbSync.DELAY_MS); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    log.warn("PersonSync interrupted after synced={}, failed={}", synced, failed);
-                    return new PersonSyncReport(total, synced, failed, true);
+                    log.warn("PersonSync interrupted after synced={}, gone={}, failed={}", synced, gone, failed);
+                    return new PersonSyncReport(total, synced, gone, failed, true);
                 }
             }
 
-            onProgress.onProgress(synced, failed);
-
-            if (batch.isLast()) break;
-
-            // Always re-query page 0 because we mark rows synced; the page shifts
-            // Stay at page 0 to consume remaining un-synced rows
+            if (persons.size() < BATCH_SIZE) break;
         }
 
-        log.info("PersonSync complete — synced={}, failed={}", synced, failed);
-        return new PersonSyncReport(total, synced, failed, false);
+        log.info("PersonSync complete — synced={}, gone={}, failed={}", synced, gone, failed);
+        return new PersonSyncReport(total, synced, gone, failed, false);
+    }
+
+    private Outcome syncOne(PersonEntity person) {
+        PersonTmdbResponse resp;
+        try {
+            resp = tmdbClient.getPerson(person.getId()).block();
+        } catch (WebClientResponseException.NotFound e) {
+            // TMDB deletes duplicate and spam profiles while our credits still hold the old id.
+            // That is final, so drop the person (and their credits) instead of asking every run.
+            log.info("PersonSync: id={} ({}) no longer exists on TMDB; deleting it",
+                    person.getId(), person.getName());
+            tmdbIngestionService.deletePerson(person.getId());
+            return Outcome.GONE;
+        }
+        // An empty 200 is a failed fetch: left unsynced for the next run, and counted, so the
+        // run's numbers add up to the persons it reached.
+        if (resp == null) throw new IllegalStateException("TMDB returned an empty body");
+
+        applyDetails(person, resp);
+        person.setPersonSynced(true);
+        personRepository.save(person);
+        return Outcome.SYNCED;
     }
 
     @Override

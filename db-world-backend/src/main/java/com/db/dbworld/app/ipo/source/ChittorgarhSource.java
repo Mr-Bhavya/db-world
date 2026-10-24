@@ -216,8 +216,9 @@ public class ChittorgarhSource implements IpoSource {
         try {
             rows = fetchList();
         } catch (Exception e) {
+            // No list means the source did not answer; the poll records and counts it.
             log.warn("Chittorgarh list fetch failed: {}", e.toString());
-            return List.of();
+            throw new SourceFetchException("Chittorgarh list fetch failed: " + e.getMessage(), e);
         }
 
         // Which rows get the (limited) detail fetches is a real decision, not first-come-first-served:
@@ -360,8 +361,8 @@ public class ChittorgarhSource implements IpoSource {
     private List<RowWithDetailUrl> parseRows(JsonNode root) {
         JsonNode array = root.path(F_REPORT_DATA);
         if (!array.isArray()) {
-            log.warn("Chittorgarh: response has no '{}' array", F_REPORT_DATA);
-            return List.of();
+            // A changed or blocked response, not an empty year: treat it as the fetch failing.
+            throw new SourceFetchException("Chittorgarh: response has no '" + F_REPORT_DATA + "' array");
         }
 
         List<RowWithDetailUrl> rows = new ArrayList<>();

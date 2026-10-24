@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Box, Typography, Skeleton } from '@mui/material';
-import { tmdbImg } from '../../api/cinemaApi';
+import { tmdbImg, tmdbSrcSet } from '../../api/cinemaApi';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
 import useCardInteraction from './parts/useCardInteraction';
 import { useViewportWidth, fluidDesktopHeight } from '../../hooks/useFluidCardSize';
@@ -70,7 +70,11 @@ const RecordCard = ({
   const { useTextBackdrop, imgPath } = resolveCardImage({
     record, cfg, imageVariant, landscape: isExpanded || isLandscape,
   });
-  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
+  const landscapeSlot = isExpanded || isLandscape || isTopTen;
+  // `src` stays as the single-bucket fallback for anything that ignores srcset.
+  const imgSrc = imgError ? null : tmdbImg(imgPath, landscapeSlot ? 'w780' : 'w342');
+  const imgSrcSet = imgError ? undefined
+    : tmdbSrcSet(imgPath, { min: 154, max: landscapeSlot ? 1280 : 780 });
 
   // Still shown behind the hover popup's trailer. A LANDSCAPE card already shows a
   // backdrop, so the popup must reuse that exact same image — otherwise the artwork
@@ -130,6 +134,25 @@ const RecordCard = ({
                 md: Math.round(deskH * dr),
               };
             })();
+
+  /**
+   * `sizes`, derived from the very numbers that set the card's width.
+   *
+   * Without it a srcset is guesswork: the browser assumes the image spans the viewport
+   * and picks the largest candidate every time. These slots are rail cards a few
+   * hundred pixels wide, so it has to be told. Widths here are either plain px or the
+   * one `calc(<n>px * <ratio>)` shape the prime branch above emits.
+   */
+  const slotPx = (v) => {
+    if (typeof v === 'number') return Math.round(v);
+    const m = /calc\(([\d.]+)px \* ([\d.]+)\)/.exec(String(v));
+    return m ? Math.round(Number(m[1]) * Number(m[2])) : null;
+  };
+  const imgSizes = [
+    slotPx(cardWidth.md) && `(min-width:900px) ${slotPx(cardWidth.md)}px`,
+    slotPx(cardWidth.sm) && `(min-width:600px) ${slotPx(cardWidth.sm)}px`,
+    slotPx(cardWidth.xs) && `${slotPx(cardWidth.xs)}px`,
+  ].filter(Boolean).join(', ') || undefined;
 
   const aspectRatio = effectiveAspect.replace('/', ' / ');
 
@@ -250,6 +273,9 @@ const RecordCard = ({
           <Box
             component="img"
             src={imgSrc}
+            srcSet={imgSrcSet}
+            sizes={imgSizes}
+            decoding="async"
             alt={record.title}
             onLoad={() => setImgLoaded(true)}
             onError={() => { setImgError(true); setImgLoaded(true); }}

@@ -5,6 +5,7 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,7 @@ public class SymlinkService {
 
     private final AppProperties runtimeProperties;
     private final MediaFileRepository      mediaFileRepository;
+    private final MediaDiskGuard           mediaDiskGuard;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // CREATE
@@ -61,6 +63,9 @@ public class SymlinkService {
         if (fileId == null || filePath == null) {
             throw new DbWorldException("Invalid arguments for symlink creation");
         }
+        // Outside the try so the reason is not wrapped: createDirectories below would otherwise
+        // build the symlinks folder on the SD card under the empty mount point.
+        mediaDiskGuard.requireMounted("Creating the media symlink");
         try {
             Path symlinkRoot = runtimeProperties.getSymlinkPath();
             Path realFile    = Path.of(filePath).toAbsolutePath().normalize();
@@ -167,6 +172,8 @@ public class SymlinkService {
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public ResponsePayloads.SymlinkRepairSingleResult ensureOne(String fileId, boolean dryRun) {
+        // Even a dry run: with the disk missing every link reads broken, so its answer is noise.
+        mediaDiskGuard.requireMounted("Symlink repair");
         try {
             Path symlink = runtimeProperties.getSymlinkPath().resolve(fileId);
             MediaFileEntity entity = mediaFileRepository.findById(fileId).orElse(null);
@@ -204,6 +211,8 @@ public class SymlinkService {
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public ResponsePayloads.SymlinkRepairResult ensureAll(boolean dryRun) {
+        // Refused whole rather than letting every entity fail one by one in create().
+        mediaDiskGuard.requireMounted("Symlink repair");
         int repaired = 0;
         int skipped  = 0;
         AtomicInteger deleted = new AtomicInteger();

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Chip, LinearProgress, Skeleton } from '@mui/material';
 import {
   People, Movie, VideoLibrary, Sync, Inbox, Computer, Storage, Label, LiveTv,
-  Tv, Movie as MovieIcon, WbSunny, NightsStay, Dashboard as DashboardIcon,
+  Tv, Movie as MovieIcon, WbSunny, NightsStay, Dashboard as DashboardIcon, OpenInNewRounded,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -57,6 +57,9 @@ const NavTile = ({ module, pending, onClick, T }) => {
         <Icon sx={{ fontSize: 20 }} />
       </Box>
       <Typography sx={{ fontSize: '0.72rem', color: T.text, fontWeight: 600, lineHeight: 1.2 }}>{module.label}</Typography>
+      {module.external && (
+        <OpenInNewRounded aria-label="opens in a new tab" sx={{ position: 'absolute', top: 7, right: 7, fontSize: 12, color: T.textFaint }} />
+      )}
       {dynamicBadge && (
         <Chip label={dynamicBadge} size="small"
           sx={{ position: 'absolute', top: 6, right: 6, height: 16, fontSize: '0.52rem', fontWeight: 800,
@@ -163,7 +166,11 @@ const AdminDashboard = () => {
         <SectionCard title="Quick Navigation" icon={DashboardIcon} sx={{ mb: 3 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)', md: 'repeat(6, 1fr)' }, gap: { xs: 1, sm: 1.5 } }}>
             {modules.map((m) => (
-              <NavTile key={m.id} module={m} pending={pending.total} onClick={() => nav(m.path)} T={T} />
+              <NavTile
+                key={m.id} module={m} pending={pending.total} T={T}
+                // A tool outside the app opens in a new tab, like its sidebar link.
+                onClick={() => (m.external ? window.open(m.href, '_blank', 'noopener,noreferrer') : nav(m.path))}
+              />
             ))}
           </Box>
         </SectionCard>

@@ -7,6 +7,7 @@ import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.pipeline.DefaultIngestionPipeline;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
+import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.spi.DownloadStrategy;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
@@ -15,6 +16,7 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.push.PushService;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,7 +60,9 @@ public class IngestionConfig {
             CatalogService           catalogService,
             SmartTrackFilterService  smartTrackFilterService,
             TrackReviewCoordinator   trackReviewCoordinator,
-            SettingsService          settingsService
+            SettingsService          settingsService,
+            FileStorageService       fileStorageService,
+            MediaDiskGuard           mediaDiskGuard
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -77,7 +81,9 @@ public class IngestionConfig {
                 catalogService,
                 smartTrackFilterService,
                 trackReviewCoordinator,
-                settingsService
+                settingsService,
+                fileStorageService,
+                mediaDiskGuard
         );
     }
 }

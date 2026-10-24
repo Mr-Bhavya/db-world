@@ -7,6 +7,7 @@ import com.db.dbworld.app.tally.dto.AddMemberRequest;
 import com.db.dbworld.app.tally.dto.CreateDirectRequest;
 import com.db.dbworld.app.tally.dto.CreateGroupRequest;
 import com.db.dbworld.app.tally.dto.TallyGroupDetailDto;
+import com.db.dbworld.app.tally.dto.TallyGroupSummaryDto;
 import com.db.dbworld.app.tally.dto.TallyMemberDto;
 import com.db.dbworld.app.tally.dto.UpdateGroupRequest;
 import com.db.dbworld.app.tally.dto.UpdateMemberRequest;
@@ -436,6 +437,19 @@ class TallyRosterTest {
     }
 
     @Test
+    @DisplayName("each side of a direct ledger sees it named after the other person")
+    void directLedgerIsNamedAfterTheOtherSideForEachViewer() {
+        var ledger = groupService.createDirect(appaUser, new CreateDirectRequest(ammaUser, null));
+
+        assertThat(groupService.get(appaUser, ledger.id()).name()).isEqualTo("Amma Dudhia");
+        assertThat(groupService.get(ammaUser, ledger.id()).name()).isEqualTo("Appa Dudhia");
+        assertThat(groupService.listMine(ammaUser))
+                .filteredOn(g -> g.id().equals(ledger.id()))
+                .extracting(TallyGroupSummaryDto::name)
+                .containsExactly("Appa Dudhia");
+    }
+
+    @Test
     @DisplayName("asking twice returns the same ledger rather than a second one")
     void directLedgersAreNeverDuplicated() {
         // Two running totals with one person is the money-in-two-places failure this module is
@@ -479,6 +493,13 @@ class TallyRosterTest {
         var after = groupService.get(appaUser, ledger.id());
         assertThat(after.kind()).isEqualTo(TallyGroupKind.GROUP);
         assertThat(after.members()).hasSize(3);
+        assertThat(after.name())
+                .as("no longer one person's view of the other")
+                .contains("Appa Dudhia", "Amma Dudhia", "Flatmate")
+                // Join order, so the newcomer is always last. Appa and Amma were added in one
+                // transaction and can share a timestamp, so their order is not pinned here.
+                .endsWith(" & Flatmate");
+        assertThat(groupService.get(ammaUser, ledger.id()).name()).isEqualTo(after.name());
         assertThat(expenseService.list(appaUser, ledger.id(), null, null, null).items())
                 .as("nothing recorded before the promotion is lost")
                 .hasSize(1);

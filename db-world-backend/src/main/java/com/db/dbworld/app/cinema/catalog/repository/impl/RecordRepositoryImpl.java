@@ -147,7 +147,25 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 s.error_message AS syncError,
                 (SELECT COUNT(*) FROM media_files mf WHERE mf.record_id = r.id) AS mediaFileCount,
                 (SELECT CAST(COALESCE(SUM(mf.file_size), 0) AS UNSIGNED)
-                   FROM media_files mf WHERE mf.record_id = r.id) AS mediaTotalSize
+                   FROM media_files mf WHERE mf.record_id = r.id) AS mediaTotalSize,
+                s.tmdb_not_found AS tmdbNotFound
+            """;
+
+    /**
+     * Joins EXACTLY ONE sync row per record (the latest), matched by the sync table's logical
+     * key (tmdb_id + record_type). Joining on s.record_id was wrong (it's self-healed onto both
+     * movie+TV sync rows that share a tmdb id); even matching on (tmdb_id, record_type) can
+     * multiply if duplicate sync rows exist (no DB unique constraint). Picking the single latest
+     * row by PK makes the result one row per record. Shared by the table and every count so a
+     * stat card's number equals the rows its filter returns.
+     */
+    private static final String LATEST_SYNC_JOIN = """
+            LEFT JOIN tmdb_record_sync s ON s.id = (
+                SELECT s2.id FROM tmdb_record_sync s2
+                WHERE s2.tmdb_id = r.tmdb_id AND s2.record_type = r.type
+                ORDER BY s2.last_checked_at DESC, s2.id DESC
+                LIMIT 1
+            )
             """;
 
     private static final Map<String, String> ADMIN_SORT = Map.of(
@@ -165,25 +183,14 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
     @Override
     public Page<RecordAdminRowDto> findAdminTable(
             Long recordId, String name, String type, Long tmdbId, Integer year, String status,
-            String visibility, Pageable pageable) {
+            String visibility, boolean tmdbNotFound, Pageable pageable) {
 
         boolean hasName = name != null && !name.isBlank();
 
-        // Join EXACTLY ONE sync row per record (the latest), matched by the sync
-        // table's logical key (tmdb_id + record_type). Joining on s.record_id was
-        // wrong (it's self-healed onto both movie+TV sync rows that share a tmdb id);
-        // even matching on (tmdb_id, record_type) can multiply if duplicate sync rows
-        // exist (no DB unique constraint). Picking the single latest row by PK makes
-        // the result one row per record — no duplicate recordId, no GROUP BY needed.
         StringBuilder where = new StringBuilder("""
                 FROM records r
                 LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-                LEFT JOIN tmdb_record_sync s ON s.id = (
-                    SELECT s2.id FROM tmdb_record_sync s2
-                    WHERE s2.tmdb_id = r.tmdb_id AND s2.record_type = r.type
-                    ORDER BY s2.last_checked_at DESC, s2.id DESC
-                    LIMIT 1
-                )
+                """ + LATEST_SYNC_JOIN + """
                 WHERE 1 = 1
                 """);
         if (recordId != null) where.append(" AND r.id = :recordId");
@@ -191,6 +198,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
         if (type != null)       where.append(" AND r.type = :type");
         if (tmdbId != null)     where.append(" AND tm.id = :tmdbId");
         if (status != null)     where.append(" AND s.status = :status");
+        if (tmdbNotFound)       where.append(" AND s.tmdb_not_found = TRUE");
         if (visibility != null) where.append(" AND r.visibility = :visibility");
         if (year != null)     where.append(" AND YEAR(COALESCE(NULLIF(TRIM(tm.release_date), ''), NULLIF(TRIM(tm.first_air_date), ''))) = :year");
 
@@ -222,12 +230,7 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
         String sql = """
                 SELECT s.status AS status, COUNT(*) AS cnt
                 FROM records r
-                LEFT JOIN tmdb_record_sync s ON s.id = (
-                    SELECT s2.id FROM tmdb_record_sync s2
-                    WHERE s2.tmdb_id = r.tmdb_id AND s2.record_type = r.type
-                    ORDER BY s2.last_checked_at DESC, s2.id DESC
-                    LIMIT 1
-                )
+                """ + LATEST_SYNC_JOIN + """
                 GROUP BY s.status
                 """;
         @SuppressWarnings("unchecked")
@@ -238,6 +241,17 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
             counts.put((String) row[0], ((Number) row[1]).longValue());
         }
         return counts;
+    }
+
+    @Override
+    public long countLatestTmdbNotFound() {
+        String sql = """
+                SELECT COUNT(*)
+                FROM records r
+                """ + LATEST_SYNC_JOIN + """
+                WHERE s.tmdb_not_found = TRUE
+                """;
+        return ((Number) em.createNativeQuery(sql).getSingleResult()).longValue();
     }
 
     private static String buildAdminOrderBy(Pageable pageable) {
@@ -281,12 +295,20 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 toInstant(r[11]),
                 (String) r[12],
                 toLong(r[13]),
-                toLong(r[14])
+                toLong(r[14]),
+                toBoolean(r[15])
         );
     }
 
     private static Long toLong(Object o)      { return o == null ? null : ((Number) o).longValue(); }
     private static Integer toInteger(Object o) { return o == null ? null : ((Number) o).intValue(); }
+
+    /** MySQL hands BIT(1) back as Boolean, H2 as Boolean; a driver mapping it to a number is covered too. */
+    private static Boolean toBoolean(Object o) {
+        if (o == null) return null;
+        if (o instanceof Boolean b) return b;
+        return ((Number) o).intValue() != 0;
+    }
 
     private static Instant toInstant(Object o) {
         if (o == null) return null;

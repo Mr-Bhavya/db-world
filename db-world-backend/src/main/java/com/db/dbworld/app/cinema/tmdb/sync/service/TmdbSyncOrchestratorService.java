@@ -79,6 +79,7 @@ public class TmdbSyncOrchestratorService {
         AtomicInteger warnCount = new AtomicInteger();
 
         List<Long> changedIds = fetchTmdbChangedIds(window.startDate(), window.endDate(), type);
+        metrics.getTmdbChanges().set(changedIds.size());
 
         if (changedIds.isEmpty()) {
             log.info("No {} changes found", type);

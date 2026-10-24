@@ -1,6 +1,7 @@
 package com.db.dbworld.app.filemanager.upload;
 
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,19 @@ class UploadSweeperTest {
         props = mock(AppProperties.class);
         tempPath = Files.createTempDirectory("fm-sweep");
         when(props.getTempPath()).thenReturn(tempPath);
-        sweeper = new UploadSweeper(repo, props);
+        sweeper = new UploadSweeper(repo, props, MediaDiskGuards.off());
+    }
+
+    /** Without the disk the part files are out of sight; dropping the rows would orphan them. */
+    @Test
+    void sweepStale_diskMissing_touchesNothing() throws Exception {
+        Path missingMarker = tempPath.resolve("not-mounted").resolve(".dbworld-media-disk");
+        sweeper = new UploadSweeper(repo, props, MediaDiskGuards.withMarker(missingMarker, tempPath));
+
+        sweeper.sweepStale();
+
+        verify(repo, never()).findByStatusAndUpdatedAtBefore(any(), any());
+        verify(repo, never()).delete(any());
     }
 
     @Test

@@ -4,12 +4,15 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.utils.PathSanitizer;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Default file storage implementation.
@@ -23,6 +26,7 @@ public class DefaultFileStorageService implements FileStorageService {
 
     private final AppProperties runtimeProperties;
     private final RecordRepository         recordRepository;
+    private final MediaDiskGuard           mediaDiskGuard;
 
     @Override
     public Path resolveTempDir(IngestionContext ctx) {
@@ -75,6 +79,10 @@ public class DefaultFileStorageService implements FileStorageService {
 
     @Override
     public void prepareDirectories(IngestionContext ctx) {
+        // Both download strategies call this the moment the transfer begins, after any wait for
+        // the download slot, so it is the last point before aria2 / yt-dlp write into temp. Outside
+        // the try so the job's failure reason is this message, not "failed to prepare directories".
+        mediaDiskGuard.requireMounted("Download");
         try {
             java.nio.file.Files.createDirectories(resolveTempDir(ctx));
             java.nio.file.Files.createDirectories(resolveFinalDir(ctx));
@@ -96,6 +104,31 @@ public class DefaultFileStorageService implements FileStorageService {
         } catch (Exception e) {
             throw new RuntimeException("Move to final failed for job: " + ctx.getJobId(), e);
         }
+    }
+
+    @Override
+    public void removeEmptyTempDirs(IngestionContext ctx) {
+        Path tempRoot = runtimeProperties.getTempPath();
+        if (tempRoot == null) return;
+        // Nothing to tidy with the disk missing: the real folders are on the disk, out of sight.
+        if (!mediaDiskGuard.isMounted()) {
+            log.debug("[{}] Media disk not mounted; leaving temp folders alone", ctx.getJobId());
+            return;
+        }
+
+        // Where the artifacts lived, plus the job's own folder. The folder alone is not enough:
+        // linking a record mid-flight changes the folder name, so the download may sit elsewhere.
+        Set<Path> dirs = new LinkedHashSet<>();
+        for (Path artifact : ctx.getTempArtifacts()) {
+            if (artifact != null && artifact.getParent() != null) dirs.add(artifact.getParent());
+        }
+        try {
+            dirs.add(resolveTempDir(ctx));
+        } catch (Exception e) {
+            // The folder name can need a record lookup; the artifact parents are still worth pruning.
+            log.debug("[{}] Could not resolve the temp folder for cleanup: {}", ctx.getJobId(), e.toString());
+        }
+        dirs.forEach(dir -> TempDirPruner.pruneEmptyDirs(tempRoot, dir));
     }
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

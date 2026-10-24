@@ -7,6 +7,7 @@ import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +47,7 @@ class MediaInfoServiceImplParseTest {
     void setUp() {
         service = new MediaInfoServiceImpl(
                 processExecutor, mediaFileRepository, recordRepository, eventPublisher,
-                new ObjectMapper(), properties, storyboardService, symlinkService);
+                new ObjectMapper(), properties, storyboardService, symlinkService, MediaDiskGuards.off());
     }
 
     /** Trimmed but realistic `mediainfo --Output=JSON` shape. */

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect, useLayoutEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Box, Typography, IconButton, Skeleton, useMediaQuery, useTheme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
@@ -8,17 +8,45 @@ import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
 import { openRecord } from '../../utils/recordNav';
-import ContinueCard from './ContinueCard';
+import ContinueCard, { MOBILE_SHELL } from './ContinueCard';
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
 
-// Loading placeholder that matches ContinueCard's footprint (16:9 + teal progress
-// bar; mobile has a title line below) so the row doesn't jump when cards arrive.
+/**
+ * How long a removed tile stays recoverable.
+ *
+ * Removing does not hide a tile, it DELETES every scrap of progress the user has for
+ * that record — on a small button that sits a few pixels from "more info". Getting that
+ * wrong costs you your place in a three-hour film with no way back, so the delete is
+ * deferred rather than confirmed: the tile goes at once, the request does not leave for
+ * six seconds, and Undo simply cancels it. Nothing to restore because nothing was lost.
+ */
+const UNDO_MS = 6000;
+
+/**
+ * Whether this browser saw anything to resume last time.
+ *
+ * Without it the rail cannot tell "still loading" from "nothing to resume", so it drew
+ * six skeletons on every single page load and then collapsed to nothing for every user
+ * who had finished everything — a ~200px jump, every time. The flag is a hint, not
+ * state: wrong at worst once, after which it corrects itself.
+ */
+const HAD_ITEMS_KEY = 'db-cw-had-items';
+const readHadItems = () => {
+  try { return window.localStorage.getItem(HAD_ITEMS_KEY) === '1'; } catch { return false; }
+};
+const writeHadItems = (had) => {
+  try { window.localStorage.setItem(HAD_ITEMS_KEY, had ? '1' : '0'); } catch { /* private mode */ }
+};
+
+// Loading placeholder matching ContinueCard's footprint, including the mobile card
+// shell and its two-line body, so the row doesn't jump when the real tiles arrive.
 const ContinueCardSkeleton = ({ isMobile }) => (
-  <Box sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 } }}>
+  <Box sx={{ flexShrink: 0, width: { xs: 230, sm: 260, md: 300 }, ...(isMobile ? MOBILE_SHELL : null) }}>
     <Box sx={{
-      position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 1,
+      position: 'relative', width: '100%', aspectRatio: '16/9',
+      borderRadius: isMobile ? 0 : 1,
       overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)',
     }}>
       <Skeleton variant="rectangular" width="100%" height="100%"
@@ -26,7 +54,15 @@ const ContinueCardSkeleton = ({ isMobile }) => (
       <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: 'rgba(255,255,255,.12)' }} />
     </Box>
     {isMobile && (
-      <Skeleton variant="text" width="60%" height={16} sx={{ mt: 0.6, bgcolor: 'rgba(255,255,255,.06)' }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', px: 1, py: 0.85 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Skeleton variant="text" width="72%" height={17} sx={{ bgcolor: 'rgba(255,255,255,.06)' }} />
+          <Skeleton variant="text" width="46%" height={16} sx={{ bgcolor: 'rgba(255,255,255,.06)' }} />
+        </Box>
+        {/* the two 36px controls the body reserves room for */}
+        <Box sx={{ width: 36, height: 36, flexShrink: 0 }} />
+        <Box sx={{ width: 36, height: 36, flexShrink: 0 }} />
+      </Box>
     )}
   </Box>
 );
@@ -45,29 +81,95 @@ const ContinueRailRow = () => {
 
   const scrollRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
+  // Starts false and is computed before paint. Starting true flashed a right-hand
+  // chevron on rows that do not overflow.
+  const [showRight, setShowRight] = useState(false);
+
+  const hadItemsLastVisit = useRef(readHadItems());
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: getContinueWatching,
     staleTime: 60 * 1000,
+    // Resume positions go stale the moment you watch anything. Returning from the
+    // player inside the stale window left every bar showing where you were BEFORE.
+    refetchOnMount: 'always',
   });
+
+  useEffect(() => {
+    if (!isLoading) writeHadItems(items.length > 0);
+  }, [isLoading, items.length]);
+
+  /** Tiles removed but still inside their undo window. */
+  const [pendingIds, setPendingIds] = useState(() => new Set());
+  const timers = useRef(new Map());
+
+  const visible = useMemo(
+    () => (pendingIds.size ? items.filter((i) => !pendingIds.has(i.recordId)) : items),
+    [items, pendingIds],
+  );
+
+  const dropPending = useCallback((recordId) => {
+    setPendingIds((prev) => {
+      if (!prev.has(recordId)) return prev;
+      const next = new Set(prev);
+      next.delete(recordId);
+      return next;
+    });
+  }, []);
 
   const removeMut = useMutation({
     mutationFn: (recordId) => removeContinueWatching(recordId),
-    // Optimistically drop the tile so the row updates instantly.
-    onMutate: async (recordId) => {
-      await qc.cancelQueries({ queryKey: QUERY_KEY });
-      const prev = qc.getQueryData(QUERY_KEY);
-      qc.setQueryData(QUERY_KEY, (old) => (old ?? []).filter((i) => i.recordId !== recordId));
-      return { prev };
+    onError: () => notify.error('Could not remove that — putting it back.'),
+    // Clear the pending flag only AFTER the refetch lands, or the tile flashes back
+    // between the local drop and the server's answer. On failure the refetch still has
+    // the record, so releasing the flag is exactly what restores it.
+    onSettled: async (_data, _error, recordId) => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEY });
+      dropPending(recordId);
     },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(QUERY_KEY, ctx.prev);
-      notify.error('Could not remove.');
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
+
+  const onRemove = useCallback((item) => {
+    if (timers.current.has(item.recordId)) return;
+    setPendingIds((prev) => new Set(prev).add(item.recordId));
+
+    const timer = setTimeout(() => {
+      timers.current.delete(item.recordId);
+      removeMut.mutate(item.recordId);
+    }, UNDO_MS);
+    timers.current.set(item.recordId, timer);
+
+    notify.message(`Removed ${item.title}`, {
+      duration: UNDO_MS,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const t = timers.current.get(item.recordId);
+          // No timer means the window already closed and the delete is in flight;
+          // un-hiding now would flash the tile back until the refetch removed it again.
+          if (!t) return;
+          clearTimeout(t);
+          timers.current.delete(item.recordId);
+          // The query data was never touched, so the tile returns to its own place.
+          dropPending(item.recordId);
+        },
+      },
+    });
+  }, [removeMut, dropPending]);
+
+  // Leaving the page is a decision too: send anything still waiting rather than
+  // silently keeping progress the user asked to drop.
+  useEffect(() => {
+    const map = timers.current;
+    return () => {
+      map.forEach((timer, recordId) => {
+        clearTimeout(timer);
+        removeContinueWatching(recordId).catch(() => { /* best effort on unmount */ });
+      });
+      map.clear();
+    };
+  }, []);
 
   const onResume = useCallback((item) => {
     // Navigate instantly; the player resolves the CDN URL + rich episode metadata on
@@ -98,13 +200,17 @@ const ContinueRailRow = () => {
     setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
   }, []);
 
-  useEffect(() => {
+  // Before paint, and again whenever the row itself changes size — a window resize
+  // can start or stop the overflow without any scroll event ever firing.
+  useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', updateButtons, { passive: true });
+    if (!el) return undefined;
     updateButtons();
-    return () => el.removeEventListener('scroll', updateButtons);
-  }, [updateButtons, items]);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(updateButtons);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [updateButtons, visible.length]);
 
   const scroll = (dir) => {
     const el = scrollRef.current;
@@ -112,8 +218,18 @@ const ContinueRailRow = () => {
     el.scrollBy({ left: dir * el.clientWidth * SCROLL_AMOUNT, behavior: 'smooth' });
   };
 
-  // Hide entirely when there's nothing in progress.
-  if (!isLoading && items.length === 0) return null;
+  // Skeletons are only honest for someone who had something to resume last time;
+  // for everyone else the rail stays out of the layout until it has news.
+  const showSkeletons = isLoading && items.length === 0 && hadItemsLastVisit.current;
+  if (isLoading && !showSkeletons) return null;
+  if (!isLoading && visible.length === 0) return null;
+
+  const chevronSx = {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    zIndex: 8, bgcolor: 'rgba(20,20,20,.85)', color: '#fff', height: '100%', width: 40,
+    borderRadius: 0, '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
+    '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: -3 },
+  };
 
   return (
     <motion.div
@@ -121,7 +237,7 @@ const ContinueRailRow = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: 'easeOut' }}
     >
-      <Box sx={{ mb: { xs: 2.5, md: 3.5 } }}>
+      <Box component="section" aria-label="Continue Watching" sx={{ mb: { xs: 2.5, md: 3.5 } }}>
         <Box sx={{ px: 'clamp(12px, 4vw, 48px)', mb: 1 }}>
           <Typography variant="h6" sx={{
             color: '#e5e5e5', fontWeight: 700,
@@ -133,22 +249,20 @@ const ContinueRailRow = () => {
 
         <Box sx={{ position: 'relative' }}>
           {showLeft && !isMobile && (
-            <IconButton onClick={() => scroll(-1)} sx={{
-              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-              zIndex: 8, bgcolor: 'rgba(20,20,20,.85)', color: '#fff', height: '100%', width: 40,
-              borderRadius: 0, '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
-            }}><ChevronLeft /></IconButton>
+            <IconButton aria-label="Scroll left" onClick={() => scroll(-1)} sx={{ ...chevronSx, left: 0 }}>
+              <ChevronLeft />
+            </IconButton>
           )}
           {showRight && !isMobile && (
-            <IconButton onClick={() => scroll(1)} sx={{
-              position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
-              zIndex: 8, bgcolor: 'rgba(20,20,20,.85)', color: '#fff', height: '100%', width: 40,
-              borderRadius: 0, '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
-            }}><ChevronRight /></IconButton>
+            <IconButton aria-label="Scroll right" onClick={() => scroll(1)} sx={{ ...chevronSx, right: 0 }}>
+              <ChevronRight />
+            </IconButton>
           )}
 
           <Box
             ref={scrollRef}
+            // One listener. This element also carried an onScroll prop, so every scroll
+            // event ran updateButtons twice.
             onScroll={updateButtons}
             sx={{
               display: 'flex', gap: { xs: 1, md: 1.5 },
@@ -157,16 +271,16 @@ const ContinueRailRow = () => {
               scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
             }}
           >
-            {isLoading && items.length === 0
+            {showSkeletons
               ? Array.from({ length: 6 }).map((_, i) => (
                   <ContinueCardSkeleton key={`sk-${i}`} isMobile={isMobile} />
                 ))
-              : items.map((item) => (
+              : visible.map((item) => (
                   <ContinueCard
                     key={item.recordId}
                     item={item}
                     onResume={onResume}
-                    onRemove={(it) => removeMut.mutate(it.recordId)}
+                    onRemove={onRemove}
                     onInfo={onInfo}
                     isMobile={isMobile}
                   />

@@ -9,8 +9,7 @@ import { useConfirm } from 'material-ui-confirm';
 import { notify } from '@shared/notify';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
-import { useDocuments, useDocumentTypes, useDeleteDocument } from './hooks/useWallet';
-import { fetchContentBlob } from './api/walletApi';
+import { useDocuments, useDocumentTypes, useDeleteDocument, loadDocumentBlob } from './hooks/useWallet';
 import { downloadBlob, openDownloaded, documentFileName } from './utils/download';
 import {
   computeWalletStats, sortDocuments, filterDocsByStatus, DOC_STATUS_FILTERS,
@@ -175,7 +174,7 @@ export default function WalletPage() {
 
   const onDownload = async (doc) => {
     try {
-      const blob = await fetchContentBlob(doc.id, 'attachment');
+      const blob = await loadDocumentBlob(doc.id, 'attachment');
       const saved = await downloadBlob(blob, documentFileName(doc.label, doc.contentType));
       if (saved?.uri) {
         notify.success('Saved to Downloads', {

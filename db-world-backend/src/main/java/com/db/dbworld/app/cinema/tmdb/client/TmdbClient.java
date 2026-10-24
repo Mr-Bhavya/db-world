@@ -231,17 +231,19 @@ public class TmdbClient {
        SEARCH
      ===================================== */
 
-    public Mono<SearchResponseDto> searchMovie(String query, String language, Integer year) {
+    public Mono<SearchResponseDto> searchMovie(String query, String language, Integer year, int page) {
         return get("/search/movie", SearchResponseDto.class, builder -> {
             builder.queryParam("query", query);
+            builder.queryParam("page", page);
             addIfPresent(builder, "language", language);
             addIfPresent(builder, "year", year);
         });
     }
 
-    public Mono<SearchResponseDto> searchTv(String query, String language, Integer year) {
+    public Mono<SearchResponseDto> searchTv(String query, String language, Integer year, int page) {
         return get("/search/tv", SearchResponseDto.class, builder -> {
             builder.queryParam("query", query);
+            builder.queryParam("page", page);
             addIfPresent(builder, "language", language);
             addIfPresent(builder, "first_air_date_year", year);
         });

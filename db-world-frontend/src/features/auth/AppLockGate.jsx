@@ -27,13 +27,13 @@ const LOCK_AFTER_MS = 60_000;
 const MESSAGES = {
   [BIOMETRIC_OUTCOME.CANCELLED]: 'Unlock with your fingerprint, face, or device screen lock to continue.',
   [BIOMETRIC_OUTCOME.FAILED]: 'That did not match. Try again, or use your device screen lock.',
-  [BIOMETRIC_OUTCOME.LOCKED_OUT]: 'Too many attempts. Unlock your device with its passcode, then reopen the app.',
-  [BIOMETRIC_OUTCOME.UNAVAILABLE]: 'Biometric unlock is not available on this device.',
+  [BIOMETRIC_OUTCOME.LOCKED_OUT]: 'Too many attempts. Android blocks unlocking for about thirty seconds.',
   [BIOMETRIC_OUTCOME.ERROR]: 'Could not verify it is you. Try again.',
+  // UNAVAILABLE has no message because it never reaches this screen — see `prompt`.
 };
 
-/** Retrying here cannot succeed until the OS cools off, so do not offer it. */
-const NO_RETRY = new Set([BIOMETRIC_OUTCOME.LOCKED_OUT, BIOMETRIC_OUTCOME.UNAVAILABLE]);
+/** Retrying here cannot succeed until the OS cools off, so do not lead with it. */
+const NO_RETRY = new Set([BIOMETRIC_OUTCOME.LOCKED_OUT]);
 
 export default function AppLockGate() {
   const T = useT();
@@ -63,6 +63,17 @@ export default function AppLockGate() {
       setLocked(false);
     } catch (e) {
       const kind = classifyBiometricError(e);
+      /**
+       * Nothing on this device can answer the prompt, so stop asking.
+       *
+       * This is the same judgement the cold-start path already makes when `canLockApp()` is
+       * false — "device isn't securable, can't enforce a lock" — just arriving by the other
+       * route. It used to land on a screen with a message and, because UNAVAILABLE was also
+       * in NO_RETRY, no buttons whatsoever: no retry, no password, no skip. Force-quitting did
+       * not help either, since the next cold start ran straight back into it. A lock nobody
+       * can open is not a lock, it is a brick.
+       */
+      if (kind === BIOMETRIC_OUTCOME.UNAVAILABLE) { setLocked(false); return; }
       // A dismissal is not a failure and must not be reported as one.
       setOutcome(kind === BIOMETRIC_OUTCOME.FALLBACK ? BIOMETRIC_OUTCOME.CANCELLED : kind);
     }
@@ -149,6 +160,7 @@ export default function AppLockGate() {
       {canRetry && (
       <Button
         onClick={prompt}
+        aria-label={outcome ? 'Try unlocking again' : 'Unlock'}
         variant="contained"
         disableElevation
         sx={{
@@ -167,6 +179,29 @@ export default function AppLockGate() {
       >
         {outcome ? 'Try again' : 'Unlock'}
       </Button>
+      )}
+
+      {/* The way out when the prompt itself is blocked.
+          A locked-out device refuses every attempt for about thirty seconds, and this screen
+          sits over a session that is ALREADY authenticated — it is a privacy cover, not the
+          thing guarding the account. Leaving someone with a countdown and no alternative was
+          the harsher half of the same bug as the missing UNAVAILABLE exit. Kept quiet and
+          secondary so it is the fallback, not the obvious first tap. */}
+      {outcome === BIOMETRIC_OUTCOME.LOCKED_OUT && (
+        <Button
+          onClick={() => setLocked(false)}
+          sx={{
+            minHeight: 44,
+            px: 2,
+            color: T.textMuted,
+            fontSize: 14,
+            fontWeight: 600,
+            textTransform: 'none',
+            '&:hover': { color: T.textPrimary, bgcolor: 'transparent' },
+          }}
+        >
+          Continue without unlocking
+        </Button>
       )}
     </Box>
   );

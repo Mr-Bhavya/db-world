@@ -162,11 +162,13 @@ public class AdminLogsController {
     ) {
         try {
             LocalDate runDate = (date != null && !date.isBlank()) ? LocalDate.parse(date) : null;
-            LogsService.LogResponse response = logsService.findRunLogs(runId, runDate, lines);
+            LogsService.RunLogs response = logsService.findRunLogs(runId, runDate, lines);
 
             return ResponseEntity.ok(ApiResponse.success(Map.of(
-                    "entries", response.getData(),
-                    "count", response.getCount(),
+                    "entries", response.entries(),
+                    "count", response.entries().size(),
+                    "total", response.total(),
+                    "truncated", response.truncated(),
                     "runId", runId,
                     "date", runDate != null ? runDate.toString() : LocalDate.now().toString()
             )));

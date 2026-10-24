@@ -3,6 +3,7 @@ package com.db.dbworld.app.system.info.collector;
 import com.db.dbworld.core.processor.GenericStreamProcessor;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.app.system.info.dto.*;
+import com.db.dbworld.app.system.info.snapshot.HostInfoSnapshot;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
@@ -32,8 +33,21 @@ public abstract class ServerInfoCollector {
     protected final ProcessExecutor processExecutor;
     protected final Runtime runtime = Runtime.getRuntime();
 
+    /**
+     * The host's own readings when this app runs in a container; never read in host mode.
+     * Consulted only by {@link #exec(int, String...)}, {@link #readHostFile}, {@link #hostPathExists}
+     * and {@link #getDiskUsageForPath}, so the collectors themselves don't know which mode they run in.
+     */
+    private final HostInfoSnapshot hostSnapshot;
+
+    /** Host mode: every command runs and every file is read here. */
     protected ServerInfoCollector(ProcessExecutor processExecutor) {
+        this(processExecutor, HostInfoSnapshot.disabled());
+    }
+
+    protected ServerInfoCollector(ProcessExecutor processExecutor, HostInfoSnapshot hostSnapshot) {
         this.processExecutor = processExecutor;
+        this.hostSnapshot = hostSnapshot != null ? hostSnapshot : HostInfoSnapshot.disabled();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -189,6 +203,9 @@ public abstract class ServerInfoCollector {
     }
 
     protected String exec(int timeoutSeconds, String... command) {
+        // In a container a process started here would describe the container, not the host, so
+        // nothing is started at all: the host's own run of the same argv comes from the snapshot.
+        if (hostSnapshot.containerMode()) return execFromSnapshot(command);
         try {
             var processor = new GenericStreamProcessor();
             var output    = new StringBuilder();
@@ -210,6 +227,30 @@ public abstract class ServerInfoCollector {
             return "";
         } catch (Exception e) {
             log.debug("Command error ({}): {}", String.join(" ", command), e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * {@link #exec(int, String...)} in container mode. The argv must match a recorded one exactly,
+     * and the same exit-code rule as a real run applies: 0 or 1 gives the trimmed stdout, anything
+     * else gives "". A command the snapshot does not carry, or no fresh snapshot at all, reads as
+     * "not available", which is the "" a missing executable gives on the host.
+     */
+    private String execFromSnapshot(String[] command) {
+        try {
+            String shown = String.join(" ", command);
+            Optional<HostInfoSnapshot.CommandResult> recorded = hostSnapshot.command(Arrays.asList(command));
+            if (recorded.isEmpty()) {
+                log.debug("Not in the host snapshot: {}", shown);
+                return "";
+            }
+            HostInfoSnapshot.CommandResult result = recorded.get();
+            if (result.exit() == 0 || result.exit() == 1) return result.stdout().trim();
+            log.debug("Host snapshot: {} exited {}", shown, result.exit());
+            return "";
+        } catch (RuntimeException e) {
+            log.debug("Host snapshot lookup failed: {}", e.toString());
             return "";
         }
     }
@@ -333,6 +374,36 @@ public abstract class ServerInfoCollector {
         return "";
     }
 
+    /**
+     * A host file the container cannot see for itself ({@code /etc/os-release}, the device tree,
+     * config.txt), trimmed, or "". In container mode the snapshot's copy wins, and a path the
+     * snapshot says does not exist reads as "". Anything else is read live through
+     * {@link #sysPath}, exactly as {@code readFileSafe(sysPath(path))} does in host mode.
+     *
+     * <p>Not for /proc and /sys files the kernel shares with the container: those must stay live.
+     */
+    protected String readHostFile(String absolutePath) {
+        if (hostSnapshot.containerMode()) {
+            Optional<String> recorded = hostSnapshot.file(absolutePath);
+            if (recorded.isPresent()) return recorded.get().trim();
+            if (hostSnapshot.exists(absolutePath).filter(exists -> !exists).isPresent()) return "";
+        }
+        return readFileSafe(sysPath(absolutePath));
+    }
+
+    /**
+     * Whether a host path exists. In container mode the snapshot's answer wins, and a file it
+     * carries exists by definition; any other path is checked live, as {@code Files.exists(sysPath(path))}.
+     */
+    protected boolean hostPathExists(String absolutePath) {
+        if (hostSnapshot.containerMode()) {
+            Optional<Boolean> recorded = hostSnapshot.exists(absolutePath);
+            if (recorded.isPresent()) return recorded.get();
+            if (hostSnapshot.file(absolutePath).isPresent()) return true;
+        }
+        return Files.exists(sysPath(absolutePath));
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Maths & formatting
     // ──────────────────────────────────────────────────────────────────────────
@@ -349,19 +420,32 @@ public abstract class ServerInfoCollector {
     }
 
     protected DriveInfo getDiskUsageForPath(String path) {
+        // A host mount point the container has no view of (statvfs inside would give the overlay
+        // or nothing): in container mode the host's own statvfs from the snapshot answers it.
+        if (hostSnapshot.containerMode()) {
+            Optional<HostInfoSnapshot.StatVfs> recorded = hostSnapshot.statvfs(path);
+            if (recorded.isPresent()) {
+                HostInfoSnapshot.StatVfs vfs = recorded.get();
+                return driveUsage(path, vfs.totalBytes(), vfs.freeBytes(), vfs.readOnly());
+            }
+        }
         try {
             File f = new File(path);
-            long total = f.getTotalSpace(), free = f.getFreeSpace(), used = total - free;
-            return DriveInfo.builder()
-                    .device(path).mountPoint(path)
-                    .totalBytes(total).freeBytes(free).usedBytes(used)
-                    .totalFormatted(formatBytes(total)).freeFormatted(formatBytes(free)).usedFormatted(formatBytes(used))
-                    .usedPercent(String.format("%.1f", calculatePercentage(used, total)))
-                    .readOnly(!f.canWrite())
-                    .build();
+            return driveUsage(path, f.getTotalSpace(), f.getFreeSpace(), !f.canWrite());
         } catch (Exception e) {
             return DriveInfo.builder().device(path).build();
         }
+    }
+
+    private DriveInfo driveUsage(String path, long total, long free, boolean readOnly) {
+        long used = total - free;
+        return DriveInfo.builder()
+                .device(path).mountPoint(path)
+                .totalBytes(total).freeBytes(free).usedBytes(used)
+                .totalFormatted(formatBytes(total)).freeFormatted(formatBytes(free)).usedFormatted(formatBytes(used))
+                .usedPercent(String.format("%.1f", calculatePercentage(used, total)))
+                .readOnly(readOnly)
+                .build();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -445,8 +529,8 @@ public abstract class ServerInfoCollector {
 
     protected boolean isRaspberryPi() {
         try {
-            Path model = sysPath("/proc/device-tree/model");
-            if (Files.exists(model) && readFileSafe(model).toLowerCase().contains("raspberry pi")) return true;
+            // The device tree is masked in a container, so this is one of the snapshot's files.
+            if (readHostFile("/proc/device-tree/model").toLowerCase().contains("raspberry pi")) return true;
             Path cpuinfo = sysPath("/proc/cpuinfo");
             if (Files.exists(cpuinfo)) {
                 String info = readFileSafe(cpuinfo);

@@ -176,7 +176,8 @@ aria2:
   secret: ${ARIA2_SECRET}
 
 tmdb:
-  baseUrl: ${TMDB_BASE_URL}
+  baseUrl: ${TMDB_BASE_URL:https://api.tmdb.org/3}
+  fallbackBaseUrls: ${TMDB_FALLBACK_BASE_URLS:https://api.themoviedb.org/3}
   bearerToken: ${TMDB_ACCESS_TOKEN}
   apiKey: ${TMDB_API_KEY}
 
@@ -232,6 +233,14 @@ app:
     # against public-base-url.
     fallback-image: /icons/icon-192.png
 
+  # Media-disk guard. `marker` is a file that exists only ON the media disk; while it is
+  # missing the disk counts as NOT mounted: media sync and cleanup remove nothing, startup
+  # creates no media dirs, and ingestion, symlinks, storyboards and uploads are refused rather
+  # than written to the empty mount point underneath. Blank (the default) turns the guard off,
+  # which is what a dev machine wants. application-prod.yml sets it.
+  media-disk:
+    marker:
+
   # Browser origins allowed to make CREDENTIALED cross-origin calls. This list is the
   # whole access-control boundary for the browser: an origin named here can read any
   # response the signed-in user can, because allowCredentials is on.
@@ -276,6 +285,31 @@ dbworld:
   tracking:
     cdn-log-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
     rotated-suffix: ".1"
+
+  # ── Host health report ─────────────────────────────────────────────────────
+  # Written every 15 min by the host's root `dbworldctl doctor --json` timer and only read here
+  # (System Info page + admin phone alerts). A dev box has no file; the page says so. In a
+  # container, bind-mount the directory read-only and point this at the mounted path.
+  host-health:
+    report-path: ${HOST_HEALTH_REPORT_PATH:/var/lib/dbworld/health/doctor.json}
+
+  # ── Host actions (System Info "Server actions") ───────────────────────────
+  # The app never runs privileged commands. It drops a JSON request in <dir>/requests/; a root
+  # systemd path unit hands it to `dbworldctl`, which checks it against an allowlist, runs it and
+  # writes <dir>/results/<id>.json. requests/ must be group-writable for dbworld. A dev box has no
+  # directory; the page says so. `zone` is the Pi's own zone: typed times like 04:30 mean Pi time.
+  host-actions:
+    dir: ${HOST_ACTIONS_DIR:/var/lib/dbworld/actions}
+    zone: ${HOST_ACTIONS_ZONE:Asia/Kolkata}
+
+  # ── Runtime: on the host, or in a container ───────────────────────────────
+  # `host` (default): System Info runs its commands (vcgencmd, systemctl, dpkg-query, lsblk...) and
+  # reads host files itself. `container`: those would describe the container, so nothing is run.
+  # A root timer on the host writes their output to host-info.path every 60 s (mount it read-only)
+  # and the page answers from that. /proc and /sys stay live reads; over 10 min old = unavailable.
+  runtime: ${DBWORLD_RUNTIME:host}
+  host-info:
+    path: ${HOST_INFO_PATH:/run/dbworld/host-info.json}
 
   # ── IPO tracker ────────────────────────────────────────────────────────────
   ipo:

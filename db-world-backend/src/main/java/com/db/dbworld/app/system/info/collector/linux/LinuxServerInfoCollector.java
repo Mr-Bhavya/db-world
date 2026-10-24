@@ -4,7 +4,9 @@ import com.db.dbworld.app.system.info.collector.ServerInfoCollector;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.app.system.info.dto.*;
 import com.db.dbworld.app.system.info.dto.os.linux.*;
+import com.db.dbworld.app.system.info.snapshot.HostInfoSnapshot;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -58,15 +60,21 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected static final String SYS_BLOCK      = "/sys/class/block";
     protected static final String SYS_NET        = "/sys/class/net";
 
-    // /etc paths
+    // /etc paths: host files, read through readHostFile(...) so a container gets the host's copy
     protected static final String ETC_RESOLV_CONF = "/etc/resolv.conf";
 
     // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
     private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
     private volatile long prevNetTimestamp = 0L;
 
+    /** Host mode only; what tests and callers without Spring use. */
     public LinuxServerInfoCollector(ProcessExecutor processExecutor) {
-        super(processExecutor);
+        this(processExecutor, HostInfoSnapshot.disabled());
+    }
+
+    @Autowired
+    public LinuxServerInfoCollector(ProcessExecutor processExecutor, HostInfoSnapshot hostSnapshot) {
+        super(processExecutor, hostSnapshot);
         log.info("{} initialized", getClass().getSimpleName());
     }
 
@@ -571,7 +579,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         }
         if (dns.isEmpty()) {
             try {
-                for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
+                for (String line : readHostFile(ETC_RESOLV_CONF).split("\n")) {
                     line = line.trim();
                     if (line.startsWith("nameserver")) {
                         String[] parts = line.split("\\s+");
@@ -591,7 +599,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
      */
     private String getNetworkDomain() {
         try {
-            for (String line : readFileSafe(sysPath(ETC_RESOLV_CONF)).split("\n")) {
+            for (String line : readHostFile(ETC_RESOLV_CONF).split("\n")) {
                 line = line.trim();
                 if (line.startsWith("search ") || line.startsWith("domain ")) {
                     String[] parts = line.split("\\s+");

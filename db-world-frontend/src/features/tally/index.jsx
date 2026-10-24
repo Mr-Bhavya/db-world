@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Skeleton, Typography } from '@mui/material';
+import { Box, Skeleton, Typography, useMediaQuery } from '@mui/material';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
@@ -13,6 +13,9 @@ import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 import { useGroups, useCreateGroup, useCreateDirect, usePersonalLedger } from './hooks/useTally';
 import { splitLedgers } from './utils/tallyFormat';
+import {
+  TALLY_COLUMNS, TALLY_PAGE_MAX_W, TALLY_PAGE_PT, TALLY_PAGE_PX,
+} from './utils/tallyLayout';
 import CreateGroupDialog from './components/CreateGroupDialog';
 import StartDirectDialog from './components/StartDirectDialog';
 import ImportSplitwiseDialog from './components/ImportSplitwiseDialog';
@@ -67,25 +70,29 @@ export default function TallyPage() {
   };
 
   const nothingAtAll = !isLoading && groups.every((g) => g.kind === 'PERSONAL');
-  // Two columns only when the left one has something in it. An empty main column beside a
-  // full sidebar looks like a failed render rather than a layout.
-  const twoColumn = needsYou.length > 0;
+  const wide = useMediaQuery((theme) => theme.breakpoints.up('md'), { noSsr: true });
+
+  // On a desktop there are always two columns, and an empty main column beside a full sidebar
+  // looks like a failed render rather than a layout. So with nothing outstanding, the ledgers
+  // that are there -- settled ones, or failing those archived ones -- move into the main column,
+  // open. On a phone they stay folded: there it is one column, and nothing competes with them.
+  const openInMain = wide && needsYou.length === 0
+    ? (settled.length > 0 ? 'settled' : archived.length > 0 ? 'archived' : null)
+    : null;
 
   return (
     <Box sx={{
       minHeight: '100dvh', bgcolor: T.bg,
-      px: { xs: 2, sm: 3, md: 4 },
-      // Clears the fixed app bar: 56px on a phone, 64px from md up.
-      pt: { xs: 'calc(56px + 16px)', md: 'calc(64px + 24px)' },
+      px: TALLY_PAGE_PX,
+      pt: TALLY_PAGE_PT,
       pb: { xs: 'calc(96px + env(safe-area-inset-bottom))', sm: 6 },
     }}>
-      {/* Width follows the content rather than the viewport.
-          With something outstanding there are two columns to fill and 1060px earns its keep.
-          With everything settled the page is four short blocks, and stretching them across a
-          desktop leaves a name at one edge of the screen and its amount at the other — so it
-          stays at reading width instead. A fixed 720px centred on a 1920px display was the
-          original mistake: it read as a phone layout somebody had stretched. */}
-      <Box sx={{ maxWidth: { xs: 720, md: twoColumn ? 1060 : 720 }, mx: 'auto', width: '100%' }}>
+      {/* The same width as a ledger, always. This page used to widen to 1060px only while
+          something was outstanding and stay at 720 otherwise, and the ledger you opened from
+          it was 760 or 1080 depending on its kind -- so every move between the two changed the
+          width of the screen. Two columns at a shared width fixes both, and still never leaves
+          a name at one edge of a desktop and its amount at the other. */}
+      <Box sx={{ maxWidth: TALLY_PAGE_MAX_W, mx: 'auto', width: '100%' }}>
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
         <Box
@@ -157,14 +164,25 @@ export default function TallyPage() {
                 no duplicated markup and no reordering to keep in sync. */}
             <Box sx={{
               display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                md: twoColumn ? 'minmax(0, 1.55fr) minmax(0, 1fr)' : '1fr',
-              },
+              gridTemplateColumns: { xs: '1fr', md: TALLY_COLUMNS },
               gap: { xs: 0, md: 3 },
               alignItems: 'start',
             }}>
               <Box sx={{ minWidth: 0 }}>
+                {nothingAtAll && <EmptyState T={T} onCreate={() => setStartingDirect(true)} />}
+
+                {openInMain && (
+                  <OpenLedgers
+                    T={T}
+                    ledgers={openInMain === 'settled' ? settled : archived}
+                    label={openInMain === 'settled' ? 'Settled up' : 'Archived'}
+                    icon={openInMain === 'settled'
+                      ? <CheckCircleRoundedIcon sx={{ fontSize: 15, color: T.success }} />
+                      : <Inventory2OutlinedIcon sx={{ fontSize: 15, color: T.textFaint }} />}
+                    onOpen={open}
+                  />
+                )}
+
                 {needsYou.length > 0 && (
                   <Box sx={{ mb: 3 }}>
                     <SectionLabel
@@ -198,24 +216,26 @@ export default function TallyPage() {
                   onOpen={openPersonal}
                 />
 
-                <CollapsedLedgers
-                  ledgers={settled}
-                  label="settled up"
-                  icon={<CheckCircleRoundedIcon sx={{ fontSize: 18 }} />}
-                  onOpen={open}
-                />
+                {openInMain !== 'settled' && (
+                  <CollapsedLedgers
+                    ledgers={settled}
+                    label="settled up"
+                    icon={<CheckCircleRoundedIcon sx={{ fontSize: 18 }} />}
+                    onOpen={open}
+                  />
+                )}
 
-                <CollapsedLedgers
-                  ledgers={archived}
-                  label="archived"
-                  tone="muted"
-                  icon={<Inventory2OutlinedIcon sx={{ fontSize: 17 }} />}
-                  onOpen={open}
-                />
+                {openInMain !== 'archived' && (
+                  <CollapsedLedgers
+                    ledgers={archived}
+                    label="archived"
+                    tone="muted"
+                    icon={<Inventory2OutlinedIcon sx={{ fontSize: 17 }} />}
+                    onOpen={open}
+                  />
+                )}
               </Box>
             </Box>
-
-            {nothingAtAll && <EmptyState T={T} onCreate={() => setStartingDirect(true)} />}
           </>
         )}
       </Box>
@@ -335,25 +355,99 @@ function PersonalRow({ T, ledger, busy, onOpen }) {
 }
 
 /**
+ * Ledgers listed open in the main column — the desktop's answer to "nothing needs you".
+ *
+ * <p>The same rows {@link CollapsedLedgers} shows once expanded, under the same kind of label as
+ * "Needs you", so the main column always starts the same way whatever is in it.
+ */
+function OpenLedgers({ T, ledgers, label, icon, onOpen }) {
+  return (
+    <Box sx={{ mb: 3 }}>
+      <SectionLabel T={T} icon={icon} label={`${label} · ${ledgers.length}`} />
+      <Box sx={{
+        borderRadius: 3, overflow: 'hidden', border: `1px solid ${T.border}`,
+        '& > *:not(:last-child)': { borderBottom: `1px solid ${T.border}` },
+      }}>
+        {ledgers.map((ledger, i) => (
+          <LedgerRow
+            key={ledger.id}
+            ledger={ledger}
+            index={i}
+            variant="compact"
+            onOpen={() => onOpen(ledger)}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+/**
  * The page's shape while the ledgers load.
  *
  * <p>Both heights come from the components being stood in for rather than from numbers typed
  * here. The hand-written ones had drifted — 104px against a hero that rests at 111 on a phone
  * and 126 from `sm` up, and 72px against a 74px row — so the whole list stepped down a few
  * pixels per item the moment the data arrived.
+ *
+ * <p>Laid out in the page's own two columns. It used to be one full-width column with nothing
+ * where the sidebar goes, so on a desktop the rows arrived at half the width they were drawn at
+ * and the sidebar appeared from nowhere beside them. The text bars sit inside the Typography
+ * they stand in for, so each is exactly one line box of the real font.
  */
 function LoadingState({ T }) {
+  const bar = { bgcolor: T.glassHover, borderRadius: 1 };
   return (
     <Box>
       <Skeleton variant="rounded"
         sx={{ height: BALANCE_HERO_MIN_H, bgcolor: T.glass, borderRadius: 3.5, mb: 3 }} />
-      {/* A flex column with the same gap the real list uses, rather than a margin per item:
-          `mb` also put 10px under the last one, which the list does not have. */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-        {[0, 1].map((i) => (
-          <Skeleton key={i} variant="rounded"
-            sx={{ height: LEDGER_ROW_MIN_H, bgcolor: T.glass, borderRadius: '0 14px 14px 0' }} />
-        ))}
+
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: TALLY_COLUMNS },
+        gap: { xs: 0, md: 3 },
+        alignItems: 'start',
+      }}>
+        <Box sx={{ minWidth: 0, mb: 3 }}>
+          {/* The section label, which the rows sit under. */}
+          <Typography sx={{ fontSize: 11.5, mb: 1.25 }}>
+            <Skeleton variant="text" width={110} sx={bar} />
+          </Typography>
+          {/* A flex column with the same gap the real list uses, rather than a margin per item:
+              `mb` also put 10px under the last one, which the list does not have. */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+            {[0, 1].map((i) => (
+              <Skeleton key={i} variant="rounded"
+                sx={{ height: LEDGER_ROW_MIN_H, bgcolor: T.glass, borderRadius: '0 14px 14px 0' }} />
+            ))}
+          </Box>
+        </Box>
+
+        <Box sx={{ minWidth: 0 }}>
+          {/* Your own spending: same padding, avatar and two lines as PersonalRow. */}
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5, px: 1.75, py: 1.5, mb: 2.5,
+            borderRadius: 3.5, bgcolor: T.glass, border: `1px solid ${T.border}`,
+          }}>
+            <Skeleton variant="rounded" width={32} height={32} sx={{ ...bar, borderRadius: 2, flexShrink: 0 }} />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontSize: 14.5 }}><Skeleton variant="text" width="45%" sx={bar} /></Typography>
+              <Typography sx={{ fontSize: 12, mt: 0.1 }}><Skeleton variant="text" width="75%" sx={bar} /></Typography>
+            </Box>
+          </Box>
+
+          {/* The folded "N settled up" line. */}
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.25, px: 1.75, py: 1.25,
+            borderRadius: 3, border: `1px solid ${T.border}`,
+          }}>
+            <Skeleton variant="circular" width={18} height={18} sx={{ ...bar, flexShrink: 0 }} />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontSize: 14 }}><Skeleton variant="text" width="35%" sx={bar} /></Typography>
+              <Typography sx={{ fontSize: 12.5, mt: 0.1 }}><Skeleton variant="text" width="60%" sx={bar} /></Typography>
+            </Box>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
@@ -362,7 +456,7 @@ function LoadingState({ T }) {
 function EmptyState({ T, onCreate }) {
   return (
     <Box sx={{
-      textAlign: 'center', py: 6, px: 3, borderRadius: 3.5,
+      textAlign: 'center', py: 6, px: 3, mb: 2.5, borderRadius: 3.5,
       bgcolor: T.glass, border: `1px dashed ${T.glassBorder}`,
     }}>
       <ReceiptLongRoundedIcon sx={{ fontSize: 34, color: T.teal, mb: 1 }} />

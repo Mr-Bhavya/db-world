@@ -72,9 +72,26 @@ export function heroArtCandidates(record, { portrait, hasLogo, titled = false })
       ? [posterClean, backdropClean, posterText, backdropText]
       : [posterClean, posterText, backdropClean, backdropText];
   }
-  return hasLogo
-    ? [backdropClean, posterClean, backdropText, posterText]
-    : [backdropClean, backdropText, posterClean, posterText];
+  // LANDSCAPE: every backdrop before any poster, whatever the logo situation.
+  //
+  // `hasLogo` used to promote posterClean above backdropText here, to keep a textless
+  // image under a title logo. That is the right instinct and the wrong trade: a 2:3
+  // poster `cover`-cropped into a 3:2 or 16:9 frame shows only the middle ~44% of its
+  // height, upscaled past its own resolution. A text-bearing BACKDROP is at least the
+  // right shape, and a caller that draws its own title can ask isTitledArt whether the
+  // path it got already carries one and drop its logo instead of printing it twice.
+  return [backdropClean, backdropText, posterClean, posterText];
+}
+
+/**
+ * Does `path` already have the title baked into it?
+ *
+ * The landscape fallback above can legitimately hand back titled artwork, so anything
+ * that draws its own title logo has to ask before drawing it.
+ */
+export function isTitledArt(record, path) {
+  if (!path || !record) return false;
+  return path === record.backdropPathText || path === record.posterPath;
 }
 
 /**

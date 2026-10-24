@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 
 public interface TallyLedgerEntryRepository extends JpaRepository<TallyLedgerEntryEntity, String> {
@@ -64,6 +65,29 @@ public interface TallyLedgerEntryRepository extends JpaRepository<TallyLedgerEnt
                               where d.groupId = :groupId and d.fromMemberId = :memberId), 0)
             """)
     BigDecimal netBalanceOf(@Param("groupId") String groupId, @Param("memberId") String memberId);
+
+    /** Total of every "from owes to" edge between each ordered pair of members. */
+    interface PairTotal {
+        String getGroupId();
+        String getFromMemberId();
+        String getToMemberId();
+        BigDecimal getTotal();
+    }
+
+    /**
+     * Who owes whom, pair by pair, across a set of ledgers.
+     *
+     * <p>Used to cap what a loan can still show as outstanding: a payment recorded against the
+     * balance rather than against the loan still cleared the debt between those two people.
+     */
+    @Query("""
+            select e.groupId as groupId, e.fromMemberId as fromMemberId,
+                   e.toMemberId as toMemberId, sum(e.amount) as total
+              from TallyLedgerEntryEntity e
+             where e.groupId in :groupIds
+             group by e.groupId, e.fromMemberId, e.toMemberId
+            """)
+    List<PairTotal> sumByPair(@Param("groupIds") Collection<String> groupIds);
 
     /*
      * A note on the group-closure invariant, because it is easy to write a version of it that

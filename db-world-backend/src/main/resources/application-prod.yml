@@ -27,6 +27,14 @@ app:
   stream-path: /srv/dbworld/streams
   symlink-path: /srv/dbworld/symlinks
 
+  # The USB disk is mounted `nofail`, so a boot without it leaves data-path as an empty
+  # directory on the SD card. A "same filesystem as /" test cannot tell inside a container,
+  # so the proof is a file created once on the disk itself, by the host admin, while it is
+  # mounted:  sudo dbworldctl media-disk mark   (db-world-config; it refuses if the HDD is not
+  # mounted). Without it every media feature treats the disk as missing, so it must exist
+  # BEFORE a build with this setting is deployed. See AppProperties.MediaDisk.
+  media-disk:
+    marker: ${app.data-path}/.dbworld-media-disk
 
   paths:
     logs: ${app.base-path}/logs

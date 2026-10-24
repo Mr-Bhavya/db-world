@@ -4,9 +4,9 @@ export const useRecordStore = create((set) => ({
   viewMode:    'table',
   setViewMode: (v) => set({ viewMode: v }),
 
-  filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '', visibility: '' },
+  filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '', visibility: '', tmdbNotFound: '' },
   setFilter:    (key, value) => set(s => ({ filters: { ...s.filters, [key]: value } })),
-  clearFilters: () => set({ filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '', visibility: '' } }),
+  clearFilters: () => set({ filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '', visibility: '', tmdbNotFound: '' } }),
 
   pageSize:    25,
   setPageSize: (s) => set({ pageSize: s }),

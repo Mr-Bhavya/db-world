@@ -98,7 +98,7 @@ public class IpoGuruSource implements IpoSource {
         String apiKey = resolveApiKey();
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("IPO Guru: {} is not set — skipping fetch", ENV_API_KEY);
-            return List.of();
+            throw SourceFetchException.notConfigured(ENV_API_KEY + " is not set");
         }
 
         try {
@@ -111,8 +111,7 @@ public class IpoGuruSource implements IpoSource {
             JsonNode root = MAPPER.readTree(response.body());
             JsonNode data = root.path(F_DATA);
             if (!data.isArray()) {
-                log.warn("IPO Guru: unexpected response shape — no '{}' array", F_DATA);
-                return List.of();
+                throw new SourceFetchException("IPO Guru: unexpected response shape — no '" + F_DATA + "' array");
             }
 
             List<IpoDto> result = new ArrayList<>();
@@ -122,11 +121,12 @@ public class IpoGuruSource implements IpoSource {
             return result;
         } catch (Exception e) {
             // Covers SourceFetchException (non-2xx / network, incl. HTTP 429 handled specially
-            // below), a failing settingsService.getString() lookup, and JSON parse failures alike:
-            // any expected upstream failure here is logged and swallowed to [] per the IpoSource
-            // contract — never retried, per the documented "plain failure" 429 contract.
+            // below), a failing settingsService.getString() lookup, and JSON parse failures alike.
+            // Logged with the 429 detail here, then thrown for the poll to record. Never retried,
+            // per the documented "plain failure" 429 contract.
             logFetchFailure(e);
-            return List.of();
+            String status = findRateLimited(e) != null ? SourceFetchException.RATE_LIMITED : SourceFetchException.FAILED;
+            throw new SourceFetchException(status, "IPO Guru fetch failed: " + e.getMessage(), e);
         }
     }
 

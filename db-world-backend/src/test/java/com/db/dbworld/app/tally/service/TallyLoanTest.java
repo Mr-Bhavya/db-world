@@ -69,9 +69,11 @@ class TallyLoanTest {
                                                 TallyExpenseShareRepository shares,
                                                 TallyGroupMemberRepository members,
                                                 TallyGroupRepository groups,
-                                                TallySettlementRepository settlements) {
+                                                TallySettlementRepository settlements,
+                                                TallyLedgerEntryRepository ledger,
+                                                TallyActivityService activity) {
             return new TallyLoanService(access, expenseService, expenses, payers, shares, members,
-                    groups, settlements, FIXED_CLOCK);
+                    groups, settlements, ledger, activity, FIXED_CLOCK);
         }
     }
 
@@ -183,9 +185,33 @@ class TallyLoanTest {
         em.clear();
 
         TallyLoanDto done = only(loans.listMine(ME_USER));
-        assertThat(done.repaid()).isEqualByComparingTo("500.00");   // reported honestly
-        assertThat(done.outstanding()).isEqualByComparingTo("0.00"); // but floored
+        assertThat(done.repaid()).isEqualByComparingTo("490.00");  // the extra 10 is not this loan's
+        assertThat(done.outstanding()).isEqualByComparingTo("0.00");
         assertThat(done.settled()).isTrue();
+    }
+
+    /**
+     * The screenshot case: two loans, paid off with payments recorded against the balance rather
+     * than against either loan. The balance said square while the cards still said due.
+     */
+    @Test
+    @DisplayName("payments against the balance still clear loans, oldest first")
+    void balancePaymentsClearLoans() {
+        loans.create(ME_USER, groupId, new CreateLoanRequest(them, TallyLoanDirection.LENT,
+                new BigDecimal("15000.00"), TODAY.minusDays(10), null, "IPO", "l1"));
+        loans.create(ME_USER, groupId, new CreateLoanRequest(them, TallyLoanDirection.LENT,
+                new BigDecimal("42000.00"), TODAY.minusDays(2), null, null, "l2"));
+        settlementService.record(THEM_USER, groupId,
+                new RecordSettlementRequest(them, me, new BigDecimal("20000.00"), "UPI", null, null, null));
+        em.flush();
+        em.clear();
+
+        var byPrincipal = loans.listMine(ME_USER).stream()
+                .collect(java.util.stream.Collectors.toMap(l -> l.principal().intValue(), l -> l));
+        assertThat(byPrincipal.get(15000).settled()).as("the oldest is cleared first").isTrue();
+        assertThat(byPrincipal.get(42000).repaid()).isEqualByComparingTo("5000.00");
+        assertThat(byPrincipal.get(42000).outstanding()).isEqualByComparingTo("37000.00");
+        assertThat(balances.netOf(groupId, them)).isEqualByComparingTo("-37000.00");
     }
 
     /* ============================== a loan is not spending ============================== */

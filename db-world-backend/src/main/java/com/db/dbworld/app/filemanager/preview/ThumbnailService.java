@@ -6,6 +6,7 @@ import com.db.dbworld.app.filemanager.path.PathJail;
 import com.db.dbworld.app.wallet.service.WalletThumbnailer;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,7 @@ public class ThumbnailService {
     private final FileLocationService locationService;
     private final WalletThumbnailer walletThumbnailer;
     private final AppProperties appProperties;
+    private final MediaDiskGuard mediaDiskGuard;
 
     public byte[] thumbnail(String locationId, String path) throws IOException {
         log.debug("thumbnail locationId={} path={}", locationId, path);
@@ -60,11 +62,16 @@ public class ThumbnailService {
 
         BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
         Path cacheDir = appProperties.getTempPath().resolve(CACHE_DIR_NAME);
-        Files.createDirectories(cacheDir);
-        String cacheKey = sha1(locationId + path + attrs.lastModifiedTime().toMillis());
-        Path cached = cacheDir.resolve(cacheKey + ".jpg");
-        if (Files.isRegularFile(cached)) {
-            return Files.readAllBytes(cached);
+        // The cache sits in temp on the media disk. Without the disk, a file on other storage still
+        // gets its thumbnail, rendered fresh, but nothing is cached onto the SD card.
+        Path cached = null;
+        if (!mediaDiskGuard.isInMediaTree(cacheDir) || mediaDiskGuard.isMounted()) {
+            Files.createDirectories(cacheDir);
+            String cacheKey = sha1(locationId + path + attrs.lastModifiedTime().toMillis());
+            cached = cacheDir.resolve(cacheKey + ".jpg");
+            if (Files.isRegularFile(cached)) {
+                return Files.readAllBytes(cached);
+            }
         }
 
         String name = file.getFileName().toString();
@@ -80,7 +87,7 @@ public class ThumbnailService {
         byte[] jpeg = walletThumbnailer.generate(source, mime)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Could not render thumbnail for: " + path));
 
-        Files.write(cached, jpeg);
+        if (cached != null) Files.write(cached, jpeg);
         return jpeg;
     }
 

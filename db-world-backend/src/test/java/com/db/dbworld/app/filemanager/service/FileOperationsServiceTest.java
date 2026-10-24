@@ -4,6 +4,7 @@ import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.infrastructure.storage.MediaDiskGuards;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -28,11 +29,56 @@ class FileOperationsServiceTest {
         base = Files.createTempDirectory("fm-ops");
         locationService = mock(FileLocationService.class);
         when(locationService.resolveBase("l")).thenReturn(base);
-        svc = new FileOperationsService(locationService);
+        svc = new FileOperationsService(locationService, MediaDiskGuards.off());
     }
 
     private static List<String> names(FileListDto d) {
         return d.getItems().stream().map(FileItemDto::getName).toList();
+    }
+
+    // ── Media-disk guard ─────────────────────────────────────────────────────
+
+    /** Location "l" is the media tree, and its disk's marker is missing. */
+    private FileOperationsService svcWithMediaDiskMissing() throws Exception {
+        Path missingMarker = Files.createTempDirectory("fm-disk").resolve(".dbworld-media-disk");
+        return new FileOperationsService(locationService, MediaDiskGuards.withMarker(missingMarker, base));
+    }
+
+    @Test
+    void diskMissing_everyWriteInTheMediaTreeIsRefused_andNothingChanges() throws Exception {
+        Files.createDirectories(base.resolve("dir"));
+        Files.writeString(base.resolve("a.txt"), "x");
+        FileOperationsService guarded = svcWithMediaDiskMissing();
+
+        assertThatThrownBy(() -> guarded.mkdir("l", "/", "docs")).hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.renameItem("l", "/a.txt", "b.txt")).hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.moveItem("l", "/a.txt", "/dir")).hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.copyItem("l", "/a.txt", "/dir")).hasMessageContaining("not mounted");
+        assertThatThrownBy(() -> guarded.delete("l", "/a.txt"))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("Deleting was not started");
+
+        assertThat(base.resolve("docs")).doesNotExist();
+        assertThat(base.resolve("a.txt")).exists();
+        assertThat(base.resolve("b.txt")).doesNotExist();
+        assertThat(base.resolve("dir/a.txt")).doesNotExist();
+    }
+
+    @Test
+    void diskMissing_readsStillWork() throws Exception {
+        Files.writeString(base.resolve("a.txt"), "x");
+
+        assertThat(names(svcWithMediaDiskMissing().list("l", "/", "name", "asc"))).contains("a.txt");
+    }
+
+    @Test
+    void diskMissing_aLocationOutsideTheMediaTreeKeepsWorking() throws Exception {
+        Path internal = Files.createTempDirectory("fm-internal");
+        when(locationService.resolveBase("internal")).thenReturn(internal);
+
+        svcWithMediaDiskMissing().mkdir("internal", "/", "docs");
+
+        assertThat(internal.resolve("docs")).isDirectory();
     }
 
     @Test

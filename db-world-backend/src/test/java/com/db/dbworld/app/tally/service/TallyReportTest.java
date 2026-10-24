@@ -435,8 +435,10 @@ class TallyReportTest {
     @DisplayName("settling up sits beside the spending, never inside it")
     void settlementsAreNotSpending() {
         spend("Dinner", "900.00", TODAY, "Food", appa, amma);
+        // Dated inside the fixed clock's month: defaulting to the real "now" put it outside the window.
         settlementService.record(appaUser, groupId,
-                new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null, null, null));
+                new RecordSettlementRequest(amma, appa, bd("450.00"), "UPI", null,
+                        Instant.parse("2026-09-15T06:00:00Z"), null));
 
         var report = reports.group(appaUser, groupId, TallyReportPeriod.MONTH, TODAY, null, null);
 

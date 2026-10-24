@@ -4,7 +4,9 @@ import com.db.dbworld.app.system.info.dto.os.linux.PackageInfo;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.app.system.info.dto.*;
 import com.db.dbworld.app.system.info.dto.os.raspberrypi.*;
+import com.db.dbworld.app.system.info.snapshot.HostInfoSnapshot;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
@@ -25,7 +27,10 @@ import java.util.regex.Pattern;
 @Service("raspberryPiServerInfoCollector")
 public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
-    // Pseudo-filesystem locations, read via sysPath(...) so tests can reroot them.
+    // Pseudo-filesystem locations, read via sysPath(...) so tests can reroot them. The device
+    // tree, /dev, /etc, /boot and /sys/firmware ones are host-only (masked or absent in a
+    // container), so they go through readHostFile/hostPathExists and the host snapshot can
+    // answer them; the rest are /proc and /sys files the container shares with the host, read live.
     private static final String CPU_INFO_PATH = "/proc/cpuinfo";
     private static final String MEM_INFO_PATH = "/proc/meminfo";
     private static final String DEVICE_TREE_MODEL_PATH = "/proc/device-tree/model";
@@ -38,6 +43,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
     private static final String CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp";
     private static final String GPU_TEMP_PATH = "/sys/class/thermal/thermal_zone1/temp";
     private static final String CONFIG_TXT_PATH = "/boot/config.txt";
+    /** Where Ubuntu (and Raspberry Pi OS since Bookworm) keep it: the firmware partition's mount. */
+    private static final String FIRMWARE_CONFIG_TXT_PATH = "/boot/firmware/config.txt";
     private static final String OTP_DUMP_PATH = "/sys/firmware/devicetree/base/soc/ranges";
     private static final String GPIO_SYSFS_PATH = "/sys/class/gpio";
     private static final String GPIO_CHIP_PATH = "/dev/gpiochip0";
@@ -57,8 +64,14 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
     private static final String[] GET_DISPLAY_STATUS = {VC_GENCMD, "get_display_power"};
     private static final String[] GET_GPIO_STATUS = {VC_GENCMD, "get_gpio"};
 
+    /** Host mode only; what tests and callers without Spring use. */
     public RaspberryPiServerInfoCollector(ProcessExecutor processExecutor) {
-        super(processExecutor);
+        this(processExecutor, HostInfoSnapshot.disabled());
+    }
+
+    @Autowired
+    public RaspberryPiServerInfoCollector(ProcessExecutor processExecutor, HostInfoSnapshot hostSnapshot) {
+        super(processExecutor, hostSnapshot);
         log.info("RaspberryPiServerInfoCollector initialized");
     }
 
@@ -120,7 +133,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Read model from device tree
-            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
+            String model = readHostFile(DEVICE_TREE_MODEL_PATH);
             if (!model.isEmpty()) {
                 info.setModel(model.trim());
 
@@ -151,7 +164,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             }
 
             // Read serial number
-            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
+            String serial = readHostFile(DEVICE_TREE_SERIAL_PATH);
             if (!serial.isEmpty()) {
                 info.setSerial(serial.trim());
             }
@@ -215,7 +228,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             info.setMaker("Raspberry Pi Foundation");
 
             // Check warranty status using vcgencmd
-            String otpDump = readFileSafe(sysPath(OTP_DUMP_PATH));
+            String otpDump = readHostFile(OTP_DUMP_PATH);
             if (!otpDump.isEmpty()) {
                 // Check specific bits for warranty
                 info.setWarrantyVoid("Unknown");
@@ -256,8 +269,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             List<GpioPin> pins = new ArrayList<>();
 
             // Check if GPIO is accessible
-            boolean gpioAccessible = Files.exists(sysPath(GPIO_SYSFS_PATH)) ||
-                    Files.exists(sysPath(GPIO_CHIP_PATH));
+            boolean gpioAccessible = hostPathExists(GPIO_SYSFS_PATH) ||
+                    hostPathExists(GPIO_CHIP_PATH);
 
             gpioInfo.setGpioAccessible(gpioAccessible);
 
@@ -316,8 +329,9 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check if camera is enabled in config
-            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
-                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
+            Optional<String> configTxt = readConfigTxt();
+            if (configTxt.isPresent()) {
+                String config = configTxt.get();
                 boolean startCameraEnabled = config.contains("start_x=1");
 
                 // Guard on "gpu_mem=", not the bare "gpu_mem" prefix: board-specific keys like
@@ -403,35 +417,34 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check for HAT EEPROM
-            Path hatEepromPath = sysPath(DEVICE_TREE_HAT_PATH);
-            if (Files.exists(hatEepromPath)) {
+            if (hostPathExists(DEVICE_TREE_HAT_PATH)) {
                 hatInfo.setHatPresent(true);
 
                 // Read HAT vendor
-                Path vendorPath = hatEepromPath.resolve("vendor");
-                if (Files.exists(vendorPath)) {
-                    String vendor = readFileSafe(vendorPath);
+                String vendorPath = DEVICE_TREE_HAT_PATH + "/vendor";
+                if (hostPathExists(vendorPath)) {
+                    String vendor = readHostFile(vendorPath);
                     hatInfo.setHatVendor(vendor.trim());
                 }
 
                 // Read HAT product
-                Path productPath = hatEepromPath.resolve("product");
-                if (Files.exists(productPath)) {
-                    String product = readFileSafe(productPath);
+                String productPath = DEVICE_TREE_HAT_PATH + "/product";
+                if (hostPathExists(productPath)) {
+                    String product = readHostFile(productPath);
                     hatInfo.setHatProduct(product.trim());
                 }
 
                 // Read HAT version
-                Path versionPath = hatEepromPath.resolve("version");
-                if (Files.exists(versionPath)) {
-                    String version = readFileSafe(versionPath);
+                String versionPath = DEVICE_TREE_HAT_PATH + "/version";
+                if (hostPathExists(versionPath)) {
+                    String version = readHostFile(versionPath);
                     hatInfo.setHatVersion(version.trim());
                 }
 
                 // Read HAT UUID
-                Path uuidPath = hatEepromPath.resolve("uuid");
-                if (Files.exists(uuidPath)) {
-                    String uuid = readFileSafe(uuidPath);
+                String uuidPath = DEVICE_TREE_HAT_PATH + "/uuid";
+                if (hostPathExists(uuidPath)) {
+                    String uuid = readHostFile(uuidPath);
                     hatInfo.setHatUuid(uuid.trim());
                 }
 
@@ -511,8 +524,9 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Check config.txt for overclock settings
-            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
-                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
+            Optional<String> configTxt = readConfigTxt();
+            if (configTxt.isPresent()) {
+                String config = configTxt.get();
 
                 // Parse over_voltage setting
                 if (config.contains("over_voltage=")) {
@@ -666,7 +680,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             displayInfo.setDisplayType("HDMI"); // Default assumption
 
             // Check for DSI display (Raspberry Pi official display)
-            if (Files.exists(sysPath(DEVICE_TREE_DISPLAY_PATH))) {
+            if (hostPathExists(DEVICE_TREE_DISPLAY_PATH)) {
                 displayInfo.setDisplayType("DSI");
             }
 
@@ -697,7 +711,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             // from the device-tree model when that happens; never invent a value
             // when the model itself is unknown.
             if (isUnknownOrBlank(cpuInfo.getName()) || isUnknownOrBlank(cpuInfo.getVendor())) {
-                String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
+                String model = readHostFile(DEVICE_TREE_MODEL_PATH);
                 String processor = derivePiProcessorName(model);
                 String soc = derivePiSoc(model);
 
@@ -728,8 +742,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                 } catch (NumberFormatException e) {
                     log.debug("Error parsing frequency from vcgencmd", e);
                 }
-            } else if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
-                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
+            } else {
+                String config = readConfigTxt().orElse("");
                 if (config.contains("arm_freq=")) {
                     try {
                         int armFreqMhz = Integer.parseInt(config.split("arm_freq=")[1].split("\n")[0].trim());
@@ -949,9 +963,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
         try {
             // Get OS information from /etc/os-release
-            Path osReleasePath = sysPath(OS_RELEASE_PATH);
-            if (Files.exists(osReleasePath)) {
-                String osRelease = readFileSafe(osReleasePath);
+            if (hostPathExists(OS_RELEASE_PATH)) {
+                String osRelease = readHostFile(OS_RELEASE_PATH);
                 Map<String, String> osInfo = parseKeyValueOutput(osRelease, "=");
 
                 serverInfo.setOsName(getStringValue(osInfo.get("PRETTY_NAME"), "Raspberry Pi OS"));
@@ -976,13 +989,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             serverInfo.setHostname(exec("hostname").trim());
 
             // Get model from device tree
-            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
+            String model = readHostFile(DEVICE_TREE_MODEL_PATH);
             if (!model.isEmpty()) {
                 serverInfo.setModel(model.trim());
             }
 
             // Get serial number
-            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
+            String serial = readHostFile(DEVICE_TREE_SERIAL_PATH);
             if (!serial.isEmpty()) {
                 serverInfo.setSerialNumber(serial.trim());
             }
@@ -1116,6 +1129,20 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
     /* ============================================
        HELPER METHODS FOR RASPBERRY PI
        ============================================ */
+
+    /**
+     * config.txt, wherever this OS keeps it, or empty when the board has none.
+     *
+     * <p>/boot/config.txt is where Raspberry Pi OS kept it before Bookworm, and the only place
+     * this collector used to look. Ubuntu on the Pi mounts the firmware partition at
+     * /boot/firmware instead, so on the real server every config.txt-derived field (camera
+     * enablement, overclock settings, the arm_freq fallback) was silently missing.
+     */
+    private Optional<String> readConfigTxt() {
+        if (hostPathExists(CONFIG_TXT_PATH)) return Optional.of(readHostFile(CONFIG_TXT_PATH));
+        if (hostPathExists(FIRMWARE_CONFIG_TXT_PATH)) return Optional.of(readHostFile(FIRMWARE_CONFIG_TXT_PATH));
+        return Optional.empty();
+    }
 
     /**
      * Value of a {@code key : value} line from a /proc pseudo-file, or null when absent.
@@ -1274,13 +1301,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             motherboard.put("manufacturer", "Raspberry Pi Foundation");
 
             // Get model from device tree
-            String model = readFileSafe(sysPath(DEVICE_TREE_MODEL_PATH));
+            String model = readHostFile(DEVICE_TREE_MODEL_PATH);
             if (!model.isEmpty()) {
                 motherboard.put("product", model.trim());
             }
 
             // Get serial number
-            String serial = readFileSafe(sysPath(DEVICE_TREE_SERIAL_PATH));
+            String serial = readHostFile(DEVICE_TREE_SERIAL_PATH);
             if (!serial.isEmpty()) {
                 motherboard.put("serial", serial.trim());
             }
@@ -1309,8 +1336,9 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         Map<String, Object> overclock = new HashMap<>();
 
         try {
-            if (Files.exists(sysPath(CONFIG_TXT_PATH))) {
-                String config = readFileSafe(sysPath(CONFIG_TXT_PATH));
+            Optional<String> configTxt = readConfigTxt();
+            if (configTxt.isPresent()) {
+                String config = configTxt.get();
 
                 // Parse common overclock settings
                 String[] settings = {
@@ -1366,7 +1394,7 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             features.put("hasHDMI", true);
             features.put("hasGPIO", true);
             features.put("hasCSI", cameraDetected);
-            features.put("hasDSI", Files.exists(sysPath(DEVICE_TREE_DISPLAY_PATH)));
+            features.put("hasDSI", hostPathExists(DEVICE_TREE_DISPLAY_PATH));
 
             // Check for PoE HAT
             features.put("hasPoEHat", checkHasPoEHat());

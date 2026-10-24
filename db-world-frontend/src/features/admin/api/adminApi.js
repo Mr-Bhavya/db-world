@@ -116,8 +116,9 @@ export const removeRecordTag = (recordId, tagType) =>
 
 /* ─── TMDB SEARCH & DETAIL ──────────────────────────────────────── */
 
-export const searchTmdb = (type, query, year, language = 'en-US') =>
-  axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, language } }).then(r => r.data.data);
+/** → { page, totalPages, totalResults, results: TmdbSearchItemDto[] } */
+export const searchTmdb = ({ type, query, year, page = 1, language = 'en-US', signal }) =>
+  axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, page, language }, signal }).then(r => r.data.data);
 
 export const getTmdbDetail = (type, tmdbId) => {
   const seg = type === 'MOVIE' ? 'movies' : 'tv';
@@ -335,3 +336,24 @@ export const getServerHealth = () =>
 
 export const refreshServerInfoCache = () =>
   axiosInstance.post('/api/server/cache/refresh').then(r => r.data);
+
+// The host's `dbworldctl doctor` report. Always 200: `available: false` + `reason` when the
+// server has no report (every dev box), so the page can say why instead of erroring.
+export const getHostHealth = () =>
+  axiosInstance.get('/api/server/host-health').then(r => r.data.data);
+
+// Server actions, run as root by the host's action broker; the app only queues them. The list
+// is always 200: `available: false` + `reason` on a server without the broker (every dev box).
+export const getHostActions = () =>
+  axiosInstance.get('/api/server/host-actions').then(r => r.data.data);
+
+export const getHostAction = (id) =>
+  axiosInstance.get(`/api/server/host-actions/${encodeURIComponent(id)}`).then(r => r.data.data);
+
+// Resolves to { id, status: 'queued' }. A broken rule is a 400 with a readable message, another
+// power request still queued is a 409, no broker is a 503.
+export const submitHostAction = ({ action, args = {}, confirm }) =>
+  axiosInstance.post('/api/server/host-actions', { action, args, confirm }).then(r => r.data.data);
+
+export const getHostPower = () =>
+  axiosInstance.get('/api/server/host-power').then(r => r.data.data);
