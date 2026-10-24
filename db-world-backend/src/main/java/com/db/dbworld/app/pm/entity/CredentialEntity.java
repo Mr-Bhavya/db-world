@@ -23,6 +23,18 @@ public class CredentialEntity {
     @JoinColumn(name = "password_manager")
     private PasswordManagerEntity passwordManager;
 
+    // What the user calls this entry ("Netflix", "db-world SSH"). The website is optional, so the
+    // name is the entry's identity. Null on rows saved before the field existed: readers fall back
+    // to the host.
+    @Convert(converter = StringCryptoConverter.class)
+    @Column(length = 512)
+    private String name;
+
+    // LOGIN unless the user picked another kind. Null on old rows, which are logins.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private CredentialType type;
+
     // Full URL the credential was saved for (e.g. "https://netflix.com"). Stored
     // in plaintext (the bare host is already plaintext in the HOST table) so the
     // vault can suggest/link sites from our own data instead of re-hitting the

@@ -1,5 +1,6 @@
 package com.db.dbworld.app.pm.dto;
 
+import com.db.dbworld.app.pm.entity.CredentialType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,6 +11,8 @@ import java.util.List;
 @Setter
 public class CredentialDto {
     private String id;
+    private String name;
+    private CredentialType type;
     private String url;
     private String username;
     private String password;

@@ -6,41 +6,60 @@ import { z } from 'zod';
 import { notify } from '@shared/notify';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  Box, Button, CircularProgress, Container, IconButton,
-  InputAdornment, TextField, Tooltip, Typography, Autocomplete,
+  Box, Button, Chip, CircularProgress, Collapse, Container, IconButton,
+  InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import {
   SaveRounded, LockRounded, Visibility, VisibilityOff, AutoAwesomeRounded,
   ContentCopyRounded, AddRounded, DeleteOutlineRounded, CheckRounded,
+  ExpandMoreRounded, DnsRounded, StickyNote2Rounded, WarningAmberRounded,
 } from '@mui/icons-material';
 import { useT, getFieldSx } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
-import { addCredential, findAllHost, searchBrands } from '@shared/services/ApiServices';
+import { addCredential, getCredential, searchBrands } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import BrandLogo from '@shared/brand/BrandLogo';
 import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
+import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate } from './entryUtils';
 
-// "ssh.db-world.in" is a perfectly good site: assume https:// when no scheme was typed.
-const withScheme = (v) => {
-  const s = v.trim();
-  return s && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? `https://${s}` : s;
-};
-const isValidUrl = (v) => {
-  try { return !!new URL(v).hostname; } catch { return false; }
-};
-
+// A site is optional: a server, an app or a note has none. When one is typed it must be usable.
 const schema = z.object({
-  url: z.string().trim().min(1, 'URL is required').transform(withScheme)
-    .refine(isValidUrl, 'Enter a site like example.com or https://example.com'),
-  username: z.string().min(1, 'Username / email is required'),
+  name: z.string().optional().default(''),
+  type: z.enum(['LOGIN', 'SERVER', 'NOTE']).default('LOGIN'),
+  url: z.string().trim().optional().default(''),
+  username: z.string().optional().default(''),
   password: z.string().optional().default(''),
   pin: z.string().optional().default(''),
   notes: z.string().optional().default(''),
+}).superRefine((v, ctx) => {
+  if (v.url && !isValidUrl(v.url)) {
+    ctx.addIssue({ code: 'custom', path: ['url'], message: 'Enter a site like example.com, or leave it empty' });
+  }
+  if (!v.name.trim() && !v.url) {
+    ctx.addIssue({ code: 'custom', path: ['name'], message: 'Give it a name' });
+  }
+  if (v.type !== 'NOTE' && !v.username.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['username'], message: 'Username / email is required' });
+  }
 });
 
+const TYPES = [
+  { value: 'LOGIN',  label: 'Login',  icon: LockRounded },
+  { value: 'SERVER', label: 'Server', icon: DnsRounded },
+  { value: 'NOTE',   label: 'Note',   icon: StickyNote2Rounded },
+];
+
+const COPY = {
+  LOGIN:  { name: 'e.g. Netflix',       username: 'Username / Email', site: 'Website (optional)' },
+  SERVER: { name: 'e.g. db-world SSH',  username: 'Server user',      site: 'Address (optional)' },
+  NOTE:   { name: 'e.g. Wi-Fi, locker', username: 'Username',         site: 'Website (optional)' },
+};
+
+const DEFAULTS = { name: '', type: 'LOGIN', url: '', username: '', password: '', pin: '', notes: '' };
+
 const AddPassword = () => {
-  usePageMeta('Save Credential');
+  usePageMeta('New Entry');
   useScrollTop();
 
   const T = useT();
@@ -52,65 +71,87 @@ const AddPassword = () => {
   const [showPin, setShowPin]           = useState(false);
   const [genCopied, setGenCopied]       = useState(false);
   const [customFields, setCustomFields] = useState([]);
+  const [showMore, setShowMore]         = useState(false);
 
-  const { control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm({
+  const { control, handleSubmit, setValue, watch, reset, setFocus, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { url: '', username: '', password: '', pin: '', notes: '' },
+    defaultValues: DEFAULTS,
   });
 
-  const pwValue = watch('password');
+  const [name, type, url, username, pwValue] = watch(['name', 'type', 'url', 'username', 'password']);
+  const copy = COPY[type] ?? COPY.LOGIN;
 
-  const { data: hosts = [] } = useQuery({
-    queryKey: ['pm-hosts'],
-    queryFn: async () => (await findAllHost()).data ?? [],
-    staleTime: 5 * 60 * 1000,
+  // ── Site from the name ─────────────────────────────────────────────────────
+  // Typing "Netflix" or "net flix" fills in netflix.com. It never overwrites a site the person
+  // typed (urlTouched), and a loose match is only offered as a chip, not applied.
+  const [urlTouched, setUrlTouched] = useState(false);
+  const [autoSite, setAutoSite]     = useState(null); // { domain, name } currently applied by us
+  const [suggestion, setSuggestion] = useState(null);
+  const [detecting, setDetecting]   = useState(false);
+  const seq = useRef(0);
+
+  const applyAuto = useCallback((site) => {
+    setAutoSite(site);
+    setValue('url', site ? `https://${site.domain}` : '', { shouldValidate: false });
+  }, [setValue]);
+
+  useEffect(() => {
+    if (urlTouched || type === 'NOTE') return undefined;
+    const typed = (name ?? '').trim().replace(/\s+/g, ' ');
+    const mine = ++seq.current;
+
+    if (typed.length < 2) { applyAuto(null); setSuggestion(null); setDetecting(false); return undefined; }
+
+    if (looksLikeSite(typed)) { // already an address: no lookup needed
+      setSuggestion(null); setDetecting(false);
+      applyAuto({ domain: siteKey(typed), name: typed });
+      return undefined;
+    }
+
+    setDetecting(true);
+    const timer = setTimeout(async () => {
+      const res = await searchBrands(typed);
+      if (mine !== seq.current) return; // a newer keystroke owns the answer now
+      const { auto, suggest } = pickSite(typed, res?.data);
+      setDetecting(false);
+      setSuggestion(suggest);
+      applyAuto(auto ? { domain: auto.domain, name: auto.name || auto.domain } : null);
+    }, 420);
+    return () => clearTimeout(timer);
+  }, [name, type, urlTouched, applyAuto]);
+
+  const dropSite = () => { setUrlTouched(true); applyAuto(null); setSuggestion(null); };
+  const takeSuggestion = () => {
+    applyAuto({ domain: suggestion.domain, name: suggestion.name || suggestion.domain });
+    setSuggestion(null);
+  };
+
+  // ── Duplicate check against the vault the person already has ───────────────
+  const { data: vault } = useQuery({
+    queryKey: ['pm-vault'],
+    queryFn: async () => (await getCredential()).data ?? [],
+    staleTime: 2 * 60 * 1000,
+    retry: false,
   });
-
-  // ── Site/app search: your saved hosts + public logo.dev suggestions ──────────
-  const [siteOptions, setSiteOptions] = useState([]);
-  const [siteLoading, setSiteLoading] = useState(false);
-  const searchTimer = useRef();
-
-  const savedOptions = useMemo(
-    () => hosts.map((h) => ({ name: h, domain: h, url: `https://${h}`, saved: true })),
-    [hosts]
+  const duplicate = useMemo(
+    () => ((username.trim() || type === 'NOTE') ? findDuplicate(vault, { url, name, username }) : null),
+    [vault, url, name, username, type],
   );
-
-  // Seed the dropdown with saved hosts so an empty/short query still suggests.
-  useEffect(() => { setSiteOptions(savedOptions.slice(0, 6)); }, [savedOptions]);
-  useEffect(() => () => clearTimeout(searchTimer.current), []);
-
-  const runSiteSearch = useCallback((raw) => {
-    clearTimeout(searchTimer.current);
-    const q = (raw || '').trim();
-    const ql = q.toLowerCase();
-    const saved = savedOptions.filter((o) => o.domain.toLowerCase().includes(ql)).slice(0, 5);
-    if (q.length < 2) { setSiteLoading(false); setSiteOptions(saved); return; }
-    // Prefer our own saved sites — only spend a (quota-limited) logo.dev search
-    // when the vault has no local match for what the user typed.
-    if (saved.length > 0) { setSiteLoading(false); setSiteOptions(saved); return; }
-    setSiteLoading(true);
-    searchTimer.current = setTimeout(async () => {
-      const res = await searchBrands(q);
-      const seen = new Set(saved.map((s) => s.domain.toLowerCase()));
-      const brands = (res?.data ?? [])
-        .filter((b) => b.domain && !seen.has(b.domain.toLowerCase()))
-        .map((b) => ({ name: b.name || b.domain, domain: b.domain, url: `https://${b.domain}`, logoUrl: b.logoUrl }));
-      setSiteOptions([...saved, ...brands]);
-      setSiteLoading(false);
-    }, 320);
-  }, [savedOptions]);
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: (data) => addCredential(data),
     onSuccess: () => {
-      notify.success('Credential saved securely');
+      notify.success('Saved securely');
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
-      reset();
+      reset(DEFAULTS);
       setCustomFields([]);
+      setUrlTouched(false);
+      setAutoSite(null);
+      setSuggestion(null);
+      setTimeout(() => setFocus('name'), 0);
     },
-    onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to save credential'),
+    onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to save'),
   });
 
   const handleGenerate = () => {
@@ -125,7 +166,7 @@ const AddPassword = () => {
     else notify.error('Copy failed');
   };
 
-  const addCustomField    = () => setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', showValue: false }]);
+  const addCustomField    = () => { setShowMore(true); setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', showValue: false }]); };
   const removeCustomField = (i) => setCustomFields((p) => p.filter((_, idx) => idx !== i));
   const updateCustomField = (i, k, v) => setCustomFields((p) => p.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
   const toggleCustomVis   = (i) => setCustomFields((p) => p.map((f, idx) => (idx === i ? { ...f, showValue: !f.showValue } : f)));
@@ -134,8 +175,18 @@ const AddPassword = () => {
     const validCustomFields = customFields
       .filter((f) => f.fieldKey.trim())
       .map(({ fieldKey, fieldValue }) => ({ fieldKey: fieldKey.trim(), fieldValue }));
-    save({ ...data, customFields: validCustomFields });
+    save({
+      ...data,
+      name: data.name.trim(),
+      url: data.url ? withScheme(data.url) : '',
+      customFields: validCustomFields,
+    });
   };
+
+  // If the problem is inside "More options", open it so the message is visible.
+  const onInvalid = (errs) => { if (errs.url) setShowMore(true); };
+
+  const siteDomain = siteKey(url);
 
   return (
     <Box sx={{ position: 'relative', bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary, pt: { xs: '56px', md: '64px' }, overflowX: 'hidden' }}>
@@ -157,82 +208,88 @@ const AddPassword = () => {
               </Box>
               <Box>
                 <Typography sx={{ fontSize: 'clamp(1.15rem, 4.5vw, 1.4rem)', fontWeight: 900, color: T.textPrimary, lineHeight: 1.1 }}>
-                  Save Credential
+                  New entry
                 </Typography>
                 <Typography sx={{ fontSize: '0.8rem', color: T.textMuted }}>Encrypted with AES-256</Typography>
               </Box>
             </Box>
 
-            <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}>
-              <Controller
-                name="url"
-                control={control}
-                render={({ field }) => (
-                  <Autocomplete
-                    freeSolo
-                    autoHighlight
-                    options={siteOptions}
-                    filterOptions={(x) => x}
-                    inputValue={field.value}
-                    loading={siteLoading}
-                    onInputChange={(_, v, reason) => {
-                      field.onChange(v);
-                      if (reason === 'input') runSiteSearch(v);
-                    }}
-                    onChange={(_, val) => {
-                      if (val && typeof val === 'object') field.onChange(val.url);
-                      else if (typeof val === 'string') field.onChange(val);
-                    }}
-                    getOptionLabel={(o) => (typeof o === 'string' ? o : o.url)}
-                    renderOption={(props, option) => {
-                      const { key, ...rest } = props;
-                      return (
-                        <Box component="li" key={key} {...rest} sx={{ display: 'flex', gap: 1.25, alignItems: 'center', py: 1 }}>
-                          <BrandLogo logoDomain={option.domain} companyName={option.name} size={26} radius={1.5} />
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {option.name}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.72rem', color: T.textMuted }}>
-                              {option.domain}{option.saved ? ' · saved' : ''}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      );
-                    }}
-                    slotProps={{ paper: { sx: { bgcolor: T.bg, backgroundImage: 'none', border: `1px solid ${T.glassBorder}`, color: T.textPrimary, boxShadow: `0 20px 60px ${T.tealGlow}` } } }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Website / App"
-                        placeholder="Search a site or paste a URL…"
-                        error={!!errors.url}
-                        helperText={errors.url?.message}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {siteLoading ? <CircularProgress size={16} sx={{ color: T.teal }} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                        sx={FIELD}
-                      />
-                    )}
-                  />
-                )}
-              />
+            <Box component="form" noValidate onSubmit={handleSubmit(onSubmit, onInvalid)} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Name: the only thing a quick entry needs besides the secret */}
+              <Box>
+                <Controller
+                  name="name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      autoFocus
+                      fullWidth
+                      label="Name"
+                      placeholder={copy.name}
+                      autoComplete="off"
+                      error={!!errors.name}
+                      helperText={errors.name?.message}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            {detecting
+                              ? <CircularProgress size={16} sx={{ color: T.teal }} />
+                              : siteDomain
+                                ? <BrandLogo logoDomain={siteDomain} companyName={name} size={26} radius={1.5} />
+                                : null}
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={FIELD}
+                    />
+                  )}
+                />
+                {/* What we found for that name, in plain sight and one click to undo */}
+                <AnimatePresence initial={false}>
+                  {(autoSite || suggestion) && (
+                    <motion.div
+                      initial={reduce ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <Box sx={{ pt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        {autoSite ? (
+                          <Chip
+                            size="small"
+                            icon={<CheckRounded sx={{ fontSize: 15, color: `${T.teal} !important` }} />}
+                            label={`${autoSite.domain} · site found`}
+                            onDelete={dropSite}
+                            sx={{ color: T.textPrimary, bgcolor: T.tealBg, border: `1px solid ${T.teal}44`, fontWeight: 700, '& .MuiChip-deleteIcon': { color: T.textMuted } }}
+                          />
+                        ) : (
+                          <Chip
+                            size="small"
+                            clickable
+                            onClick={takeSuggestion}
+                            label={`Use ${suggestion.domain}?`}
+                            variant="outlined"
+                            sx={{ color: T.teal, borderColor: `${T.teal}66`, fontWeight: 700 }}
+                          />
+                        )}
+                      </Box>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Box>
 
-              <Controller
-                name="username"
-                control={control}
-                render={({ field }) => (
-                  <TextField {...field} label="Username / Email" error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
-                )}
-              />
+              {type !== 'NOTE' && (
+                <Controller
+                  name="username"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField {...field} label={copy.username} autoComplete="off" error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
+                  )}
+                />
+              )}
 
-              {/* Password + inline generate + live strength */}
+              {/* Password: optional, with a warning rather than an error when it is empty */}
               <Box>
                 <Controller
                   name="password"
@@ -242,9 +299,8 @@ const AddPassword = () => {
                       {...field}
                       fullWidth
                       label="Password"
+                      autoComplete="new-password"
                       type={showPassword ? 'text' : 'password'}
-                      helperText={field.value ? undefined : 'Empty: this will be saved without a password.'}
-                      FormHelperTextProps={{ sx: { color: '#f59e0b' } }}
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end" sx={{ gap: 0.25 }}>
@@ -270,6 +326,11 @@ const AddPassword = () => {
                     />
                   )}
                 />
+                {!pwValue && type !== 'NOTE' && (
+                  <Typography sx={{ mt: 0.75, ml: 0.25, display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.74rem', fontWeight: 600, color: '#f59e0b' }}>
+                    <WarningAmberRounded sx={{ fontSize: 15 }} /> No password yet: this will be saved without one.
+                  </Typography>
+                )}
                 <AnimatePresence>
                   {pwValue && (
                     <motion.div
@@ -286,46 +347,94 @@ const AddPassword = () => {
                 </AnimatePresence>
               </Box>
 
-              <Controller
-                name="pin"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="PIN (optional)"
-                    type={showPin ? 'text' : 'password'}
-                    inputProps={{ inputMode: 'numeric' }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPin((v) => !v)} size="small" sx={{ color: T.teal }} aria-label={showPin ? 'Hide PIN' : 'Show PIN'}>
-                            {showPin ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={FIELD}
+              {duplicate && (
+                <Typography role="alert" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: '0.8rem', fontWeight: 700, color: '#f87171' }}>
+                  <WarningAmberRounded sx={{ fontSize: 17 }} />
+                  You already have this entry{duplicate.pm?.host ? ` (${duplicate.pm.host})` : ''}. Change the name or username to add another.
+                </Typography>
+              )}
+
+              {/* Everything else, one tap away */}
+              <Button
+                onClick={() => setShowMore((v) => !v)}
+                endIcon={<ExpandMoreRounded sx={{ transform: showMore ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}
+                aria-expanded={showMore}
+                sx={{ alignSelf: 'flex-start', color: T.textMuted, fontWeight: 700, fontSize: '0.8rem', px: 0.5, minHeight: 36, '&:hover': { bgcolor: 'transparent', color: T.teal } }}
+              >
+                {showMore ? 'Fewer options' : 'More options'}
+              </Button>
+
+              <Collapse in={showMore} timeout={reduce ? 0 : 'auto'}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: 0.5 }}>
+                  <Controller
+                    name="type"
+                    control={control}
+                    render={({ field }) => (
+                      <ToggleButtonGroup
+                        exclusive
+                        fullWidth
+                        size="small"
+                        value={field.value}
+                        onChange={(_, v) => { if (v) field.onChange(v); }}
+                        aria-label="Entry type"
+                        sx={{ '& .MuiToggleButton-root': { color: T.textMuted, borderColor: T.glassBorder, fontWeight: 700, gap: 0.75, textTransform: 'none', '&.Mui-selected': { color: T.teal, bgcolor: T.tealBg, borderColor: `${T.teal}66` } } }}
+                      >
+                        {TYPES.map(({ value, label, icon: Icon }) => (
+                          <ToggleButton key={value} value={value}><Icon sx={{ fontSize: 17 }} />{label}</ToggleButton>
+                        ))}
+                      </ToggleButtonGroup>
+                    )}
                   />
-                )}
-              />
 
-              <Controller
-                name="notes"
-                control={control}
-                render={({ field }) => (
-                  <TextField {...field} label="Notes (optional)" multiline rows={3} placeholder="Security questions, recovery info…" sx={FIELD} />
-                )}
-              />
+                  <Controller
+                    name="url"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={copy.site}
+                        placeholder="example.com"
+                        autoComplete="off"
+                        error={!!errors.url}
+                        helperText={errors.url?.message}
+                        onChange={(e) => { setUrlTouched(true); setAutoSite(null); setSuggestion(null); field.onChange(e); }}
+                        sx={FIELD}
+                      />
+                    )}
+                  />
 
-              {/* Custom fields */}
-              <AnimatePresence initial={false}>
-                {customFields.length > 0 && (
-                  <motion.div
-                    initial={reduce ? false : { opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ overflow: 'hidden' }}
-                  >
+                  <Controller
+                    name="pin"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="PIN (optional)"
+                        type={showPin ? 'text' : 'password'}
+                        inputProps={{ inputMode: 'numeric' }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton onClick={() => setShowPin((v) => !v)} size="small" sx={{ color: T.teal }} aria-label={showPin ? 'Hide PIN' : 'Show PIN'}>
+                                {showPin ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={FIELD}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="notes"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField {...field} label="Notes (optional)" multiline minRows={3} maxRows={12} placeholder="Security questions, recovery info, a private key…" sx={FIELD} />
+                    )}
+                  />
+
+                  {customFields.length > 0 && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                       <Typography sx={{ fontSize: '0.74rem', fontWeight: 800, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Custom Fields
@@ -333,12 +442,7 @@ const AddPassword = () => {
                       {customFields.map((field, index) => (
                         <Box
                           key={index}
-                          sx={{
-                            display: 'grid',
-                            gridTemplateColumns: { xs: '1fr', sm: 'minmax(110px, 0.42fr) 1fr auto' },
-                            gap: 1,
-                            alignItems: 'flex-start',
-                          }}
+                          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(110px, 0.42fr) 1fr auto' }, gap: 1, alignItems: 'flex-start' }}
                         >
                           <TextField size="small" label="Label" placeholder="e.g. mPIN" value={field.fieldKey} onChange={(e) => updateCustomField(index, 'fieldKey', e.target.value)} sx={FIELD} />
                           <TextField
@@ -370,28 +474,28 @@ const AddPassword = () => {
                         </Box>
                       ))}
                     </Box>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  )}
 
-              <Button
-                size="small"
-                startIcon={<AddRounded />}
-                onClick={addCustomField}
-                sx={{ alignSelf: 'flex-start', minHeight: 40, color: T.teal, border: `1px dashed ${T.teal}`, borderRadius: 2, px: 1.5, fontSize: '0.8rem', fontWeight: 700, '&:hover': { bgcolor: T.tealBg } }}
-              >
-                Add Custom Field
-              </Button>
+                  <Button
+                    size="small"
+                    startIcon={<AddRounded />}
+                    onClick={addCustomField}
+                    sx={{ alignSelf: 'flex-start', minHeight: 40, color: T.teal, border: `1px dashed ${T.teal}`, borderRadius: 2, px: 1.5, fontSize: '0.8rem', fontWeight: 700, '&:hover': { bgcolor: T.tealBg } }}
+                  >
+                    Add Custom Field
+                  </Button>
+                </Box>
+              </Collapse>
 
               <Button
                 type="submit"
                 variant="contained"
                 fullWidth
-                disabled={isPending}
+                disabled={isPending || !!duplicate}
                 startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <SaveRounded />}
                 sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, py: 1.4, borderRadius: 2.5, mt: 0.5, minHeight: 48, boxShadow: `0 10px 30px ${T.tealGlow}`, '&:hover': { bgcolor: '#0f766e' }, '&.Mui-disabled': { opacity: 0.6 } }}
               >
-                {isPending ? 'Saving…' : 'Save Credential'}
+                {isPending ? 'Saving…' : 'Save'}
               </Button>
             </Box>
           </GlassPanel>

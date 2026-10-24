@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 
 import BrandLogo, { domainFromUrl } from '@shared/brand/BrandLogo';
+import { looksLikeSite } from './entryUtils';
 
 import { useT, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -52,11 +53,15 @@ const relativeTime = (ts) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const editSchema = z.object({
+  name: z.string().optional().default(''),
   username: z.string().min(1, 'Username is required'),
   password: z.string().optional().default(''),
   pin: z.string().optional().default(''),
   notes: z.string().optional().default(''),
 });
+
+// A note has no username to insist on.
+const noteEditSchema = editSchema.extend({ username: z.string().optional().default('') });
 
 const hasValue = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 const hasPinValue = (v) => hasValue(v) && String(v).trim() !== '0';
@@ -85,7 +90,7 @@ const iconButtonSx = (T, hoverColor) => ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HostAvatar = memo(({ host, size = 38 }) => (
-  <BrandLogo logoDomain={domainFromUrl(host)} companyName={host} size={size} radius={2} />
+  <BrandLogo logoDomain={looksLikeSite(host) ? domainFromUrl(host) : ''} companyName={host} size={size} radius={2} />
 ));
 HostAvatar.displayName = 'HostAvatar';
 
@@ -202,8 +207,9 @@ const EditDialog = ({ target, onClose }) => {
   const [customFields, setCustomFields] = useState((target?.cred?.customFields ?? []).map((f) => ({ ...f })));
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-    resolver: zodResolver(editSchema),
+    resolver: zodResolver(target?.cred?.type === 'NOTE' ? noteEditSchema : editSchema),
     defaultValues: {
+      name: target?.cred?.name ?? '',
       username: target?.cred?.username ?? '',
       password: target?.cred?.password ?? '',
       pin: hasPinValue(target?.cred?.pin) ? String(target.cred.pin) : '',
@@ -231,7 +237,7 @@ const EditDialog = ({ target, onClose }) => {
       PaperProps={{ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } }}>
       <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.25 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-          <BrandLogo logoDomain={domainFromUrl(target.host)} companyName={target.host} size={42} radius={2.5} />
+          <BrandLogo logoDomain={looksLikeSite(target.host) ? domainFromUrl(target.host) : ''} companyName={target.host} size={42} radius={2.5} />
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ color: T.textPrimary, fontWeight: 900, fontSize: '1.08rem', lineHeight: 1.2 }}>
               Edit Credential
@@ -244,6 +250,9 @@ const EditDialog = ({ target, onClose }) => {
       </DialogTitle>
 
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important', px: { xs: 2, sm: 3 } }}>
+        <Controller name="name" control={control} render={({ field }) => (
+          <TextField {...field} label="Name" size="small" placeholder={target.host} sx={FIELD} />
+        )} />
         <Controller name="username" control={control} render={({ field }) => (
           <TextField {...field} label="Username / Email" size="small" error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
         )} />

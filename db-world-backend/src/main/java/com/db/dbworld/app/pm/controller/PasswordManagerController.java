@@ -35,7 +35,8 @@ public class PasswordManagerController {
                 .getPasswordManagerByUser().stream().map(dto -> {
                     ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
                     r.setId(dto.getId());
-                    r.setHost(dto.getHost().getName());
+                    // An entry with no website has no host: label its group with its own name.
+                    r.setHost(dto.getHost() != null ? dto.getHost().getName() : siteLessLabel(dto));
                     r.setCredentials(dto.getCredentials());
                     return r;
                 }).toList();
@@ -46,14 +47,42 @@ public class PasswordManagerController {
     @AnyRole
     public ApiResponse<Void> addCredentialByUser(@RequestBody RequestPayloads.AddCredential addCredential) {
         try {
-            String host = new URL(addCredential.getUrl().toLowerCase()).getHost();
+            String host = hostOf(addCredential.getUrl());
             CredentialDto credential = credentialMapper.fromAddCredential(addCredential);
+            credential.setUrl(storedUrl(addCredential.getUrl()));
             passwordManagerService.addCredential(host, credential);
             return ApiResponse.success("Credential is added.");
         } catch (MalformedURLException ex) {
             log.warn("Rejected addCredential: malformed url={}", addCredential.getUrl(), ex);
             throw new DbWorldException("Invalid URL format: " + ex.getMessage());
         }
+    }
+
+    /**
+     * The host of a typed website, or null when none was given. "example.com" is as good as
+     * "https://example.com": a missing scheme is assumed to be https.
+     */
+    private static String hostOf(String url) throws MalformedURLException {
+        if (url == null || url.isBlank()) return null;
+        String u = url.trim().toLowerCase();
+        if (!u.contains("://")) u = "https://" + u;
+        String host = new URL(u).getHost();
+        if (host.isBlank()) throw new MalformedURLException("no host in " + url);
+        return host;
+    }
+
+    /** The URL as saved: with its scheme, or null when there is no website. */
+    private static String storedUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        String u = url.trim();
+        return u.contains("://") ? u : "https://" + u;
+    }
+
+    private static String siteLessLabel(PasswordManagerDto dto) {
+        return dto.getCredentials() == null ? "Untitled" : dto.getCredentials().stream()
+                .map(CredentialDto::getName)
+                .filter(n -> n != null && !n.isBlank())
+                .findFirst().orElse("Untitled");
     }
 
     @PostMapping("/credentials")
@@ -65,8 +94,9 @@ public class PasswordManagerController {
         List<String>        success = new ArrayList<>();
         addCredentials.forEach(c -> {
             try {
-                String host = new URL(c.getUrl().toLowerCase()).getHost();
+                String host = hostOf(c.getUrl());
                 CredentialDto credential = credentialMapper.fromAddCredential(c);
+                credential.setUrl(storedUrl(c.getUrl()));
                 passwordManagerService.addCredential(host, credential);
                 success.add(c.getUrl() + " / " + c.getUsername());
             } catch (Exception ex) {

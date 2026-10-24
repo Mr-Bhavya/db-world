@@ -1,6 +1,7 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
+import com.db.dbworld.app.pm.entity.CredentialType;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -24,10 +25,13 @@ public class RequestPayloads {
     @Data
     @ToString
     public static class AddCredential{
-        @NotEmpty
+        // Optional: an entry can be a server, an app or a note with no website.
         private String url;
         private String id;
-        @NotEmpty
+        // Falls back to the website's host when blank.
+        private String name;
+        private CredentialType type;
+        // Required for logins and servers, not for notes: checked in the service.
         private String username;
         private String password;
         private String pin;
@@ -39,7 +43,8 @@ public class RequestPayloads {
     public static class UpdateCredential {
         @NotEmpty
         private String id;
-        @NotEmpty
+        private String name;
+        private CredentialType type;
         private String username;
         private String password;
         private String pin;
