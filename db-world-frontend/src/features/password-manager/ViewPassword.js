@@ -156,8 +156,11 @@ const EditCustomFieldRow = memo(({ field, index, onChange, onRemove, T, FIELD })
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(120px, 0.42fr) minmax(0, 1fr) auto' }, gap: 1, alignItems: 'flex-start', minWidth: 0 }}>
       <TextField size="small" label="Label" value={field.fieldKey ?? ''} onChange={(e) => onChange(index, 'fieldKey', e.target.value)} sx={FIELD} />
       <TextField
-        size="small" label="Value" type={showVal ? 'text' : 'password'} value={field.fieldValue ?? ''}
+        size="small" label="Value" value={field.fieldValue ?? ''}
         onChange={(e) => onChange(index, 'fieldValue', e.target.value)}
+        // multiline so a pasted key keeps its line breaks; masked with CSS, as type=password is single-line
+        multiline minRows={1} maxRows={8}
+        slotProps={{ htmlInput: { style: showVal ? undefined : { WebkitTextSecurity: 'disc' } } }}
         InputProps={{ endAdornment: (
           <InputAdornment position="end">
             <IconButton size="small" onClick={() => setShowVal((v) => !v)} sx={{ color: T.teal }} aria-label="Toggle value visibility">

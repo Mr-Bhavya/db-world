@@ -21,8 +21,18 @@ import BrandLogo from '@shared/brand/BrandLogo';
 import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
 
+// "ssh.db-world.in" is a perfectly good site: assume https:// when no scheme was typed.
+const withScheme = (v) => {
+  const s = v.trim();
+  return s && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? `https://${s}` : s;
+};
+const isValidUrl = (v) => {
+  try { return !!new URL(v).hostname; } catch { return false; }
+};
+
 const schema = z.object({
-  url: z.string().min(1, 'URL is required').url('Must be a valid URL (include https://)'),
+  url: z.string().trim().min(1, 'URL is required').transform(withScheme)
+    .refine(isValidUrl, 'Enter a site like example.com or https://example.com'),
   username: z.string().min(1, 'Username / email is required'),
   password: z.string().optional().default(''),
   pin: z.string().optional().default(''),
@@ -233,6 +243,8 @@ const AddPassword = () => {
                       fullWidth
                       label="Password"
                       type={showPassword ? 'text' : 'password'}
+                      helperText={field.value ? undefined : 'Empty: this will be saved without a password.'}
+                      FormHelperTextProps={{ sx: { color: '#f59e0b' } }}
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end" sx={{ gap: 0.25 }}>
@@ -332,7 +344,11 @@ const AddPassword = () => {
                           <TextField
                             size="small"
                             label="Value"
-                            type={field.showValue ? 'text' : 'password'}
+                            // multiline so a pasted key keeps its line breaks; masked with CSS, as type=password is single-line
+                            multiline
+                            minRows={1}
+                            maxRows={8}
+                            slotProps={{ htmlInput: { style: field.showValue ? undefined : { WebkitTextSecurity: 'disc' } } }}
                             value={field.fieldValue}
                             onChange={(e) => updateCustomField(index, 'fieldValue', e.target.value)}
                             InputProps={{

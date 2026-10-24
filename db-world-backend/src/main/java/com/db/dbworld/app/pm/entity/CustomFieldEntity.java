@@ -26,7 +26,10 @@ public class CustomFieldEntity {
     private String fieldKey;
 
     @Convert(converter = StringCryptoConverter.class)
-    @Column(name = "field_value", length = 512)
+    // LONGTEXT like CredentialEntity.password/notes: the value is AES-encrypted and base64
+    // encoded, so even a small secret outgrows 512 chars (an SSH private key is ~4.5 KB).
+    @Lob
+    @Column(name = "field_value", columnDefinition = "LONGTEXT")
     private String fieldValue;
 
     public CustomFieldEntity(String fieldKey, String fieldValue, CredentialEntity credential) {
