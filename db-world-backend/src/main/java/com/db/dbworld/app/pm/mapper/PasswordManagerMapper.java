@@ -15,6 +15,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
@@ -54,5 +55,10 @@ public interface PasswordManagerMapper {
     // The custom fields are replaced by the service (clear + re-add, with their types kept). Mapped
     // here they would swap the managed list for unsaved entities, and the next query's flush fails.
     @Mapping(target = "customFields", ignore = true)
+    // Null means "keep the stored value" for the three secrets, so a client that leaves one out cannot
+    // wipe it. A blank string is the explicit clear and is copied like any other value.
+    @Mapping(target = "password", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "pin", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "notes", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntityFromDto(CredentialDto dto, @MappingTarget CredentialEntity entity);
 }

@@ -657,6 +657,61 @@ class PasswordManagerServiceImplTest {
         assertThat(service.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
     }
 
+    // ── null keeps, blank clears ─────────────────────────────────────────────────
+
+    /** An entry holding a password, PIN and notes, found by the update path. */
+    private CredentialEntity entryWithSecrets(String id) {
+        CredentialEntity c = entryWithPassword(id, "stored-pw");
+        c.setPin("1234");
+        c.setNotes("stored notes");
+        return c;
+    }
+
+    @Test
+    void aMissingPasswordPinAndNotesKeepTheStoredValuesAndRecordNoHistory() {
+        CredentialEntity c = entryWithSecrets("c1");
+        CredentialDto d = edit("c1", "Netflix UK", "me@x.com", null);   // password, pin, notes all null
+
+        service.updateCredential("pm-c1", d);
+
+        assertThat(c.getName()).isEqualTo("Netflix UK");   // the rest of the edit still applies
+        assertThat(c.getPassword()).isEqualTo("stored-pw");
+        assertThat(c.getPin()).isEqualTo("1234");
+        assertThat(c.getNotes()).isEqualTo("stored notes");
+        assertThat(historyRows).isEmpty();
+        verify(historyRepo, never()).save(any(CredentialHistoryEntity.class));
+    }
+
+    @Test
+    void aBlankPasswordPinAndNotesClearTheStoredValuesAndOnlyThePasswordGoesToHistory() {
+        CredentialEntity c = entryWithSecrets("c1");
+        CredentialDto d = edit("c1", "Netflix", "me@x.com", null);
+        d.setPassword("");
+        d.setPin("");
+        d.setNotes("");
+
+        service.updateCredential("pm-c1", d);
+
+        assertThat(c.getPassword()).isEmpty();
+        assertThat(c.getPin()).isEmpty();
+        assertThat(c.getNotes()).isEmpty();
+        assertThat(historyRows).extracting(CredentialHistoryEntity::getPassword).containsExactly("stored-pw");
+    }
+
+    @Test
+    void eachOfPasswordPinAndNotesIsKeptOrChangedOnItsOwn() {
+        CredentialEntity c = entryWithSecrets("c1");
+        CredentialDto d = edit("c1", "Netflix", "me@x.com", null);
+        d.setPin("9999");   // only the PIN is sent
+
+        service.updateCredential("pm-c1", d);
+
+        assertThat(c.getPin()).isEqualTo("9999");
+        assertThat(c.getPassword()).isEqualTo("stored-pw");
+        assertThat(c.getNotes()).isEqualTo("stored notes");
+        assertThat(historyRows).isEmpty();
+    }
+
     @Test
     void restoringAnOldPasswordPutsItBackAndRecordsTheCurrentOne() {
         PasswordManagerServiceImpl ticking = serviceWithTickingClock();
