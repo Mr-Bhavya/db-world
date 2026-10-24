@@ -7,13 +7,15 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "CREDENTIALS", schema = "db_world")
+@Table(name = "CREDENTIALS", schema = "db_world",
+        indexes = @Index(name = "idx_credentials_deleted_at", columnList = "deleted_at"))
 public class CredentialEntity {
 
     @Id
@@ -64,6 +66,12 @@ public class CredentialEntity {
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String notes;
+
+    // When the entry was moved to Trash. Null is a live entry, and every reader treats it that way
+    // (rows from before Trash existed have no value). The purge job removes entries trashed more
+    // than 30 days ago.
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @OneToMany(mappedBy = "credential", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<CustomFieldEntity> customFields = new ArrayList<>();

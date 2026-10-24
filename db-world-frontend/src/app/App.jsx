@@ -16,6 +16,7 @@ import GeneratePassword from '@features/password-manager/GeneratePassword';
 import AddPassword from '@features/password-manager/AddPassword';
 import Constants from '@shared/constants';
 import ViewPassword from '@features/password-manager/ViewPassword';
+import VaultTrash from '@features/password-manager/VaultTrash';
 import Profile from '@features/users/Profile';
 import EditProfile from '@features/users/EditProfile';
 import { AuthProvider } from '@features/auth/context/Authentication';
@@ -286,6 +287,7 @@ const routeConfig = {
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
+    { path: Constants.DB_VAULT_TRASH_ROUTE, element: <VaultTrash /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },

@@ -121,6 +121,8 @@ export const DB_ADD_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/add-password`;
 export const DB_VIEW_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/view-password`;
+export const DB_VAULT_TRASH_ROUTE =
+  `${DB_PASSWORD_MANAGER_ROUTE}/trash`;
 
 export const LOGIN_ROUTE = `${APP_BASE}/login`;
 export const LOGOUT_ROUTE = `${APP_BASE}/logout`;
@@ -316,6 +318,7 @@ export default {
   DB_GENERATE_PASSWORD_ROUTE,
   DB_ADD_PASSWORD_ROUTE,
   DB_VIEW_PASSWORD_ROUTE,
+  DB_VAULT_TRASH_ROUTE,
 
   LOGIN_ROUTE,
   LOGOUT_ROUTE,

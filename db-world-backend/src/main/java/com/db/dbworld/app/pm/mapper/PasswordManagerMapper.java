@@ -29,6 +29,7 @@ public interface PasswordManagerMapper {
     List<PasswordManagerDto> toDtoList(List<PasswordManagerEntity> entities);
 
     @Mapping(target = "passwordManager", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     CredentialEntity toEntity(CredentialDto dto);
 
     // A row from before types existed has no type: it is HIDDEN.
@@ -45,5 +46,6 @@ public interface PasswordManagerMapper {
 
     // url is not part of the edit payload — preserve the value stored at add time.
     @Mapping(target = "url", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     void updateEntityFromDto(CredentialDto dto, @MappingTarget CredentialEntity entity);
 }

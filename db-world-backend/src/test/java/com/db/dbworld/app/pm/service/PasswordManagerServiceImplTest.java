@@ -14,8 +14,11 @@ import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
 import com.db.dbworld.app.pm.service.impl.PasswordManagerServiceImpl;
+import com.db.dbworld.app.pm.service.impl.TrashPurgeJob;
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.core.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +28,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.HttpStatus;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +41,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,12 +55,15 @@ class PasswordManagerServiceImplTest {
     @Mock private UserService userService;
     @Mock private UserContext userContext;
 
+    private static final Instant NOW = Instant.parse("2026-10-24T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final PasswordManagerMapper mapper = new PasswordManagerMapperImpl();
     private PasswordManagerServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, userService, userContext, mapper);
+        service = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, userService, userContext, mapper, CLOCK);
         when(userContext.userId()).thenReturn(7L);
         when(hostRepo.findById(any())).thenReturn(Optional.empty());
         when(hostRepo.save(any(HostEntity.class))).thenAnswer(i -> i.getArgument(0));
@@ -285,5 +297,242 @@ class PasswordManagerServiceImplTest {
 
         assertThat(old.getFieldType()).isNull();
         assertThat(mapper.toDto(old).getFieldType()).isEqualTo(CustomFieldType.HIDDEN);
+    }
+
+    // ── trash ────────────────────────────────────────────────────────────────────
+
+    /** A group with no credentials yet; fill it with addTo. */
+    private static PasswordManagerEntity group(String id, String host) {
+        PasswordManagerEntity pm = new PasswordManagerEntity();
+        pm.setId(id);
+        pm.setHost(host == null ? null : new HostEntity(host));
+        pm.setCredentials(new ArrayList<>());
+        return pm;
+    }
+
+    /** Adds a credential to the group, wired both ways, and makes the repo find it for user 7. */
+    private CredentialEntity addTo(PasswordManagerEntity pm, String id, String name, String username, Instant trashedAt) {
+        CredentialEntity c = new CredentialEntity();
+        c.setId(id);
+        c.setName(name);
+        c.setUsername(username);
+        c.setDeletedAt(trashedAt);
+        c.setPasswordManager(pm);
+        pm.getCredentials().add(c);
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId(id, 7L)).thenReturn(Optional.of(c));
+        return c;
+    }
+
+    @Test
+    void deleteMovesTheEntryToTrashInsteadOfRemovingIt() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity c = addTo(pm, "c1", "Netflix", "me@x.com", null);
+
+        service.trashCredential("c1");
+
+        assertThat(c.getDeletedAt()).isEqualTo(NOW);
+        verify(credentialsRepo, never()).delete(any(CredentialEntity.class));
+        verify(pmRepo, never()).delete(any(PasswordManagerEntity.class));
+        assertThat(pm.getCredentials()).containsExactly(c);
+    }
+
+    @Test
+    void trashingAnAlreadyTrashedEntryKeepsTheOriginalTime() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        Instant earlier = NOW.minus(Duration.ofDays(3));
+        CredentialEntity c = addTo(pm, "c1", "Netflix", "me@x.com", earlier);
+
+        service.trashCredential("c1");
+
+        assertThat(c.getDeletedAt()).isEqualTo(earlier);
+    }
+
+    @Test
+    void anotherUsersEntryCannotBeTrashedRestoredOrPurged() {
+        // The repo finds nothing for user 7: the id belongs to someone else (or to nobody).
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId("theirs", 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.trashCredential("theirs")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.restore("theirs")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.purge("theirs")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.trashPasswordManager("their-pm")).isInstanceOf(ResourceNotFoundException.class);
+        verify(credentialsRepo, never()).delete(any(CredentialEntity.class));
+    }
+
+    @Test
+    void trashedEntriesAreNotInTheVaultList() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "c1", "Netflix", "me@x.com", null);
+        addTo(netflix, "c2", "Netflix Kids", "kids@x.com", NOW);
+        PasswordManagerEntity github = group("pm2", "github.com");
+        addTo(github, "c3", "GitHub", "me", NOW);          // every entry of this group is trashed
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(netflix, github));
+
+        var vault = service.getPasswordManagerByUser();
+
+        assertThat(vault).hasSize(1);
+        assertThat(vault.get(0).getCredentials()).extracting(CredentialDto::getId).containsExactly("c1");
+        // The group itself keeps both entries: the list is filtered, not the data.
+        assertThat(netflix.getCredentials()).hasSize(2);
+    }
+
+    @Test
+    void theTrashListHoldsOnlyTrashedEntriesAndSaysWhenTheyWereTrashed() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "c1", "Netflix", "me@x.com", null);
+        addTo(netflix, "c2", "Netflix Kids", "kids@x.com", NOW);
+        PasswordManagerEntity box = group("pm2", null);
+        addTo(box, "c3", "Box", "root", null);
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(netflix, box));
+
+        var trash = service.listTrash();
+
+        assertThat(trash).hasSize(1);
+        assertThat(trash.get(0).getId()).isEqualTo("pm1");
+        assertThat(trash.get(0).getCredentials()).extracting(CredentialDto::getId).containsExactly("c2");
+        assertThat(trash.get(0).getCredentials().get(0).getDeletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void aTrashedEntryDoesNotCountAsADuplicate() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "c1", "Netflix", "me@x.com", NOW);
+        when(pmRepo.findAllByHostNameAndUserEntityUserId("netflix.com", 7L)).thenReturn(List.of(netflix));
+
+        service.addCredential("netflix.com", dto("Netflix", "me@x.com", null));
+
+        assertThat(netflix.getCredentials()).hasSize(2);
+    }
+
+    @Test
+    void anUpdateMayTakeTheNameOfATrashedEntry() {
+        PasswordManagerEntity a = stored("c1", "netflix.com", "Netflix", "me@x.com");
+        PasswordManagerEntity b = group("pm-c2", "netflix.com");
+        addTo(b, "c2", "Netflix Kids", "me@x.com", NOW);
+        when(pmRepo.findAllByHostNameAndUserEntityUserId("netflix.com", 7L)).thenReturn(List.of(a, b));
+
+        service.updateCredential("pm-c1", edit("c1", "Netflix Kids", "me@x.com", null));
+
+        assertThat(a.getCredentials().get(0).getName()).isEqualTo("Netflix Kids");
+    }
+
+    @Test
+    void aTrashedEntryCannotBeUpdatedOrRead() {
+        PasswordManagerEntity pm = stored("c1", "netflix.com", "Netflix", "me@x.com");
+        CredentialEntity c = pm.getCredentials().get(0);
+        c.setDeletedAt(NOW);
+        c.setPasswordManager(pm);
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId("c1", 7L)).thenReturn(Optional.of(c));
+
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", edit("c1", "Renamed", "me@x.com", null)))
+                .isInstanceOf(DbWorldException.class);
+        assertThatThrownBy(() -> service.getCredentialById("c1")).isInstanceOf(ResourceNotFoundException.class);
+        assertThat(c.getName()).isEqualTo("Netflix");
+    }
+
+    @Test
+    void restoringOntoALiveDuplicateIsRefusedWith409() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "live", "Netflix", "me@x.com", null);
+        CredentialEntity trashed = addTo(netflix, "gone", "netflix", "ME@x.com", NOW);
+        when(pmRepo.findAllByHostNameAndUserEntityUserId("netflix.com", 7L)).thenReturn(List.of(netflix));
+
+        assertThatThrownBy(() -> service.restore("gone"))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("already");
+        assertThat(trashed.getDeletedAt()).isEqualTo(NOW);   // still in Trash
+    }
+
+    @Test
+    void restoringTakesTheEntryOutOfTrashWhenNothingLiveClashesWithIt() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "live", "Netflix", "other@x.com", null);
+        CredentialEntity trashed = addTo(netflix, "gone", "Netflix", "me@x.com", NOW);
+        CredentialEntity alsoTrashed = addTo(netflix, "gone2", "Netflix", "me@x.com", NOW);   // another trashed copy
+        when(pmRepo.findAllByHostNameAndUserEntityUserId("netflix.com", 7L)).thenReturn(List.of(netflix));
+
+        service.restore("gone");
+
+        assertThat(trashed.getDeletedAt()).isNull();
+        assertThat(alsoTrashed.getDeletedAt()).isEqualTo(NOW);   // trashed entries do not clash
+    }
+
+    @Test
+    void deletingASiteTrashesEveryCredentialOnIt() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity a = addTo(pm, "c1", "Netflix", "me@x.com", null);
+        CredentialEntity b = addTo(pm, "c2", "Netflix Kids", "kids@x.com", null);
+        Instant earlier = NOW.minus(Duration.ofDays(5));
+        CredentialEntity old = addTo(pm, "c3", "Old", "old@x.com", earlier);
+        when(pmRepo.findByIdAndUserEntityUserId("pm1", 7L)).thenReturn(Optional.of(pm));
+
+        service.trashPasswordManager("pm1");
+
+        assertThat(a.getDeletedAt()).isEqualTo(NOW);
+        assertThat(b.getDeletedAt()).isEqualTo(NOW);
+        assertThat(old.getDeletedAt()).isEqualTo(earlier);
+        verify(pmRepo, never()).delete(any(PasswordManagerEntity.class));
+    }
+
+    @Test
+    void purgeRemovesATrashedEntryAndItsGroupWhenItWasTheLastOne() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity gone = addTo(pm, "c1", "Netflix", "me@x.com", NOW);
+
+        service.purge("c1");
+
+        verify(credentialsRepo).delete(gone);
+        verify(pmRepo).delete(pm);
+        assertThat(pm.getCredentials()).isEmpty();
+    }
+
+    @Test
+    void purgeKeepsTheGroupWhileItStillHoldsOtherEntries() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity gone = addTo(pm, "c1", "Netflix", "me@x.com", NOW);
+        addTo(pm, "c2", "Netflix Kids", "kids@x.com", null);
+
+        service.purge("c1");
+
+        verify(credentialsRepo).delete(gone);
+        verify(pmRepo, never()).delete(any(PasswordManagerEntity.class));
+        assertThat(pm.getCredentials()).extracting(CredentialEntity::getId).containsExactly("c2");
+    }
+
+    @Test
+    void aLiveEntryCannotBePurged() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        addTo(pm, "c1", "Netflix", "me@x.com", null);
+
+        assertThatThrownBy(() -> service.purge("c1")).isInstanceOf(ResourceNotFoundException.class);
+        verify(credentialsRepo, never()).delete(any(CredentialEntity.class));
+    }
+
+    @Test
+    void purgeJobRemovesEntriesTrashedMoreThan30DaysAgo() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity expired = addTo(pm, "c1", "Netflix", "me@x.com", NOW.minus(Duration.ofDays(31)));
+        CredentialEntity recent = addTo(pm, "c2", "Netflix Kids", "kids@x.com", NOW.minus(Duration.ofDays(29)));
+        PasswordManagerEntity github = group("pm2", "github.com");
+        CredentialEntity expiredAlone = addTo(github, "c3", "GitHub", "me", NOW.minus(Duration.ofDays(60)));
+        CredentialEntity live = addTo(group("pm3", "x.com"), "c4", "X", "me", null);
+        List<CredentialEntity> all = List.of(expired, recent, expiredAlone, live);
+        // What the database answers: entries trashed before the cutoff the job asks for.
+        when(credentialsRepo.findAllByDeletedAtBefore(any(Instant.class))).thenAnswer(i -> {
+            Instant cutoff = i.getArgument(0);
+            return all.stream().filter(c -> c.getDeletedAt() != null && c.getDeletedAt().isBefore(cutoff)).toList();
+        });
+        var summary = JobRunSummary.builder();
+
+        new TrashPurgeJob(service, CLOCK).purgeExpired(summary);
+
+        verify(credentialsRepo).delete(expired);
+        verify(credentialsRepo).delete(expiredAlone);
+        verify(credentialsRepo, never()).delete(recent);
+        verify(credentialsRepo, never()).delete(live);
+        verify(pmRepo).delete(github);                          // its last entry went
+        verify(pmRepo, never()).delete(pm);                     // "recent" still lives there
+        assertThat(summary.build().counters()).containsEntry("entriesRemoved", 2L);
     }
 }

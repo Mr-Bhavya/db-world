@@ -9,7 +9,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 import {
   Box, Button, Chip, CircularProgress, Container, Dialog,
-  DialogActions, DialogContent, DialogTitle, Divider, IconButton,
+  DialogContent, DialogTitle, Divider, IconButton,
   InputAdornment, MenuItem, Skeleton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
   useMediaQuery, useTheme,
 } from '@mui/material';
@@ -37,8 +37,8 @@ import {
 import CommonServices from '@shared/services/CommonServices';
 
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
-import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr } from './vaultShared';
-import useVaultQuery, { useVaultOffline } from './useVault';
+import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr, ConfirmDialog, ResponsiveDialogActions } from './vaultShared';
+import useVaultQuery, { useVaultOffline, TRASH_QUERY_KEY } from './useVault';
 
 // Compact "3 min ago" for the offline-snapshot banner.
 const relativeTime = (ts) => {
@@ -206,12 +206,6 @@ const EditCustomFieldRow = memo(({ field, index, onChange, onRemove, T, FIELD })
   );
 });
 EditCustomFieldRow.displayName = 'EditCustomFieldRow';
-
-const ResponsiveDialogActions = ({ children }) => (
-  <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 2.5 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, '& > button': { width: { xs: '100%', sm: 'auto' }, minHeight: 44 } }}>
-    {children}
-  </DialogActions>
-);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Edit dialog
@@ -396,36 +390,6 @@ const EditDialog = ({ target, vault, onClose }) => {
           startIcon={isPending ? <CircularProgress size={14} color="inherit" /> : null}
           sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: '#0f766e' } }}>
           {isPending ? 'Saving…' : 'Save Changes'}
-        </Button>
-      </ResponsiveDialogActions>
-    </Dialog>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Confirm delete
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ConfirmDialog = ({ title, body, loading, onConfirm, onClose }) => {
-  const T = useT();
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
-
-  return (
-    <Dialog open onClose={onClose} maxWidth="xs" fullWidth fullScreen={fullScreen}
-      PaperProps={{ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } }}>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#f87171', fontWeight: 800, px: { xs: 2, sm: 3 } }}>
-        <ErrorOutlineRounded /> {title}
-      </DialogTitle>
-      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
-        <Typography sx={{ color: T.textMuted, fontSize: '0.9rem', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{body}</Typography>
-      </DialogContent>
-      <ResponsiveDialogActions>
-        <Button onClick={onClose} sx={{ color: T.textMuted, fontWeight: 700 }}>Cancel</Button>
-        <Button variant="contained" onClick={onConfirm} disabled={loading}
-          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
-          sx={{ bgcolor: '#ef4444', color: '#fff', fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: '#dc2626' } }}>
-          {loading ? 'Deleting…' : 'Delete'}
         </Button>
       </ResponsiveDialogActions>
     </Dialog>
@@ -647,16 +611,22 @@ const ViewPassword = () => {
       .filter((entry) => (entry.credentials?.length ?? 0) > 0);
   }, [vault, search, filter, flags]);
 
+  // Both deletes move to Trash (the server soft-deletes); they come back from there for 30 days.
+  const afterTrash = () => {
+    queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+    queryClient.invalidateQueries({ queryKey: TRASH_QUERY_KEY });
+  };
+
   const { mutate: deleteCred, isPending: deletingCred } = useMutation({
     mutationFn: (credId) => deleteCredentialByCredentialId(credId),
-    onSuccess: () => { notify.success('Credential deleted'); queryClient.invalidateQueries({ queryKey: ['pm-vault'] }); setDelCred(null); },
-    onError: () => notify.error('Failed to delete credential'),
+    onSuccess: () => { notify.success('Moved to Trash'); afterTrash(); setDelCred(null); },
+    onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to move to Trash'),
   });
 
   const { mutate: deleteHost, isPending: deletingHost } = useMutation({
     mutationFn: (pmId) => deleteHostById(pmId),
-    onSuccess: () => { notify.success('Entry deleted'); queryClient.invalidateQueries({ queryKey: ['pm-vault'] }); queryClient.invalidateQueries({ queryKey: ['pm-hosts'] }); setDelHost(null); },
-    onError: () => notify.error('Failed to delete entry'),
+    onSuccess: () => { notify.success('Moved to Trash'); afterTrash(); queryClient.invalidateQueries({ queryKey: ['pm-hosts'] }); setDelHost(null); },
+    onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to move to Trash'),
   });
 
   return (
@@ -797,10 +767,10 @@ const ViewPassword = () => {
 
       {editTarget && <EditDialog target={editTarget} vault={vault} onClose={() => setEditTarget(null)} />}
       {deleteCredTarget && (
-        <ConfirmDialog title="Delete Credential" body={`Remove "${deleteCredTarget.label}" from your vault? This cannot be undone.`} loading={deletingCred} onConfirm={() => deleteCred(deleteCredTarget.credId)} onClose={() => setDelCred(null)} />
+        <ConfirmDialog title="Delete Credential" body={`Remove "${deleteCredTarget.label}" from your vault? Moves to Trash for 30 days, and can be restored from there until then.`} confirmLabel="Move to Trash" loadingLabel="Moving…" loading={deletingCred} onConfirm={() => deleteCred(deleteCredTarget.credId)} onClose={() => setDelCred(null)} />
       )}
       {deleteHostTarget && (
-        <ConfirmDialog title="Delete Site Entry" body={`Remove all credentials for "${deleteHostTarget.host}"? This cannot be undone.`} loading={deletingHost} onConfirm={() => deleteHost(deleteHostTarget.pmId)} onClose={() => setDelHost(null)} />
+        <ConfirmDialog title="Delete Site Entry" body={`Remove all credentials for "${deleteHostTarget.host}"? Moves to Trash for 30 days, and can be restored from there until then.`} confirmLabel="Move to Trash" loadingLabel="Moving…" loading={deletingHost} onConfirm={() => deleteHost(deleteHostTarget.pmId)} onClose={() => setDelHost(null)} />
       )}
     </Box>
   );

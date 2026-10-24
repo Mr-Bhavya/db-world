@@ -32,16 +32,18 @@ public class PasswordManagerController {
     @GetMapping("/")
     @AnyRole
     public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getPasswordManagerByUser() {
-        List<ResponsePayloads.PasswordManagerResponse> responses = passwordManagerService
-                .getPasswordManagerByUser().stream().map(dto -> {
-                    ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
-                    r.setId(dto.getId());
-                    // An entry with no website has no host: label its group with its own name.
-                    r.setHost(dto.getHost() != null ? dto.getHost().getName() : siteLessLabel(dto));
-                    r.setCredentials(dto.getCredentials());
-                    return r;
-                }).toList();
-        return ApiResponse.success(responses);
+        return ApiResponse.success(toResponses(passwordManagerService.getPasswordManagerByUser()));
+    }
+
+    private static List<ResponsePayloads.PasswordManagerResponse> toResponses(List<PasswordManagerDto> dtos) {
+        return dtos.stream().map(dto -> {
+            ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
+            r.setId(dto.getId());
+            // An entry with no website has no host: label its group with its own name.
+            r.setHost(dto.getHost() != null ? dto.getHost().getName() : siteLessLabel(dto));
+            r.setCredentials(dto.getCredentials());
+            return r;
+        }).toList();
     }
 
     @PostMapping("/")
@@ -103,18 +105,39 @@ public class PasswordManagerController {
                 passwordManagerService.updateCredential(pmId, credential));
     }
 
+    // Both deletes move to Trash; the entries are removed for good 30 days later (TrashPurgeJob).
     @DeleteMapping("/{pmId}")
     @AnyRole
     public ApiResponse<Void> deletePasswordMangerById(@Valid @NotEmpty @PathVariable String pmId) {
-        passwordManagerService.deletePasswordManagerById(pmId);
-        return ApiResponse.success("Deleted Successfully.");
+        passwordManagerService.trashPasswordManager(pmId);
+        return ApiResponse.success("Moved to Trash.");
     }
 
     @DeleteMapping("/credential/{credentialId}")
     @AnyRole
     public ApiResponse<Void> deleteCredentialById(@Valid @NotEmpty @PathVariable String credentialId) {
-        passwordManagerService.deleteCredentialById(credentialId);
-        return ApiResponse.success("Deleted Successfully.");
+        passwordManagerService.trashCredential(credentialId);
+        return ApiResponse.success("Moved to Trash.");
+    }
+
+    @GetMapping("/trash")
+    @AnyRole
+    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getTrash() {
+        return ApiResponse.success(toResponses(passwordManagerService.listTrash()));
+    }
+
+    @PostMapping("/trash/{credentialId}/restore")
+    @AnyRole
+    public ApiResponse<Void> restoreFromTrash(@Valid @NotEmpty @PathVariable String credentialId) {
+        passwordManagerService.restore(credentialId);
+        return ApiResponse.success("Restored.");
+    }
+
+    @DeleteMapping("/trash/{credentialId}")
+    @AnyRole
+    public ApiResponse<Void> purgeFromTrash(@Valid @NotEmpty @PathVariable String credentialId) {
+        passwordManagerService.purge(credentialId);
+        return ApiResponse.success("Deleted forever.");
     }
 
     @GetMapping("/host")

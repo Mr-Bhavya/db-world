@@ -137,11 +137,11 @@ Desk findings, 2026-10-24 (second pass):
 **Interfaces:**
 - Produces: `CredentialEntity.deletedAt: Instant` (nullable; non-null = in trash); service `void trashCredential(String credentialId)`, `void trashPasswordManager(String pmId)`, `List<PasswordManagerDto> listTrash()`, `void restore(String credentialId)` (throws `DbWorldException(409)` on duplicate), `void purge(String credentialId)`; endpoints `DELETE /api/pm/credential/{id}` and `DELETE /api/pm/{pmId}` now soft-delete, `GET /api/pm/trash`, `POST /api/pm/trash/{id}/restore`, `DELETE /api/pm/trash/{id}`; frontend `getTrash()`, `restoreCredential(id)`, `purgeCredential(id)`.
 
-- [ ] **Step 1: Write failing tests.** `deleteMovesTheEntryToTrashInsteadOfRemovingIt`; `trashedEntriesAreNotInTheVaultList`; `aTrashedEntryDoesNotCountAsADuplicate`; `restoringOntoALiveDuplicateIsRefusedWith409` (Review Focus 2); `deletingASiteTrashesEveryCredentialOnIt`; `purgeJobRemovesEntriesTrashedMoreThan30DaysAgo` (inject a `Clock`).
-- [ ] **Step 2: Run; expect FAIL.**
-- [ ] **Step 3: Implement.** Soft delete filters via `deletedAt IS NULL` in `getPasswordManagerByUser`, `findAllBy...` duplicate lookups and `getCredentialById`. `TrashPurgeJob` follows the existing scheduler pattern (look at how `ipo` and `tally` jobs register and write run logs) and runs daily. Migration V4: add `deleted_at DATETIME(6) NULL` to `credentials` (guarded), plus an index on it.
-- [ ] **Step 4: UI.** Delete dialogs say "Moves to Trash for 30 days". `VaultTrash.js` lists trashed entries with Restore / Delete forever, and an "Empty trash" confirm. Show the 409 message from the server.
-- [ ] **Step 5: Run tests and lint; commit** `feat(vault): trash with 30-day restore`.
+- [x] **Step 1: Write failing tests.** `deleteMovesTheEntryToTrashInsteadOfRemovingIt`; `trashedEntriesAreNotInTheVaultList`; `aTrashedEntryDoesNotCountAsADuplicate`; `restoringOntoALiveDuplicateIsRefusedWith409` (Review Focus 2); `deletingASiteTrashesEveryCredentialOnIt`; `purgeJobRemovesEntriesTrashedMoreThan30DaysAgo` (inject a `Clock`).
+- [x] **Step 2: Run; expect FAIL.**
+- [x] **Step 3: Implement.** Soft delete filters via `deletedAt IS NULL` in `getPasswordManagerByUser`, `findAllBy...` duplicate lookups and `getCredentialById`. `TrashPurgeJob` follows the existing scheduler pattern (look at how `ipo` and `tally` jobs register and write run logs) and runs daily. Migration V4: add `deleted_at DATETIME(6) NULL` to `credentials` (guarded), plus an index on it. Done 2026-10-24: the scheduler job is seeded in code (`SchedulerAdminService.DEFAULTS`, id `VaultTrashPurge`, 04:45 IST), so V4 holds only the column and index. Reads filter trashed entries in the service (the group holds the credentials), `getCredentialById` is now also scoped to the caller. `DELETE /api/pm/*` messages say "Moved to Trash."; the hub count of groups ignores groups with no live entry.
+- [x] **Step 4: UI.** Delete dialogs say "Moves to Trash for 30 days". `VaultTrash.js` lists trashed entries with Restore / Delete forever, and an "Empty trash" confirm. Show the 409 message from the server. Done 2026-10-24: `ConfirmDialog` moved to `vaultShared.jsx` so the list and the Trash share it; "Empty trash" loops `purgeCredential`.
+- [x] **Step 5: Run tests and lint; commit** `feat(vault): trash with 30-day restore`.
 
 ### Task 1.3: Password history
 

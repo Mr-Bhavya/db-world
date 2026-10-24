@@ -18,13 +18,15 @@ import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.core.user.service.UserService;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.MalformedURLException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +36,6 @@ import java.util.Objects;
 @Service
 @Transactional
 @Log4j2
-@RequiredArgsConstructor
 public class PasswordManagerServiceImpl implements PasswordManagerService {
 
     private final PasswordManagerRepository passwordManagerRepository;
@@ -43,6 +44,35 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     private final UserService userService;
     private final UserContext userContext;
     private final PasswordManagerMapper mapper;
+    private final Clock clock;
+
+    @Autowired
+    public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
+                                      HostRepository hostRepository,
+                                      CredentialsRepository credentialsRepository,
+                                      UserService userService,
+                                      UserContext userContext,
+                                      PasswordManagerMapper mapper) {
+        this(passwordManagerRepository, hostRepository, credentialsRepository, userService,
+                userContext, mapper, Clock.systemUTC());
+    }
+
+    /** The clock stamps when an entry was trashed; tests pass a fixed one. */
+    public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
+                                      HostRepository hostRepository,
+                                      CredentialsRepository credentialsRepository,
+                                      UserService userService,
+                                      UserContext userContext,
+                                      PasswordManagerMapper mapper,
+                                      Clock clock) {
+        this.passwordManagerRepository = passwordManagerRepository;
+        this.hostRepository = hostRepository;
+        this.credentialsRepository = credentialsRepository;
+        this.userService = userService;
+        this.userContext = userContext;
+        this.mapper = mapper;
+        this.clock = clock;
+    }
 
     // ─────────────────────────────────────────────
     // ADD CREDENTIAL
@@ -80,22 +110,10 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
             pm.setCredentials(new ArrayList<>());
         }
 
-        // Credentials are decrypted when loaded, so the comparison is made here, not in SQL.
-        List<CredentialEntity> sameGroup = finalHost != null
-                ? pm.getCredentials()
-                : passwordManagerRepository.findAllByUserEntityUserId(userContext.userId()).stream()
-                        .filter(p -> p.getHost() == null && p.getCredentials() != null)
-                        .flatMap(p -> p.getCredentials().stream()).toList();
-        boolean exists = sameGroup.stream().anyMatch(c ->
-                sameText(c.getUsername(), credential.getUsername())
-                        && sameText(displayName(c, finalHost), credential.getName()));
-
-        if (exists) {
+        if (hasLiveDuplicate(finalHost, credential.getUsername(), credential.getName(), null)) {
             log.warn("Duplicate credential rejected: host={}, name={}, userId={}",
                     finalHost, credential.getName(), userContext.userId());
-            throw new DbWorldException(HttpStatus.BAD_REQUEST, finalHost != null
-                    ? "You already have this login for " + finalHost
-                    : "You already have an entry with this name and username");
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, duplicateMessage(finalHost));
         }
 
         pm.getCredentials().add(credential);
@@ -106,10 +124,13 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     }
 
     /**
-     * Same name and username as another entry, among entries on the same site, or among entries
-     * with no site. Compared here, not in SQL, because the values are encrypted at rest.
+     * Same name and username as another LIVE entry, among entries on the same site, or among entries
+     * with no site. Compared here, not in SQL, because the values are encrypted at rest. Entries in
+     * Trash never count: they are out of the vault, and restoring one runs this same rule.
+     *
+     * @param ignoreId an entry to leave out of the comparison (the one being edited or restored)
      */
-    private void checkNotDuplicate(String host, CredentialDto dto, String ignoreId) {
+    private boolean hasLiveDuplicate(String host, String username, String name, String ignoreId) {
         List<CredentialEntity> group = host != null
                 ? passwordManagerRepository.findAllByHostNameAndUserEntityUserId(host, userContext.userId()).stream()
                         .filter(p -> p.getCredentials() != null)
@@ -117,14 +138,22 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                 : passwordManagerRepository.findAllByUserEntityUserId(userContext.userId()).stream()
                         .filter(p -> p.getHost() == null && p.getCredentials() != null)
                         .flatMap(p -> p.getCredentials().stream()).toList();
-        boolean exists = group.stream().anyMatch(c ->
-                !Objects.equals(c.getId(), ignoreId)
-                        && sameText(c.getUsername(), dto.getUsername())
-                        && sameText(displayName(c, host), dto.getName()));
-        if (exists) {
-            throw new DbWorldException(HttpStatus.BAD_REQUEST, host != null
-                    ? "You already have this login for " + host
-                    : "You already have an entry with this name and username");
+        return group.stream().anyMatch(c ->
+                c.getDeletedAt() == null
+                        && (ignoreId == null || !ignoreId.equals(c.getId()))
+                        && sameText(c.getUsername(), username)
+                        && sameText(displayName(c, host), name));
+    }
+
+    private static String duplicateMessage(String host) {
+        return host != null
+                ? "You already have this login for " + host
+                : "You already have an entry with this name and username";
+    }
+
+    private void checkNotDuplicate(String host, CredentialDto dto, String ignoreId) {
+        if (hasLiveDuplicate(host, dto.getUsername(), dto.getName(), ignoreId)) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, duplicateMessage(host));
         }
     }
 
@@ -202,20 +231,51 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     @Transactional(readOnly = false)
     public List<PasswordManagerDto> getPasswordManagerByUser() {
+        return groupsOf(false);
+    }
 
-        List<PasswordManagerEntity> entities =
-                passwordManagerRepository.findAllByUserEntityUserId(userContext.userId());
+    @Override
+    public List<PasswordManagerDto> listTrash() {
+        return groupsOf(true);
+    }
 
-        return mapper.toDtoList(entities);
+    /**
+     * The user's groups, each holding only its live entries (the vault) or only its trashed ones
+     * (the Trash). A group with nothing of the wanted kind is left out. Built as new DTOs: the
+     * entities are not touched, so nothing here can be flushed back as a change.
+     */
+    private List<PasswordManagerDto> groupsOf(boolean trashed) {
+        return passwordManagerRepository.findAllByUserEntityUserId(userContext.userId()).stream()
+                .map(pm -> {
+                    List<CredentialEntity> wanted = pm.getCredentials() == null ? List.of()
+                            : pm.getCredentials().stream().filter(c -> (c.getDeletedAt() != null) == trashed).toList();
+                    return wanted.isEmpty() ? null
+                            : new PasswordManagerDto(pm.getId(), mapper.toDto(pm.getHost()),
+                                    wanted.stream().map(mapper::toDto).toList());
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     // ─────────────────────────────────────────────
-    // DELETE PM
+    // TRASH A SITE
     // ─────────────────────────────────────────────
     @Override
-    public void deletePasswordManagerById(String pmId) {
-        log.info("Deleting password manager: pmId={}, userId={}", pmId, userContext.userId());
-        passwordManagerRepository.deleteByIdAndUserEntityUserId(pmId, userContext.userId());
+    public void trashPasswordManager(String pmId) {
+        PasswordManagerEntity pm = passwordManagerRepository
+                .findByIdAndUserEntityUserId(pmId, userContext.userId())
+                .orElseThrow(() -> new ResourceNotFoundException("PasswordManager", "id", pmId));
+        Instant now = clock.instant();
+        int trashed = 0;
+        if (pm.getCredentials() != null) {
+            for (CredentialEntity c : pm.getCredentials()) {
+                if (c.getDeletedAt() == null) {   // one already in Trash keeps its original time
+                    c.setDeletedAt(now);
+                    trashed++;
+                }
+            }
+        }
+        log.info("Password manager trashed: pmId={}, credentials={}, userId={}", pmId, trashed, userContext.userId());
     }
 
     // ─────────────────────────────────────────────
@@ -228,7 +288,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         // We log the id only — never the decrypted password.
         log.info("Credential read: credentialId={}, userId={}", credentialId, userContext.userId());
 
-        CredentialEntity entity = credentialsRepository.findById(credentialId)
+        CredentialEntity entity = credentialsRepository
+                .findByIdAndPasswordManagerUserEntityUserId(credentialId, userContext.userId())
+                .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Credentials", "credentialId", credentialId
                 ));
@@ -237,14 +299,75 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     }
 
     // ─────────────────────────────────────────────
-    // DELETE CREDENTIAL
+    // TRASH
     // ─────────────────────────────────────────────
+
+    /** The caller's own entry, live or trashed. Another user's id is "not found", never acted on. */
+    private CredentialEntity ownCredential(String credentialId) {
+        return credentialsRepository
+                .findByIdAndPasswordManagerUserEntityUserId(credentialId, userContext.userId())
+                .orElseThrow(() -> new ResourceNotFoundException("Credentials", "credentialId", credentialId));
+    }
+
     @Override
-    public void deleteCredentialById(String credentialId) {
-        log.info("Deleting credential: credentialId={}, userId={}", credentialId, userContext.userId());
-        credentialsRepository.deleteByIdAndPasswordManagerUserEntityUserId(
-                credentialId, userContext.userId()
-        );
+    public void trashCredential(String credentialId) {
+        CredentialEntity credential = ownCredential(credentialId);
+        if (credential.getDeletedAt() == null) {
+            credential.setDeletedAt(clock.instant());
+        }
+        log.info("Credential trashed: credentialId={}, userId={}", credentialId, userContext.userId());
+    }
+
+    @Override
+    public void restore(String credentialId) {
+        CredentialEntity credential = ownCredential(credentialId);
+        if (credential.getDeletedAt() == null) return;   // already back in the vault
+
+        PasswordManagerEntity pm = credential.getPasswordManager();
+        String host = pm.getHost() == null ? null : pm.getHost().getName();
+        if (hasLiveDuplicate(host, credential.getUsername(), displayName(credential, host), credentialId)) {
+            log.warn("Restore refused, a live duplicate exists: credentialId={}, host={}, userId={}",
+                    credentialId, host, userContext.userId());
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    duplicateMessage(host) + ". Rename or delete it before restoring this one.");
+        }
+        credential.setDeletedAt(null);
+        log.info("Credential restored: credentialId={}, userId={}", credentialId, userContext.userId());
+    }
+
+    @Override
+    public void purge(String credentialId) {
+        CredentialEntity credential = ownCredential(credentialId);
+        if (credential.getDeletedAt() == null) {
+            // "Delete forever" is for entries already in Trash: a live one is trashed first.
+            throw new ResourceNotFoundException("Trashed credential", "credentialId", credentialId);
+        }
+        removeForGood(credential);
+        log.info("Credential purged: credentialId={}, userId={}", credentialId, userContext.userId());
+    }
+
+    @Override
+    public int purgeTrashedBefore(Instant cutoff) {
+        List<CredentialEntity> expired = credentialsRepository.findAllByDeletedAtBefore(cutoff);
+        expired.forEach(this::removeForGood);
+        log.info("Trash purge: removed={}, cutoff={}", expired.size(), cutoff);
+        return expired.size();
+    }
+
+    /**
+     * The one way an entry leaves the database: "Delete forever" and the daily purge both end here,
+     * so anything that must go with an entry is removed in one place. A group left with no entries
+     * goes too.
+     */
+    private void removeForGood(CredentialEntity credential) {
+        PasswordManagerEntity pm = credential.getPasswordManager();
+        if (pm != null && pm.getCredentials() != null) {
+            pm.getCredentials().removeIf(c -> Objects.equals(c.getId(), credential.getId()));
+        }
+        credentialsRepository.delete(credential);
+        if (pm != null && (pm.getCredentials() == null || pm.getCredentials().isEmpty())) {
+            passwordManagerRepository.delete(pm);
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -266,8 +389,11 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         CredentialEntity credential = pm.getCredentials().stream()
                 .filter(c -> c.getId().equalsIgnoreCase(credentialDto.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Credential", "id", credentialDto.getId()
+                // A trashed entry cannot be edited: it is restored first.
+                .filter(c -> c.getDeletedAt() == null)
+                .orElseThrow(() -> new DbWorldException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid PasswordManager or Credential"
                 ));
 
         // An older client may not send these: keep what is stored instead of wiping it.

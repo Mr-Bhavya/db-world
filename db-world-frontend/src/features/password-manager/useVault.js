@@ -14,6 +14,8 @@ import { cacheVault, readOfflineVault } from './offline/vaultCache';
  * that request instead of opening the offline copy.
  */
 export const VAULT_QUERY_KEY = ['pm-vault'];
+// The Trash is its own query (VaultTrash.js); anything that moves entries in or out refreshes it too.
+export const TRASH_QUERY_KEY = ['pm-trash'];
 
 export const vaultUserId = (auth) =>
   auth?.user?.id ?? auth?.user?.userId ?? auth?.user?.username ?? auth?.user?.email ?? null;

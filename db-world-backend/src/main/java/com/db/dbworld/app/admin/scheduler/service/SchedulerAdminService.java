@@ -16,6 +16,7 @@ import com.db.dbworld.app.ipo.scheduler.IpoPollScheduler;
 import com.db.dbworld.app.live.scheduler.LiveHealthScheduler;
 import com.db.dbworld.app.live.scheduler.LivePlaylistScheduler;
 import com.db.dbworld.app.media.sync.MediaSyncService;
+import com.db.dbworld.app.pm.service.impl.TrashPurgeJob;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -56,6 +57,7 @@ public class SchedulerAdminService {
     private final JobRunRecorder                recorder;
     private final UserContext                   userContext;
     private final SchedulerHistoryRetentionService retentionService;
+    private final TrashPurgeJob                 trashPurgeJob;
 
     /** See the note in {@code JobRunRecorder} on why this is a private Jackson 3 mapper. */
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -118,7 +120,12 @@ public class SchedulerAdminService {
             // the hour so a probe sweep never starts in lockstep with the re-import.
             SchedulerJobConfigEntity.builder().jobId(LiveHealthScheduler.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 5/30 * * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(9).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(9).build(),
+            // Vault Trash: removes entries that have been in Trash for more than 30 days. Daily at
+            // 04:45 IST, after the history prune and well before anyone is using the vault.
+            SchedulerJobConfigEntity.builder().jobId(TrashPurgeJob.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 45 4 * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(10).build()
     );
 
     /**
@@ -301,6 +308,7 @@ public class SchedulerAdminService {
             case SchedulerHistoryRetentionService.JOB_ID -> retentionService.prune(summary);
             case LivePlaylistScheduler.JOB_ID -> livePlaylistScheduler.refresh(summary);
             case LiveHealthScheduler.JOB_ID   -> liveHealthScheduler.check(summary);
+            case TrashPurgeJob.JOB_ID         -> trashPurgeJob.purgeExpired(summary);
             default -> throw new IllegalArgumentException("Unknown job: " + jobId);
         }
     }
@@ -617,6 +625,7 @@ public class SchedulerAdminService {
             case SchedulerHistoryRetentionService.JOB_ID -> "Run History Cleanup";
             case LivePlaylistScheduler.JOB_ID -> "Live TV Playlist Refresh";
             case LiveHealthScheduler.JOB_ID   -> "Live TV Stream Health";
+            case TrashPurgeJob.JOB_ID         -> "Vault Trash Purge";
             default -> jobId;
         };
     }
@@ -633,6 +642,7 @@ public class SchedulerAdminService {
             case SchedulerHistoryRetentionService.JOB_ID -> "Deletes scheduler run history past its retention window — lengths are set under Settings → Scheduler (4:30 AM IST)";
             case LivePlaylistScheduler.JOB_ID -> "Re-imports every enabled M3U playlist, merging channels and their stream URLs (every 6 hours)";
             case LiveHealthScheduler.JOB_ID   -> "Probes every live stream URL and hides channels whose sources have all gone dead (every 30 min)";
+            case TrashPurgeJob.JOB_ID         -> "Removes vault entries that have been in Trash for more than 30 days (4:45 AM IST)";
             default -> "";
         };
     }

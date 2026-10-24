@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Box, Typography, Container, Skeleton } from '@mui/material';
+import { Box, Button, Typography, Container, Skeleton } from '@mui/material';
 import {
   VpnKey as KeyIcon,
   AddCircleOutline as AddIcon,
@@ -12,6 +12,7 @@ import {
   ContentCopyRounded as ReuseIcon,
   LanguageRounded as SiteIcon,
   KeyRounded as CredIcon,
+  DeleteOutlineRounded as TrashIcon,
 } from '@mui/icons-material';
 import Constants from '@shared/constants';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -172,6 +173,7 @@ const PasswordManagement = () => {
   useScrollTop();
 
   const T = useT();
+  const navigate = useNavigate();
   const reduce = useReducedMotion();
   // Same query as the list, so in flight mode the hub opens the offline copy too.
   const { data: vault = [], isLoading } = useVaultQuery();
@@ -291,6 +293,17 @@ const PasswordManagement = () => {
           {ACTIONS.map((a, i) => (
             <ActionTile key={a.id} action={a} index={i} T={T} reduce={reduce} />
           ))}
+        </Box>
+
+        {/* Trash: deleted entries wait here for 30 days */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: { xs: 2, md: 2.5 } }}>
+          <Button
+            startIcon={<TrashIcon />}
+            onClick={() => navigate(Constants.DB_VAULT_TRASH_ROUTE)}
+            sx={{ color: T.textMuted, fontWeight: 700, minHeight: 44, borderRadius: 2, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}
+          >
+            Trash
+          </Button>
         </Box>
 
         {/* Reassurance */}

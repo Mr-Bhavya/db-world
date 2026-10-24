@@ -6,12 +6,16 @@
  * SecurityRing : SVG conic health ring for the dashboard
  * BackLink     : the shared "Password Manager" back button
  * GlassPanel   : gradient-border glass surface used across screens
+ * ConfirmDialog: the red confirm used by every delete (list and Trash)
  */
 import React, { memo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Box, Button, Typography } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import {
+  Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Typography,
+  useMediaQuery, useTheme,
+} from '@mui/material';
+import { ArrowBack, ErrorOutlineRounded } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { Aurora, GlassPanel } from '@shared/ui/surfaces';
@@ -160,6 +164,41 @@ export const BackLink = ({ label = 'Back' }) => {
     >
       {label}
     </Button>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog pieces shared by the vault list and the Trash
+// ─────────────────────────────────────────────────────────────────────────────
+export const ResponsiveDialogActions = ({ children }) => (
+  <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 2.5 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, '& > button': { width: { xs: '100%', sm: 'auto' }, minHeight: 44 } }}>
+    {children}
+  </DialogActions>
+);
+
+export const ConfirmDialog = ({ title, body, loading, onConfirm, onClose, confirmLabel = 'Delete', loadingLabel = 'Deleting…' }) => {
+  const T = useT();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth fullScreen={fullScreen}
+      PaperProps={{ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#f87171', fontWeight: 800, px: { xs: 2, sm: 3 } }}>
+        <ErrorOutlineRounded /> {title}
+      </DialogTitle>
+      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
+        <Typography sx={{ color: T.textMuted, fontSize: '0.9rem', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{body}</Typography>
+      </DialogContent>
+      <ResponsiveDialogActions>
+        <Button onClick={onClose} sx={{ color: T.textMuted, fontWeight: 700 }}>Cancel</Button>
+        <Button variant="contained" onClick={onConfirm} disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+          sx={{ bgcolor: '#ef4444', color: '#fff', fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: '#dc2626' } }}>
+          {loading ? loadingLabel : confirmLabel}
+        </Button>
+      </ResponsiveDialogActions>
+    </Dialog>
   );
 };
 

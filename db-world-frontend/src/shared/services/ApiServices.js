@@ -636,12 +636,45 @@ export const getCredential = async () => {
   }
 };
 
+// Both deletes move the entry to Trash (the server soft-deletes); it is removed for good 30 days later.
 export const deleteCredentialByCredentialId = async (credentialId) => {
   try {
     const response = await axiosInstance.delete(`/api/pm/credential/${credentialId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting credential:', error);
+    throw error;
+  }
+};
+
+// Vault Trash
+export const getTrash = async () => {
+  try {
+    const response = await axiosInstance.get('/api/pm/trash');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching trash:', error);
+    throw error;
+  }
+};
+
+// 409 when a live entry with the same name and username exists: the caller shows the server's message.
+export const restoreCredential = async (credentialId) => {
+  try {
+    const response = await axiosInstance.post(`/api/pm/trash/${credentialId}/restore`);
+    return response.data;
+  } catch (error) {
+    console.error('Error restoring credential:', error);
+    throw error;
+  }
+};
+
+export const purgeCredential = async (credentialId) => {
+  try {
+    const response = await axiosInstance.delete(`/api/pm/trash/${credentialId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting credential forever:', error);
     throw error;
   }
 };
