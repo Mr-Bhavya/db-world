@@ -726,6 +726,116 @@ class PasswordManagerServiceImplTest {
         order.verify(credentialsRepo).delete(gone);
     }
 
+    // ── size limits ──────────────────────────────────────────────────────────────
+
+    @Test
+    void aNoteOver64KIsRejectedWithAClearMessage() {
+        CredentialDto d = dto("Big note", null, CredentialType.NOTE);
+        d.setNotes("x".repeat(65537));
+
+        assertThatThrownBy(() -> service.addCredential(null, d))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST))
+                .hasMessage("Notes is too long (max 65536)");
+        verify(pmRepo, never()).save(any(PasswordManagerEntity.class));
+
+        // exactly at the limit is fine
+        d.setNotes("x".repeat(65536));
+        service.addCredential(null, d);
+        assertThat(saved().getCredentials()).hasSize(1);
+    }
+
+    @Test
+    void aPasswordOrPinOver4096IsRejectedOnAddAndNothingIsSaved() {
+        CredentialDto longPassword = dto("Box", "root", CredentialType.LOGIN);
+        longPassword.setPassword("p".repeat(4097));
+        CredentialDto longPin = dto("Card", "me", CredentialType.LOGIN);
+        longPin.setPin("1".repeat(4097));
+
+        assertThatThrownBy(() -> service.addCredential(null, longPassword))
+                .isInstanceOf(DbWorldException.class).hasMessage("Password is too long (max 4096)");
+        assertThatThrownBy(() -> service.addCredential(null, longPin))
+                .isInstanceOf(DbWorldException.class).hasMessage("PIN is too long (max 4096)");
+
+        verify(pmRepo, never()).save(any(PasswordManagerEntity.class));
+        verify(hostRepo, never()).save(any(HostEntity.class));
+    }
+
+    @Test
+    void anUpdateOverTheLimitIsRejectedAndChangesNothing() {
+        CredentialEntity c = entryWithPassword("c1", "old-pw");
+        CredentialDto d = editWithPassword("c1", "p".repeat(4097));
+        d.setName("Renamed");
+
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", d))
+                .isInstanceOf(DbWorldException.class).hasMessage("Password is too long (max 4096)");
+
+        assertThat(c.getPassword()).isEqualTo("old-pw");
+        assertThat(c.getName()).isEqualTo("Netflix");
+        assertThat(historyRows).isEmpty();
+        verify(historyRepo, never()).save(any(CredentialHistoryEntity.class));
+        verify(credentialsRepo, never()).save(any(CredentialEntity.class));
+
+        // the same limits apply to notes and custom fields on update
+        CredentialDto longNote = editWithPassword("c1", "ok");
+        longNote.setNotes("n".repeat(65537));
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longNote))
+                .isInstanceOf(DbWorldException.class).hasMessage("Notes is too long (max 65536)");
+        CredentialDto longField = editWithPassword("c1", "ok");
+        longField.setCustomFields(List.of(field("ssh key", "k".repeat(65537), CustomFieldType.MULTILINE)));
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longField))
+                .isInstanceOf(DbWorldException.class).hasMessage("Custom field 'ssh key' is too long (max 65536)");
+        assertThat(c.getPassword()).isEqualTo("old-pw");
+        verify(credentialsRepo, never()).save(any(CredentialEntity.class));
+    }
+
+    @Test
+    void thirtyOneCustomFieldsAreRejected() {
+        List<CustomFieldDto> thirty = new ArrayList<>();
+        for (int i = 1; i <= 30; i++) thirty.add(field("k" + i, "v", CustomFieldType.TEXT));
+        CredentialDto ok = dto("Thirty", "me", CredentialType.LOGIN);
+        ok.setCustomFields(thirty);
+        service.addCredential(null, ok);                       // 30 is the limit: fine
+        assertThat(saved().getCredentials().get(0).getCustomFields()).hasSize(30);
+
+        List<CustomFieldDto> thirtyOne = new ArrayList<>(thirty);
+        thirtyOne.add(field("k31", "v", CustomFieldType.TEXT));
+        CredentialDto tooMany = dto("Thirty-one", "me", CredentialType.LOGIN);
+        tooMany.setCustomFields(thirtyOne);
+
+        assertThatThrownBy(() -> service.addCredential(null, tooMany))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST))
+                .hasMessage("Too many custom fields (max 30)");
+        verify(pmRepo, times(1)).save(any(PasswordManagerEntity.class));   // only the 30-field one
+    }
+
+    @Test
+    void aCustomFieldValueOver64KIsRejectedNamingTheFieldButNotItsValue() {
+        CredentialDto d = dto("Box", "root", CredentialType.LOGIN);
+        d.setCustomFields(List.of(field("ssh key", "SECRETVALUE" + "k".repeat(65537), CustomFieldType.MULTILINE)));
+
+        assertThatThrownBy(() -> service.addCredential(null, d))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessage("Custom field 'ssh key' is too long (max 65536)")
+                .hasMessageNotContaining("SECRETVALUE");
+        verify(pmRepo, never()).save(any(PasswordManagerEntity.class));
+    }
+
+    @Test
+    void a3KBPrivateKeyInACustomFieldIsAccepted() {
+        // The case that started this work: an OpenSSH private key is a few KB, far past the old 255-char column.
+        String privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "A".repeat(3000) + "\n-----END OPENSSH PRIVATE KEY-----";
+        CredentialDto d = dto("db-world SSH", "dbworld_admin", CredentialType.LOGIN);
+        d.setCustomFields(List.of(field("private key", privateKey, CustomFieldType.MULTILINE)));
+
+        service.addCredential(null, d);
+
+        var fields = saved().getCredentials().get(0).getCustomFields();
+        assertThat(fields).hasSize(1);
+        assertThat(fields.get(0).getFieldValue()).isEqualTo(privateKey);
+    }
+
     @Test
     void theDailyPurgeRemovesTheHistoryOfEveryEntryItRemoves() {
         PasswordManagerEntity pm = group("pm1", "netflix.com");

@@ -1,6 +1,7 @@
 package com.db.dbworld.app.pm.service.impl;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
@@ -88,6 +89,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     public void addCredential(String host, CredentialDto credentialDto) {
         // PII rule: never log credentialDto.password — only host + username.
         log.debug("addCredential: host={}, username={}", host, credentialDto.getUsername());
+        validateSizes(credentialDto);
 
         // No website is a valid entry (a server, an app, a note): it has no host and sits in a group
         // of its own, found again by its name.
@@ -196,6 +198,43 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
     private String normalizeHost(String host) {
         return host.toLowerCase().replace("www.", "").trim();
+    }
+
+    /** Longest password or PIN, in characters. */
+    static final int MAX_SECRET_CHARS = 4096;
+    /** Longest note or custom-field value, in characters (a private key is a few KB). */
+    static final int MAX_TEXT_CHARS = 65536;
+    /** Most custom fields on one entry. */
+    static final int MAX_CUSTOM_FIELDS = 30;
+
+    /**
+     * Rejects what is too big to store sensibly. A null value is fine (older rows and clients). The
+     * message names the field, and for a custom field its key, never a value.
+     */
+    private static void validateSizes(CredentialDto dto) {
+        requireMax("Password", dto.getPassword(), MAX_SECRET_CHARS);
+        requireMax("PIN", dto.getPin(), MAX_SECRET_CHARS);
+        requireMax("Notes", dto.getNotes(), MAX_TEXT_CHARS);
+        List<CustomFieldDto> fields = dto.getCustomFields();
+        if (fields == null) return;
+        if (fields.size() > MAX_CUSTOM_FIELDS) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Too many custom fields (max " + MAX_CUSTOM_FIELDS + ")");
+        }
+        for (CustomFieldDto f : fields) {
+            requireMax("Custom field '" + shortKey(f.getFieldKey()) + "'", f.getFieldValue(), MAX_TEXT_CHARS);
+        }
+    }
+
+    private static void requireMax(String what, String value, int max) {
+        if (value != null && value.length() > max) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, what + " is too long (max " + max + ")");
+        }
+    }
+
+    /** A field's key as shown in an error: it is the user's own label, but not worth echoing at any length. */
+    private static String shortKey(String key) {
+        if (key == null) return "";
+        return key.length() <= 60 ? key : key.substring(0, 60) + "...";
     }
 
     /**
@@ -439,6 +478,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     public PasswordManagerDto updateCredential(String pmId, CredentialDto credentialDto) {
         log.debug("updateCredential: pmId={}, credentialId={}", pmId, credentialDto.getId());
+        validateSizes(credentialDto);   // before anything is read or changed: a rejected request touches nothing
 
         PasswordManagerEntity pm = passwordManagerRepository
                 .findByIdAndUserEntityUserIdAndCredentialsId(

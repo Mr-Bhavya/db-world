@@ -170,7 +170,7 @@ Desk findings, 2026-10-24 (second pass):
 **Interfaces:**
 - Produces: constants in `PasswordManagerServiceImpl`: `MAX_SECRET_CHARS = 4096` (password, PIN), `MAX_TEXT_CHARS = 65536` (notes, custom-field value), `MAX_CUSTOM_FIELDS = 30`; violations throw `DbWorldException(HttpStatus.BAD_REQUEST, "<field> is too long (max N)")`.
 
-- [ ] **Step 1: Failing tests** `aNoteOver64KIsRejectedWithAClearMessage`, `thirtyOneCustomFieldsAreRejected`, `a3KBPrivateKeyInACustomFieldIsAccepted` (the case that started this work). **Step 2: run, expect FAIL. Step 3: implement `validateSizes(CredentialDto)` called from add and update. Step 4: pass. Step 5: commit** `fix(vault): cap secret and note sizes`.
+- [x] **Step 1: Failing tests** `aNoteOver64KIsRejectedWithAClearMessage`, `thirtyOneCustomFieldsAreRejected`, `a3KBPrivateKeyInACustomFieldIsAccepted` (the case that started this work). **Step 2: run, expect FAIL. Step 3: implement `validateSizes(CredentialDto)` called from add and update. Step 4: pass. Step 5: commit** `fix(vault): cap secret and note sizes`. Done 2026-10-24: all five steps; validateSizes runs first in add and update.
 
 ---
 
