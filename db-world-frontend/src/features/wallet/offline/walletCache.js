@@ -103,6 +103,11 @@ const rememberKey = (userId, key, gen) => { sessionKey = { userId: String(userId
 const recallSession = (userId) => (sessionKey?.userId === String(userId) ? sessionKey : null);
 export const forgetWalletSessionKey = () => { sessionKey = null; };
 
+// Bumped by every wipe (clearAllOfflineWallet: sign-out). A cacheWallet pass that started before it
+// stops writing, and removes what it already wrote: it is downloading the previous user's documents,
+// and nothing of theirs may land in the store after it was emptied.
+let wipes = 0;
+
 /**
  * What a re-cache is keyed on: any metadata change at all rewrites the snapshot.
  *
@@ -150,6 +155,10 @@ async function decryptBuffer(aesKey, rec) {
  */
 export async function cacheWallet(userId, documents, fetchBlob) {
   if (!offlineWalletSupported() || !userId || !Array.isArray(documents)) return;
+  const pass = wipes;
+  const wiped = () => pass !== wipes;
+  const written = [];   // every key this pass put, so a wipe that lands mid-pass can take them back
+  const takeBack = () => Promise.all(written.map((k) => idbDelete(k).catch(() => {})));
   try {
     const signature = await signatureOf(documents);
     const existing = await idbGet(indexKey(userId)).catch(() => null);
@@ -159,6 +168,7 @@ export async function cacheWallet(userId, documents, fetchBlob) {
     const aesKey = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
     const rawKey = await subtle.exportKey('raw', aesKey);
     const wrapped = await vcWrapKey(abToB64(rawKey));   // Keystore public-key wrap, no prompt
+    if (wiped()) return;
     const gen = Date.now();
 
     // Files first. A half-written snapshot whose index promises documents it cannot open
@@ -175,6 +185,7 @@ export async function cacheWallet(userId, documents, fetchBlob) {
         if (!blob) throw new Error('no body');
         const buf = await blob.arrayBuffer();
         const enc = await encryptBuffer(aesKey, buf);
+        if (wiped()) { await takeBack(); return; }
         // No file name. It was stored here in the clear, and "passport.pdf" or an
         // Aadhaar label IS the sensitive part — the one field that describes what the
         // ciphertext beside it contains. Nothing read it either: the decrypted index
@@ -183,6 +194,8 @@ export async function cacheWallet(userId, documents, fetchBlob) {
           ...enc,
           contentType: blob.type || 'application/octet-stream',
         });
+        written.push(fileKey(userId, gen, doc.id));
+        if (wiped()) { await takeBack(); return; }
         stored.push(String(doc.id));
       } catch { missed = true; }
     }
@@ -205,6 +218,7 @@ export async function cacheWallet(userId, documents, fetchBlob) {
     }
 
     const metaEnc = await encryptBuffer(aesKey, new TextEncoder().encode(JSON.stringify(documents)));
+    if (wiped()) { await takeBack(); return; }
     await idbPut(indexKey(userId), {
       userId: String(userId),
       wrapped,
@@ -215,6 +229,8 @@ export async function cacheWallet(userId, documents, fetchBlob) {
       gen,
       syncedAt: gen,
     });
+    written.push(indexKey(userId));
+    if (wiped()) { await takeBack(); return; }
 
     // Files written under the PREVIOUS key can no longer be opened by anything, since the
     // raw key they used is unrecoverable. Leaving them would be dead bytes accumulating on
@@ -228,7 +244,7 @@ export async function cacheWallet(userId, documents, fetchBlob) {
         .map((k) => idbDelete(k).catch(() => {})),
     );
 
-    rememberKey(userId, aesKey, gen);
+    if (!wiped()) rememberKey(userId, aesKey, gen);
   } catch { /* best-effort; leave any previous snapshot intact */ }
 }
 
@@ -334,6 +350,7 @@ export async function clearOfflineWallet(userId) {
  * the ownership obvious.
  */
 export async function clearAllOfflineWallet() {
+  wipes += 1;
   forgetWalletSessionKey();
   try { await idbClear(); } catch { /* ignore */ }
 }

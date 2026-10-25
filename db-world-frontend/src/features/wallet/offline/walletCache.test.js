@@ -45,7 +45,7 @@ function installFakeIndexedDB() {
     const map = stores.get(storeName);
     tx.objectStore = () => ({
       get: (k) => ({ result: map.get(k) }),
-      put: (v, k) => { map.set(k, v); return { result: undefined }; },
+      put: (v, k) => { map.set(k, v); globalThis.indexedDB.afterPut?.(k, v); return { result: undefined }; },
       delete: (k) => { map.delete(k); return { result: undefined }; },
       clear: () => { map.clear(); return { result: undefined }; },
       getAllKeys: () => ({ result: [...map.keys()] }),
@@ -315,6 +315,36 @@ describe('teardown', () => {
     cache.forgetWalletSessionKey();
     expect((await cache.readOfflineWallet(USER)).status).toBe('ok');
     expect(ks.unwrapCalls).toBe(1);
+  });
+
+  it('a sign-out while the documents are downloading leaves nothing behind', async () => {
+    const store = () => globalThis.indexedDB._dbs.get('dbworld-wallet').get('walletCache');
+    // The first document is written; the sign-out lands while the second is downloading.
+    const fetchBlob = async (id) => {
+      if (id === 'd2') await cache.clearAllOfflineWallet();
+      return blobFor(id);
+    };
+
+    await cache.cacheWallet(USER, DOCS, fetchBlob);
+
+    expect([...store().keys()]).toEqual([]);
+    expect(await cache.hasCachedWallet(USER)).toBe(false);
+  });
+
+  it('a sign-out the moment a document is written takes it back and writes no index', async () => {
+    const store = () => globalThis.indexedDB._dbs.get('dbworld-wallet').get('walletCache');
+    let signedOut = false;
+    // The wipe is queued right after the last file lands, so the pass's next write would come after it.
+    globalThis.indexedDB.afterPut = (k) => {
+      if (!signedOut && String(k).endsWith(':d2')) { signedOut = true; void cache.clearAllOfflineWallet(); }
+    };
+
+    await cache.cacheWallet(USER, DOCS, recordingFetcher());
+    await new Promise((r) => { setTimeout(r, 0); });
+
+    expect(signedOut).toBe(true);
+    expect([...store().keys()]).toEqual([]);
+    expect(await cache.hasCachedWallet(USER)).toBe(false);
   });
 
   it('empties everything on logout', async () => {
