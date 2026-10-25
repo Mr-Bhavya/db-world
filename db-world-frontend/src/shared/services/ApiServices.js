@@ -626,12 +626,38 @@ export const updateCredential = async (pmId, credential) => {
   }
 };
 
+// The vault list: no secrets, only which ones each entry has (hasPassword, ...), its strength and
+// whether it is reused. A secret is read with getSecret, one at a time.
 export const getCredential = async () => {
   try {
     const response = await axiosInstance.get('/api/pm/');
     return response.data;
   } catch (error) {
     console.error('Error fetching credentials:', error);
+    throw error;
+  }
+};
+
+// One secret of an entry: field is 'password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'.
+// Resolves to { data: { value } }. 404 for another user's entry or one in Trash, 429 past 60 reads a minute.
+// The value is never logged here: only the status goes to the console on failure.
+export const getSecret = async (credentialId, field) => {
+  try {
+    const response = await axiosInstance.get(`/api/pm/credential/${credentialId}/secret`, { params: { field } });
+    return response.data;
+  } catch (error) {
+    console.error('Error reading a vault secret:', error?.response?.status ?? error?.message);
+    throw error;
+  }
+};
+
+// Every live entry with its secrets, for the encrypted offline copy on the installed Android app only.
+export const getSnapshot = async () => {
+  try {
+    const response = await axiosInstance.get('/api/pm/snapshot');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching the vault snapshot:', error?.response?.status ?? error?.message);
     throw error;
   }
 };

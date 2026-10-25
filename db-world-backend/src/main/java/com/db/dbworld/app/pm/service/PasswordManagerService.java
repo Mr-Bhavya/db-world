@@ -3,6 +3,8 @@ package com.db.dbworld.app.pm.service;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
+import com.db.dbworld.app.pm.dto.SecretField;
+import com.db.dbworld.app.pm.dto.VaultGroupDto;
 
 import java.time.Instant;
 import java.util.List;
@@ -11,7 +13,29 @@ public interface PasswordManagerService {
 
     void addCredential(String host, CredentialDto credential);
 
-    List<PasswordManagerDto> getPasswordManagerByUser();
+    /**
+     * The user's live entries, grouped by site, without a single secret: which secrets exist, the
+     * password's strength and whether it is reused. A secret is read with {@link #revealSecret}.
+     */
+    List<VaultGroupDto> getPasswordManagerByUser();
+
+    /**
+     * The user's live entries with every secret, for the encrypted offline copy on the installed
+     * Android app. Counts one read against the same per-user limit as {@link #revealSecret}.
+     *
+     * @throws com.db.dbworld.core.exception.DbWorldException 429 over the limit
+     */
+    List<PasswordManagerDto> getSnapshot();
+
+    /**
+     * One secret of the caller's own live entry. Logged (ids only) and rate-limited per user.
+     *
+     * @return the value, null when the entry has none
+     * @throws com.db.dbworld.core.exception.ResourceNotFoundException another user's entry, an
+     *         unknown id, an entry in Trash, or a custom field or history row that is not this entry's
+     * @throws com.db.dbworld.core.exception.DbWorldException 429 over the limit
+     */
+    String revealSecret(String credentialId, SecretField field);
 
     /** Moves every entry of the group to Trash (the group stays until they are purged). */
     void trashPasswordManager(String pmId);
@@ -23,8 +47,8 @@ public interface PasswordManagerService {
     /** Moves one entry to Trash, where it waits 30 days before it is removed for good. */
     void trashCredential(String credentialId);
 
-    /** The user's trashed entries, grouped like the vault list. */
-    List<PasswordManagerDto> listTrash();
+    /** The user's trashed entries, grouped and summarised like the vault list. */
+    List<VaultGroupDto> listTrash();
 
     /**
      * Takes an entry out of Trash.
@@ -56,7 +80,8 @@ public interface PasswordManagerService {
     boolean purgeTrashedEntry(String credentialId, Instant cutoff);
 
     /**
-     * The earlier passwords of a live entry, newest first, at most five.
+     * When each earlier password of a live entry was replaced, newest first, at most five. The
+     * passwords themselves are read with {@link #revealSecret} and {@link SecretField.History}.
      *
      * @throws com.db.dbworld.core.exception.ResourceNotFoundException another user's entry, an
      *         unknown id, or an entry in Trash

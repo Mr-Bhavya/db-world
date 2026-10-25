@@ -2,8 +2,10 @@ package com.db.dbworld.app.pm.service;
 
 import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.CredentialSummaryDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
+import com.db.dbworld.app.pm.dto.SecretField;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
@@ -40,8 +42,10 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -90,7 +94,7 @@ class PasswordManagerServiceImplTest {
     private void fakeHistoryRepository() {
         when(historyRepo.save(any(CredentialHistoryEntity.class))).thenAnswer(i -> {
             CredentialHistoryEntity h = i.getArgument(0);
-            if (h.getId() == null) h.setId("h" + historyIds.incrementAndGet());
+            if (h.getId() == null) h.setId("saved-" + historyIds.incrementAndGet());   // apart from the ids tests give rows by hand
             if (!historyRows.contains(h)) historyRows.add(h);
             return h;
         });
@@ -408,7 +412,7 @@ class PasswordManagerServiceImplTest {
         var vault = service.getPasswordManagerByUser();
 
         assertThat(vault).hasSize(1);
-        assertThat(vault.get(0).getCredentials()).extracting(CredentialDto::getId).containsExactly("c1");
+        assertThat(vault.get(0).credentials()).extracting(CredentialSummaryDto::id).containsExactly("c1");
         // The group itself keeps both entries: the list is filtered, not the data.
         assertThat(netflix.getCredentials()).hasSize(2);
     }
@@ -425,9 +429,9 @@ class PasswordManagerServiceImplTest {
         var trash = service.listTrash();
 
         assertThat(trash).hasSize(1);
-        assertThat(trash.get(0).getId()).isEqualTo("pm1");
-        assertThat(trash.get(0).getCredentials()).extracting(CredentialDto::getId).containsExactly("c2");
-        assertThat(trash.get(0).getCredentials().get(0).getDeletedAt()).isEqualTo(NOW);
+        assertThat(trash.get(0).id()).isEqualTo("pm1");
+        assertThat(trash.get(0).credentials()).extracting(CredentialSummaryDto::id).containsExactly("c2");
+        assertThat(trash.get(0).credentials().get(0).deletedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -658,7 +662,7 @@ class PasswordManagerServiceImplTest {
 
         assertThat(c.getPassword()).isEqualTo("new-pw");
         List<PasswordHistoryDto> history = service.getHistory("c1");
-        assertThat(history).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+        assertThat(historyPasswords(service, "c1")).containsExactly("old-pw");
         assertThat(history.get(0).changedAt()).isEqualTo(NOW);
         assertThat(history.get(0).id()).isNotBlank();
     }
@@ -673,7 +677,7 @@ class PasswordManagerServiceImplTest {
         }
 
         // pw0..pw6 were replaced; the oldest two are gone, the rest come newest first.
-        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password)
+        assertThat(historyPasswords(ticking, "c1"))
                 .containsExactly("pw6", "pw5", "pw4", "pw3", "pw2");
         assertThat(historyRows).hasSize(5);
     }
@@ -704,7 +708,7 @@ class PasswordManagerServiceImplTest {
         service.updateCredential("pm-c1", editWithPassword("c1", ""));
 
         assertThat(c.getPassword()).isEmpty();
-        assertThat(service.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+        assertThat(historyPasswords(service, "c1")).containsExactly("old-pw");
     }
 
     // ── null keeps, blank clears ─────────────────────────────────────────────────
@@ -774,12 +778,12 @@ class PasswordManagerServiceImplTest {
 
         assertThat(c.getPassword()).isEqualTo("pw0");
         // The restored row is used up; the password it replaced is now the newest row.
-        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("pw2", "pw1");
+        assertThat(historyPasswords(ticking, "c1")).containsExactly("pw2", "pw1");
 
         // ...so the restore can itself be undone.
         ticking.restorePassword("c1", ticking.getHistory("c1").get(0).id());
         assertThat(c.getPassword()).isEqualTo("pw2");
-        assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("pw0", "pw1");
+        assertThat(historyPasswords(ticking, "c1")).containsExactly("pw0", "pw1");
     }
 
     private CredentialHistoryEntity historyRow(CredentialEntity c, String id, String password, int minutesAgo) {
@@ -806,7 +810,7 @@ class PasswordManagerServiceImplTest {
         assertThat(historyRows).hasSize(5);
         assertThat(historyRows).extracting(CredentialHistoryEntity::getPassword)
                 .containsExactlyInAnyOrder("pw1", "same", "pw3", "pw4", "pw5");
-        assertThat(ticking.getHistory("c1")).hasSize(5).extracting(PasswordHistoryDto::password).first().isEqualTo("same");
+        assertThat(historyPasswords(ticking, "c1")).hasSize(5).first().isEqualTo("same");
     }
 
     @Test
@@ -822,7 +826,7 @@ class PasswordManagerServiceImplTest {
             assertThat(c.getPassword()).as("current password was [%s]", blank).isEqualTo("older");
             // The restored row is used up and no row is made for the blank it replaced.
             assertThat(historyRows).extracting(CredentialHistoryEntity::getPassword).containsExactly("newer");
-            assertThat(service.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("newer");
+            assertThat(historyPasswords(service, "c1")).containsExactly("newer");
         }
         verify(historyRepo, never()).save(any(CredentialHistoryEntity.class));
     }
@@ -1139,5 +1143,186 @@ class PasswordManagerServiceImplTest {
         verify(historyRepo).deleteByCredentialId("c1");
         verify(historyRepo).deleteByCredentialId("c2");
         verify(historyRepo, times(2)).deleteByCredentialId(any());
+    }
+
+    // ── the list carries no secrets; reveal one at a time ────────────────────────
+
+    /** The earlier passwords of an entry, newest first, each read the way the client reads it: one reveal per row. */
+    private static List<String> historyPasswords(PasswordManagerServiceImpl s, String credentialId) {
+        return s.getHistory(credentialId).stream()
+                .map(h -> s.revealSecret(credentialId, new SecretField.History(h.id())))
+                .toList();
+    }
+
+    private static CustomFieldEntity field(CredentialEntity c, String id, String key, String value, CustomFieldType type) {
+        CustomFieldEntity f = new CustomFieldEntity(key, value, c);
+        f.setId(id);
+        f.setFieldType(type);
+        c.getCustomFields().add(f);
+        return f;
+    }
+
+    @Test
+    void strengthAndReusedAreComputedOnTheServer() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        addTo(netflix, "c1", "Netflix", "me@x.com", null).setPassword("Tr0ub4dor&3");
+        addTo(netflix, "c2", "Netflix Kids", "kids@x.com", null).setPassword(" Tr0ub4dor&3 ");   // same once trimmed
+        PasswordManagerEntity github = group("pm2", "github.com");
+        addTo(github, "c3", "GitHub", "me", null).setPassword("password");
+        addTo(github, "c4", "GitHub work", "work", null).setPassword("   ");      // blank: no strength, never reused
+        addTo(github, "c5", "GitHub old", "old", NOW).setPassword("password");    // trashed: does not make c3 reused
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(netflix, github));
+
+        var vault = service.getPasswordManagerByUser();
+
+        Map<String, CredentialSummaryDto> byId = vault.stream().flatMap(g -> g.credentials().stream())
+                .collect(Collectors.toMap(CredentialSummaryDto::id, s -> s));
+        assertThat(byId).containsOnlyKeys("c1", "c2", "c3", "c4");
+        assertThat(byId.get("c1").reused()).isTrue();
+        assertThat(byId.get("c2").reused()).isTrue();
+        assertThat(byId.get("c1").strength()).isEqualTo(4);
+        assertThat(byId.get("c2").strength()).isEqualTo(4);   // scored trimmed, like the client did
+        assertThat(byId.get("c3").reused()).isFalse();
+        assertThat(byId.get("c3").strength()).isEqualTo(2);
+        assertThat(byId.get("c4").strength()).isZero();
+        assertThat(byId.get("c4").reused()).isFalse();
+        assertThat(byId.values()).allSatisfy(s -> assertThat(s.breached()).isFalse());
+    }
+
+    @Test
+    void theListSaysWhichSecretsExistAndShowsOnlyTextAndUrlFieldValues() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity c = addTo(pm, "c1", "Netflix", "me@x.com", null);
+        c.setPassword("pw");
+        c.setPin("1234");
+        c.setNotes("note");
+        field(c, "f1", "Recovery", "hidden-value", CustomFieldType.HIDDEN);
+        field(c, "f2", "Key", "multi\nline", CustomFieldType.MULTILINE);
+        field(c, "f3", "Account no", "12-34", CustomFieldType.TEXT);
+        field(c, "f4", "Console", "https://console.x.io", CustomFieldType.URL);
+        field(c, "f5", "Old", "untyped-value", null);   // a row from before types existed: HIDDEN
+        CredentialEntity bare = addTo(pm, "c2", "Netflix Kids", "kids@x.com", null);
+        bare.setPassword("  ");
+        bare.setPin("0");   // what older clients saved for "no PIN"
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(pm));
+
+        var creds = service.getPasswordManagerByUser().get(0).credentials();
+
+        CredentialSummaryDto s = creds.get(0);
+        assertThat(s.hasPassword()).isTrue();
+        assertThat(s.hasPin()).isTrue();
+        assertThat(s.hasNotes()).isTrue();
+        assertThat(s.customFields()).extracting(CredentialSummaryDto.FieldSummary::fieldValue)
+                .containsExactly(null, null, "12-34", "https://console.x.io", null);
+        assertThat(s.customFields()).extracting(CredentialSummaryDto.FieldSummary::fieldType).containsExactly(
+                CustomFieldType.HIDDEN, CustomFieldType.MULTILINE, CustomFieldType.TEXT, CustomFieldType.URL, CustomFieldType.HIDDEN);
+        assertThat(s.customFields()).extracting(CredentialSummaryDto.FieldSummary::id).containsExactly("f1", "f2", "f3", "f4", "f5");
+        CredentialSummaryDto b = creds.get(1);
+        assertThat(b.hasPassword()).isFalse();
+        assertThat(b.hasPin()).isFalse();
+        assertThat(b.hasNotes()).isFalse();
+    }
+
+    @Test
+    void revealReturnsEachSecretOfTheCallersOwnEntry() {
+        CredentialEntity c = entryWithPassword("c1", "the-password");
+        c.setPin("4321");
+        c.setNotes("the notes");
+        field(c, "f1", "Recovery", "hidden-value", CustomFieldType.HIDDEN);
+        historyRow(c, "h1", "older-password", 10);
+
+        assertThat(service.revealSecret("c1", SecretField.PASSWORD)).isEqualTo("the-password");
+        assertThat(service.revealSecret("c1", SecretField.PIN)).isEqualTo("4321");
+        assertThat(service.revealSecret("c1", SecretField.NOTES)).isEqualTo("the notes");
+        assertThat(service.revealSecret("c1", new SecretField.Custom("f1"))).isEqualTo("hidden-value");
+        assertThat(service.revealSecret("c1", new SecretField.History("h1"))).isEqualTo("older-password");
+    }
+
+    @Test
+    void revealOfAnotherUsersCredentialIs404() {
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId("theirs", 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.revealSecret("theirs", SecretField.PASSWORD)).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.revealSecret("theirs", new SecretField.History("h1"))).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void revealOfATrashedEntryAnUnknownFieldOrAnotherEntrysHistoryIs404() {
+        CredentialEntity mine = entryWithPassword("c1", "mine");
+        CredentialEntity other = entryWithPassword("c2", "other");
+        field(other, "f-other", "Other", "other-field", CustomFieldType.HIDDEN);
+        historyRow(other, "h-other", "other-before", 10);
+
+        assertThatThrownBy(() -> service.revealSecret("c1", new SecretField.Custom("f-other"))).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.revealSecret("c1", new SecretField.History("h-other"))).isInstanceOf(ResourceNotFoundException.class);
+
+        mine.setDeletedAt(NOW);
+        assertThatThrownBy(() -> service.revealSecret("c1", SecretField.PASSWORD)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void aFieldSpecIsParsedOrRejectedWith400() {
+        assertThat(SecretField.parse("password")).isEqualTo(SecretField.PASSWORD);
+        assertThat(SecretField.parse("pin")).isEqualTo(SecretField.PIN);
+        assertThat(SecretField.parse("notes")).isEqualTo(SecretField.NOTES);
+        assertThat(SecretField.parse("custom:f1")).isEqualTo(new SecretField.Custom("f1"));
+        assertThat(SecretField.parse("history:h1")).isEqualTo(new SecretField.History("h1"));
+        for (String bad : new String[]{null, "", "username", "PASSWORD", "custom:", "history:  ", "custom"}) {
+            assertThatThrownBy(() -> SecretField.parse(bad)).as("[%s]", bad)
+                    .isInstanceOfSatisfying(DbWorldException.class,
+                            e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+    }
+
+    /** A clock the test moves by hand. */
+    private static final class ManualClock extends Clock {
+        private Instant now = NOW;
+        @Override public ZoneOffset getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public Instant instant() { return now; }
+        void advance(Duration d) { now = now.plus(d); }
+    }
+
+    @Test
+    void sixtySecretReadsAMinuteThenA429SharedWithTheSnapshotUntilTheMinuteIsOver() {
+        ManualClock clock = new ManualClock();
+        PasswordManagerServiceImpl limited = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, historyRepo,
+                userService, userContext, mapper, clock, new SecretReadRateLimiter(clock));
+        entryWithPassword("c1", "pw");
+
+        for (int i = 0; i < 59; i++) limited.revealSecret("c1", SecretField.PASSWORD);
+        limited.getSnapshot();   // the 60th read
+        assertThatThrownBy(() -> limited.revealSecret("c1", SecretField.PASSWORD))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+        assertThatThrownBy(limited::getSnapshot).isInstanceOf(DbWorldException.class);
+
+        // Another user has a budget of their own.
+        when(userContext.userId()).thenReturn(8L);
+        assertThat(limited.getSnapshot()).isEmpty();
+        when(userContext.userId()).thenReturn(7L);
+
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(limited.revealSecret("c1", SecretField.PASSWORD)).isEqualTo("pw");
+    }
+
+    @Test
+    void theSnapshotHoldsTheFullLiveEntriesForTheOfflineCopy() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity c = addTo(pm, "c1", "Netflix", "me@x.com", null);
+        c.setPassword("pw");
+        c.setPin("1234");
+        field(c, "f1", "Recovery", "hidden-value", CustomFieldType.HIDDEN);
+        addTo(pm, "c2", "Netflix old", "old@x.com", NOW).setPassword("old");
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(pm));
+
+        var snapshot = service.getSnapshot();
+
+        assertThat(snapshot).hasSize(1);
+        assertThat(snapshot.get(0).getCredentials()).singleElement().satisfies(d -> {
+            assertThat(d.getPassword()).isEqualTo("pw");
+            assertThat(d.getPin()).isEqualTo("1234");
+            assertThat(d.getCustomFields()).extracting(CustomFieldDto::getFieldValue).containsExactly("hidden-value");
+        });
     }
 }

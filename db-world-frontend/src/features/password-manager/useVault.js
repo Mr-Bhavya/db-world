@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCredential } from '@shared/services/ApiServices';
+import { getCredential, getSecret, getSnapshot } from '@shared/services/ApiServices';
 import { useAuth } from '@features/auth/context/Authentication';
-import { cacheVault, readOfflineVault } from './offline/vaultCache';
+import { cacheVault, readOfflineVault, offlineVaultSupported } from './offline/vaultCache';
+import { summarizeVault } from './passwordUtils';
 
 /**
  * The vault, as every screen loads it: from the server, or from the encrypted offline copy when the
@@ -23,29 +24,82 @@ export const vaultUserId = (auth) =>
 // ── Offline state, shared by every screen showing the vault ─────────────────────
 // { syncedAt } | { locked: true } | { invalidated: true } | null
 let offlineState = null;
+// The unlocked offline copy's secrets, by credential id: { password, pin, notes, custom: { [fieldId]: value } }.
+// Kept in memory only, and only while the vault is showing that copy, so a reveal works offline.
+let offlineSecrets = null;
 const listeners = new Set();
-const setVaultOffline = (next) => { offlineState = next; listeners.forEach((l) => l()); };
+const setVaultOffline = (next) => {
+  offlineState = next;
+  if (!next?.syncedAt) offlineSecrets = null;
+  listeners.forEach((l) => l());
+};
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l); };
 export const getVaultOffline = () => offlineState;
 
 /** What the offline copy is doing right now, for banners. */
 export const useVaultOffline = () => useSyncExternalStore(subscribe, getVaultOffline, getVaultOffline);
 
+const secretsOf = (snapshot) => {
+  const byId = new Map();
+  (snapshot ?? []).forEach((entry) => entry.credentials?.forEach((c) => {
+    const custom = {};
+    (c.customFields ?? []).forEach((f) => { if (f.id) custom[f.id] = f.fieldValue ?? ''; });
+    byId.set(c.id, { password: c.password ?? '', pin: c.pin ?? '', notes: c.notes ?? '', custom });
+  }));
+  return byId;
+};
+
+/**
+ * The list has no secrets: the offline copy needs them, so on the installed Android app it is
+ * refreshed from GET /api/pm/snapshot. Fire-and-forget like before: a failure (a 429, no network
+ * half-way) leaves the previous copy as it is and never holds up the list.
+ */
+const refreshOfflineCopy = (userId) => {
+  if (!offlineVaultSupported()) return;
+  getSnapshot()
+    .then((res) => cacheVault(userId, res?.data ?? []))
+    .catch(() => { /* best-effort; the next fetch tries again */ });
+};
+
 export async function fetchVault(userId) {
   try {
     const data = (await getCredential()).data ?? [];
     setVaultOffline(null);
-    cacheVault(userId, data); // best-effort write-through snapshot (native only, no prompt)
+    refreshOfflineCopy(userId);
     return data;
   } catch (err) {
-    // Server unreachable: open the offline copy (prompts biometric / device lock).
+    // Server unreachable: open the offline copy (prompts biometric / device lock). It holds the full
+    // entries (a copy from before the list lost its secrets has the same shape): the screens get the
+    // list's summaries, and the secrets stay here for readSecret.
     const res = await readOfflineVault(userId);
-    if (res.status === 'ok') { setVaultOffline({ syncedAt: res.syncedAt }); return res.vault; }
+    if (res.status === 'ok') {
+      setVaultOffline({ syncedAt: res.syncedAt });
+      offlineSecrets = secretsOf(res.vault);
+      return summarizeVault(res.vault);
+    }
     if (res.status === 'locked') setVaultOffline({ locked: true });
     else if (res.status === 'invalidated') setVaultOffline({ invalidated: true });
     else setVaultOffline(null);
     throw err;
   }
+}
+
+/**
+ * One secret of an entry ('password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'):
+ * from the server, or from the unlocked offline copy while the vault is showing it.
+ */
+export async function readSecret(credentialId, field) {
+  if (getVaultOffline()?.syncedAt && offlineSecrets) {
+    const entry = offlineSecrets.get(credentialId);
+    const fieldId = field.startsWith('custom:') ? field.slice('custom:'.length) : null;
+    const value = !entry ? undefined
+      : fieldId ? (Object.hasOwn(entry.custom, fieldId) ? entry.custom[fieldId] : undefined)
+        : field === 'password' || field === 'pin' || field === 'notes' ? entry[field]
+          : undefined;   // earlier passwords are not in the offline copy
+    if (value === undefined) throw new Error('Not available offline');
+    return value;
+  }
+  return (await getSecret(credentialId, field))?.data?.value ?? '';
 }
 
 export default function useVaultQuery() {

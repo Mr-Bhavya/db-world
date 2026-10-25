@@ -2,7 +2,7 @@ package com.db.dbworld.app.pm.repository;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
-import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
+import com.db.dbworld.app.pm.dto.SecretField;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldEntity;
@@ -133,6 +133,13 @@ class CredentialHistoryJpaTest {
 
     private long historyRowCount() {
         return em.createQuery("select count(h) from CredentialHistoryEntity h", Long.class).getSingleResult();
+    }
+
+    /** The earlier passwords, newest first, read one reveal per row as the client does. */
+    private static List<String> historyPasswords(PasswordManagerServiceImpl service, String credentialId) {
+        return service.getHistory(credentialId).stream()
+                .map(h -> service.revealSecret(credentialId, new SecretField.History(h.id())))
+                .toList();
     }
 
     private PasswordManagerServiceImpl serviceFor(UserEntity me, Clock clock) {
@@ -271,7 +278,7 @@ class CredentialHistoryJpaTest {
             em.clear();
         }
 
-        assertThat(service.getHistory(c.getId())).extracting(PasswordHistoryDto::password)
+        assertThat(historyPasswords(service, c.getId()))
                 .containsExactly("pw6", "pw5", "pw4", "pw3", "pw2");
         assertThat(historyRowCount()).isEqualTo(5);
 
@@ -280,7 +287,7 @@ class CredentialHistoryJpaTest {
         em.clear();
 
         assertThat(em.find(CredentialEntity.class, c.getId()).getPassword()).isEqualTo("pw2");
-        assertThat(service.getHistory(c.getId())).extracting(PasswordHistoryDto::password)
+        assertThat(historyPasswords(service, c.getId()))
                 .containsExactly("pw7", "pw6", "pw5", "pw4", "pw3");
     }
 
@@ -319,7 +326,7 @@ class CredentialHistoryJpaTest {
 
         CredentialEntity saved = em.find(CredentialEntity.class, c.getId());
         assertThat(saved.getPassword()).isEqualTo("new-pw");
-        assertThat(service.getHistory(c.getId())).extracting(PasswordHistoryDto::password).containsExactly("old-pw");
+        assertThat(historyPasswords(service, c.getId())).containsExactly("old-pw");
         assertThat(saved.getPasswordManager().getHost().getName()).isEqualTo("ssh.example.org");
         assertThat(saved.getPasswordManager().getId()).isNotEqualTo(pm.getId());
         assertThat(saved.getCustomFields()).extracting(CustomFieldEntity::getFieldKey).containsExactlyInAnyOrder("Console", "Token");

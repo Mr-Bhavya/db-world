@@ -9,7 +9,6 @@ import {
 import { HistoryRounded, RestoreRounded } from '@mui/icons-material';
 
 import { useT } from '@shared/theme';
-import CommonServices from '@shared/services/CommonServices';
 import { getHistory, restorePassword } from '@shared/services/ApiServices';
 
 import FieldValue from './FieldValue';
@@ -26,9 +25,10 @@ const errorMessage = (err, fallback) => err?.response?.data?.message ?? fallback
 // One earlier password
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HistoryRow = memo(({ row, busy, copied, onCopy, onRestore, T }) => {
-  // One object per password, so FieldValue's memo holds while another row's copy tick re-renders this list.
-  const field = useMemo(() => ({ fieldKey: 'Password', fieldValue: row.password, fieldType: 'HIDDEN' }), [row.password]);
+const HistoryRow = memo(({ row, credentialId, busy, copied, onCopied, onRestore, T }) => {
+  // The list says when each password was replaced, not what it was: Show and Copy fetch it on their own.
+  // One object per row, so FieldValue's memo holds while another row's copy tick re-renders this list.
+  const field = useMemo(() => ({ id: row.id, fieldKey: 'Password', fieldValue: null, fieldType: 'HIDDEN' }), [row.id]);
   return (
     <Box
       sx={{
@@ -49,7 +49,8 @@ const HistoryRow = memo(({ row, busy, copied, onCopy, onRestore, T }) => {
           Restore
         </Button>
       </Box>
-      <FieldValue field={field} copied={copied} copyKey={row.id} onCopy={onCopy} />
+      <FieldValue field={field} copied={copied} copyKey={row.id} onCopied={onCopied}
+        credentialId={credentialId} secretField={`history:${row.id}`} />
     </Box>
   );
 });
@@ -90,11 +91,7 @@ const PasswordHistoryDialog = ({ open = true, credentialId, label, host, onClose
     onError: (err) => notify.error(errorMessage(err, 'Failed to restore the password')),
   });
 
-  const copy = useCallback(async (text, id) => {
-    const res = await CommonServices.handleCopy(String(text));
-    if (res.success) { setCopiedId(id); setTimeout(() => setCopiedId(''), 1400); }
-    else notify.error('Copy failed');
-  }, []);
+  const onCopied = useCallback((id) => { setCopiedId(id); setTimeout(() => setCopiedId(''), 1400); }, []);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
@@ -134,8 +131,8 @@ const PasswordHistoryDialog = ({ open = true, credentialId, label, host, onClose
         ) : (
           <Stack spacing={1}>
             {rows.map((row) => (
-              <HistoryRow key={row.id} row={row} busy={restoring || isFetching} T={T}
-                copied={copiedId === row.id} onCopy={copy} onRestore={restore} />
+              <HistoryRow key={row.id} row={row} credentialId={credentialId} busy={restoring || isFetching} T={T}
+                copied={copiedId === row.id} onCopied={onCopied} onRestore={restore} />
             ))}
           </Stack>
         )}

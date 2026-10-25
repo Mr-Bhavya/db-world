@@ -2,8 +2,11 @@ package com.db.dbworld.app.pm.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.CredentialSummaryDto;
+import com.db.dbworld.app.pm.dto.HostDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
+import com.db.dbworld.app.pm.dto.SecretField;
 import com.db.dbworld.app.pm.mapper.CredentialMapper;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.app.pm.util.SiteUrl;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
+import java.util.function.Function;
 
 @Log4j2
 @RestController
@@ -30,21 +34,49 @@ public class PasswordManagerController {
     private final PasswordManagerService passwordManagerService;
     private final CredentialMapper       credentialMapper;
 
+    /** The vault list: every live entry, without a single secret (see {@link #revealSecret}). */
     @GetMapping("/")
     @AnyRole
-    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getPasswordManagerByUser() {
-        return ApiResponse.success(toResponses(passwordManagerService.getPasswordManagerByUser()));
+    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse<CredentialSummaryDto>>> getPasswordManagerByUser() {
+        return ApiResponse.success(passwordManagerService.getPasswordManagerByUser().stream()
+                .map(g -> response(g.id(), g.host(), g.credentials(), CredentialSummaryDto::name))
+                .toList());
     }
 
-    private static List<ResponsePayloads.PasswordManagerResponse> toResponses(List<PasswordManagerDto> dtos) {
-        return dtos.stream().map(dto -> {
-            ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
-            r.setId(dto.getId());
-            // An entry with no website has no host: label its group with its own name.
-            r.setHost(dto.getHost() != null ? dto.getHost().getName() : siteLessLabel(dto));
-            r.setCredentials(dto.getCredentials());
-            return r;
-        }).toList();
+    /** The value of one secret of the caller's own live entry; 404 for anyone else's. */
+    @GetMapping("/credential/{credentialId}/secret")
+    @AnyRole
+    public ApiResponse<SecretValue> revealSecret(@Valid @NotEmpty @PathVariable String credentialId,
+                                                 // Not required here, so a missing one is the same 400 as a bad one.
+                                                 @RequestParam(name = "field", required = false) String field) {
+        return ApiResponse.success(new SecretValue(
+                passwordManagerService.revealSecret(credentialId, SecretField.parse(field))));
+    }
+
+    /** {@code { "value": "..." }}: null when the entry has no such value. */
+    public record SecretValue(String value) {
+    }
+
+    /**
+     * Every live entry with its secrets, the payload the list used to be. Only for the encrypted
+     * offline copy the installed Android app keeps; rate-limited and logged like a reveal.
+     */
+    @GetMapping("/snapshot")
+    @AnyRole
+    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse<CredentialDto>>> getSnapshot() {
+        return ApiResponse.success(passwordManagerService.getSnapshot().stream()
+                .map(g -> response(g.getId(), g.getHost(), g.getCredentials(), CredentialDto::getName))
+                .toList());
+    }
+
+    private static <C> ResponsePayloads.PasswordManagerResponse<C> response(
+            String id, HostDto host, List<C> credentials, Function<C, String> nameOf) {
+        ResponsePayloads.PasswordManagerResponse<C> r = new ResponsePayloads.PasswordManagerResponse<>();
+        r.setId(id);
+        // An entry with no website has no host: label its group with its own name.
+        r.setHost(host != null ? host.getName() : siteLessLabel(credentials, nameOf));
+        r.setCredentials(credentials);
+        return r;
     }
 
     @PostMapping("/")
@@ -62,9 +94,9 @@ public class PasswordManagerController {
         }
     }
 
-    private static String siteLessLabel(PasswordManagerDto dto) {
-        return dto.getCredentials() == null ? "Untitled" : dto.getCredentials().stream()
-                .map(CredentialDto::getName)
+    private static <C> String siteLessLabel(List<C> credentials, Function<C, String> nameOf) {
+        return credentials == null ? "Untitled" : credentials.stream()
+                .map(nameOf)
                 .filter(n -> n != null && !n.isBlank())
                 .findFirst().orElse("Untitled");
     }
@@ -137,8 +169,10 @@ public class PasswordManagerController {
 
     @GetMapping("/trash")
     @AnyRole
-    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getTrash() {
-        return ApiResponse.success(toResponses(passwordManagerService.listTrash()));
+    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse<CredentialSummaryDto>>> getTrash() {
+        return ApiResponse.success(passwordManagerService.listTrash().stream()
+                .map(g -> response(g.id(), g.host(), g.credentials(), CredentialSummaryDto::name))
+                .toList());
     }
 
     @PostMapping("/trash/{credentialId}/restore")

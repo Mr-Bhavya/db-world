@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -39,7 +39,8 @@ import CommonServices from '@shared/services/CommonServices';
 
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
 import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr, ConfirmDialog, ResponsiveDialogActions, iconButtonSx } from './vaultShared';
-import useVaultQuery, { useVaultOffline, VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
+import useVaultQuery, { useVaultOffline, readSecret, VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
+import useSecret from './useSecret';
 
 // Compact "3 min ago" for the offline-snapshot banner.
 const relativeTime = (ts) => {
@@ -118,15 +119,15 @@ const StrengthDot = ({ level, reused }) => {
   );
 };
 
-const CopyBtn = memo(({ value, label, copied, onCopy, T }) => (
+const CopyBtn = memo(({ label, copied, onCopy, disabled = false, T }) => (
   <Tooltip title={copied ? 'Copied!' : `Copy ${label}`}>
     <span>
       <IconButton
         size="small"
-        onClick={() => onCopy(value)}
-        disabled={!hasValue(value)}
+        onClick={onCopy}
+        disabled={disabled}
         aria-label={`Copy ${label}`}
-        sx={{ ...iconButtonSx(T, copied ? '#22c55e' : T.teal), color: copied ? '#22c55e' : T.textMuted, opacity: hasValue(value) ? 1 : 0.45 }}
+        sx={{ ...iconButtonSx(T, copied ? '#22c55e' : T.teal), color: copied ? '#22c55e' : T.textMuted, opacity: disabled ? 0.45 : 1 }}
       >
         {copied ? <CheckCircleRounded fontSize="small" /> : <ContentCopyRounded fontSize="small" />}
       </IconButton>
@@ -135,10 +136,25 @@ const CopyBtn = memo(({ value, label, copied, onCopy, T }) => (
 ));
 CopyBtn.displayName = 'CopyBtn';
 
-const SecretValueRow = memo(({ label, value, maskedText = '••••••••', copied, copiedKey, onCopy, T }) => {
-  const [visible, setVisible] = useState(false);
-  if (!hasValue(value)) return null;
-  const displayValue = String(value);
+// A secret the list only knows exists (hasPassword, hasPin, hasNotes): masked until Show or Copy
+// fetches it through useSecret, which drops it again after 30 seconds.
+const SecretValueRow = memo(({ label, credentialId, field, maskedText = '••••••••', multiline = false, copied, copiedKey, onCopied, T }) => {
+  const secret = useSecret(credentialId, field);
+  const [wantVisible, setWantVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const visible = wantVisible && secret.value != null;
+  const displayValue = secret.value ?? '';
+  // Dropped after 30 s: masked again, and a later Copy does not show it.
+  useEffect(() => { if (secret.value == null) setWantVisible(false); }, [secret.value]);
+
+  const toggle = async () => {
+    if (visible) { setWantVisible(false); secret.hide(); return; }
+    setBusy(true);
+    try { await secret.reveal(); setWantVisible(true); } catch { notify.error(`Could not load the ${label.toLowerCase()}`); } finally { setBusy(false); }
+  };
+  const copy = async () => {
+    try { await secret.copy(); onCopied(copiedKey); } catch { notify.error('Copy failed'); }
+  };
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: { xs: 0.75, sm: 1 }, rowGap: 0.35, py: 0.38, minWidth: 0 }}>
@@ -152,15 +168,17 @@ const SecretValueRow = memo(({ label, value, maskedText = '•••••••
       >
         {label}
       </Typography>
-      <Typography sx={getMonoValueSx(T, visible)} title={visible ? displayValue : ''}>
+      <Typography sx={{ ...getMonoValueSx(T, visible), whiteSpace: multiline && visible ? 'pre-wrap' : undefined }} title={visible && !multiline ? displayValue : ''}>
         {visible ? displayValue : maskedText}
       </Typography>
       <Tooltip title={visible ? `Hide ${label}` : `Show ${label}`}>
-        <IconButton size="small" onClick={() => setVisible((v) => !v)} sx={iconButtonSx(T, T.teal)} aria-label={visible ? `Hide ${label}` : `Show ${label}`}>
-          {visible ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-        </IconButton>
+        <span>
+          <IconButton size="small" disabled={busy} onClick={toggle} sx={iconButtonSx(T, T.teal)} aria-label={visible ? `Hide ${label}` : `Show ${label}`}>
+            {busy ? <CircularProgress size={16} sx={{ color: T.teal }} /> : visible ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+          </IconButton>
+        </span>
       </Tooltip>
-      <CopyBtn value={displayValue} label={label} copied={copied === copiedKey} onCopy={(v) => onCopy(v, copiedKey)} T={T} />
+      <CopyBtn label={label} copied={copied === copiedKey} onCopy={copy} disabled={busy} T={T} />
     </Box>
   );
 });
@@ -207,7 +225,68 @@ EditCustomFieldRow.displayName = 'EditCustomFieldRow';
 // Edit dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Every secret of the entry, for the edit form. All of them, not only the ones the form shows at
+ * first: the update replaces the custom fields wholesale, so a hidden value left unfetched would be
+ * saved blank.
+ */
+const fetchEditSecrets = async (cred) => {
+  const read = (field) => readSecret(cred.id, field);
+  const [password, pin, notes, customFields] = await Promise.all([
+    cred.hasPassword ? read('password') : '',
+    cred.hasPin ? read('pin') : '',
+    cred.hasNotes ? read('notes') : '',
+    Promise.all((cred.customFields ?? []).map(async (f) => (
+      f.fieldValue == null && f.id ? { ...f, fieldValue: await read(`custom:${f.id}`) } : { ...f }
+    ))),
+  ]);
+  return { password, pin, notes, customFields };
+};
+
+const DIALOG_PAPER = (T, fullScreen) => ({ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } });
+
+// Opens with a loader while the secrets come in. If they cannot be read, there is no form: a form
+// with blanks in place of the real values would wipe them on save.
 const EditDialog = ({ target, vault, onClose }) => {
+  const T = useT();
+  const { data: secrets, isError, refetch, isFetching } = useQuery({
+    queryKey: ['pm-edit-secrets', target.cred.id],
+    queryFn: () => fetchEditSecrets(target.cred),
+    // Held only while the dialog is open, and fetched once: each read counts against the reveal limit.
+    gcTime: 0,
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  if (secrets) return <EditForm target={target} secrets={secrets} vault={vault} onClose={onClose} />;
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth PaperProps={DIALOG_PAPER(T, false)}>
+      <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+        {isError && !isFetching ? (
+          <>
+            <ErrorOutlineRounded sx={{ fontSize: 40, color: '#f87171', mb: 1.5 }} />
+            <Typography sx={{ color: T.textPrimary, fontWeight: 800, mb: 0.5 }}>Could not open this entry</Typography>
+            <Typography sx={{ color: T.textMuted, fontSize: '0.85rem', mb: 2 }}>Its saved values could not be loaded, so it cannot be edited right now.</Typography>
+            <Stack direction="row" spacing={1} justifyContent="center">
+              <Button onClick={onClose} sx={{ color: T.textMuted, fontWeight: 700 }}>Close</Button>
+              <Button onClick={() => refetch()} sx={{ color: T.teal, fontWeight: 800 }}>Try again</Button>
+            </Stack>
+          </>
+        ) : (
+          <>
+            <CircularProgress size={28} sx={{ color: T.teal, mb: 1.5 }} />
+            <Typography sx={{ color: T.textMuted, fontSize: '0.85rem' }} aria-live="polite">Opening {target.cred.name || target.host}…</Typography>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const EditForm = ({ target, secrets, vault, onClose }) => {
   const T = useT();
   const FIELD = getFieldSx(T);
   const theme = useTheme();
@@ -216,7 +295,7 @@ const EditDialog = ({ target, vault, onClose }) => {
 
   const [showPw, setShowPw] = useState(false);
   const [showPin, setShowPin] = useState(false);
-  const [customFields, setCustomFields] = useState((target?.cred?.customFields ?? []).map((f) => ({ ...f })));
+  const [customFields, setCustomFields] = useState(secrets.customFields);
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(editSchema),
@@ -225,9 +304,9 @@ const EditDialog = ({ target, vault, onClose }) => {
       type: target?.cred?.type ?? 'LOGIN',
       url: target?.cred?.url ?? '',
       username: target?.cred?.username ?? '',
-      password: target?.cred?.password ?? '',
-      pin: hasPinValue(target?.cred?.pin) ? String(target.cred.pin) : '',
-      notes: target?.cred?.notes ?? '',
+      password: secrets.password ?? '',
+      pin: hasPinValue(secrets.pin) ? String(secrets.pin) : '',
+      notes: secrets.notes ?? '',
     },
   });
 
@@ -248,6 +327,11 @@ const EditDialog = ({ target, vault, onClose }) => {
   const { mutate, isPending } = useMutation({
     mutationFn: (data) => updateCredential(target.pmId, {
       id: target.cred.id, ...data,
+      // A secret the entry did not have stays left out while it is still blank: left out is "keep
+      // what is stored" on the server (an old "0" PIN, say), blank would overwrite it.
+      password: target.cred.hasPassword || data.password ? data.password : undefined,
+      pin: target.cred.hasPin || data.pin ? data.pin : undefined,
+      notes: target.cred.hasNotes || data.notes ? data.notes : undefined,
       url: data.url ? withScheme(data.url) : '',   // blank removes the site
       customFields: customFields.map((f) => ({ ...f, fieldKey: f.fieldKey?.trim() ?? '', fieldValue: f.fieldValue ?? '', fieldType: f.fieldType ?? 'HIDDEN' })).filter((f) => f.fieldKey),
     }),
@@ -266,8 +350,7 @@ const EditDialog = ({ target, vault, onClose }) => {
   const addField = useCallback(() => setCustomFields((p) => [...p, { fieldKey: '', fieldValue: '', fieldType: 'HIDDEN' }]), []);
 
   return (
-    <Dialog open onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
-      PaperProps={{ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } }}>
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen} PaperProps={DIALOG_PAPER(T, fullScreen)}>
       <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.25 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
           <BrandLogo logoDomain={looksLikeSite(target.host) ? domainFromUrl(target.host) : ''} companyName={target.host} size={42} radius={2.5} />
@@ -405,15 +488,18 @@ const EditDialog = ({ target, vault, onClose }) => {
 const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDelete, onHistory }) => {
   const [copiedKey, setCopiedKey] = useState('');
 
+  const tick = useCallback((key) => { setCopiedKey(key); setTimeout(() => setCopiedKey(''), 1400); }, []);
+  // For what the list shows in the clear (username, TEXT and URL fields). Secrets copy through useSecret.
   const copy = useCallback(async (text, key) => {
     if (!hasValue(text)) return;
     const res = await CommonServices.handleCopy(String(text));
-    if (res.success) { setCopiedKey(key); setTimeout(() => setCopiedKey(''), 1400); }
+    if (res.success) tick(key);
     else notify.error('Copy failed');
-  }, []);
+  }, [tick]);
 
+  // A hidden value is not in the list (fieldValue is null), so the field shows whenever it has a label.
   const visibleCustomFields = useMemo(
-    () => (cred.customFields ?? []).filter((f) => hasValue(f.fieldKey) && hasValue(f.fieldValue)),
+    () => (cred.customFields ?? []).filter((f) => hasValue(f.fieldKey) && (isSecretField(f) || hasValue(f.fieldValue))),
     [cred.customFields]
   );
 
@@ -422,7 +508,7 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDe
   const { Icon: TypeIcon, label: typeLabel } = TYPE_META[cred.type] ?? TYPE_META.LOGIN;
   const showSubline = showName || (cred.type && cred.type !== 'LOGIN');
 
-  const hasAnySecret = hasValue(cred.password) || hasPinValue(cred.pin) || visibleCustomFields.length > 0;
+  const hasAnySecret = cred.hasPassword || cred.hasPin || cred.hasNotes || visibleCustomFields.length > 0;
   // A note has no password to keep a history of.
   const hasHistory = cred.type !== 'NOTE';
 
@@ -455,7 +541,7 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDe
             <Typography sx={{ fontSize: '0.66rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: 0.5 }}>Reused</Typography>
           )}
         </Box>
-        <CopyBtn value={cred.username} label="username" copied={copiedKey === 'username'} onCopy={(v) => copy(v, 'username')} T={T} />
+        <CopyBtn label="username" copied={copiedKey === 'username'} onCopy={() => copy(cred.username, 'username')} disabled={!hasValue(cred.username)} T={T} />
         <Tooltip title="Edit credential">
           <IconButton size="small" onClick={() => onEdit({ pmId, cred, host })} sx={iconButtonSx(T, T.teal)} aria-label="Edit credential"><EditRounded fontSize="small" /></IconButton>
         </Tooltip>
@@ -473,22 +559,24 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDe
 
       {hasAnySecret && (
         <Stack spacing={0.25} sx={{ minWidth: 0, mt: 0.35, pl: { xs: 0, sm: 1.75 } }}>
-          <SecretValueRow label="Password" value={cred.password} maskedText="••••••••••••" copied={copiedKey} copiedKey="password" onCopy={copy} T={T} />
-          {hasPinValue(cred.pin) && (
-            <SecretValueRow label="PIN" value={cred.pin} maskedText="••••" copied={copiedKey} copiedKey="pin" onCopy={copy} T={T} />
+          {cred.hasPassword && (
+            <SecretValueRow label="Password" credentialId={cred.id} field="password" maskedText="••••••••••••" copied={copiedKey} copiedKey="password" onCopied={tick} T={T} />
+          )}
+          {cred.hasPin && (
+            <SecretValueRow label="PIN" credentialId={cred.id} field="pin" maskedText="••••" copied={copiedKey} copiedKey="pin" onCopied={tick} T={T} />
           )}
           {visibleCustomFields.map((f, index) => {
             const id = f.id ?? `${f.fieldKey}-${index}`;
             const key = `custom-${id}`;
-            return <FieldValue key={id} field={f} copyKey={key} copied={copiedKey === key} onCopy={copy} />;
+            return (
+              <FieldValue key={id} field={f} copyKey={key} copied={copiedKey === key} onCopy={copy} onCopied={tick}
+                credentialId={cred.id} secretField={f.id ? `custom:${f.id}` : undefined} />
+            );
           })}
+          {cred.hasNotes && (
+            <SecretValueRow label="Notes" credentialId={cred.id} field="notes" multiline copied={copiedKey} copiedKey="notes" onCopied={tick} T={T} />
+          )}
         </Stack>
-      )}
-
-      {hasValue(cred.notes) && (
-        <Box sx={{ mt: 1.1, pt: 1, borderTop: `1px solid ${T.glassBorder}` }}>
-          <Typography sx={{ color: T.textMuted, fontSize: { xs: '0.76rem', sm: '0.8rem' }, lineHeight: 1.5, fontStyle: 'italic', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{cred.notes}</Typography>
-        </Box>
       )}
     </Box>
   );
@@ -608,8 +696,9 @@ const ViewPassword = () => {
 
         if (q && !hostMatch) {
           creds = creds.filter((c) => {
+            // The list has no notes to search (they are a secret now): the entry's name stands in.
             const u = c.username?.toLowerCase() ?? '';
-            const n = c.notes?.toLowerCase() ?? '';
+            const n = c.name?.toLowerCase() ?? '';
             const cf = c.customFields?.some((f) => (f.fieldKey?.toLowerCase() ?? '').includes(q));
             return u.includes(q) || n.includes(q) || cf;
           });
@@ -692,7 +781,7 @@ const ViewPassword = () => {
         {!isLoading && vault.length > 0 && (
           <Box sx={{ mb: 3 }}>
             <TextField
-              fullWidth size="small" placeholder="Search site, username, notes…" value={search}
+              fullWidth size="small" placeholder="Search site, name, username…" value={search}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
                 startAdornment: (<InputAdornment position="start"><SearchRounded sx={{ color: T.textMuted, fontSize: 19 }} /></InputAdornment>),

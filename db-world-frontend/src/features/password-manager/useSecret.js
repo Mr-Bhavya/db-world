@@ -1,0 +1,45 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import CommonServices from '@shared/services/CommonServices';
+import { readSecret } from './useVault';
+
+/** How long a revealed value is kept before it is dropped and has to be fetched again. */
+export const SECRET_HOLD_MS = 30 * 1000;
+
+/**
+ * One secret of a vault entry, fetched only when asked for: the list never carries it.
+ * field: 'password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'.
+ *
+ * reveal() fetches it (from the server, or the unlocked offline copy) and keeps it in this
+ * component's state for 30 seconds, then drops it. copy() puts it on the clipboard, fetching first
+ * if needed, and rejects when the copy fails. value is what is held right now, or null.
+ */
+export default function useSecret(credentialId, field) {
+  const [value, setValue] = useState(null);
+  const timer = useRef(null);
+
+  const hide = useCallback(() => {
+    clearTimeout(timer.current);
+    setValue(null);
+  }, []);
+
+  // Another entry or field: what was held belongs to the old one.
+  useEffect(() => hide, [credentialId, field, hide]);
+
+  const reveal = useCallback(async () => {
+    if (value != null) return value;
+    if (!credentialId || !field) throw new Error('Nothing to reveal');
+    const v = await readSecret(credentialId, field);
+    setValue(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setValue(null), SECRET_HOLD_MS);
+    return v;
+  }, [credentialId, field, value]);
+
+  const copy = useCallback(async () => {
+    const v = await reveal();
+    const res = await CommonServices.handleCopy(String(v));
+    if (!res?.success) throw new Error(res?.message || 'Copy failed');
+  }, [reveal]);
+
+  return { value, reveal, copy, hide };
+}

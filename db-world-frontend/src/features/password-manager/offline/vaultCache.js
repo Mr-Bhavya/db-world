@@ -14,6 +14,11 @@
  * The Keystore key is invalidated by the OS if the device lock screen is removed
  * or reset, which surfaces as KEY_INVALIDATED → we wipe the snapshot and fall
  * back to online sync. Nothing here runs (or stores anything) off Android.
+ *
+ * What is cached is the full vault with its secrets, from GET /api/pm/snapshot:
+ * the list (GET /api/pm/) no longer carries any, so caching it would leave
+ * nothing to show offline. A copy written before that change has the same shape.
+ * useVault turns the decrypted copy back into the list's summaries.
  */
 import { vaultCryptoAvailable, vcWrapKey, vcUnwrapKey, vcReset } from '@platform/android/vaultCrypto';
 
@@ -67,7 +72,7 @@ const idbClear = () => idbRun('readwrite', (s) => s.clear());
 // ── public API ───────────────────────────────────────────────────────────────
 
 /**
- * Write-through: encrypt + persist the freshly-fetched vault. Best-effort and
+ * Write-through: encrypt + persist the freshly-fetched snapshot. Best-effort and
  * silent — a device with no lock screen (NO_LOCK) or any failure simply means
  * "no offline copy this time". Never prompts. Fire-and-forget from the caller.
  */

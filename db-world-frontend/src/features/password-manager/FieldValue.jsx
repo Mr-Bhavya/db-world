@@ -2,8 +2,10 @@ import React, { memo, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { Box, IconButton, Link, Tooltip, Typography } from '@mui/material';
 import { CheckCircleRounded, ContentCopyRounded, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useT } from '@shared/theme';
+import { notify } from '@shared/notify';
 import { isSecretField, linkTarget } from './entryUtils';
 import { iconButtonSx } from './vaultShared';
+import useSecret from './useSecret';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const COLLAPSED_LINES = 3;
@@ -16,18 +18,29 @@ const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayout
  * HIDDEN masked, TEXT plain, URL a link, MULTILINE a masked block that collapses to three lines.
  * Every type has a copy button. onCopy(value, copyKey) does the copying; copied says it just happened.
  * Pass a stable onCopy and field (and a copyKey to tell fields apart) so memo can skip re-renders.
+ *
+ * A hidden value is not in the vault list (fieldValue is null): pass credentialId and secretField
+ * ('custom:<id>', 'history:<id>') and Show / Copy fetch it through useSecret, which drops it again
+ * after 30 seconds. Then onCopied(copyKey) is called after a copy instead of onCopy.
  */
-const FieldValue = memo(({ field, onCopy, copyKey, copied = false }) => {
+const FieldValue = memo(({ field, onCopy, onCopied, copyKey, copied = false, credentialId, secretField }) => {
   const T = useT();
   const [visible, setVisible] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);   // measured: the collapsed block hides lines
+  const [busy, setBusy] = useState(false);
   const boxRef = useRef(null);
   const boxId = useId();
 
-  const value = field.fieldValue == null ? '' : String(field.fieldValue);
+  const locked = !!secretField && field.fieldValue == null;
+  const secret = useSecret(locked ? credentialId : null, locked ? secretField : null);
+  const value = locked ? (secret.value ?? '') : (field.fieldValue == null ? '' : String(field.fieldValue));
   const type = field.fieldType ?? 'HIDDEN';
-  const masked = isSecretField(field) && !visible;
+  // A fetched value is shown only until useSecret drops it: then it is masked again, and a later
+  // Copy (which fetches it anew) does not show it.
+  const shown = visible && (!locked || secret.value != null);
+  useEffect(() => { if (locked && secret.value == null) setVisible(false); }, [locked, secret.value]);
+  const masked = isSecretField(field) && !shown;
   const multiline = type === 'MULTILINE' && !masked;
 
   // A long line wraps to many visual lines, so counting characters and newlines is only a guess:
@@ -43,7 +56,21 @@ const FieldValue = memo(({ field, onCopy, copyKey, copied = false }) => {
     return () => ro.disconnect();
   }, [multiline, expanded, value]);
 
-  if (!value.trim()) return null;
+  if (!locked && !value.trim()) return null;
+
+  const toggleVisible = async () => {
+    if (shown) { setVisible(false); if (locked) secret.hide(); return; }
+    if (locked) {
+      setBusy(true);
+      try { await secret.reveal(); } catch { notify.error('Could not load this value'); return; } finally { setBusy(false); }
+    }
+    setVisible(true);
+  };
+
+  const copyValue = async () => {
+    if (!locked) { onCopy(value, copyKey); return; }
+    try { await secret.copy(); onCopied?.(copyKey); } catch { notify.error('Copy failed'); }
+  };
 
   const label = field.fieldKey || 'Custom';
   const href = type === 'URL' ? linkTarget(value) : null;
@@ -103,15 +130,15 @@ const FieldValue = memo(({ field, onCopy, copyKey, copied = false }) => {
       )}
 
       {isSecretField(field) && (
-        <Tooltip title={visible ? `Hide ${label}` : `Show ${label}`}>
-          <IconButton size="small" onClick={() => setVisible((v) => !v)} sx={iconButtonSx(T, T.teal)} aria-label={visible ? `Hide ${label}` : `Show ${label}`}>
-            {visible ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+        <Tooltip title={shown ? `Hide ${label}` : `Show ${label}`}>
+          <IconButton size="small" disabled={busy} onClick={toggleVisible} sx={iconButtonSx(T, T.teal)} aria-label={shown ? `Hide ${label}` : `Show ${label}`}>
+            {shown ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
           </IconButton>
         </Tooltip>
       )}
       <Tooltip title={copied ? 'Copied!' : `Copy ${label}`}>
         <IconButton
-          size="small" onClick={() => onCopy(value, copyKey)} aria-label={`Copy ${label}`}
+          size="small" disabled={busy} onClick={copyValue} aria-label={`Copy ${label}`}
           sx={{ ...iconButtonSx(T, copied ? '#22c55e' : T.teal), color: copied ? '#22c55e' : T.textMuted }}
         >
           {copied ? <CheckCircleRounded fontSize="small" /> : <ContentCopyRounded fontSize="small" />}

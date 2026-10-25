@@ -179,18 +179,11 @@ export const scorePassword = (pw) => {
 
 // ─── Vault-level analysis (weak / reused across all credentials) ──────────────
 /**
- * Given the vault payload (array of { host, credentials:[{ password, ... }] }),
- * returns per-credential-id flags plus aggregate counts for the dashboard.
+ * Given the vault list (array of { host, credentials:[{ id, strength, reused, ... }] }), returns
+ * per-credential flags plus aggregate counts for the dashboard. The list carries no passwords: the
+ * server scores each one (same scale as scorePassword) and says whether another entry shares it.
  */
 export const analyzeVault = (vault = []) => {
-  const counts = new Map();
-  vault.forEach((entry) =>
-    entry.credentials?.forEach((c) => {
-      const p = (c.password ?? '').trim();
-      if (p) counts.set(p, (counts.get(p) ?? 0) + 1);
-    })
-  );
-
   const flags = {};        // credId -> { level, weak, reused }
   let weak = 0;
   let reused = 0;
@@ -198,11 +191,10 @@ export const analyzeVault = (vault = []) => {
 
   vault.forEach((entry) =>
     entry.credentials?.forEach((c) => {
-      const p = (c.password ?? '').trim();
       total += 1;
-      const { level } = scorePassword(p);
-      const isWeak = p !== '' && level <= 2;
-      const isReused = p !== '' && (counts.get(p) ?? 0) > 1;
+      const level = c.strength ?? 0;   // 0 = no password
+      const isWeak = level >= 1 && level <= 2;
+      const isReused = !!c.reused;
       if (isWeak) weak += 1;
       if (isReused) reused += 1;
       flags[c.id] = { level, weak: isWeak, reused: isReused };
@@ -214,4 +206,48 @@ export const analyzeVault = (vault = []) => {
   const health = total === 0 ? 100 : Math.max(0, Math.round(100 - penalties));
 
   return { flags, weak, reused, total, health };
+};
+
+// ─── Full entries -> the list's summaries (offline copy only) ─────────────────
+const hasText = (v) => v != null && String(v).trim() !== '';
+const SHOWN_FIELD_TYPES = new Set(['TEXT', 'URL']);
+
+/**
+ * The offline copy holds the full entries (GET /api/pm/snapshot, or the list as it was before it
+ * lost its secrets). This rebuilds what GET /api/pm/ would have returned from it, by the server's
+ * rules, so every screen reads one shape: no secret values, which ones exist, strength (scored on
+ * the trimmed password) and reused (another entry has the same trimmed password).
+ */
+export const summarizeVault = (vault = []) => {
+  const counts = new Map();
+  vault.forEach((entry) => entry.credentials?.forEach((c) => {
+    const p = (c.password ?? '').trim();
+    if (p) counts.set(p, (counts.get(p) ?? 0) + 1);
+  }));
+
+  return vault.map((entry) => ({
+    id: entry.id,
+    host: entry.host,
+    credentials: (entry.credentials ?? []).map((c) => {
+      const p = (c.password ?? '').trim();
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        url: c.url,
+        username: c.username,
+        hasPassword: p !== '',
+        hasPin: hasText(c.pin) && String(c.pin).trim() !== '0',   // "0" was an old client's "no PIN"
+        hasNotes: hasText(c.notes),
+        strength: scorePassword(p).level,
+        reused: p !== '' && (counts.get(p) ?? 0) > 1,
+        breached: false,
+        customFields: (c.customFields ?? []).map((f) => {
+          const fieldType = f.fieldType ?? 'HIDDEN';
+          return { id: f.id, fieldKey: f.fieldKey, fieldType, fieldValue: SHOWN_FIELD_TYPES.has(fieldType) ? f.fieldValue : null };
+        }),
+        deletedAt: c.deletedAt ?? null,
+      };
+    }),
+  }));
 };

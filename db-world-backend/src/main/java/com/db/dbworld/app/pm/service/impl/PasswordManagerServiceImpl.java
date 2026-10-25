@@ -4,9 +4,12 @@ import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
+import com.db.dbworld.app.pm.dto.SecretField;
+import com.db.dbworld.app.pm.dto.VaultGroupDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CredentialType;
+import com.db.dbworld.app.pm.entity.CustomFieldEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldType;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
@@ -16,6 +19,8 @@ import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
+import com.db.dbworld.app.pm.service.SecretReadRateLimiter;
+import com.db.dbworld.app.pm.util.PasswordStrength;
 import com.db.dbworld.app.pm.util.SiteUrl;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
@@ -38,6 +43,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -52,6 +60,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     private final UserContext userContext;
     private final PasswordManagerMapper mapper;
     private final Clock clock;
+    private final SecretReadRateLimiter secretReadLimiter;
 
     @Autowired
     public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
@@ -60,12 +69,13 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                                       CredentialHistoryRepository historyRepository,
                                       UserService userService,
                                       UserContext userContext,
-                                      PasswordManagerMapper mapper) {
+                                      PasswordManagerMapper mapper,
+                                      SecretReadRateLimiter secretReadLimiter) {
         this(passwordManagerRepository, hostRepository, credentialsRepository, historyRepository, userService,
-                userContext, mapper, Clock.systemUTC());
+                userContext, mapper, Clock.systemUTC(), secretReadLimiter);
     }
 
-    /** The clock stamps when an entry was trashed; tests pass a fixed one. */
+    /** The clock stamps when an entry was trashed; tests pass a fixed one (and get a limiter of their own). */
     public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
                                       HostRepository hostRepository,
                                       CredentialsRepository credentialsRepository,
@@ -74,6 +84,19 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                                       UserContext userContext,
                                       PasswordManagerMapper mapper,
                                       Clock clock) {
+        this(passwordManagerRepository, hostRepository, credentialsRepository, historyRepository, userService,
+                userContext, mapper, clock, new SecretReadRateLimiter(clock));
+    }
+
+    public PasswordManagerServiceImpl(PasswordManagerRepository passwordManagerRepository,
+                                      HostRepository hostRepository,
+                                      CredentialsRepository credentialsRepository,
+                                      CredentialHistoryRepository historyRepository,
+                                      UserService userService,
+                                      UserContext userContext,
+                                      PasswordManagerMapper mapper,
+                                      Clock clock,
+                                      SecretReadRateLimiter secretReadLimiter) {
         this.passwordManagerRepository = passwordManagerRepository;
         this.hostRepository = hostRepository;
         this.credentialsRepository = credentialsRepository;
@@ -82,6 +105,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         this.userContext = userContext;
         this.mapper = mapper;
         this.clock = clock;
+        this.secretReadLimiter = secretReadLimiter;
     }
 
     // ─────────────────────────────────────────────
@@ -308,32 +332,97 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // GET ALL
     // ─────────────────────────────────────────────
     @Override
-    @Transactional(readOnly = false)
-    public List<PasswordManagerDto> getPasswordManagerByUser() {
-        return groupsOf(false);
+    @Transactional(readOnly = true)
+    public List<VaultGroupDto> getPasswordManagerByUser() {
+        return summariesOf(false);
     }
 
     @Override
-    public List<PasswordManagerDto> listTrash() {
-        return groupsOf(true);
+    @Transactional(readOnly = true)
+    public List<VaultGroupDto> listTrash() {
+        return summariesOf(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PasswordManagerDto> getSnapshot() {
+        Long userId = userContext.userId();
+        secretReadLimiter.acquire(userId);
+        List<PasswordManagerDto> groups = groupsOf(passwordManagerRepository.findAllByUserEntityUserId(userId), false,
+                (pm, live) -> new PasswordManagerDto(pm.getId(), mapper.toDto(pm.getHost()),
+                        live.stream().map(mapper::toDto).toList()));
+        // INFO like every secret read: this one returns all of them. Counts and ids only.
+        log.info("Vault snapshot read: credentials={}, userId={}",
+                groups.stream().mapToInt(g -> g.getCredentials().size()).sum(), userId);
+        return groups;
     }
 
     /**
-     * The user's groups, each holding only its live entries (the vault) or only its trashed ones
-     * (the Trash). A group with nothing of the wanted kind is left out. Built as new DTOs: the
-     * entities are not touched, so nothing here can be flushed back as a change.
+     * The vault list (live entries) or the Trash, without secrets. An entry is reused when its
+     * trimmed password is also that of another live entry: the rule the client used to apply.
      */
-    private List<PasswordManagerDto> groupsOf(boolean trashed) {
-        return passwordManagerRepository.findAllByUserEntityUserId(userContext.userId()).stream()
+    private List<VaultGroupDto> summariesOf(boolean trashed) {
+        List<PasswordManagerEntity> all = passwordManagerRepository.findAllByUserEntityUserId(userContext.userId());
+        Map<String, Long> livePasswords = all.stream()
+                .filter(pm -> pm.getCredentials() != null)
+                .flatMap(pm -> pm.getCredentials().stream())
+                .filter(c -> c.getDeletedAt() == null)
+                .map(c -> PasswordStrength.trimmed(c.getPassword()))
+                .filter(p -> !p.isEmpty())
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        return groupsOf(all, trashed, (pm, wanted) -> new VaultGroupDto(pm.getId(), mapper.toDto(pm.getHost()),
+                wanted.stream().map(c -> mapper.toSummary(c, isReused(c, livePasswords))).toList()));
+    }
+
+    private static boolean isReused(CredentialEntity c, Map<String, Long> livePasswords) {
+        String password = PasswordStrength.trimmed(c.getPassword());
+        if (password.isEmpty()) return false;
+        long others = livePasswords.getOrDefault(password, 0L) - (c.getDeletedAt() == null ? 1 : 0);
+        return others > 0;
+    }
+
+    /**
+     * The groups, each with only its live entries (the vault) or only its trashed ones (the Trash).
+     * A group with nothing of the wanted kind is left out. Built as new DTOs: the entities are not
+     * touched, so nothing here can be flushed back as a change.
+     */
+    private static <G> List<G> groupsOf(List<PasswordManagerEntity> all, boolean trashed,
+                                        BiFunction<PasswordManagerEntity, List<CredentialEntity>, G> toGroup) {
+        return all.stream()
                 .map(pm -> {
                     List<CredentialEntity> wanted = pm.getCredentials() == null ? List.of()
                             : pm.getCredentials().stream().filter(c -> (c.getDeletedAt() != null) == trashed).toList();
-                    return wanted.isEmpty() ? null
-                            : new PasswordManagerDto(pm.getId(), mapper.toDto(pm.getHost()),
-                                    wanted.stream().map(mapper::toDto).toList());
+                    return wanted.isEmpty() ? null : toGroup.apply(pm, wanted);
                 })
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    // ─────────────────────────────────────────────
+    // REVEAL ONE SECRET
+    // ─────────────────────────────────────────────
+    @Override
+    @Transactional(readOnly = true)
+    public String revealSecret(String credentialId, SecretField field) {
+        Long userId = userContext.userId();
+        secretReadLimiter.acquire(userId);   // before the lookup: probing for ids costs reads too
+        CredentialEntity credential = ownLiveCredential(credentialId);
+        String value = switch (field) {
+            case SecretField.Password p -> credential.getPassword();
+            case SecretField.Pin p -> credential.getPin();
+            case SecretField.Notes n -> credential.getNotes();
+            case SecretField.Custom(String fieldId) -> credential.getCustomFields().stream()
+                    .filter(f -> fieldId.equals(f.getId()))
+                    .findFirst()
+                    .map(CustomFieldEntity::getFieldValue)
+                    .orElseThrow(() -> new ResourceNotFoundException("Custom field", "fieldId", fieldId));
+            case SecretField.History(String historyId) -> historyRepository.findByIdAndCredentialId(historyId, credential.getId())
+                    .map(CredentialHistoryEntity::getPassword)
+                    .orElseThrow(() -> new ResourceNotFoundException("Password history", "historyId", historyId));
+        };
+        // INFO: reading a secret is an audit-worthy event. Never the value.
+        log.info("Credential secret read: credentialId={}, field={}, userId={}", credentialId, field.spec(), userId);
+        return value;
     }
 
     // ─────────────────────────────────────────────
@@ -481,8 +570,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     public List<PasswordHistoryDto> getHistory(String credentialId) {
         CredentialEntity credential = ownLiveCredential(credentialId);
-        // INFO like getCredentialById: old passwords are decrypted and returned. Ids only.
-        log.info("Password history read: credentialId={}, userId={}", credentialId, userContext.userId());
         return historyRepository.findAllByCredentialIdOrderByChangedAtDescIdDesc(credential.getId()).stream()
                 .limit(HISTORY_LIMIT)
                 .map(mapper::toDto)

@@ -86,10 +86,14 @@ public class ResponsePayloads {
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class PasswordManagerResponse {
+    /**
+     * One site's group in the vault. The list and the Trash carry {@code CredentialSummaryDto}s (no
+     * secrets); only the offline snapshot carries full {@code CredentialDto}s.
+     */
+    public static class PasswordManagerResponse<C> {
         private String id;
         private String host;
-        private List<CredentialDto> credentials;
+        private List<C> credentials;
     }
 
     @Data
