@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CommonServices from '@shared/services/CommonServices';
 import { readSecret } from './useVault';
 
@@ -14,6 +14,33 @@ export const copySecret = (held, reveal) =>
   CommonServices.handleCopy(held != null ? String(held) : reveal().then(String), { sensitive: true });
 
 /**
+ * Holds one revealed secret for holdMs, then drops it. read() fetches it; onChange(value | null)
+ * hears every change. dispose() drops it for good: a read still in flight then holds nothing, so a
+ * value fetched for an entry the screen has already left never shows up on the next one.
+ */
+export function createSecretHold(read, onChange, holdMs = SECRET_HOLD_MS) {
+  let value = null;
+  let timer = null;
+  let disposed = false;
+  const set = (v) => { value = v; onChange(v); };
+  const hide = () => { clearTimeout(timer); if (value != null) set(null); };
+  return {
+    get value() { return value; },
+    async reveal() {
+      if (value != null) return value;
+      const v = await read();
+      if (disposed) return v;
+      set(v);
+      clearTimeout(timer);
+      timer = setTimeout(() => set(null), holdMs);
+      return v;
+    },
+    hide,
+    dispose() { disposed = true; hide(); },
+  };
+}
+
+/**
  * One secret of a vault entry, fetched only when asked for: the list never carries it.
  * field: 'password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'.
  *
@@ -23,30 +50,21 @@ export const copySecret = (held, reveal) =>
  */
 export default function useSecret(credentialId, field) {
   const [value, setValue] = useState(null);
-  const timer = useRef(null);
 
-  const hide = useCallback(() => {
-    clearTimeout(timer.current);
-    setValue(null);
-  }, []);
-
-  // Another entry or field: what was held belongs to the old one.
-  useEffect(() => hide, [credentialId, field, hide]);
-
-  const reveal = useCallback(async () => {
-    if (value != null) return value;
+  // Another entry or field: a new hold, and the old one (with anything it still had coming) is dropped.
+  const hold = useMemo(() => createSecretHold(async () => {
     if (!credentialId || !field) throw new Error('Nothing to reveal');
-    const v = await readSecret(credentialId, field);
-    setValue(v);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setValue(null), SECRET_HOLD_MS);
-    return v;
-  }, [credentialId, field, value]);
+    return readSecret(credentialId, field);
+  }, setValue), [credentialId, field]);
+  useEffect(() => () => hold.dispose(), [hold]);
 
+  const reveal = useCallback(() => hold.reveal(), [hold]);
+  const hide = useCallback(() => hold.hide(), [hold]);
   const copy = useCallback(async () => {
-    const res = await copySecret(value, reveal);
+    const res = await copySecret(hold.value, hold.reveal);
     if (!res?.success) throw new Error(res?.message || 'Copy failed');
-  }, [reveal, value]);
+  }, [hold]);
 
-  return { value, reveal, copy, hide };
+  // What this entry's hold has: never a value the previous entry's hold left in state.
+  return { value: hold.value == null ? null : value, reveal, copy, hide };
 }
