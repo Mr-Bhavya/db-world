@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -200,20 +201,40 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         return host.toLowerCase().replace("www.", "").trim();
     }
 
-    /** Longest password or PIN, in characters. */
-    static final int MAX_SECRET_CHARS = 4096;
+    /** Longest password, in characters (a LONGTEXT column: this is a sanity cap, not a column size). */
+    static final int MAX_PASSWORD_CHARS = 4096;
     /** Longest note or custom-field value, in characters (a private key is a few KB). */
     static final int MAX_TEXT_CHARS = 65536;
     /** Most custom fields on one entry. */
     static final int MAX_CUSTOM_FIELDS = 30;
 
+    // The three columns below are encrypted, and their ciphertext is much longer than the text:
+    // AES via CryptoProvider is "AES:" + base64(salt + IV + CBC ciphertext padded to 16 bytes), which
+    // measured as 68 chars for up to 15 plaintext bytes, +24 chars per further 16 bytes (192 -> 324,
+    // 128 -> 240). The longest plaintext that still fits is 143 UTF-8 bytes in a 255 column and 335
+    // in a 512 column. The limits sit on the block boundary below those, 15 / 16 bytes short of the
+    // column, so a small change of the ciphertext format does not turn into a 500 from MySQL.
+    // Counted in bytes because a character takes up to 4 of them. VaultColumnLimitsJpaTest checks
+    // these against the real columns.
+    /** Longest PIN, in UTF-8 bytes (the column is 255 chars of ciphertext: 128 bytes -> 240 chars). */
+    public static final int MAX_PIN_BYTES = 128;
+    /** Longest entry name, in UTF-8 bytes (the column is 512 chars of ciphertext: 320 bytes -> 496 chars). */
+    public static final int MAX_NAME_BYTES = 320;
+    /** Longest username, in UTF-8 bytes (the column is 512 chars of ciphertext: 320 bytes -> 496 chars). */
+    public static final int MAX_USERNAME_BYTES = 320;
+    /** Longest custom-field name, in characters. Not encrypted: the column is a plain VARCHAR(255). */
+    public static final int MAX_FIELD_KEY_CHARS = 255;
+
     /**
-     * Rejects what is too big to store sensibly. A null value is fine (older rows and clients). The
-     * message names the field, and for a custom field its key, never a value.
+     * Rejects what is too big to store: the sanity caps on the long text columns and the real size of
+     * the short encrypted ones. A null value is fine (older rows and clients). The message names the
+     * field, and for a custom field its key, never a value.
      */
     private static void validateSizes(CredentialDto dto) {
-        requireMax("Password", dto.getPassword(), MAX_SECRET_CHARS);
-        requireMax("PIN", dto.getPin(), MAX_SECRET_CHARS);
+        requireMax("Password", dto.getPassword(), MAX_PASSWORD_CHARS);
+        requireMaxBytes("PIN", dto.getPin(), MAX_PIN_BYTES);
+        requireMaxBytes("Name", dto.getName(), MAX_NAME_BYTES);
+        requireMaxBytes("Username", dto.getUsername(), MAX_USERNAME_BYTES);
         requireMax("Notes", dto.getNotes(), MAX_TEXT_CHARS);
         List<CustomFieldDto> fields = dto.getCustomFields();
         if (fields == null) return;
@@ -221,7 +242,18 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Too many custom fields (max " + MAX_CUSTOM_FIELDS + ")");
         }
         for (CustomFieldDto f : fields) {
+            if (f.getFieldKey() == null) {   // the column is NOT NULL: this would be a 500 from the database
+                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Custom field name is required");
+            }
+            requireMax("Custom field name", f.getFieldKey(), MAX_FIELD_KEY_CHARS);
             requireMax("Custom field '" + shortKey(f.getFieldKey()) + "'", f.getFieldValue(), MAX_TEXT_CHARS);
+        }
+    }
+
+    private static void requireMaxBytes(String what, String value, int maxBytes) {
+        // A char is at least one byte, so a value over the limit in chars is over it in bytes too.
+        if (value != null && (value.length() > maxBytes || value.getBytes(StandardCharsets.UTF_8).length > maxBytes)) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, what + " is too long (max " + maxBytes + " bytes)");
         }
     }
 

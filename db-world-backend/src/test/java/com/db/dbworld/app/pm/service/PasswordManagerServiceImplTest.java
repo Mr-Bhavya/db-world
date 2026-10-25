@@ -801,16 +801,16 @@ class PasswordManagerServiceImplTest {
     }
 
     @Test
-    void aPasswordOrPinOver4096IsRejectedOnAddAndNothingIsSaved() {
+    void aPasswordOver4096OrAPinOver128BytesIsRejectedOnAddAndNothingIsSaved() {
         CredentialDto longPassword = dto("Box", "root", CredentialType.LOGIN);
         longPassword.setPassword("p".repeat(4097));
         CredentialDto longPin = dto("Card", "me", CredentialType.LOGIN);
-        longPin.setPin("1".repeat(4097));
+        longPin.setPin("1".repeat(129));
 
         assertThatThrownBy(() -> service.addCredential(null, longPassword))
                 .isInstanceOf(DbWorldException.class).hasMessage("Password is too long (max 4096)");
         assertThatThrownBy(() -> service.addCredential(null, longPin))
-                .isInstanceOf(DbWorldException.class).hasMessage("PIN is too long (max 4096)");
+                .isInstanceOf(DbWorldException.class).hasMessage("PIN is too long (max 128 bytes)");
 
         verify(pmRepo, never()).save(any(PasswordManagerEntity.class));
         verify(hostRepo, never()).save(any(HostEntity.class));
@@ -842,6 +842,147 @@ class PasswordManagerServiceImplTest {
                 .isInstanceOf(DbWorldException.class).hasMessage("Custom field 'ssh key' is too long (max 65536)");
         assertThat(c.getPassword()).isEqualTo("old-pw");
         verify(credentialsRepo, never()).save(any(CredentialEntity.class));
+
+        // Control: a valid update does reach that save, so the "never" above is not vacuous.
+        service.updateCredential("pm-c1", editWithPassword("c1", "new-pw"));
+        verify(credentialsRepo, times(1)).save(c);
+        assertThat(c.getPassword()).isEqualTo("new-pw");
+    }
+
+    // ── column-sized limits ──────────────────────────────────────────────────────
+
+    private static final String EMOJI = "😀";   // 4 bytes in UTF-8, 2 chars in Java
+
+    private void assertRejectedOnAdd(CredentialDto d, String message) {
+        assertThatThrownBy(() -> service.addCredential(null, d))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST))
+                .hasMessage(message);
+    }
+
+    @Test
+    void aPinIsLimitedTo128BytesExactlyAtTheLimitPassesAndOneOverIsRejected() {
+        CredentialDto atLimit = dto("Card", "me", CredentialType.LOGIN);
+        atLimit.setPin("1".repeat(128));
+        service.addCredential(null, atLimit);
+        assertThat(saved().getCredentials().get(0).getPin()).hasSize(128);
+
+        CredentialDto over = dto("Card 2", "me", CredentialType.LOGIN);
+        over.setPin("1".repeat(129));
+        assertRejectedOnAdd(over, "PIN is too long (max 128 bytes)");
+        verify(pmRepo, times(1)).save(any(PasswordManagerEntity.class));   // only the at-limit one
+    }
+
+    @Test
+    void thePinLimitCountsBytesNotCharacters() {
+        CredentialDto thirtyTwoEmoji = dto("Card", "me", CredentialType.LOGIN);
+        thirtyTwoEmoji.setPin(EMOJI.repeat(32));            // 64 chars, exactly 128 bytes
+        service.addCredential(null, thirtyTwoEmoji);
+        assertThat(saved().getCredentials().get(0).getPin()).isEqualTo(EMOJI.repeat(32));
+
+        CredentialDto thirtyThree = dto("Card 2", "me", CredentialType.LOGIN);
+        thirtyThree.setPin(EMOJI.repeat(33));               // 66 chars (well under 128) but 132 bytes
+        assertRejectedOnAdd(thirtyThree, "PIN is too long (max 128 bytes)");
+
+        CredentialDto twoByte = dto("Card 3", "me", CredentialType.LOGIN);
+        twoByte.setPin("é".repeat(65));                // 65 chars, 130 bytes
+        assertRejectedOnAdd(twoByte, "PIN is too long (max 128 bytes)");
+    }
+
+    @Test
+    void aNameIsLimitedTo320BytesExactlyAtTheLimitPassesAndOneOverIsRejected() {
+        service.addCredential(null, dto("n".repeat(320), "me", CredentialType.LOGIN));
+        assertThat(saved().getCredentials().get(0).getName()).hasSize(320);
+
+        assertRejectedOnAdd(dto("n".repeat(321), "me", CredentialType.LOGIN), "Name is too long (max 320 bytes)");
+        // 80 emoji are 160 chars but exactly 320 bytes; one more is over
+        assertRejectedOnAdd(dto(EMOJI.repeat(81), "me", CredentialType.LOGIN), "Name is too long (max 320 bytes)");
+        verify(pmRepo, times(1)).save(any(PasswordManagerEntity.class));
+    }
+
+    @Test
+    void aNameOfEightyEmojiIsAcceptedBecauseItIsExactly320Bytes() {
+        service.addCredential(null, dto(EMOJI.repeat(80), "me", CredentialType.LOGIN));
+
+        assertThat(saved().getCredentials().get(0).getName()).isEqualTo(EMOJI.repeat(80));
+    }
+
+    @Test
+    void aUsernameIsLimitedTo320BytesExactlyAtTheLimitPassesAndOneOverIsRejected() {
+        service.addCredential(null, dto("Box", "u".repeat(320), CredentialType.LOGIN));
+        assertThat(saved().getCredentials().get(0).getUsername()).hasSize(320);
+
+        assertRejectedOnAdd(dto("Box 2", "u".repeat(321), CredentialType.LOGIN), "Username is too long (max 320 bytes)");
+        assertRejectedOnAdd(dto("Box 3", EMOJI.repeat(81), CredentialType.LOGIN), "Username is too long (max 320 bytes)");
+        verify(pmRepo, times(1)).save(any(PasswordManagerEntity.class));
+    }
+
+    @Test
+    void theColumnSizedLimitsApplyToAnUpdateToo() {
+        CredentialEntity c = entryWithPassword("c1", "old-pw");
+        c.setPin("1234");
+        CredentialDto longPin = edit("c1", "Netflix", "me@x.com", null);
+        longPin.setPin("1".repeat(129));
+        CredentialDto longName = edit("c1", "n".repeat(321), "me@x.com", null);
+        CredentialDto longUsername = edit("c1", "Netflix", "u".repeat(321), null);
+        CredentialDto longKey = edit("c1", "Netflix", "me@x.com", null);
+        longKey.setCustomFields(List.of(field("k".repeat(256), "v", CustomFieldType.TEXT)));
+
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longPin)).hasMessage("PIN is too long (max 128 bytes)");
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longName)).hasMessage("Name is too long (max 320 bytes)");
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longUsername)).hasMessage("Username is too long (max 320 bytes)");
+        assertThatThrownBy(() -> service.updateCredential("pm-c1", longKey)).hasMessage("Custom field name is too long (max 255)");
+
+        assertThat(c.getPin()).isEqualTo("1234");
+        assertThat(c.getName()).isEqualTo("Netflix");
+        assertThat(c.getUsername()).isEqualTo("me@x.com");
+        verify(credentialsRepo, never()).save(any(CredentialEntity.class));
+    }
+
+    @Test
+    void aCustomFieldNameIsLimitedTo255CharactersAndMustNotBeNull() {
+        CredentialDto atLimit = dto("Box", "root", CredentialType.LOGIN);
+        atLimit.setCustomFields(List.of(field("k".repeat(255), "v", CustomFieldType.TEXT)));
+        service.addCredential(null, atLimit);
+        assertThat(saved().getCredentials().get(0).getCustomFields().get(0).getFieldKey()).hasSize(255);
+
+        CredentialDto over = dto("Box 2", "root", CredentialType.LOGIN);
+        over.setCustomFields(List.of(field("SECRETLABEL" + "k".repeat(250), "v", CustomFieldType.TEXT)));
+        assertThatThrownBy(() -> service.addCredential(null, over))
+                .isInstanceOfSatisfying(DbWorldException.class,
+                        e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST))
+                .hasMessage("Custom field name is too long (max 255)")
+                .hasMessageNotContaining("SECRETLABEL");
+
+        CredentialDto noKey = dto("Box 3", "root", CredentialType.LOGIN);
+        noKey.setCustomFields(List.of(field(null, "v", CustomFieldType.TEXT)));
+        assertRejectedOnAdd(noKey, "Custom field name is required");
+        verify(pmRepo, times(1)).save(any(PasswordManagerEntity.class));   // only the at-limit one
+    }
+
+    @Test
+    void aPasswordOfExactly4096CharactersAndACustomFieldValueOfExactly65536AreAccepted() {
+        CredentialDto d = dto("Box", "root", CredentialType.LOGIN);
+        d.setPassword("p".repeat(4096));
+        d.setCustomFields(List.of(field("ssh key", "k".repeat(65536), CustomFieldType.MULTILINE)));
+
+        service.addCredential(null, d);
+
+        var c = saved().getCredentials().get(0);
+        assertThat(c.getPassword()).hasSize(4096);
+        assertThat(c.getCustomFields().get(0).getFieldValue()).hasSize(65536);
+    }
+
+    @Test
+    void aLongFieldKeyIsTruncatedInTheErrorAndTheValueIsNeverEchoed() {
+        CredentialDto d = dto("Box", "root", CredentialType.LOGIN);
+        d.setCustomFields(List.of(field("k".repeat(100), "SECRETVALUE" + "v".repeat(65537), CustomFieldType.MULTILINE)));
+
+        assertThatThrownBy(() -> service.addCredential(null, d))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessage("Custom field '" + "k".repeat(60) + "...' is too long (max 65536)")
+                .hasMessageNotContaining("k".repeat(61))
+                .hasMessageNotContaining("SECRETVALUE");
     }
 
     @Test
