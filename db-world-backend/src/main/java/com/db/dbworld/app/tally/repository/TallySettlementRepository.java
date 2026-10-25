@@ -2,7 +2,9 @@ package com.db.dbworld.app.tally.repository;
 
 import com.db.dbworld.app.tally.entity.TallySettlementEntity;
 import com.db.dbworld.app.tally.entity.TallySettlementStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,10 @@ import java.util.Optional;
 public interface TallySettlementRepository extends JpaRepository<TallySettlementEntity, String> {
 
     Optional<TallySettlementEntity> findByIdAndGroupId(String id, String groupId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select s from TallySettlementEntity s where s.id = :id")
+  Optional<TallySettlementEntity> findByIdForUpdate(@Param("id") String id);
 
     /** Idempotent replay; the reason a double-tap does not drive the balance the wrong way. */
     Optional<TallySettlementEntity> findByGroupIdAndIdempotencyKey(String groupId, String idempotencyKey);

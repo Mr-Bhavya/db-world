@@ -153,7 +153,7 @@ public class TallyExpenseService {
     }
 
     private TallyExpenseEntity voidEntity(Long userId, String expenseId) {
-        TallyExpenseEntity expense = expenses.findById(expenseId)
+        TallyExpenseEntity expense = expenses.findByIdForUpdate(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
         access.requireOpenGroup(userId, expense.getGroupId());
 
@@ -179,7 +179,7 @@ public class TallyExpenseService {
      */
     @Transactional
     public TallyExpenseDto replace(Long userId, String expenseId, CreateExpenseRequest request) {
-        TallyExpenseEntity original = expenses.findById(expenseId)
+        TallyExpenseEntity original = expenses.findByIdForUpdate(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
         voidEntity(userId, expenseId);
 
@@ -220,7 +220,7 @@ public class TallyExpenseService {
      */
     @Transactional
     public TallyExpenseDto restore(Long userId, String expenseId) {
-        var original = expenses.findById(expenseId)
+        var original = expenses.findByIdForUpdate(expenseId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Expense not found"));
         access.requireOpenGroup(userId, original.getGroupId());
 

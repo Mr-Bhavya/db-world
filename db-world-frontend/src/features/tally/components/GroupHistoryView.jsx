@@ -1,4 +1,4 @@
-import { Box, Typography, Button, Skeleton } from '@mui/material';
+import { Box, Typography, Button, Skeleton, CircularProgress } from '@mui/material';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -176,7 +176,8 @@ export default function GroupHistoryView({ entries = [], loading, onRestore, res
                     size="small"
                     onClick={() => onRestore(entry)}
                     disabled={restoring}
-                    startIcon={<RestoreRoundedIcon sx={{ fontSize: 15 }} />}
+                    aria-busy={restoring}
+                    startIcon={restoring ? <CircularProgress size={15} color="inherit" /> : <RestoreRoundedIcon sx={{ fontSize: 15 }} />}
                     sx={{
                       mt: 0.75, textTransform: 'none', fontSize: 12.5, fontWeight: 700,
                       borderRadius: 2, px: 1.25, color: T.teal, bgcolor: T.tealBg,

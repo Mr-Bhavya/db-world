@@ -1,5 +1,5 @@
 import {
-  Box, Typography, IconButton, Button, Avatar, LinearProgress,
+  Box, Typography, IconButton, Button, Avatar, LinearProgress, CircularProgress,
 } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { motion } from 'framer-motion';
@@ -232,8 +232,10 @@ export function TallySubmitButton({ children, busy, ...rest }) {
       type="submit"
       variant="contained"
       disableElevation
-      disabled={busy || rest.disabled}
       {...rest}
+      disabled={busy || rest.disabled}
+      aria-busy={Boolean(busy)}
+      startIcon={busy ? <CircularProgress size={16} color="inherit" /> : rest.startIcon}
       sx={{
         textTransform: 'none', fontWeight: 700, fontSize: 14, borderRadius: 2.5,
         px: 2.5, bgcolor: T.teal, color: '#fff',

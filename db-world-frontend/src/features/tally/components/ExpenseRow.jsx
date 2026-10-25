@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, IconButton, Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { Box, Typography, IconButton, Menu, MenuItem, ListItemIcon, CircularProgress } from '@mui/material';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -16,7 +16,7 @@ import {
  * what it means for *you*. The last one is the reason this is a custom row rather than a list
  * item — "₹1,200 groceries" tells you nothing you can act on, and "You owe ₹400" does.
  */
-export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid, index = 0, loan = null }) {
+export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid, index = 0, loan = null, busy = false }) {
   const T = useT();
   const reduce = useReducedMotion();
   const [menuAt, setMenuAt] = useState(null);
@@ -87,11 +87,13 @@ export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid
 
       <IconButton
         size="small"
-        aria-label={`Options for ${expense.description}`}
+        aria-label={busy ? `Removing ${expense.description}` : `Options for ${expense.description}`}
+        aria-busy={busy}
+        disabled={busy}
         onClick={(e) => setMenuAt(e.currentTarget)}
         sx={{ color: T.textMuted, flexShrink: 0, ml: -0.5 }}
       >
-        <MoreVertRoundedIcon sx={{ fontSize: 19 }} />
+        {busy ? <CircularProgress size={19} color="inherit" /> : <MoreVertRoundedIcon sx={{ fontSize: 19 }} />}
       </IconButton>
 
       <Menu
@@ -108,6 +110,7 @@ export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid
         }}
       >
         <MenuItem
+          disabled={busy}
           onClick={() => { setMenuAt(null); onEdit?.(expense); }}
           sx={{ fontSize: 14, color: T.textPrimary, gap: 0 }}
         >
@@ -117,6 +120,7 @@ export default function ExpenseRow({ expense, myMemberId, nameOf, onEdit, onVoid
           Correct this
         </MenuItem>
         <MenuItem
+          disabled={busy}
           onClick={() => { setMenuAt(null); onVoid?.(expense); }}
           sx={{ fontSize: 14, color: '#ef4444', gap: 0 }}
         >

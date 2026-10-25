@@ -2,8 +2,10 @@ package com.db.dbworld.app.tally.repository;
 
 import com.db.dbworld.app.tally.entity.TallyExpenseEntity;
 import com.db.dbworld.app.tally.entity.TallyExpenseStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +17,10 @@ import java.util.Optional;
 public interface TallyExpenseRepository extends JpaRepository<TallyExpenseEntity, String> {
 
     Optional<TallyExpenseEntity> findByIdAndGroupId(String id, String groupId);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("select e from TallyExpenseEntity e where e.id = :id")
+        Optional<TallyExpenseEntity> findByIdForUpdate(@Param("id") String id);
 
     /** Idempotent replay: the same token in the same group returns the original write. */
     Optional<TallyExpenseEntity> findByGroupIdAndIdempotencyKey(String groupId, String idempotencyKey);

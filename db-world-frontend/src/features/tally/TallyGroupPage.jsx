@@ -134,6 +134,7 @@ export default function TallyGroupExpensesTab() {
                   nameOf={nameOf}
                   onEdit={openExpense}
                   onVoid={askVoid}
+                  busy={voidExpense.isPending}
                 />
               ))}
             </Box>

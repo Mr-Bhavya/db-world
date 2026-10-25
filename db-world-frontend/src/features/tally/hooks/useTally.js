@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import * as api from '../api/tallyApi';
 import { windowParams } from '../utils/reportWindow';
+import useTallyMutation from './useTallyMutation';
 
 /**
  * Server messages are surfaced verbatim wherever there is one.
@@ -184,7 +185,7 @@ export function useGroupReport(groupId, window) {
 
 /** Reads the file. A mutation rather than a query because the CSV is the input. */
 export function usePreviewSplitwise() {
-  return useMutation({
+  return useTallyMutation('preview-import', null, 'Reading Splitwise file...', {
     mutationFn: api.previewSplitwise,
     // The server refusals here are the whole value -- "does not balance", "mixes INR and USD",
     // "does not look like a Splitwise export" -- and each one names the row or the reason.
@@ -194,7 +195,7 @@ export function usePreviewSplitwise() {
 
 export function useImportSplitwise() {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('import', null, 'Importing Splitwise expenses...', {
     mutationFn: api.importSplitwise,
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: keys.groups });
@@ -211,7 +212,7 @@ export function useImportSplitwise() {
 
 export function useCreateGroup() {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('create-group', null, 'Creating group...', {
     mutationFn: api.createGroup,
     onSuccess: (group) => {
       qc.invalidateQueries({ queryKey: keys.groups });
@@ -223,16 +224,19 @@ export function useCreateGroup() {
 
 export function usePersonalLedger() {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('personal-ledger', null, 'Opening your spending...', {
     mutationFn: api.openPersonalLedger,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.groups }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.groups });
+      notify.success('Your spending is ready');
+    },
     onError: (e) => notify.error(errMsg(e, 'Could not open your spending')),
   });
 }
 
 export function useCreateDirect() {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('create-direct', null, 'Starting shared ledger...', {
     mutationFn: api.createDirectLedger,
     onSuccess: (ledger) => {
       qc.invalidateQueries({ queryKey: keys.groups });
@@ -244,7 +248,7 @@ export function useCreateDirect() {
 
 export function useUpdateGroup(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('update-group', groupId, 'Saving group...', {
     mutationFn: (body) => api.updateGroup(groupId, body),
     onSuccess: (group) => {
       invalidateGroup(qc, groupId);
@@ -269,7 +273,7 @@ export function useUpdateGroup(groupId) {
  */
 export function useAddMembers(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('add-members', groupId, 'Adding people...', {
     mutationFn: async (bodies) => {
       const added = [];
       const failed = [];
@@ -303,16 +307,19 @@ export function useAddMembers(groupId) {
 
 export function useUpdateMember(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('update-member', groupId, 'Saving member...', {
     mutationFn: ({ memberId, body }) => api.updateMember(groupId, memberId, body),
-    onSuccess: () => invalidateGroup(qc, groupId),
+    onSuccess: () => {
+      invalidateGroup(qc, groupId);
+      notify.success('Member updated');
+    },
     onError: (e) => notify.error(errMsg(e, 'Could not save that change')),
   });
 }
 
 export function useRemoveMember(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('remove-member', groupId, 'Removing member...', {
     mutationFn: (memberId) => api.removeMember(groupId, memberId),
     onSuccess: (member) => {
       invalidateGroup(qc, groupId);
@@ -326,7 +333,7 @@ export function useRemoveMember(groupId) {
 
 export function useClaimMember(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('claim-member', groupId, 'Claiming member history...', {
     mutationFn: (memberId) => api.claimMember(groupId, memberId),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -340,7 +347,7 @@ export function useClaimMember(groupId) {
 
 export function useCreateExpense(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('create-expense', groupId, 'Saving expense...', {
     mutationFn: (body) => api.createExpense(groupId, body),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -352,7 +359,7 @@ export function useCreateExpense(groupId) {
 
 export function useReplaceExpense(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('replace-expense', groupId, 'Correcting expense...', {
     mutationFn: ({ expenseId, body }) => api.replaceExpense(expenseId, body),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -364,7 +371,7 @@ export function useReplaceExpense(groupId) {
 
 export function useRestoreExpense(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('restore-expense', groupId, 'Restoring expense...', {
     mutationFn: (expenseId) => api.restoreExpense(expenseId),
     onSuccess: (expense) => {
       invalidateGroup(qc, groupId);
@@ -378,7 +385,7 @@ export function useRestoreExpense(groupId) {
 
 export function useVoidExpense(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('void-expense', groupId, 'Removing expense...', {
     mutationFn: (expenseId) => api.voidExpense(expenseId),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -392,7 +399,7 @@ export function useVoidExpense(groupId) {
 
 export function useRecordSettlement(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('record-settlement', groupId, 'Recording payment...', {
     mutationFn: (body) => api.recordSettlement(groupId, body),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -404,7 +411,7 @@ export function useRecordSettlement(groupId) {
 
 export function useReverseSettlement(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('reverse-settlement', groupId, 'Reversing payment...', {
     mutationFn: (settlementId) => api.reverseSettlement(settlementId),
     onSuccess: () => {
       invalidateGroup(qc, groupId);
@@ -423,7 +430,7 @@ export function useReverseSettlement(groupId) {
  */
 export function useCreateLoan(groupId) {
   const qc = useQueryClient();
-  return useMutation({
+  return useTallyMutation('create-loan', groupId, 'Recording loan...', {
     mutationFn: (body) => api.createLoan(groupId, body),
     onSuccess: (loan) => {
       invalidateGroup(qc, groupId);

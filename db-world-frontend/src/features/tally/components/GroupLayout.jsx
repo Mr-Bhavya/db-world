@@ -696,6 +696,7 @@ export default function GroupLayout({ groupId, active, children }) {
         {isOwner && (
           group?.archived ? (
             <MenuItem
+              disabled={updateGroup.isPending}
               onClick={() => { setMenuAt(null); updateGroup.mutate({ archived: false }); }}
               sx={{ fontSize: 14, color: T.textPrimary }}
             >
@@ -706,6 +707,7 @@ export default function GroupLayout({ groupId, active, children }) {
             </MenuItem>
           ) : (
             <MenuItem
+              disabled={updateGroup.isPending}
               onClick={() => { setMenuAt(null); askArchive(); }}
               sx={{ fontSize: 14, color: T.textPrimary }}
             >
@@ -734,6 +736,7 @@ export default function GroupLayout({ groupId, active, children }) {
         members={members}
         myMemberId={myMemberId}
         isOwner={isOwner}
+        busy={removeMember.isPending || updateMember.isPending || claimMember.isPending}
         onAdd={() => { setShowMembers(false); setAddingMember(true); }}
         onRemove={askRemoveMember}
         onClaim={(m) => claimMember.mutate(m.id)}

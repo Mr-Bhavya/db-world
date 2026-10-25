@@ -117,7 +117,7 @@ public class TallySettlementService {
      */
     @Transactional
     public TallySettlementDto reverse(Long userId, String settlementId) {
-        var settlement = settlements.findById(settlementId)
+        var settlement = settlements.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "Settlement not found"));
         access.requireOpenGroup(userId, settlement.getGroupId());
 

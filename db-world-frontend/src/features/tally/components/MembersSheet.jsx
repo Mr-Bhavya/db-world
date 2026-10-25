@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Typography, Button, IconButton, Menu, MenuItem, ListItemIcon, Divider,
-  useMediaQuery, useTheme,
+  useMediaQuery, useTheme, CircularProgress,
 } from '@mui/material';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
@@ -24,7 +24,7 @@ import { TallyFormDialog, TallyCancelButton, MemberAvatar } from './tallyFormUi'
  */
 export default function MembersSheet({
   open, onClose, members = [], myMemberId, isOwner,
-  onAdd, onRemove, onSetDelegation, onClearDelegation, onSetRole, onClaim,
+  onAdd, onRemove, onSetDelegation, onClearDelegation, onSetRole, onClaim, busy = false,
 }) {
   const T = useT();
   const theme = useTheme();
@@ -57,6 +57,7 @@ export default function MembersSheet({
         <>
           <Button
             onClick={onAdd}
+            disabled={busy}
             startIcon={<PersonAddAlt1RoundedIcon />}
             sx={{
               textTransform: 'none', fontWeight: 700, fontSize: 13.5,
@@ -76,6 +77,7 @@ export default function MembersSheet({
             member={member}
             isMe={member.id === myMemberId}
             payerName={member.paidForByMemberId ? nameOf(member.paidForByMemberId) : null}
+            busy={busy}
             onMenu={(el) => { setMenuAt(el); setMenuFor(member); }}
           />
         ))}
@@ -114,6 +116,7 @@ export default function MembersSheet({
       >
         {menuFor?.ghost && (
           <MenuItem
+            disabled={busy}
             onClick={() => { onClaim(menuFor); closeMenu(); }}
             sx={{ fontSize: 14, color: T.textPrimary }}
           >
@@ -126,6 +129,7 @@ export default function MembersSheet({
 
         {menuFor?.paidForByMemberId ? (
           <MenuItem
+            disabled={busy}
             onClick={() => { onClearDelegation(menuFor); closeMenu(); }}
             sx={{ fontSize: 14, color: T.textPrimary }}
           >
@@ -137,7 +141,7 @@ export default function MembersSheet({
         ) : (
           <MenuItem
             onClick={() => setChoosingPayerFor(menuFor)}
-            disabled={eligiblePayers(menuFor ?? {}).length === 0}
+            disabled={busy || eligiblePayers(menuFor ?? {}).length === 0}
             sx={{ fontSize: 14, color: T.textPrimary }}
           >
             <ListItemIcon sx={{ minWidth: 32 }}>
@@ -149,6 +153,7 @@ export default function MembersSheet({
 
         {isOwner && (
           <MenuItem
+            disabled={busy}
             onClick={() => { onSetRole(menuFor, menuFor.role === 'OWNER' ? 'MEMBER' : 'OWNER'); closeMenu(); }}
             sx={{ fontSize: 14, color: T.textPrimary }}
           >
@@ -160,6 +165,7 @@ export default function MembersSheet({
         )}
 
         <MenuItem
+          disabled={busy}
           onClick={() => { onRemove(menuFor); closeMenu(); }}
           sx={{ fontSize: 14, color: '#ef4444' }}
         >
@@ -190,6 +196,7 @@ export default function MembersSheet({
         {eligiblePayers(choosingPayerFor ?? {}).map((candidate) => (
           <MenuItem
             key={candidate.id}
+            disabled={busy}
             onClick={() => {
               onSetDelegation(choosingPayerFor, candidate.id);
               setChoosingPayerFor(null); closeMenu();
@@ -205,7 +212,7 @@ export default function MembersSheet({
   );
 }
 
-function MemberRow({ member, isMe, payerName, departed, onMenu }) {
+function MemberRow({ member, isMe, payerName, departed, onMenu, busy }) {
   const T = useT();
   const balance = Number(member.balance ?? 0);
 
@@ -261,10 +268,12 @@ function MemberRow({ member, isMe, payerName, departed, onMenu }) {
         <IconButton
           size="small"
           aria-label={`Options for ${member.displayName}`}
+          aria-busy={busy}
+          disabled={busy}
           onClick={(e) => onMenu(e.currentTarget)}
           sx={{ color: T.textMuted, flexShrink: 0 }}
         >
-          <MoreVertRoundedIcon sx={{ fontSize: 18 }} />
+          {busy ? <CircularProgress size={18} color="inherit" /> : <MoreVertRoundedIcon sx={{ fontSize: 18 }} />}
         </IconButton>
       )}
     </Box>

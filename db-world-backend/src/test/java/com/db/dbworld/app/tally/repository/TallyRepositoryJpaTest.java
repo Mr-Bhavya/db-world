@@ -13,15 +13,25 @@ import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.Limit;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Executes the db-tally queries, rather than merely parsing them.
@@ -58,6 +68,86 @@ class TallyRepositoryJpaTest {
     @Autowired private TallyExpenseShareRepository shares;
     @Autowired private TallyLedgerEntryRepository ledger;
     @Autowired private TallySettlementRepository settlements;
+    @Autowired private PlatformTransactionManager transactions;
+
+    @Test
+    @DisplayName("expense mutations wait for the previous transaction and read its committed status")
+    void concurrentExpenseMutationsAreSerialized() throws Exception {
+        var transaction = independentTransaction();
+        String expenseId = transaction.execute(status ->
+                expense(UUID.randomUUID().toString(), "Concurrent expense", "100.00", LocalDate.now()));
+        try {
+            Object observed = readAfterConcurrentWrite(
+                    () -> expenses.findByIdForUpdate(expenseId).orElseThrow().setStatus(TallyExpenseStatus.VOIDED),
+                    () -> expenses.findByIdForUpdate(expenseId).orElseThrow().getStatus());
+            assertThat(observed).isEqualTo(TallyExpenseStatus.VOIDED);
+        } finally {
+            transaction.executeWithoutResult(status -> expenses.deleteById(expenseId));
+        }
+    }
+
+    @Test
+    @DisplayName("payment reversals wait for the previous transaction and read its committed status")
+    void concurrentPaymentReversalsAreSerialized() throws Exception {
+        var transaction = independentTransaction();
+        String settlementId = transaction.execute(status -> {
+            var payment = new TallySettlementEntity();
+            payment.setGroupId(UUID.randomUUID().toString());
+            payment.setFromMemberId(UUID.randomUUID().toString());
+            payment.setToMemberId(UUID.randomUUID().toString());
+            payment.setAmount(new BigDecimal("50.00"));
+            payment.setRecordedByUserId(1L);
+            payment.setSettledAt(Instant.now());
+            return settlements.saveAndFlush(payment).getId();
+        });
+        try {
+            Object observed = readAfterConcurrentWrite(
+                    () -> settlements.findByIdForUpdate(settlementId).orElseThrow().setStatus(TallySettlementStatus.REVERSED),
+                    () -> settlements.findByIdForUpdate(settlementId).orElseThrow().getStatus());
+            assertThat(observed).isEqualTo(TallySettlementStatus.REVERSED);
+        } finally {
+            transaction.executeWithoutResult(status -> settlements.deleteById(settlementId));
+        }
+    }
+
+    private Object readAfterConcurrentWrite(Runnable write, Supplier<Object> read) throws Exception {
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var attemptingRead = new CountDownLatch(1);
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            try {
+                var first = workers.submit(() -> independentTransaction().executeWithoutResult(status -> {
+                    write.run();
+                    locked.countDown();
+                    try {
+                        if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Lock was not released");
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(error);
+                    }
+                }));
+                assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
+                var second = workers.submit(() -> independentTransaction().execute(status -> {
+                    attemptingRead.countDown();
+                    return read.get();
+                }));
+                assertThat(attemptingRead.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(150, TimeUnit.MILLISECONDS))
+                        .isInstanceOf(TimeoutException.class);
+                release.countDown();
+                first.get(5, TimeUnit.SECONDS);
+                return second.get(5, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+        }
+    }
+
+    private TransactionTemplate independentTransaction() {
+        var transaction = new TransactionTemplate(transactions);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transaction;
+    }
 
     /* ============================== balances ============================== */
 
