@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
@@ -103,6 +104,13 @@ export const AuthProvider = ({ children }) => {
   const authRef = useRef(auth);
   authRef.current = auth;
   const initialized = useRef(false); // guard against strict-mode double-mount
+  // Read, not required: sign-out empties it when there is one (tests render this without it).
+  const queryClientRef = useRef(null);
+  queryClientRef.current = useContext(QueryClientContext) ?? null;
+  // Every cached response belongs to the user signing out: the vault list, the wallet's documents,
+  // their groups and expenses. Kept, the next person to sign in on this device would see them until
+  // each query happened to refetch. Emptied with auth already reset, so nothing refetches as them.
+  const forgetCachedData = useCallback(() => { queryClientRef.current?.clear(); }, []);
 
   /* ── login ──────────────────────────────────────────────────────── */
 
@@ -167,8 +175,9 @@ export const AuthProvider = ({ children }) => {
       await clearAllOfflineWallet();
       clearAllOfflineVault(); // wipe the encrypted offline snapshot + device keypair
       setAuth({ ...INITIAL_AUTH, loading: false });
+      forgetCachedData();
     }
-  }, []);
+  }, [forgetCachedData]);
 
   /* ── Force-logout event from axios interceptor ───────────────────── */
 
@@ -189,10 +198,11 @@ export const AuthProvider = ({ children }) => {
       resetVaultOffline();
       void clearAllOfflineWallet().finally(() => clearAllOfflineVault());
       setAuth({ ...INITIAL_AUTH, loading: false });
+      forgetCachedData();
     };
     window.addEventListener('auth:force-logout', handler);
     return () => window.removeEventListener('auth:force-logout', handler);
-  }, []);
+  }, [forgetCachedData]);
 
   /**
    * Adopts a role change that happened server-side while the user was signed in.
