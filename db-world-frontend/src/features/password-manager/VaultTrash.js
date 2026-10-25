@@ -14,7 +14,7 @@ import { useT } from '@shared/theme';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { getTrash, restoreCredential, purgeCredential } from '@shared/services/ApiServices';
 
-import { looksLikeSite } from './entryUtils';
+import { looksLikeSite, purgeEach } from './entryUtils';
 import { VaultAurora, GlassPanel, ConfirmDialog, useScrollTop, goBackOr } from './vaultShared';
 import { VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
 
@@ -134,17 +134,16 @@ const VaultTrash = () => {
   });
 
   // One request per entry, one after the other: each purge is its own transaction on the server.
+  // One that fails does not stop the rest; the outcome is told once, at the end.
   const { mutate: emptyTrash, isPending: emptyingNow } = useMutation({
-    mutationFn: async () => {
-      let removed = 0;
-      for (const id of entryIds) {
-        await purgeCredential(id);
-        removed += 1;
-      }
-      return removed;
+    mutationFn: () => purgeEach(entryIds, purgeCredential),
+    onSuccess: ({ removed, failed }) => {
+      if (failed === 0) notify.success(`Deleted ${removed} ${removed === 1 ? 'entry' : 'entries'} forever`);
+      else if (removed > 0) notify.warning(`${removed} removed, ${failed} failed`);
+      else notify.error(`Could not empty the trash: ${failed} failed`);
     },
-    onSuccess: (removed) => { notify.success(`Deleted ${removed} ${removed === 1 ? 'entry' : 'entries'} forever`); refresh(); setEmptying(false); },
-    onError: (err) => { notify.error(errorMessage(err, 'Failed to empty the trash')); refresh(); setEmptying(false); },
+    // Refresh either way: whatever did go is gone, and the list should show what is left.
+    onSettled: () => { refresh(); setEmptying(false); },
   });
 
   const busy = restoring || purging || emptyingNow;

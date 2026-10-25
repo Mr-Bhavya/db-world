@@ -1,41 +1,54 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Box, IconButton, Link, Tooltip, Typography } from '@mui/material';
 import { CheckCircleRounded, ContentCopyRounded, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useT } from '@shared/theme';
-import { isSecretField, withScheme } from './entryUtils';
+import { isSecretField, linkTarget } from './entryUtils';
+import { iconButtonSx } from './vaultShared';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const COLLAPSED_LINES = 3;
 
-const iconButtonSx = (T, hoverColor) => ({
-  width: 36, height: 36, color: T.textMuted, flexShrink: 0, borderRadius: 2,
-  '&:hover': { color: hoverColor || T.teal, bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' },
-});
-
-// Only web addresses become links: a saved "javascript:..." must never be clickable.
-const linkTarget = (value) => {
-  const href = withScheme(value);
-  return /^https?:\/\/\S+$/i.test(href) ? href : null;
-};
+// useLayoutEffect warns when rendered on a server, where there is nothing to measure anyway.
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * One custom field on a credential card, shown the way its type asks for:
  * HIDDEN masked, TEXT plain, URL a link, MULTILINE a masked block that collapses to three lines.
- * Every type has a copy button. onCopy(value) does the copying; copied says it just happened.
+ * Every type has a copy button. onCopy(value, copyKey) does the copying; copied says it just happened.
+ * Pass a stable onCopy and field (and a copyKey to tell fields apart) so memo can skip re-renders.
  */
-const FieldValue = memo(({ field, onCopy, copied = false }) => {
+const FieldValue = memo(({ field, onCopy, copyKey, copied = false }) => {
   const T = useT();
   const [visible, setVisible] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);   // measured: the collapsed block hides lines
+  const boxRef = useRef(null);
+  const boxId = useId();
 
   const value = field.fieldValue == null ? '' : String(field.fieldValue);
+  const type = field.fieldType ?? 'HIDDEN';
+  const masked = isSecretField(field) && !visible;
+  const multiline = type === 'MULTILINE' && !masked;
+
+  // A long line wraps to many visual lines, so counting characters and newlines is only a guess:
+  // when the collapsed block can be measured, ask it whether it is cutting something off.
+  useIsoLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!multiline || expanded || !el) return undefined;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [multiline, expanded, value]);
+
   if (!value.trim()) return null;
 
   const label = field.fieldKey || 'Custom';
-  const type = field.fieldType ?? 'HIDDEN';
-  const masked = isSecretField(field) && !visible;
   const href = type === 'URL' ? linkTarget(value) : null;
-  const longValue = type === 'MULTILINE' && (value.split('\n').length > COLLAPSED_LINES || value.length > 240);
+  // The measurement wins; the count is for when nothing can be measured (first paint, no layout).
+  const longValue = type === 'MULTILINE' && (overflows || value.split('\n').length > COLLAPSED_LINES || value.length > 240);
 
   const valueSx = {
     flex: '1 1 140px', minWidth: 0, color: T.textMuted,
@@ -57,10 +70,10 @@ const FieldValue = memo(({ field, onCopy, copied = false }) => {
         {label}
       </Typography>
 
-      {type === 'MULTILINE' && !masked ? (
+      {multiline ? (
         <Box sx={valueSx}>
           <Box
-            component="pre"
+            component="pre" id={boxId} ref={boxRef}
             sx={{
               m: 0, p: 0.9, borderRadius: 1.5, whiteSpace: 'pre-wrap', fontFamily: MONO, fontSize: 'inherit', lineHeight: 'inherit',
               bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)',
@@ -72,6 +85,7 @@ const FieldValue = memo(({ field, onCopy, copied = false }) => {
           {longValue && (
             <Link
               component="button" type="button" underline="hover" onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded} aria-controls={boxId}
               sx={{ mt: 0.4, fontSize: '0.72rem', fontWeight: 700, color: T.teal }}
             >
               {expanded ? 'Show less' : 'Show all'}
@@ -97,7 +111,7 @@ const FieldValue = memo(({ field, onCopy, copied = false }) => {
       )}
       <Tooltip title={copied ? 'Copied!' : `Copy ${label}`}>
         <IconButton
-          size="small" onClick={() => onCopy(value)} aria-label={`Copy ${label}`}
+          size="small" onClick={() => onCopy(value, copyKey)} aria-label={`Copy ${label}`}
           sx={{ ...iconButtonSx(T, copied ? '#22c55e' : T.teal), color: copied ? '#22c55e' : T.textMuted }}
         >
           {copied ? <CheckCircleRounded fontSize="small" /> : <ContentCopyRounded fontSize="small" />}

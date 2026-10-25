@@ -7,6 +7,7 @@
  * BackLink     : the shared "Password Manager" back button
  * GlassPanel   : gradient-border glass surface used across screens
  * ConfirmDialog: the red confirm used by every delete (list and Trash)
+ * iconButtonSx : the 36px ghost icon button used on the cards and field rows
  */
 import React, { memo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +27,11 @@ import { scorePassword, STRENGTH_LEVELS } from './passwordUtils';
 // vault names so the four vault screens keep importing them unchanged.
 export const VaultAurora = Aurora;
 export { GlassPanel };
+
+export const iconButtonSx = (T, hoverColor) => ({
+  width: 36, height: 36, color: T.textMuted, flexShrink: 0, borderRadius: 2,
+  '&:hover': { color: hoverColor || T.teal, bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' },
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StrengthMeter — pass a raw password OR a pre-computed score object.

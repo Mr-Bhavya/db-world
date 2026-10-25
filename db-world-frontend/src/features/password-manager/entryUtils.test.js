@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate, isSecretField } from './entryUtils';
+import { describe, it, expect, vi } from 'vitest';
+import { withScheme, isValidUrl, siteKey, looksLikeSite, pickSite, findDuplicate, isSecretField, linkTarget, changedLabel, purgeEach } from './entryUtils';
 
 describe('withScheme / isValidUrl / siteKey', () => {
   it('assumes https for a bare host and leaves other schemes alone', () => {
@@ -83,5 +83,65 @@ describe('isSecretField', () => {
   it('shows text and URL fields as they are', () => {
     expect(isSecretField({ fieldType: 'TEXT' })).toBe(false);
     expect(isSecretField({ fieldType: 'URL' })).toBe(false);
+  });
+});
+
+describe('linkTarget', () => {
+  it('keeps an http(s) address as it is', () => {
+    expect(linkTarget('https://example.com/a?b=1')).toBe('https://example.com/a?b=1');
+    expect(linkTarget('http://localhost:8080')).toBe('http://localhost:8080');
+    expect(linkTarget('http://192.168.1.10:8443/admin')).toBe('http://192.168.1.10:8443/admin');
+  });
+  it('assumes https for a bare host', () => {
+    expect(linkTarget('example.com')).toBe('https://example.com');
+    expect(linkTarget('  ssh.db-world.in ')).toBe('https://ssh.db-world.in');
+  });
+  it.each([
+    'javascript:alert(1)', 'javascript://%0aalert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<b>x</b>',
+    'vbscript:msgbox(1)', 'ftp://example.com', 'file:///etc/passwd', 'mailto:a@b.com',
+  ])('%s is plain text, not a link', (v) => {
+    expect(linkTarget(v)).toBeNull();
+  });
+  it.each(['a b.com', 'https://exa mple.com', 'netflix', 'my bank', '', '   ', null, undefined])('%j is plain text', (v) => {
+    expect(linkTarget(v)).toBeNull();
+  });
+});
+
+describe('changedLabel', () => {
+  it('writes a date and time for a valid timestamp', () => {
+    const label = changedLabel('2026-06-15T12:00:00Z');
+    expect(label).toMatch(/2026/);
+    expect(label).toMatch(/\d{1,2}:\d{2}/);
+  });
+  it('accepts a timestamp number too', () => {
+    expect(changedLabel(Date.UTC(2026, 5, 15, 12))).toMatch(/2026/);
+  });
+  it.each([null, undefined, '', 'not a date'])('gives nothing for %j', (v) => {
+    expect(changedLabel(v)).toBe('');
+  });
+});
+
+describe('purgeEach', () => {
+  const httpError = (status) => Object.assign(new Error('x'), { response: { status } });
+
+  it('purges every id and counts them', async () => {
+    const purge = vi.fn().mockResolvedValue({});
+    expect(await purgeEach(['a', 'b', 'c'], purge)).toEqual({ removed: 3, failed: 0 });
+    expect(purge.mock.calls.map((c) => c[0])).toEqual(['a', 'b', 'c']);
+  });
+  it('carries on past a failure and counts it', async () => {
+    const purge = vi.fn((id) => (id === 'b' ? Promise.reject(httpError(500)) : Promise.resolve({})));
+    expect(await purgeEach(['a', 'b', 'c'], purge)).toEqual({ removed: 2, failed: 1 });
+    expect(purge).toHaveBeenCalledTimes(3);
+  });
+  it('counts a 404 as removed: the entry is already gone', async () => {
+    const purge = vi.fn((id) => (id === 'a' ? Promise.reject(httpError(404)) : Promise.resolve({})));
+    expect(await purgeEach(['a', 'b'], purge)).toEqual({ removed: 2, failed: 0 });
+  });
+  it('counts an error with no response (network down) as failed', async () => {
+    expect(await purgeEach(['a'], () => Promise.reject(new Error('Network Error')))).toEqual({ removed: 0, failed: 1 });
+  });
+  it('does nothing for no ids', async () => {
+    expect(await purgeEach([], vi.fn())).toEqual({ removed: 0, failed: 0 });
   });
 });

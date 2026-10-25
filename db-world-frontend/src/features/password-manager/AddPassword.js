@@ -23,7 +23,7 @@ import { generatePassword } from './passwordUtils';
 import { VaultAurora, StrengthMeter, BackLink, GlassPanel, useScrollTop } from './vaultShared';
 import { withScheme, isValidUrl, siteKey, findDuplicate, FIELD_TYPES, isSecretField } from './entryUtils';
 import useSiteFromName from './useSiteFromName';
-import useVaultQuery from './useVault';
+import useVaultQuery, { VAULT_QUERY_KEY } from './useVault';
 
 // A site is optional: a server, an app or a note has none. When one is typed it must be usable.
 const schema = z.object({
@@ -100,7 +100,7 @@ const AddPassword = () => {
     mutationFn: (data) => addCredential(data),
     onSuccess: () => {
       notify.success('Saved securely');
-      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      queryClient.invalidateQueries({ queryKey: VAULT_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
       reset(DEFAULTS);
       setCustomFields([]);

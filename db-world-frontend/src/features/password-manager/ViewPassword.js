@@ -38,8 +38,8 @@ import {
 import CommonServices from '@shared/services/CommonServices';
 
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
-import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr, ConfirmDialog, ResponsiveDialogActions } from './vaultShared';
-import useVaultQuery, { useVaultOffline, TRASH_QUERY_KEY } from './useVault';
+import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr, ConfirmDialog, ResponsiveDialogActions, iconButtonSx } from './vaultShared';
+import useVaultQuery, { useVaultOffline, VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
 
 // Compact "3 min ago" for the offline-snapshot banner.
 const relativeTime = (ts) => {
@@ -94,11 +94,6 @@ const getMonoValueSx = (T, visible) => ({
   fontSize: { xs: '0.78rem', sm: '0.82rem' }, lineHeight: 1.45,
   letterSpacing: visible ? 0 : { xs: 1.1, sm: 1.4 },
   overflowWrap: 'anywhere', wordBreak: 'break-word',
-});
-
-const iconButtonSx = (T, hoverColor) => ({
-  width: 36, height: 36, color: T.textMuted, flexShrink: 0, borderRadius: 2,
-  '&:hover': { color: hoverColor || T.teal, bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,7 +253,7 @@ const EditDialog = ({ target, vault, onClose }) => {
     }),
     onSuccess: () => {
       notify.success('Credential updated');
-      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      queryClient.invalidateQueries({ queryKey: VAULT_QUERY_KEY });
       // A changed password adds a history row and may trim another: drop the cached list.
       queryClient.invalidateQueries({ queryKey: historyQueryKey(target.cred.id) });
       onClose();
@@ -407,7 +402,7 @@ const EditDialog = ({ target, vault, onClose }) => {
 // Credential card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete, onHistory }) => {
+const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDelete, onHistory }) => {
   const [copiedKey, setCopiedKey] = useState('');
 
   const copy = useCallback(async (text, key) => {
@@ -465,8 +460,10 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete, onHi
           <IconButton size="small" onClick={() => onEdit({ pmId, cred, host })} sx={iconButtonSx(T, T.teal)} aria-label="Edit credential"><EditRounded fontSize="small" /></IconButton>
         </Tooltip>
         {hasHistory && (
-          <Tooltip title="Password history">
-            <IconButton size="small" onClick={() => onHistory({ credId: cred.id, label: cred.name || cred.username, host })} sx={iconButtonSx(T, T.teal)} aria-label="Password history"><HistoryRounded fontSize="small" /></IconButton>
+          <Tooltip title={readOnly ? 'Password history is unavailable offline' : 'Password history'}>
+            <span>
+              <IconButton size="small" disabled={readOnly} onClick={() => onHistory({ credId: cred.id, label: cred.name || cred.username, host })} sx={{ ...iconButtonSx(T, T.teal), opacity: readOnly ? 0.45 : 1 }} aria-label="Password history"><HistoryRounded fontSize="small" /></IconButton>
+            </span>
           </Tooltip>
         )}
         <Tooltip title="Delete credential">
@@ -482,7 +479,8 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, onEdit, onDelete, onHi
           )}
           {visibleCustomFields.map((f, index) => {
             const id = f.id ?? `${f.fieldKey}-${index}`;
-            return <FieldValue key={id} field={f} copied={copiedKey === `custom-${id}`} onCopy={(v) => copy(v, `custom-${id}`)} />;
+            const key = `custom-${id}`;
+            return <FieldValue key={id} field={f} copyKey={key} copied={copiedKey === key} onCopy={copy} />;
           })}
         </Stack>
       )}
@@ -501,7 +499,7 @@ CredentialCard.displayName = 'CredentialCard';
 // Host card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HostCard = memo(({ entry, flags, T, onEdit, onDeleteCred, onDeleteHost, onHistory }) => {
+const HostCard = memo(({ entry, flags, T, readOnly, onEdit, onDeleteCred, onDeleteHost, onHistory }) => {
   const credentialCount = entry.credentials?.length ?? 0;
   return (
     <GlassPanel sx={{ p: { xs: 1.5, sm: 2, md: 2.25 }, minWidth: 0 }}>
@@ -518,7 +516,7 @@ const HostCard = memo(({ entry, flags, T, onEdit, onDeleteCred, onDeleteHost, on
       </Box>
       <Stack spacing={1.25}>
         {entry.credentials?.map((cred) => (
-          <CredentialCard key={cred.id} cred={cred} pmId={entry.id} host={entry.host} flag={flags?.[cred.id]} T={T} onEdit={onEdit} onDelete={onDeleteCred} onHistory={onHistory} />
+          <CredentialCard key={cred.id} cred={cred} pmId={entry.id} host={entry.host} flag={flags?.[cred.id]} T={T} readOnly={readOnly} onEdit={onEdit} onDelete={onDeleteCred} onHistory={onHistory} />
         ))}
       </Stack>
     </GlassPanel>
@@ -628,7 +626,7 @@ const ViewPassword = () => {
 
   // Both deletes move to Trash (the server soft-deletes); they come back from there for 30 days.
   const afterTrash = () => {
-    queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+    queryClient.invalidateQueries({ queryKey: VAULT_QUERY_KEY });
     queryClient.invalidateQueries({ queryKey: TRASH_QUERY_KEY });
   };
 
@@ -772,7 +770,7 @@ const ViewPassword = () => {
                 <motion.div key={entry.id} layout
                   initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
                   transition={{ duration: 0.26, delay: Math.min(i * 0.035, 0.18) }} style={{ minWidth: 0 }}>
-                  <HostCard entry={entry} flags={flags} T={T} onEdit={setEditTarget} onDeleteCred={setDelCred} onDeleteHost={setDelHost} onHistory={setHistoryTarget} />
+                  <HostCard entry={entry} flags={flags} T={T} readOnly={!!offline} onEdit={setEditTarget} onDeleteCred={setDelCred} onDeleteHost={setDelHost} onHistory={setHistoryTarget} />
                 </motion.div>
               ))}
             </Box>

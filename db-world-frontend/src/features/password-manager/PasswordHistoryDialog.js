@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 
@@ -13,6 +13,7 @@ import CommonServices from '@shared/services/CommonServices';
 import { getHistory, restorePassword } from '@shared/services/ApiServices';
 
 import FieldValue from './FieldValue';
+import { changedLabel } from './entryUtils';
 import { ResponsiveDialogActions } from './vaultShared';
 import { VAULT_QUERY_KEY } from './useVault';
 
@@ -21,44 +22,37 @@ export const historyQueryKey = (credentialId) => [HISTORY_QUERY_KEY, credentialI
 
 const errorMessage = (err, fallback) => err?.response?.data?.message ?? fallback;
 
-/** "24 Oct 2026, 10:00": when the password stopped being the current one. */
-export const changedLabel = (changedAt) => {
-  const at = changedAt ? new Date(changedAt) : null;
-  if (!at || Number.isNaN(at.getTime())) return '';
-  return at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // One earlier password
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HistoryRow = memo(({ row, busy, copied, onCopy, onRestore, T }) => (
-  <Box
-    sx={{
-      p: 1.25, borderRadius: 2.5, border: `1px solid ${T.glassBorder}`, minWidth: 0,
-      bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-    }}
-  >
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 1 }}>
-      <Typography sx={{ color: T.textFaint, fontSize: '0.76rem', fontWeight: 700 }}>
-        Replaced {changedLabel(row.changedAt)}
-      </Typography>
-      <Button
-        size="small" disabled={busy} onClick={() => onRestore(row.id)}
-        aria-label={`Restore the password replaced ${changedLabel(row.changedAt)}`}
-        startIcon={<RestoreRounded fontSize="small" />}
-        sx={{ minHeight: 40, color: T.teal, fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: T.tealBg } }}
-      >
-        Restore
-      </Button>
+const HistoryRow = memo(({ row, busy, copied, onCopy, onRestore, T }) => {
+  // One object per password, so FieldValue's memo holds while another row's copy tick re-renders this list.
+  const field = useMemo(() => ({ fieldKey: 'Password', fieldValue: row.password, fieldType: 'HIDDEN' }), [row.password]);
+  return (
+    <Box
+      sx={{
+        p: 1.25, borderRadius: 2.5, border: `1px solid ${T.glassBorder}`, minWidth: 0,
+        bgcolor: T.bg === '#000000' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+      }}
+    >
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 1 }}>
+        <Typography sx={{ color: T.textFaint, fontSize: '0.76rem', fontWeight: 700 }}>
+          Replaced {changedLabel(row.changedAt)}
+        </Typography>
+        <Button
+          size="small" disabled={busy} onClick={() => onRestore(row.id)}
+          aria-label={`Restore the password replaced ${changedLabel(row.changedAt)}`}
+          startIcon={<RestoreRounded fontSize="small" />}
+          sx={{ minHeight: 40, color: T.teal, fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: T.tealBg } }}
+        >
+          Restore
+        </Button>
+      </Box>
+      <FieldValue field={field} copied={copied} copyKey={row.id} onCopy={onCopy} />
     </Box>
-    <FieldValue
-      field={{ fieldKey: 'Password', fieldValue: row.password, fieldType: 'HIDDEN' }}
-      copied={copied}
-      onCopy={(value) => onCopy(value, row.id)}
-    />
-  </Box>
-));
+  );
+});
 HistoryRow.displayName = 'HistoryRow';
 
 // ─────────────────────────────────────────────────────────────────────────────

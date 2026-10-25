@@ -24,6 +24,52 @@ export const withScheme = (value) => {
   return s && !SCHEME.test(s) ? `https://${s}` : s;
 };
 
+/**
+ * Where a URL-typed field may link to, or null when it must stay plain text. Only http(s) to a host
+ * that can be real (a dotted name, localhost, or an IP) with no spaces and no user:password@ part:
+ * a saved "javascript:...", "data:..." or "mailto:x@y.com" must never become clickable.
+ */
+export const linkTarget = (value) => {
+  const text = (value ?? '').trim();
+  if (!text || /\s/.test(text)) return null;
+  const href = withScheme(text);
+  try {
+    const url = new URL(href);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
+    const host = url.hostname;
+    const plausible = host === 'localhost' || host.startsWith('[') || (host.includes('.') && /[a-z0-9]/i.test(host));
+    return plausible ? href : null;
+  } catch { return null; }
+};
+
+/** "24 Oct 2026, 10:00": when a password stopped being the current one; '' for a missing or bad time. */
+export const changedLabel = (changedAt) => {
+  const at = changedAt ? new Date(changedAt) : null;
+  if (!at || Number.isNaN(at.getTime())) return '';
+  return at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+/**
+ * Purge each id in turn with purge(id), carrying on past failures. A 404 means the entry is already
+ * gone (the daily job got there first), which is what was wanted, so it counts as removed.
+ * Resolves to { removed, failed }; the reasons are not kept, as the caller only reports counts.
+ */
+export const purgeEach = async (ids, purge) => {
+  let removed = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      await purge(id);
+      removed += 1;
+    } catch (err) {
+      if (err?.response?.status === 404) removed += 1;
+      else failed += 1;
+    }
+  }
+  return { removed, failed };
+};
+
 export const isValidUrl = (value) => {
   try { return !!new URL(withScheme(value)).hostname.includes('.'); } catch { return false; }
 };
