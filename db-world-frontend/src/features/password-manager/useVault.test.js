@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@shared/services/ApiServices', () => ({ getCredential: vi.fn(), getSnapshot: vi.fn(), getSecret: vi.fn(), getEntrySecrets: vi.fn() }));
-vi.mock('./offline/vaultCache', () => ({ cacheVault: vi.fn(), readOfflineVault: vi.fn(), offlineVaultSupported: vi.fn() }));
+vi.mock('@shared/services/ApiServices', () => ({ getCredential: vi.fn(), getSnapshot: vi.fn(), getSecret: vi.fn(), getEntrySecrets: vi.fn(), getSnapshotVersion: vi.fn() }));
+vi.mock('./offline/vaultCache', () => ({ cacheVault: vi.fn(), cachedVaultVersion: vi.fn(), readOfflineVault: vi.fn(), offlineVaultSupported: vi.fn() }));
 vi.mock('@features/auth/context/Authentication', () => ({ useAuth: () => ({ auth: {} }) }));
 
-const { getCredential, getSnapshot, getSecret, getEntrySecrets } = await import('@shared/services/ApiServices');
-const { cacheVault, readOfflineVault, offlineVaultSupported } = await import('./offline/vaultCache');
+const { getCredential, getSnapshot, getSecret, getEntrySecrets, getSnapshotVersion } = await import('@shared/services/ApiServices');
+const { cacheVault, cachedVaultVersion, readOfflineVault, offlineVaultSupported } = await import('./offline/vaultCache');
 const { fetchVault, getVaultOffline, vaultUserId, readSecret, readAllSecrets, resetVaultOffline } = await import('./useVault');
 
 // What GET /api/pm/ returns now: summaries, no secrets.
@@ -17,6 +17,12 @@ const SNAPSHOT = [{ id: 'pm1', host: 'netflix.com', credentials: [
 ] }];
 
 const flush = () => new Promise((r) => { setTimeout(r, 0); });
+
+// Unless a test says otherwise, the server's snapshot has changed since the copy was saved.
+beforeEach(() => {
+  getSnapshotVersion.mockResolvedValue({ data: { version: 'v2' } });
+  cachedVaultVersion.mockResolvedValue('v1');
+});
 
 describe('fetchVault', () => {
   beforeEach(() => { vi.clearAllMocks(); offlineVaultSupported.mockReturnValue(false); });
@@ -41,7 +47,46 @@ describe('fetchVault', () => {
     getSnapshot.mockResolvedValue({ data: SNAPSHOT });
     await expect(fetchVault(7)).resolves.toEqual(VAULT);
     await flush();
-    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT, expect.any(Function));
+    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT, expect.objectContaining({ version: 'v2' }));
+  });
+
+  it('does not download the snapshot when the offline copy is already current', async () => {
+    offlineVaultSupported.mockReturnValue(true);
+    getCredential.mockResolvedValue({ data: VAULT });
+    getSnapshotVersion.mockResolvedValue({ data: { version: 'v1' } });
+    cachedVaultVersion.mockResolvedValue('v1');
+
+    await expect(fetchVault(7)).resolves.toEqual(VAULT);
+    await flush();
+
+    expect(cachedVaultVersion).toHaveBeenCalledWith(7);
+    expect(getSnapshot).not.toHaveBeenCalled();
+    expect(cacheVault).not.toHaveBeenCalled();
+  });
+
+  it('downloads it when there is no copy yet, or one saved before versions existed', async () => {
+    offlineVaultSupported.mockReturnValue(true);
+    getCredential.mockResolvedValue({ data: VAULT });
+    getSnapshot.mockResolvedValue({ data: SNAPSHOT });
+    cachedVaultVersion.mockResolvedValue(null);
+
+    await fetchVault(7);
+    await flush();
+
+    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT, expect.objectContaining({ version: 'v2' }));
+  });
+
+  it('downloads it every time from a server that has no version endpoint, as before', async () => {
+    offlineVaultSupported.mockReturnValue(true);
+    getCredential.mockResolvedValue({ data: VAULT });
+    getSnapshot.mockResolvedValue({ data: SNAPSHOT });
+    getSnapshotVersion.mockRejectedValue(new Error('404'));
+    cachedVaultVersion.mockResolvedValue(null);
+
+    await fetchVault(7);
+    await flush();
+
+    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT, expect.objectContaining({ version: null }));
   });
 
   it('still opens the vault when the snapshot fails (a 429, say): the offline copy just stays as it was', async () => {
@@ -180,7 +225,7 @@ describe('resetVaultOffline (sign-out)', () => {
     getSnapshot.mockResolvedValue({ data: SNAPSHOT });
     await fetchVault(8);
     await flush();
-    expect(cacheVault).toHaveBeenCalledWith(8, SNAPSHOT, expect.any(Function));
+    expect(cacheVault).toHaveBeenCalledWith(8, SNAPSHOT, expect.objectContaining({ version: 'v2' }));
   });
 
   it('tells cacheVault when a sign-out lands while it is still writing', async () => {
@@ -189,7 +234,7 @@ describe('resetVaultOffline (sign-out)', () => {
     getSnapshot.mockResolvedValue({ data: SNAPSHOT });
     await fetchVault(7);
     await flush();
-    const isCurrent = cacheVault.mock.calls[0][2];
+    const { isCurrent } = cacheVault.mock.calls[0][2];
 
     expect(isCurrent()).toBe(true);
     resetVaultOffline();

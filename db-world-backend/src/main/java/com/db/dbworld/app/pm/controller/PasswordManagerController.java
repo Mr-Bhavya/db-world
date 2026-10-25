@@ -76,6 +76,19 @@ public class PasswordManagerController {
                 .toList());
     }
 
+    /**
+     * {@code { "version": "..." }}: the fingerprint of the snapshot. The app compares it with the one
+     * stored beside its offline copy and downloads the snapshot only when they differ.
+     */
+    @GetMapping("/snapshot/version")
+    @AnyRole
+    public ApiResponse<SnapshotVersionValue> getSnapshotVersion() {
+        return ApiResponse.success(new SnapshotVersionValue(passwordManagerService.getSnapshotVersion()));
+    }
+
+    public record SnapshotVersionValue(String version) {
+    }
+
     private static <C> ResponsePayloads.PasswordManagerResponse<C> response(
             String id, HostDto host, List<C> credentials, Function<C, String> nameOf) {
         ResponsePayloads.PasswordManagerResponse<C> r = new ResponsePayloads.PasswordManagerResponse<>();

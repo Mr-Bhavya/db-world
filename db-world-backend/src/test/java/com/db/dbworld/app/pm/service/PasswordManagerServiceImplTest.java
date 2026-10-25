@@ -1376,4 +1376,49 @@ class PasswordManagerServiceImplTest {
             assertThat(d.getCustomFields()).extracting(CustomFieldDto::getFieldValue).containsExactly("hidden-value");
         });
     }
+
+    @Test
+    void theSnapshotVersionChangesExactlyWhenTheSnapshotDoes() {
+        PasswordManagerEntity netflix = group("pm1", "netflix.com");
+        CredentialEntity c = addTo(netflix, "c1", "Netflix", "me@x.com", null);
+        c.setPassword("pw");
+        CustomFieldEntity recovery = field(c, "f1", "Recovery", "code-1", CustomFieldType.HIDDEN);
+        PasswordManagerEntity github = group("pm2", "github.com");
+        CredentialEntity g = addTo(github, "c2", "GitHub", "me", null);
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(netflix, github));
+
+        String v1 = service.getSnapshotVersion();
+        assertThat(v1).hasSize(64).doesNotContain("pw").doesNotContain("code-1");
+        assertThat(service.getSnapshotVersion()).as("nothing changed").isEqualTo(v1);
+
+        // The order the database hands the groups back in is not a change.
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(github, netflix));
+        assertThat(service.getSnapshotVersion()).isEqualTo(v1);
+
+        c.setPassword("pw-2");
+        String v2 = service.getSnapshotVersion();
+        assertThat(v2).as("a changed password").isNotEqualTo(v1);
+
+        recovery.setFieldValue("code-2");
+        String v3 = service.getSnapshotVersion();
+        assertThat(v3).as("a changed hidden field").isNotEqualTo(v2);
+
+        g.setDeletedAt(NOW);
+        String v4 = service.getSnapshotVersion();
+        assertThat(v4).as("an entry moved to Trash").isNotEqualTo(v3);
+
+        g.setDeletedAt(null);
+        assertThat(service.getSnapshotVersion()).as("restored: the same content as before").isEqualTo(v3);
+    }
+
+    @Test
+    void theSnapshotVersionIsNotASecretReadAndNeverRunsIntoTheLimit() {
+        ManualClock clock = new ManualClock();
+        PasswordManagerServiceImpl limited = new PasswordManagerServiceImpl(pmRepo, hostRepo, credentialsRepo, historyRepo,
+                userService, userContext, mapper, clock, new SecretReadRateLimiter(clock));
+        entryWithPassword("c1", "pw");
+        for (int i = 0; i < 60; i++) limited.revealSecret("c1", SecretField.PASSWORD);
+
+        assertThat(limited.getSnapshotVersion()).hasSize(64);   // no 429, though reveals have hit it
+    }
 }

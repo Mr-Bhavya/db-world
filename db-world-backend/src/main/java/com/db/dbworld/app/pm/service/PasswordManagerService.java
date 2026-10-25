@@ -29,6 +29,14 @@ public interface PasswordManagerService {
     List<PasswordManagerDto> getSnapshot();
 
     /**
+     * The fingerprint of what {@link #getSnapshot} would return right now. It changes whenever the
+     * snapshot's content does, so the app downloads the snapshot only when its copy is out of date.
+     * Not rate-limited: it carries no secret (a keyed hash, see
+     * {@link com.db.dbworld.app.pm.util.SnapshotVersion}).
+     */
+    String getSnapshotVersion();
+
+    /**
      * One secret of the caller's own live entry. Logged (ids only) and rate-limited per user.
      *
      * @return the value, null when the entry has none

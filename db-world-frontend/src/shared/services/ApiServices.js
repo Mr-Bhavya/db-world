@@ -664,6 +664,13 @@ export const getEntrySecrets = async (credentialId) => {
   }
 };
 
+// The snapshot's fingerprint ({ version }): it changes whenever the snapshot would. The offline copy
+// keeps the one it was saved with, and the snapshot is downloaded again only when they differ.
+export const getSnapshotVersion = async () => {
+  const response = await axiosInstance.get('/api/pm/snapshot/version');
+  return response.data;
+};
+
 export const getSnapshot = async () => {
   try {
     const response = await axiosInstance.get('/api/pm/snapshot');

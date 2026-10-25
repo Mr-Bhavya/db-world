@@ -80,8 +80,12 @@ const idbClear = () => idbRun('readwrite', (s) => s.clear());
  * anywhere in the awaits below, after the caller's own check: it is asked again right before the
  * write, and once more after it, when a sign-out that wiped the store meanwhile means the record
  * just written is removed again.
+ *
+ * version is the server's fingerprint of this snapshot (GET /api/pm/snapshot/version), kept beside
+ * it so the next load can tell whether the copy is still current (cachedVaultVersion). It is a keyed
+ * hash that reveals nothing, so it is stored as it is.
  */
-export async function cacheVault(userId, vault, isCurrent = () => true) {
+export async function cacheVault(userId, vault, { isCurrent = () => true, version = null } = {}) {
   if (!offlineVaultSupported() || !userId) return;
   try {
     const { subtle } = globalThis.crypto;
@@ -98,9 +102,16 @@ export async function cacheVault(userId, vault, isCurrent = () => true) {
       iv: abToB64(iv.buffer),
       ct: abToB64(ct),
       syncedAt: Date.now(),
+      version,
     });
     if (!isCurrent()) await idbDelete(String(userId));
   } catch { /* best-effort; leave any previous snapshot intact */ }
+}
+
+/** The server fingerprint the user's offline copy was saved with; null when there is none (or an older copy). */
+export async function cachedVaultVersion(userId) {
+  if (!offlineVaultSupported() || !userId) return null;
+  try { return (await idbGet(String(userId)))?.version ?? null; } catch { return null; }
 }
 
 /** Is there a local snapshot for this user? (Used to decide whether to offer offline.) */

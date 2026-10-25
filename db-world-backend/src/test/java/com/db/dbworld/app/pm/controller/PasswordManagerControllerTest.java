@@ -291,6 +291,14 @@ class PasswordManagerControllerTest {
     }
 
     @Test
+    void theSnapshotVersionIsAFingerprintWithNoSecretInIt() throws Exception {
+        String body = mvc.perform(get("/api/pm/snapshot/version")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").isString())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(SECRETS).allSatisfy(secret -> assertThat(body).doesNotContain(secret));
+    }
+
+    @Test
     void snapshotEndpointRequiresAuth() throws Exception {
         // No token: the filter chain leaves an anonymous user, and @AnyRole turns it away with 401.
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
@@ -299,6 +307,7 @@ class PasswordManagerControllerTest {
                 .andReturn().getResponse().getContentAsString();
         assertThat(SECRETS).allSatisfy(secret -> assertThat(body).doesNotContain(secret));
         mvc.perform(get("/api/pm/credential/c1/secret").param("field", "password")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/pm/snapshot/version")).andExpect(status().isUnauthorized());
 
         // Signed in without a vault role: 403.
         signInAs(7L, "NOBODY");

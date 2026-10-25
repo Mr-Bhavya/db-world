@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCredential, getEntrySecrets, getSecret, getSnapshot } from '@shared/services/ApiServices';
+import { getCredential, getEntrySecrets, getSecret, getSnapshot, getSnapshotVersion } from '@shared/services/ApiServices';
 import { useAuth } from '@features/auth/context/Authentication';
-import { cacheVault, readOfflineVault, offlineVaultSupported } from './offline/vaultCache';
+import { cacheVault, cachedVaultVersion, readOfflineVault, offlineVaultSupported } from './offline/vaultCache';
 import { summarizeVault } from './passwordUtils';
 
 /**
@@ -65,17 +65,26 @@ const secretsOf = (snapshot) => {
 
 /**
  * The list has no secrets: the offline copy needs them, so on the installed Android app it is
- * refreshed from GET /api/pm/snapshot. Fire-and-forget like before: a failure (a 429, no network
- * half-way) leaves the previous copy as it is and never holds up the list.
+ * refreshed from GET /api/pm/snapshot. Only when it is out of date: the server's fingerprint of the
+ * snapshot is compared with the one the copy was saved with, so the full vault crosses the wire after
+ * something changed (or once after a server restart), not on every load. A server without the
+ * fingerprint endpoint (an older one) gets the old behaviour: download every time.
+ *
+ * Fire-and-forget like before: a failure (a 429, no network half-way) leaves the previous copy as it
+ * is and never holds up the list.
  */
 const refreshOfflineCopy = (userId, epoch) => {
   if (!offlineVaultSupported()) return;
+  // Signed out meanwhile: caching it would re-create the keypair and re-save the vault just wiped.
+  // cacheVault asks again around its own write, since a sign-out can also land inside it.
   const isCurrent = () => epoch === sessionEpoch;
-  getSnapshot()
-    // Signed out meanwhile: caching it would re-create the keypair and re-save the vault just wiped.
-    // cacheVault asks again around its own write, since a sign-out can also land inside it.
-    .then((res) => (isCurrent() ? cacheVault(userId, res?.data ?? [], isCurrent) : undefined))
-    .catch(() => { /* best-effort; the next fetch tries again */ });
+  (async () => {
+    const version = await getSnapshotVersion().then((res) => res?.data?.version ?? null, () => null);
+    if (!isCurrent()) return;
+    if (version && version === await cachedVaultVersion(userId)) return;   // the copy is current
+    const res = await getSnapshot();
+    if (isCurrent()) await cacheVault(userId, res?.data ?? [], { isCurrent, version });
+  })().catch(() => { /* best-effort; the next fetch tries again */ });
 };
 
 export async function fetchVault(userId) {

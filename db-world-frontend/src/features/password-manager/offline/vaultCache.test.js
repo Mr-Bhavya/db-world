@@ -8,7 +8,7 @@ vi.mock('@platform/android/vaultCrypto', () => ({
 }));
 
 const { vcWrapKey } = await import('@platform/android/vaultCrypto');
-const { cacheVault, clearAllOfflineVault } = await import('./vaultCache');
+const { cacheVault, cachedVaultVersion, clearAllOfflineVault } = await import('./vaultCache');
 
 // Just enough IndexedDB for vaultCache: one database, one store, requests that complete on a later tick.
 const records = new Map();
@@ -48,11 +48,18 @@ describe('cacheVault', () => {
   });
 
   it('writes the encrypted copy while the session is current', async () => {
-    await cacheVault(7, SNAPSHOT, () => true);
+    await cacheVault(7, SNAPSHOT, { isCurrent: () => true, version: 'v1' });
 
     const rec = records.get('7');
     expect(rec).toMatchObject({ userId: '7', wrapped: 'wrapped-key' });
     expect(JSON.stringify(rec)).not.toContain('pw-1');   // only ciphertext reaches storage
+    await expect(cachedVaultVersion(7)).resolves.toBe('v1');
+  });
+
+  it('knows no version for a user with no copy, or a copy saved before versions existed', async () => {
+    await expect(cachedVaultVersion(7)).resolves.toBeNull();
+    records.set('7', { userId: '7', wrapped: 'w', iv: 'i', ct: 'c', syncedAt: 1 });   // an older copy
+    await expect(cachedVaultVersion(7)).resolves.toBeNull();
   });
 
   it('writes nothing when the user signs out while the key is being wrapped', async () => {
@@ -63,7 +70,7 @@ describe('cacheVault', () => {
       return 'wrapped-key';
     });
 
-    await cacheVault(7, SNAPSHOT, () => signedIn);
+    await cacheVault(7, SNAPSHOT, { isCurrent: () => signedIn });
 
     expect(records.size).toBe(0);
   });
@@ -72,7 +79,7 @@ describe('cacheVault', () => {
     let signedIn = true;
     afterPut = () => { signedIn = false; };   // the record has landed; cacheVault has not looked again yet
 
-    await cacheVault(7, SNAPSHOT, () => signedIn);
+    await cacheVault(7, SNAPSHOT, { isCurrent: () => signedIn });
 
     expect(records.size).toBe(0);
   });

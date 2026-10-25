@@ -23,6 +23,7 @@ import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.app.pm.service.SecretReadRateLimiter;
 import com.db.dbworld.app.pm.util.PasswordStrength;
 import com.db.dbworld.app.pm.util.SiteUrl;
+import com.db.dbworld.app.pm.util.SnapshotVersion;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
@@ -350,13 +351,25 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     public List<PasswordManagerDto> getSnapshot() {
         Long userId = userContext.userId();
         secretReadLimiter.acquire(userId);
-        List<PasswordManagerDto> groups = groupsOf(passwordManagerRepository.findAllByUserEntityUserId(userId), false,
-                (pm, live) -> new PasswordManagerDto(pm.getId(), mapper.toDto(pm.getHost()),
-                        live.stream().map(mapper::toDto).toList()));
+        List<PasswordManagerDto> groups = snapshotOf(userId);
         // INFO like every secret read: this one returns all of them. Counts and ids only.
         log.info("Vault snapshot read: credentials={}, userId={}",
                 groups.stream().mapToInt(g -> g.getCredentials().size()).sum(), userId);
         return groups;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getSnapshotVersion() {
+        // Not a secret read: nothing of the content leaves the server, only its keyed fingerprint.
+        return SnapshotVersion.of(snapshotOf(userContext.userId()));
+    }
+
+    /** Every live entry of the user with its secrets: the snapshot's content. */
+    private List<PasswordManagerDto> snapshotOf(Long userId) {
+        return groupsOf(passwordManagerRepository.findAllByUserEntityUserId(userId), false,
+                (pm, live) -> new PasswordManagerDto(pm.getId(), mapper.toDto(pm.getHost()),
+                        live.stream().map(mapper::toDto).toList()));
     }
 
     /**
