@@ -41,7 +41,7 @@ describe('fetchVault', () => {
     getSnapshot.mockResolvedValue({ data: SNAPSHOT });
     await expect(fetchVault(7)).resolves.toEqual(VAULT);
     await flush();
-    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT);
+    expect(cacheVault).toHaveBeenCalledWith(7, SNAPSHOT, expect.any(Function));
   });
 
   it('still opens the vault when the snapshot fails (a 429, say): the offline copy just stays as it was', async () => {
@@ -155,7 +155,20 @@ describe('resetVaultOffline (sign-out)', () => {
     getSnapshot.mockResolvedValue({ data: SNAPSHOT });
     await fetchVault(8);
     await flush();
-    expect(cacheVault).toHaveBeenCalledWith(8, SNAPSHOT);
+    expect(cacheVault).toHaveBeenCalledWith(8, SNAPSHOT, expect.any(Function));
+  });
+
+  it('tells cacheVault when a sign-out lands while it is still writing', async () => {
+    offlineVaultSupported.mockReturnValue(true);
+    getCredential.mockResolvedValue({ data: VAULT });
+    getSnapshot.mockResolvedValue({ data: SNAPSHOT });
+    await fetchVault(7);
+    await flush();
+    const isCurrent = cacheVault.mock.calls[0][2];
+
+    expect(isCurrent()).toBe(true);
+    resetVaultOffline();
+    expect(isCurrent()).toBe(false);
   });
 
   it('an offline unlock still in flight at sign-out keeps nothing in memory', async () => {

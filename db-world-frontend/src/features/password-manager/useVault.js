@@ -70,9 +70,11 @@ const secretsOf = (snapshot) => {
  */
 const refreshOfflineCopy = (userId, epoch) => {
   if (!offlineVaultSupported()) return;
+  const isCurrent = () => epoch === sessionEpoch;
   getSnapshot()
     // Signed out meanwhile: caching it would re-create the keypair and re-save the vault just wiped.
-    .then((res) => (epoch === sessionEpoch ? cacheVault(userId, res?.data ?? []) : undefined))
+    // cacheVault asks again around its own write, since a sign-out can also land inside it.
+    .then((res) => (isCurrent() ? cacheVault(userId, res?.data ?? [], isCurrent) : undefined))
     .catch(() => { /* best-effort; the next fetch tries again */ });
 };
 

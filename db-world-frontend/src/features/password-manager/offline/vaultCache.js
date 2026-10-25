@@ -75,8 +75,13 @@ const idbClear = () => idbRun('readwrite', (s) => s.clear());
  * Write-through: encrypt + persist the freshly-fetched snapshot. Best-effort and
  * silent — a device with no lock screen (NO_LOCK) or any failure simply means
  * "no offline copy this time". Never prompts. Fire-and-forget from the caller.
+ *
+ * isCurrent() says the session that asked for this copy is still signed in. A sign-out can land
+ * anywhere in the awaits below, after the caller's own check: it is asked again right before the
+ * write, and once more after it, when a sign-out that wiped the store meanwhile means the record
+ * just written is removed again.
  */
-export async function cacheVault(userId, vault) {
+export async function cacheVault(userId, vault, isCurrent = () => true) {
   if (!offlineVaultSupported() || !userId) return;
   try {
     const { subtle } = globalThis.crypto;
@@ -86,6 +91,7 @@ export async function cacheVault(userId, vault) {
     const ct = await subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, plaintext);
     const rawKey = await subtle.exportKey('raw', aesKey);
     const wrapped = await vcWrapKey(abToB64(rawKey)); // Keystore public-key wrap (no prompt)
+    if (!isCurrent()) return;
     await idbPut(String(userId), {
       userId: String(userId),
       wrapped,
@@ -93,6 +99,7 @@ export async function cacheVault(userId, vault) {
       ct: abToB64(ct),
       syncedAt: Date.now(),
     });
+    if (!isCurrent()) await idbDelete(String(userId));
   } catch { /* best-effort; leave any previous snapshot intact */ }
 }
 
