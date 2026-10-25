@@ -77,7 +77,8 @@ class CommonServices {
   /**
    * Enhanced copy to clipboard with multiple fallback methods
    * @param {string} text - Text to copy
-   * @param {Object} options - Copy options
+   * @param {Object} options - Copy options. sensitive: a secret; clearAfterMs later the clipboard is
+   *   emptied if it still holds this text (or unconditionally where it cannot be read).
    * @returns {Object} Result object
    */
   static handleCopy = async (text, options = {}) => {
@@ -85,7 +86,9 @@ class CommonServices {
       enableFallback = true,
       enableShare = true,
       showToast = false,
-      toastCallback = null
+      toastCallback = null,
+      sensitive = false,
+      clearAfterMs = 30000
     } = options;
 
     // Validate input
@@ -99,6 +102,7 @@ class CommonServices {
       // Method 1: Modern Clipboard API (Primary)
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
+        this._afterClipboardWrite(text, sensitive, clearAfterMs);
         this._handleCopyFeedback(true, "Copied to clipboard", showToast, toastCallback);
         return { success: true, message: "Copied to clipboard", method: "clipboard-api" };
       }
@@ -122,6 +126,7 @@ class CommonServices {
       if (enableFallback) {
         const fallbackResult = this._fallbackCopy(text);
         if (fallbackResult.success) {
+          this._afterClipboardWrite(text, sensitive, clearAfterMs);
           this._handleCopyFeedback(true, fallbackResult.message, showToast, toastCallback);
           return { ...fallbackResult, method: "fallback" };
         }
@@ -137,6 +142,66 @@ class CommonServices {
       const errorMsg = `Copy failed: ${error.message}`;
       this._handleCopyFeedback(false, errorMsg, showToast, toastCallback);
       return { success: false, message: errorMsg, method: "error" };
+    }
+  }
+
+  /** The pending clear of the last sensitive copy, if any. */
+  static _clipboardClearTimer = null;
+
+  /**
+   * After anything is put on the clipboard: whatever secret was there is overwritten, so its pending
+   * clear goes (where the clipboard cannot be read it would otherwise wipe this new copy). A sensitive
+   * copy then schedules its own clear.
+   * @private
+   */
+  static _afterClipboardWrite = (text, sensitive, clearAfterMs) => {
+    clearTimeout(this._clipboardClearTimer);
+    this._clipboardClearTimer = null;
+    if (!sensitive) return;
+    this._clipboardClearTimer = setTimeout(async () => {
+      this._clipboardClearTimer = null;
+      if (await this._clipboardReadGranted()) {
+        try {
+          if ((await navigator.clipboard.readText()) !== text) return; // the user has copied something else
+        } catch {
+          // Refused after all: clear regardless.
+        }
+      }
+      await this._emptyClipboard();
+    }, clearAfterMs);
+  }
+
+  /**
+   * Whether the clipboard may be read without asking. readText() otherwise raises a permission prompt
+   * (Chrome) or a Paste callout (Firefox, Safari) out of nowhere, and the Android WebView refuses it,
+   * so without the grant the clipboard counts as unreadable and is cleared regardless.
+   * @private
+   */
+  static _clipboardReadGranted = async () => {
+    try {
+      const status = await navigator.permissions.query({ name: "clipboard-read" });
+      return status.state === "granted";
+    } catch {
+      return false; // no Permissions API, or it does not know clipboard-read
+    }
+  }
+
+  /**
+   * Best-effort: write '' to the clipboard, through the Clipboard API or, where that is missing, a copy
+   * event. Never throws and never reports.
+   * @private
+   */
+  static _emptyClipboard = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText("");
+        return;
+      }
+      const onCopy = (e) => { e.clipboardData.setData("text/plain", ""); e.preventDefault(); };
+      document.addEventListener("copy", onCopy);
+      try { document.execCommand("copy"); } finally { document.removeEventListener("copy", onCopy); }
+    } catch {
+      // Not permitted: nothing more to do.
     }
   }
 

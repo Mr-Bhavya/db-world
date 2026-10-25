@@ -123,7 +123,7 @@ const GeneratePassword = () => {
 
   const copy = async () => {
     if (!value) return;
-    const res = await CommonServices.handleCopy(value);
+    const res = await CommonServices.handleCopy(value, { sensitive: true });
     if (res.success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -336,7 +336,7 @@ const GeneratePassword = () => {
                           {h}
                         </Typography>
                         <Tooltip title="Copy">
-                          <IconButton size="small" onClick={() => CommonServices.handleCopy(h)} sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
+                          <IconButton size="small" onClick={() => CommonServices.handleCopy(h, { sensitive: true })} sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
                             <ContentCopyRounded sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>

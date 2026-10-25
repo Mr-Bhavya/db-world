@@ -10,8 +10,8 @@ export const SECRET_HOLD_MS = 30 * 1000;
  * field: 'password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'.
  *
  * reveal() fetches it (from the server, or the unlocked offline copy) and keeps it in this
- * component's state for 30 seconds, then drops it. copy() puts it on the clipboard, fetching first
- * if needed, and rejects when the copy fails. value is what is held right now, or null.
+ * component's state for 30 seconds, then drops it. copy() puts it on the clipboard (emptied again 30 s
+ * later), fetching first if needed, and rejects when the copy fails. value is what is held right now, or null.
  */
 export default function useSecret(credentialId, field) {
   const [value, setValue] = useState(null);
@@ -37,7 +37,7 @@ export default function useSecret(credentialId, field) {
 
   const copy = useCallback(async () => {
     const v = await reveal();
-    const res = await CommonServices.handleCopy(String(v));
+    const res = await CommonServices.handleCopy(String(v), { sensitive: true });
     if (!res?.success) throw new Error(res?.message || 'Copy failed');
   }, [reveal]);
 

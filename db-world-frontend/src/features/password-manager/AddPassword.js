@@ -117,7 +117,7 @@ const AddPassword = () => {
 
   const handleCopyGenerated = async () => {
     if (!pwValue) return;
-    const res = await CommonServices.handleCopy(pwValue);
+    const res = await CommonServices.handleCopy(pwValue, { sensitive: true });
     if (res.success) { setGenCopied(true); setTimeout(() => setGenCopied(false), 1500); }
     else notify.error('Copy failed');
   };
