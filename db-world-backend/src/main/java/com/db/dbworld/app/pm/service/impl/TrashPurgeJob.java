@@ -15,8 +15,8 @@ import java.time.Instant;
  *
  * <p>Runs once a day, driven by the {@code VaultTrashPurge} entry in {@code scheduler_job_config}
  * (seeded in {@code SchedulerAdminService}), so it gets the usual run-now / history / enable-disable
- * treatment on the admin Scheduler page. The removal itself is {@link PasswordManagerService#purgeTrashedBefore},
- * the same path "Delete forever" takes.
+ * treatment on the admin Scheduler page. The removal itself is {@link PasswordManagerService#purgeTrashedEntry},
+ * the same removal "Delete forever" does.
  */
 @Log4j2
 @Component
@@ -41,14 +41,27 @@ public class TrashPurgeJob {
         this.clock = clock;
     }
 
-    /** One daily pass: removes what was trashed before now - 30 days. */
+    /**
+     * One daily pass: removes what was trashed before now - 30 days. Each entry is removed in its own
+     * transaction, so one that fails (and is retried the next day) does not hold back the others.
+     */
     public void purgeExpired(JobRunSummary.Builder summary) {
         Instant cutoff = clock.instant().minus(RETENTION);
-        int removed = service.purgeTrashedBefore(cutoff);
-        log.info("Vault trash purge: removed={}, cutoff={}", removed, cutoff);
-        summary.count("entriesRemoved", removed);
-        summary.note(removed == 0
+        int removed = 0;
+        int failed = 0;
+        for (String id : service.findTrashedBefore(cutoff)) {
+            try {
+                if (service.purgeTrashedEntry(id, cutoff)) removed++;
+            } catch (RuntimeException e) {
+                failed++;
+                log.error("Vault trash purge could not remove credentialId={}", id, e);   // ids only, never a value
+            }
+        }
+        log.info("Vault trash purge: removed={}, failed={}, cutoff={}", removed, failed, cutoff);
+        summary.count("entriesRemoved", removed).count("entriesFailed", failed);
+        String note = removed == 0 && failed == 0
                 ? "Nothing to purge — nothing has been in Trash for more than 30 days"
-                : "Removed " + removed + " entr" + (removed == 1 ? "y" : "ies") + " trashed more than 30 days ago");
+                : "Removed " + removed + " entr" + (removed == 1 ? "y" : "ies") + " trashed more than 30 days ago";
+        summary.note(failed == 0 ? note : note + "; " + failed + " failed and will be retried tomorrow (see the log)");
     }
 }

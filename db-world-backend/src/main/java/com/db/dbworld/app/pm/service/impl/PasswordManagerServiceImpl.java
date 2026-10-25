@@ -26,6 +26,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.MalformedURLException;
@@ -425,16 +426,27 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     }
 
     @Override
-    public int purgeTrashedBefore(Instant cutoff) {
-        List<CredentialEntity> expired = credentialsRepository.findAllByDeletedAtBefore(cutoff);
-        expired.forEach(this::removeForGood);
-        log.info("Trash purge: removed={}, cutoff={}", expired.size(), cutoff);
-        return expired.size();
+    @Transactional(readOnly = true)
+    public List<String> findTrashedBefore(Instant cutoff) {
+        return credentialsRepository.findAllByDeletedAtBefore(cutoff).stream().map(CredentialEntity::getId).toList();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean purgeTrashedEntry(String credentialId, Instant cutoff) {
+        CredentialEntity credential = credentialsRepository.findById(credentialId).orElse(null);
+        // Looked up again here, in this transaction: the user may have restored it since the list was taken.
+        if (credential == null || credential.getDeletedAt() == null || !credential.getDeletedAt().isBefore(cutoff)) {
+            return false;
+        }
+        removeForGood(credential);
+        log.info("Credential purged after its time in Trash: credentialId={}", credentialId);
+        return true;
     }
 
     /**
      * How an entry leaves the database when the vault removes it: "Delete forever" and the daily
-     * purge both end here, so whatever must go with an entry (its history) is removed in one place.
+     * purge ({@link #purgeTrashedEntry}) both end here, so whatever must go with an entry (its history) is removed in one place.
      * A group left with no entries goes too. Deleting a whole account is the other path: it clears
      * the vault with SQL in {@code AccountDeletionService}, which must delete the same child rows.
      */
@@ -560,7 +572,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         checkNotDuplicate(targetHost, credentialDto, credential.getId());
 
         // An older client sends no type: a field it sends back keeps the type it had (HIDDEN if none).
-        // Read before updateEntityFromDto, which overwrites the stored fields.
+        // Snapshot taken before the custom fields are cleared and re-added below (the mapper leaves them alone).
         Map<String, CustomFieldType> storedTypes = new HashMap<>();
         credential.getCustomFields().stream().filter(f -> f.getId() != null && f.getFieldType() != null)
                 .forEach(f -> storedTypes.put(f.getId(), f.getFieldType()));

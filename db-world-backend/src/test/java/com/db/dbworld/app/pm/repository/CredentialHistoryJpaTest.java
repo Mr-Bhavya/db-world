@@ -1,12 +1,12 @@
 package com.db.dbworld.app.pm.repository;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.entity.CredentialEntity;
 import com.db.dbworld.app.pm.entity.CredentialHistoryEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldEntity;
 import com.db.dbworld.app.pm.entity.CustomFieldType;
-import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.entity.HostEntity;
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import com.db.dbworld.app.pm.mapper.PasswordManagerMapperImpl;
@@ -17,7 +17,6 @@ import com.db.dbworld.core.role.entity.RoleEntity;
 import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.service.AccountDeletionService;
-import org.springframework.test.util.ReflectionTestUtils;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.crypto.CryptoProvider;
 import com.db.dbworld.security.crypto.StringCryptoConverter;
@@ -33,6 +32,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -157,10 +157,14 @@ class CredentialHistoryJpaTest {
 
         assertThat(rows).extracting(CredentialHistoryEntity::getPassword).containsExactly("newer", "older");
         assertThat(rows.get(0).getChangedAt()).isEqualTo(NOW);
-        // The column holds ciphertext, not the password.
-        Object raw = em.createNativeQuery("select password from db_world.credential_history where id = :id")
+        // The column holds ciphertext, not the password. It is a LONGTEXT (a CLOB on H2), so it is cast to
+        // text to read its content: a Clob's toString would not show it. The converter is active in this
+        // slice (it is registered on the entity and the provider is set in @BeforeEach).
+        String raw = (String) em.createNativeQuery(
+                        "select cast(password as varchar(100000)) from db_world.credential_history where id = :id")
                 .setParameter("id", rows.get(0).getId()).getSingleResult();
-        assertThat(String.valueOf(raw)).doesNotContain("newer");
+        assertThat(raw).startsWith("AES:").doesNotContain("newer");
+        assertThat(new CryptoProvider(new JasyptProperties("test-secret", null, null)).decrypt(raw)).isEqualTo("newer");
     }
 
     @Test
@@ -227,7 +231,12 @@ class CredentialHistoryJpaTest {
         em.flush();
         em.clear();
 
-        int removed = serviceFor(me, Clock.fixed(NOW, ZoneOffset.UTC)).purgeTrashedBefore(NOW.minus(Duration.ofDays(30)));
+        PasswordManagerServiceImpl service = serviceFor(me, Clock.fixed(NOW, ZoneOffset.UTC));
+        Instant cutoff = NOW.minus(Duration.ofDays(30));
+        int removed = 0;
+        for (String id : service.findTrashedBefore(cutoff)) {   // what the job does, one entry at a time
+            if (service.purgeTrashedEntry(id, cutoff)) removed++;
+        }
         em.flush();
         em.clear();
 
@@ -340,6 +349,8 @@ class CredentialHistoryJpaTest {
         em.persist(new CustomFieldEntity("Token", "s3cret", c));
         CredentialEntity othersEntry = credential(group(other, "x.com"), "theirs", "now", null);
         CredentialHistoryEntity othersRow = row(othersEntry, "theirs-old", NOW);
+        CustomFieldEntity othersField = new CustomFieldEntity("Their token", "theirs-s3cret", othersEntry);
+        em.persist(othersField);
         em.flush();
         em.clear();
         // The purge's SQL names tables without a schema; the test database keeps them in db_world.
@@ -364,7 +375,10 @@ class CredentialHistoryJpaTest {
 
         assertThat(groupsDeleted).isEqualTo(1);
         assertThat(em.find(CredentialEntity.class, c.getId())).isNull();
-        assertThat(em.createQuery("select count(f) from CustomFieldEntity f", Long.class).getSingleResult()).isZero();
+        // My custom field went, the other user's stayed: the delete is scoped by owner, not by table.
+        assertThat(em.createQuery("select count(f) from CustomFieldEntity f", Long.class).getSingleResult()).isEqualTo(1);
+        assertThat(em.find(CustomFieldEntity.class, othersField.getId())).isNotNull();
+        assertThat(em.find(CustomFieldEntity.class, othersField.getId()).getFieldValue()).isEqualTo("theirs-s3cret");
         assertThat(historyRowCount()).isEqualTo(1);   // only the other user's row is left
         assertThat(em.find(CredentialHistoryEntity.class, othersRow.getId())).isNotNull();
         assertThat(em.find(CredentialEntity.class, othersEntry.getId())).isNotNull();

@@ -1,5 +1,6 @@
 package com.db.dbworld.app.pm.service;
 
+import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
@@ -18,7 +19,6 @@ import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
 import com.db.dbworld.app.pm.service.impl.PasswordManagerServiceImpl;
 import com.db.dbworld.app.pm.service.impl.TrashPurgeJob;
-import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
@@ -38,8 +38,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -355,6 +356,7 @@ class PasswordManagerServiceImplTest {
         c.setPasswordManager(pm);
         pm.getCredentials().add(c);
         when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId(id, 7L)).thenReturn(Optional.of(c));
+        when(credentialsRepo.findById(id)).thenReturn(Optional.of(c));
         return c;
     }
 
@@ -571,6 +573,54 @@ class PasswordManagerServiceImplTest {
         assertThat(summary.build().counters()).containsEntry("entriesRemoved", 2L);
     }
 
+    @Test
+    void oneEntryThatCannotBeRemovedDoesNotStopTheRestOfThePurgeAndIsCounted() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity first = addTo(pm, "c1", "Netflix", "a@x.com", NOW.minus(Duration.ofDays(31)));
+        CredentialEntity broken = addTo(pm, "c2", "Netflix Kids", "b@x.com", NOW.minus(Duration.ofDays(32)));
+        CredentialEntity last = addTo(pm, "c3", "Netflix Old", "c@x.com", NOW.minus(Duration.ofDays(33)));
+        when(credentialsRepo.findAllByDeletedAtBefore(any(Instant.class))).thenReturn(List.of(first, broken, last));
+        doThrow(new IllegalStateException("db is unhappy")).when(credentialsRepo).delete(broken);
+        var summary = JobRunSummary.builder();
+
+        new TrashPurgeJob(service, CLOCK).purgeExpired(summary);   // must not throw
+
+        verify(credentialsRepo).delete(first);
+        verify(credentialsRepo).delete(last);
+        var run = summary.build();
+        assertThat(run.counters()).containsEntry("entriesRemoved", 2L).containsEntry("entriesFailed", 1L);
+        assertThat(run.note()).contains("1 failed");
+    }
+
+    @Test
+    void aCleanPurgeReportsZeroFailures() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity gone = addTo(pm, "c1", "Netflix", "a@x.com", NOW.minus(Duration.ofDays(31)));
+        when(credentialsRepo.findAllByDeletedAtBefore(any(Instant.class))).thenReturn(List.of(gone));
+        var summary = JobRunSummary.builder();
+
+        new TrashPurgeJob(service, CLOCK).purgeExpired(summary);
+
+        assertThat(summary.build().counters()).containsEntry("entriesRemoved", 1L).containsEntry("entriesFailed", 0L);
+        assertThat(summary.build().note()).doesNotContain("failed");
+    }
+
+    @Test
+    void anEntryRestoredAfterTheListWasTakenIsNotRemoved() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity restored = addTo(pm, "c1", "Netflix", "a@x.com", NOW.minus(Duration.ofDays(31)));
+        CredentialEntity recent = addTo(pm, "c2", "Netflix Kids", "b@x.com", NOW.minus(Duration.ofDays(2)));
+        Instant cutoff = NOW.minus(Duration.ofDays(30));
+        restored.setDeletedAt(null);   // the user restored it between the list and its removal
+
+        assertThat(service.purgeTrashedEntry("c1", cutoff)).isFalse();
+        assertThat(service.purgeTrashedEntry("c2", cutoff)).isFalse();   // not past the cutoff
+        assertThat(service.purgeTrashedEntry("no-such-id", cutoff)).isFalse();
+
+        verify(credentialsRepo, never()).delete(any(CredentialEntity.class));
+        verify(historyRepo, never()).deleteByCredentialId(any());
+    }
+
     // ── password history ─────────────────────────────────────────────────────────
 
     /** A service whose clock moves one minute per reading, so history rows have distinct times. */
@@ -730,6 +780,51 @@ class PasswordManagerServiceImplTest {
         ticking.restorePassword("c1", ticking.getHistory("c1").get(0).id());
         assertThat(c.getPassword()).isEqualTo("pw2");
         assertThat(ticking.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("pw0", "pw1");
+    }
+
+    private CredentialHistoryEntity historyRow(CredentialEntity c, String id, String password, int minutesAgo) {
+        CredentialHistoryEntity row = new CredentialHistoryEntity(c, password, NOW.minus(Duration.ofMinutes(minutesAgo)));
+        row.setId(id);
+        historyRows.add(row);
+        return row;
+    }
+
+    @Test
+    void restoringTheRowThatEqualsTheCurrentPasswordChangesNothingAndKeepsFiveRows() {
+        PasswordManagerServiceImpl ticking = serviceWithTickingClock();
+        CredentialEntity c = entryWithPassword("c1", "same");
+        historyRow(c, "h1", "pw1", 50);
+        historyRow(c, "h2", "same", 40);   // an earlier password that is the current one again
+        historyRow(c, "h3", "pw3", 30);
+        historyRow(c, "h4", "pw4", 20);
+        historyRow(c, "h5", "pw5", 10);
+
+        ticking.restorePassword("c1", "h2");
+
+        assertThat(c.getPassword()).isEqualTo("same");
+        // The used-up row is replaced by the (identical) password it displaced: five rows, same passwords.
+        assertThat(historyRows).hasSize(5);
+        assertThat(historyRows).extracting(CredentialHistoryEntity::getPassword)
+                .containsExactlyInAnyOrder("pw1", "same", "pw3", "pw4", "pw5");
+        assertThat(ticking.getHistory("c1")).hasSize(5).extracting(PasswordHistoryDto::password).first().isEqualTo("same");
+    }
+
+    @Test
+    void restoringWhileTheCurrentPasswordIsBlankRecordsNothingForTheBlank() {
+        for (String blank : new String[]{null, "", "  "}) {
+            historyRows.clear();
+            CredentialEntity c = entryWithPassword("c1", blank);
+            historyRow(c, "h1", "older", 20);
+            historyRow(c, "h2", "newer", 10);
+
+            service.restorePassword("c1", "h1");
+
+            assertThat(c.getPassword()).as("current password was [%s]", blank).isEqualTo("older");
+            // The restored row is used up and no row is made for the blank it replaced.
+            assertThat(historyRows).extracting(CredentialHistoryEntity::getPassword).containsExactly("newer");
+            assertThat(service.getHistory("c1")).extracting(PasswordHistoryDto::password).containsExactly("newer");
+        }
+        verify(historyRepo, never()).save(any(CredentialHistoryEntity.class));
     }
 
     @Test
@@ -1039,7 +1134,7 @@ class PasswordManagerServiceImplTest {
         addTo(pm, "c2", "Netflix Kids", "kids@x.com", NOW.minus(Duration.ofDays(40)));
         when(credentialsRepo.findAllByDeletedAtBefore(any(Instant.class))).thenReturn(List.copyOf(pm.getCredentials()));
 
-        service.purgeTrashedBefore(NOW.minus(Duration.ofDays(30)));
+        new TrashPurgeJob(service, CLOCK).purgeExpired(JobRunSummary.builder());
 
         verify(historyRepo).deleteByCredentialId("c1");
         verify(historyRepo).deleteByCredentialId("c2");

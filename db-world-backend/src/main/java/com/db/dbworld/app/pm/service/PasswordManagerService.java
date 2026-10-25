@@ -38,11 +38,22 @@ public interface PasswordManagerService {
     void purge(String credentialId);
 
     /**
-     * Removes, for every user, the entries trashed before the cutoff (the daily purge job).
-     *
-     * @return how many entries were removed
+     * The ids of every user's entries trashed before the cutoff: what the daily purge job removes,
+     * one {@link #purgeTrashedEntry} call each.
      */
-    int purgeTrashedBefore(Instant cutoff);
+    List<String> findTrashedBefore(Instant cutoff);
+
+    /**
+     * Removes one entry that has been in Trash since before the cutoff, for good, in a transaction
+     * of its own: a failure here rolls back this entry only, never the rest of the daily purge. An
+     * entry that is gone, was restored in the meantime, or is not past the cutoff is left alone.
+     *
+     * <p>Not for callers inside this service: the new transaction only exists on a call that goes
+     * through the Spring proxy.
+     *
+     * @return true when the entry was removed
+     */
+    boolean purgeTrashedEntry(String credentialId, Instant cutoff);
 
     /**
      * The earlier passwords of a live entry, newest first, at most five.

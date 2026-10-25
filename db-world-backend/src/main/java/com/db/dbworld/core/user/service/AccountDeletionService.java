@@ -235,9 +235,15 @@ public class AccountDeletionService {
     // ==============================
 
     /**
-     * Runs one purge statement, tolerating a table that is absent or shaped differently so a
-     * drifted schema cannot abort the whole purge. Failures are logged at ERROR precisely
-     * because a silently skipped table means personal data left behind.
+     * Runs one purge statement and turns its failure into a logged ERROR and a count of 0, so the
+     * statements after it are still tried.
+     *
+     * <p>That does not make the purge tolerant of a missing or drifted table. This runs inside
+     * {@link #purge}'s single transaction, and the JPA provider marks that transaction
+     * rollback-only when a native statement fails: the swallowed exception does not undo that. The
+     * remaining statements run, but at commit the whole purge is rolled back (the caller gets an
+     * exception), so nothing is erased and the account stays pending deletion until the statement is
+     * fixed. The ERROR log is what tells an operator why.
      */
     private int executeUpdate(final String sql, final long userId) {
         try {
