@@ -21,4 +21,12 @@ public interface PasswordManagerRepository extends JpaRepository<PasswordManager
     @Query("select count(distinct p) from PasswordManagerEntity p join p.credentials c "
             + "where p.userEntity.userId = :userId and c.deletedAt is null")
     long countByUserEntityUserId(@Param("userId") Long userId);
+
+    /**
+     * The sites of the user's live entries. HOST is one table shared by every user, so the names
+     * come through the user's own groups, never from HOST directly.
+     */
+    @Query("select distinct h.name from PasswordManagerEntity p join p.host h join p.credentials c "
+            + "where p.userEntity.userId = :userId and c.deletedAt is null order by h.name")
+    List<String> findLiveHostNamesByUserId(@Param("userId") Long userId);
 }

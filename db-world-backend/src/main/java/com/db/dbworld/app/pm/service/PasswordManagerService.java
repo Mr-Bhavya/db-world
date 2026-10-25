@@ -96,6 +96,7 @@ public interface PasswordManagerService {
      */
     void restorePassword(String credentialId, String historyId);
 
+    /** The sites the caller has live entries on, sorted. Never another user's. */
     List<String> getAllHosts();
 
 }

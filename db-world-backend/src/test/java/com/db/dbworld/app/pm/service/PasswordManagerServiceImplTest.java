@@ -165,6 +165,14 @@ class PasswordManagerServiceImplTest {
     }
 
     @Test
+    void theSiteListIsTheCallersOwnNeverTheSharedHostTable() {
+        when(pmRepo.findLiveHostNamesByUserId(7L)).thenReturn(List.of("netflix.com"));
+
+        assertThat(service.getAllHosts()).containsExactly("netflix.com");
+        verify(hostRepo, never()).findAll();
+    }
+
+    @Test
     void noWebsiteAndNoNameIsRejected() {
         assertThatThrownBy(() -> service.addCredential(null, dto("", "u", CredentialType.LOGIN)))
                 .isInstanceOf(DbWorldException.class).hasMessageContaining("Name");

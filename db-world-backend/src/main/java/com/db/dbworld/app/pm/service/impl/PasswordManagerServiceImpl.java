@@ -679,9 +679,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // ─────────────────────────────────────────────
     @Override
     public List<String> getAllHosts() {
-        return hostRepository.findAll()
-                .stream()
-                .map(HostEntity::getName)
-                .toList();
+        return passwordManagerRepository.findLiveHostNamesByUserId(userContext.userId());
     }
 }

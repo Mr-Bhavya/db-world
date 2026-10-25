@@ -159,6 +159,23 @@ class VaultTrashJpaTest {
     }
 
     @Test
+    void theSiteListHoldsOnlyTheCallersSitesWithALiveEntry() {
+        UserEntity me = user("me@x.com");
+        UserEntity other = user("other@x.com");
+        credential(group(me, "netflix.com"), "a", null);
+        credential(group(me, "netflix.com"), "b", null);   // a second group on the same site: listed once
+        credential(group(me, "amazon.in"), "c", null);
+        credential(group(me, "github.com"), "all-trashed", NOW);
+        credential(group(other, "netflix.com"), "theirs", null);  // a site both users share
+        credential(group(other, "secret-bank.com"), "theirs", null);
+        em.flush();
+        em.clear();
+
+        assertThat(groups.findLiveHostNamesByUserId(me.getUserId())).containsExactly("amazon.in", "netflix.com");
+        assertThat(groups.findLiveHostNamesByUserId(other.getUserId())).containsExactly("netflix.com", "secret-bank.com");
+    }
+
+    @Test
     void aGroupIsFoundByIdOnlyForItsOwner() {
         UserEntity me = user("me@x.com");
         UserEntity other = user("other@x.com");
