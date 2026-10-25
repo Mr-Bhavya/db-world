@@ -6,7 +6,7 @@ vi.mock('@features/auth/context/Authentication', () => ({ useAuth: () => ({ auth
 
 const { getCredential, getSnapshot, getSecret } = await import('@shared/services/ApiServices');
 const { cacheVault, readOfflineVault, offlineVaultSupported } = await import('./offline/vaultCache');
-const { fetchVault, getVaultOffline, vaultUserId, readSecret } = await import('./useVault');
+const { fetchVault, getVaultOffline, vaultUserId, readSecret, resetVaultOffline } = await import('./useVault');
 
 // What GET /api/pm/ returns now: summaries, no secrets.
 const VAULT = [{ id: 'pm1', host: 'netflix.com', credentials: [{ id: 'c1', hasPassword: true, strength: 4, reused: false }] }];
@@ -117,6 +117,58 @@ describe('readSecret', () => {
     getCredential.mockResolvedValue({ data: VAULT });
     await fetchVault(7);
 
+    getSecret.mockResolvedValue({ data: { value: 'from-server' } });
+    await expect(readSecret('c1', 'password')).resolves.toBe('from-server');
+  });
+});
+
+describe('resetVaultOffline (sign-out)', () => {
+  beforeEach(() => { vi.clearAllMocks(); offlineVaultSupported.mockReturnValue(false); });
+
+  it('drops the decrypted offline secrets and the offline state', async () => {
+    getCredential.mockRejectedValue(new Error('Network Error'));
+    readOfflineVault.mockResolvedValue({ status: 'ok', vault: SNAPSHOT, syncedAt: 123 });
+    await fetchVault(7);
+    await expect(readSecret('c1', 'password')).resolves.toBe('pw-1');
+
+    resetVaultOffline();
+
+    expect(getVaultOffline()).toBeNull();
+    getSecret.mockResolvedValue({ data: { value: 'from-server' } });
+    await expect(readSecret('c1', 'password')).resolves.toBe('from-server');   // not the offline copy
+    expect(getSecret).toHaveBeenCalledWith('c1', 'password');
+  });
+
+  it('a snapshot still in flight at sign-out does not write the offline copy back', async () => {
+    offlineVaultSupported.mockReturnValue(true);
+    getCredential.mockResolvedValue({ data: VAULT });
+    let arrive;
+    getSnapshot.mockReturnValue(new Promise((r) => { arrive = r; }));
+    await fetchVault(7);
+
+    resetVaultOffline();   // signed out (clearAllOfflineVault wipes the copy)
+    arrive({ data: SNAPSHOT });
+    await flush();
+    expect(cacheVault).not.toHaveBeenCalled();
+
+    // The next session's load caches as usual.
+    getSnapshot.mockResolvedValue({ data: SNAPSHOT });
+    await fetchVault(8);
+    await flush();
+    expect(cacheVault).toHaveBeenCalledWith(8, SNAPSHOT);
+  });
+
+  it('an offline unlock still in flight at sign-out keeps nothing in memory', async () => {
+    getCredential.mockRejectedValue(new Error('Network Error'));
+    let unlocked;
+    readOfflineVault.mockReturnValue(new Promise((r) => { unlocked = r; }));
+    const loading = fetchVault(7);
+    await flush();
+
+    resetVaultOffline();
+    unlocked({ status: 'ok', vault: SNAPSHOT, syncedAt: 123 });
+    await expect(loading).rejects.toThrow('Network Error');
+    expect(getVaultOffline()).toBeNull();
     getSecret.mockResolvedValue({ data: { value: 'from-server' } });
     await expect(readSecret('c1', 'password')).resolves.toBe('from-server');
   });

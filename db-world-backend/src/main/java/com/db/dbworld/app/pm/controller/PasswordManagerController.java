@@ -5,7 +5,6 @@ import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CredentialSummaryDto;
 import com.db.dbworld.app.pm.dto.HostDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
-import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.dto.SecretField;
 import com.db.dbworld.app.pm.mapper.CredentialMapper;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
@@ -128,14 +127,15 @@ public class PasswordManagerController {
 
     @PutMapping("/{pmId}")
     @AnyRole
-    public ApiResponse<PasswordManagerDto> updateCredentialByPmId(
+    // No body: the entry's secrets leave the server only through /secret and /snapshot.
+    public ApiResponse<Void> updateCredentialByPmId(
             @Valid @NotEmpty @PathVariable String pmId,
             @RequestBody @Valid RequestPayloads.UpdateCredential updateCredential) {
         CredentialDto credential = credentialMapper.fromUpdateCredential(updateCredential);
         credential.setUrl(updateCredential.getUrl() == null ? null
                 : Objects.requireNonNullElse(SiteUrl.stored(updateCredential.getUrl()), ""));
-        return ApiResponse.success("Credential is updated.",
-                passwordManagerService.updateCredential(pmId, credential));
+        passwordManagerService.updateCredential(pmId, credential);
+        return ApiResponse.success("Credential is updated.");
     }
 
     // Both deletes move to Trash; the entries are removed for good 30 days later (TrashPurgeJob).

@@ -6,6 +6,14 @@ import { readSecret } from './useVault';
 export const SECRET_HOLD_MS = 30 * 1000;
 
 /**
+ * Copies a secret: the value held, or else the one reveal() fetches. Called straight from the tap
+ * with nothing awaited first, and handed the fetch as a promise, so Safari still counts the clipboard
+ * write as part of the tap (see CommonServices.handleCopy). The clipboard is emptied 30 s later.
+ */
+export const copySecret = (held, reveal) =>
+  CommonServices.handleCopy(held != null ? String(held) : reveal().then(String), { sensitive: true });
+
+/**
  * One secret of a vault entry, fetched only when asked for: the list never carries it.
  * field: 'password' | 'pin' | 'notes' | 'custom:<fieldId>' | 'history:<historyId>'.
  *
@@ -36,10 +44,9 @@ export default function useSecret(credentialId, field) {
   }, [credentialId, field, value]);
 
   const copy = useCallback(async () => {
-    const v = await reveal();
-    const res = await CommonServices.handleCopy(String(v), { sensitive: true });
+    const res = await copySecret(value, reveal);
     if (!res?.success) throw new Error(res?.message || 'Copy failed');
-  }, [reveal]);
+  }, [reveal, value]);
 
   return { value, reveal, copy, hide };
 }

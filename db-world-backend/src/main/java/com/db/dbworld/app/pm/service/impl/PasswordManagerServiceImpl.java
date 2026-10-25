@@ -447,26 +447,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     }
 
     // ─────────────────────────────────────────────
-    // GET CREDENTIAL
-    // ─────────────────────────────────────────────
-    @Override
-    @Transactional
-    public CredentialDto getCredentialById(String credentialId) {
-        // INFO, not DEBUG: decrypting a credential is an audit-worthy event.
-        // We log the id only — never the decrypted password.
-        log.info("Credential read: credentialId={}, userId={}", credentialId, userContext.userId());
-
-        CredentialEntity entity = credentialsRepository
-                .findByIdAndPasswordManagerUserEntityUserId(credentialId, userContext.userId())
-                .filter(c -> c.getDeletedAt() == null)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Credentials", "credentialId", credentialId
-                ));
-
-        return mapper.toDto(entity);
-    }
-
-    // ─────────────────────────────────────────────
     // TRASH
     // ─────────────────────────────────────────────
 
@@ -607,7 +587,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // UPDATE CREDENTIAL
     // ─────────────────────────────────────────────
     @Override
-    public PasswordManagerDto updateCredential(String pmId, CredentialDto credentialDto) {
+    public void updateCredential(String pmId, CredentialDto credentialDto) {
         log.debug("updateCredential: pmId={}, credentialId={}", pmId, credentialDto.getId());
         validateSizes(credentialDto);   // before anything is read or changed: a rejected request touches nothing
 
@@ -692,12 +672,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         credentialsRepository.save(credential);
         log.info("Credential updated: pmId={}, credentialId={}, userId={}",
                 pm.getId(), credential.getId(), userContext.userId());
-
-        return new PasswordManagerDto(
-                pm.getId(),
-                mapper.toDto(pm.getHost()),
-                List.of(mapper.toDto(credential))
-        );
     }
 
     // ─────────────────────────────────────────────

@@ -76,20 +76,24 @@ class CommonServices {
 
   /**
    * Enhanced copy to clipboard with multiple fallback methods
-   * @param {string} text - Text to copy
+   * @param {string|Promise<string>} text - Text to copy, or a promise of it (a secret still being
+   *   fetched: see _copyPending)
    * @param {Object} options - Copy options. sensitive: a secret; clearAfterMs later the clipboard is
-   *   emptied if it still holds this text (or unconditionally where it cannot be read).
+   *   emptied if it still holds this text (or unconditionally where it cannot be read), and it is
+   *   never handed to the share sheet.
    * @returns {Object} Result object
    */
   static handleCopy = async (text, options = {}) => {
+    if (typeof text?.then === "function") return this._copyPending(text, options);
     const {
       enableFallback = true,
-      enableShare = true,
       showToast = false,
       toastCallback = null,
       sensitive = false,
       clearAfterMs = 30000
     } = options;
+    // A secret never goes to the share sheet: whichever app is picked there would keep it.
+    const enableShare = !sensitive && (options.enableShare ?? true);
 
     // Validate input
     if (!text || typeof text !== "string") {
@@ -145,8 +149,59 @@ class CommonServices {
     }
   }
 
-  /** The pending clear of the last sensitive copy, if any. */
-  static _clipboardClearTimer = null;
+  /**
+   * Copies a value that is still on its way (a secret being fetched). Safari lets a page write to the
+   * clipboard only inside the tap itself, and an awaited request ends that, so where ClipboardItem
+   * exists the write starts at once with the value as a promise. Elsewhere, or if that write is
+   * refused, the value is awaited and copied the ordinary way. A value that cannot be fetched is a
+   * failed copy and schedules no clear.
+   * @private
+   */
+  static _copyPending = async (pending, options) => {
+    const { showToast = false, toastCallback = null, sensitive = false, clearAfterMs = 30000 } = options;
+    const valid = pending.then((t) => {
+      if (!t || typeof t !== "string") throw new Error("Invalid text provided for copy");
+      return t;
+    });
+    if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+      try {
+        // Nothing is awaited before this call: it has to run inside the user's tap.
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/plain": valid.then((t) => new Blob([t], { type: "text/plain" })),
+        })]);
+        const text = await valid;   // already settled: the write needed it
+        this._afterClipboardWrite(text, sensitive, clearAfterMs);
+        this._handleCopyFeedback(true, "Copied to clipboard", showToast, toastCallback);
+        return { success: true, message: "Copied to clipboard", method: "clipboard-item" };
+      } catch {
+        // The value never came (reported below) or this write was refused: try the ordinary way.
+      }
+    }
+    let text;
+    try {
+      text = await valid;
+    } catch (error) {
+      const errorMsg = `Copy failed: ${error.message}`;
+      this._handleCopyFeedback(false, errorMsg, showToast, toastCallback);
+      return { success: false, message: errorMsg, method: "error" };
+    }
+    return this.handleCopy(text, options);
+  }
+
+  /**
+   * The pending clear of the last sensitive copy, if any: { text, timer, detach }. detach, while set,
+   * removes the listeners waiting for the page to come back.
+   */
+  static _pendingClear = null;
+
+  /** Drops the pending clear, its timer and its listeners. @private */
+  static _cancelPendingClear = () => {
+    const pending = this._pendingClear;
+    this._pendingClear = null;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pending.detach?.();
+  }
 
   /**
    * After anything is put on the clipboard: whatever secret was there is overwritten, so its pending
@@ -155,20 +210,65 @@ class CommonServices {
    * @private
    */
   static _afterClipboardWrite = (text, sensitive, clearAfterMs) => {
-    clearTimeout(this._clipboardClearTimer);
-    this._clipboardClearTimer = null;
+    this._cancelPendingClear();
     if (!sensitive) return;
-    this._clipboardClearTimer = setTimeout(async () => {
-      this._clipboardClearTimer = null;
-      if (await this._clipboardReadGranted()) {
-        try {
-          if ((await navigator.clipboard.readText()) !== text) return; // the user has copied something else
-        } catch {
-          // Refused after all: clear regardless.
+    const pending = { text, timer: null, detach: null };
+    this._pendingClear = pending;
+    pending.timer = setTimeout(() => this._runClear(pending, true), clearAfterMs);
+  }
+
+  /**
+   * Empties the clipboard for a pending clear, unless it can be read and holds something else now.
+   * A browser refuses the write while the page is hidden or unfocused (the user went to paste the
+   * secret elsewhere), so then, and when the time runs out while hidden, it tries once more when the
+   * page is back (mayRetry false on that try).
+   * @private
+   */
+  static _runClear = async (pending, mayRetry) => {
+    const current = () => this._pendingClear === pending;   // a newer copy replaces this clear
+    if (!current()) return;
+    if (mayRetry && typeof document !== "undefined" && document.hidden) {
+      this._clearOnReturn(pending);
+      return;
+    }
+    if (await this._clipboardReadGranted()) {
+      try {
+        if ((await navigator.clipboard.readText()) !== pending.text) { // the user has copied something else
+          if (current()) this._pendingClear = null;
+          return;
         }
+      } catch {
+        // Refused after all (an unfocused page, say): clear regardless.
       }
-      await this._emptyClipboard();
-    }, clearAfterMs);
+    }
+    if (!current()) return;
+    const cleared = await this._emptyClipboard();
+    if (!current()) return;
+    if (cleared || !mayRetry) this._pendingClear = null;
+    else this._clearOnReturn(pending);
+  }
+
+  /**
+   * Waits for the page to be visible or focused again, then makes the pending clear's last try.
+   * @private
+   */
+  static _clearOnReturn = (pending) => {
+    if (typeof document === "undefined" || typeof window === "undefined") {
+      this._pendingClear = null;   // nothing to wait for
+      return;
+    }
+    const onReturn = () => {
+      if (document.visibilityState === "hidden") return;   // the change was to hidden
+      pending.detach?.();
+      this._runClear(pending, false);
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    pending.detach = () => {
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
+      pending.detach = null;
+    };
   }
 
   /**
@@ -188,20 +288,20 @@ class CommonServices {
 
   /**
    * Best-effort: write '' to the clipboard, through the Clipboard API or, where that is missing, a copy
-   * event. Never throws and never reports.
+   * event. Never throws; resolves to whether the write went through.
    * @private
    */
   static _emptyClipboard = async () => {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText("");
-        return;
+        return true;
       }
       const onCopy = (e) => { e.clipboardData.setData("text/plain", ""); e.preventDefault(); };
       document.addEventListener("copy", onCopy);
-      try { document.execCommand("copy"); } finally { document.removeEventListener("copy", onCopy); }
+      try { return document.execCommand("copy"); } finally { document.removeEventListener("copy", onCopy); }
     } catch {
-      // Not permitted: nothing more to do.
+      return false;   // not permitted (a hidden or unfocused page)
     }
   }
 

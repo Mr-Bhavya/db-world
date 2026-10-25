@@ -233,22 +233,22 @@ class PasswordManagerServiceImplTest {
     @Test
     void givingASiteMovesAnEntryOutOfItsSiteLessGroupAndDropsTheEmptyGroup() {
         PasswordManagerEntity old = stored("c1", null, "db-world SSH", "dbworld_admin");
+        CredentialEntity c = old.getCredentials().get(0);
 
-        PasswordManagerDtoHolder r = new PasswordManagerDtoHolder(
-                service.updateCredential("pm-c1", edit("c1", "db-world SSH", "dbworld_admin", "https://ssh.db-world.in")));
+        service.updateCredential("pm-c1", edit("c1", "db-world SSH", "dbworld_admin", "https://ssh.db-world.in"));
 
-        assertThat(r.dto.getHost().getName()).isEqualTo("ssh.db-world.in");
+        assertThat(c.getPasswordManager().getHost().getName()).isEqualTo("ssh.db-world.in");
         assertThat(old.getCredentials()).isEmpty();
         verify(pmRepo).delete(old);
     }
 
     @Test
     void blankUrlRemovesTheSite() {
-        stored("c1", "github.com", "GitHub", "me");
+        CredentialEntity c = stored("c1", "github.com", "GitHub", "me").getCredentials().get(0);
 
-        var r = service.updateCredential("pm-c1", edit("c1", "GitHub", "me", ""));
+        service.updateCredential("pm-c1", edit("c1", "GitHub", "me", ""));
 
-        assertThat(r.getHost()).isNull();
+        assertThat(c.getPasswordManager().getHost()).isNull();
     }
 
     @Test
@@ -263,8 +263,6 @@ class PasswordManagerServiceImplTest {
 
         service.updateCredential("pm-c1", edit("c1", "Netflix", "me@x.com", null)); // itself: fine
     }
-
-    private record PasswordManagerDtoHolder(com.db.dbworld.app.pm.dto.PasswordManagerDto dto) {}
 
     private static CustomFieldDto field(String key, String value, CustomFieldType type) {
         CustomFieldDto f = new CustomFieldDto();
@@ -467,7 +465,7 @@ class PasswordManagerServiceImplTest {
 
         assertThatThrownBy(() -> service.updateCredential("pm-c1", edit("c1", "Renamed", "me@x.com", null)))
                 .isInstanceOf(DbWorldException.class);
-        assertThatThrownBy(() -> service.getCredentialById("c1")).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.revealSecret("c1", SecretField.PASSWORD)).isInstanceOf(ResourceNotFoundException.class);
         assertThat(c.getName()).isEqualTo("Netflix");
     }
 

@@ -71,7 +71,7 @@ public final class PasswordStrength {
     private static boolean hasRunOfThree(String pw) {
         for (int i = 0; i + 2 < pw.length(); i++) {
             char c = pw.charAt(i);
-            if (c != '\n' && c != '\r' && c != ' ' && c != ' '
+            if (c != '\n' && c != '\r' && c != '\u2028' && c != '\u2029'
                     && pw.charAt(i + 1) == c && pw.charAt(i + 2) == c) {
                 return true;
             }

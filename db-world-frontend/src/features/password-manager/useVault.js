@@ -36,6 +36,20 @@ const setVaultOffline = (next) => {
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l); };
 export const getVaultOffline = () => offlineState;
 
+// Bumped on sign-out. Work started before it (a snapshot or an offline unlock still in flight) checks
+// it before it stores anything, so the previous user's vault is not written back after it was wiped.
+let sessionEpoch = 0;
+
+/**
+ * Sign-out: drops the decrypted offline secrets and the offline state from memory, and makes any
+ * snapshot still in flight skip writing the offline copy (which clearAllOfflineVault has just wiped).
+ */
+export function resetVaultOffline() {
+  sessionEpoch += 1;
+  offlineSecrets = null;
+  setVaultOffline(null);
+}
+
 /** What the offline copy is doing right now, for banners. */
 export const useVaultOffline = () => useSyncExternalStore(subscribe, getVaultOffline, getVaultOffline);
 
@@ -54,24 +68,27 @@ const secretsOf = (snapshot) => {
  * refreshed from GET /api/pm/snapshot. Fire-and-forget like before: a failure (a 429, no network
  * half-way) leaves the previous copy as it is and never holds up the list.
  */
-const refreshOfflineCopy = (userId) => {
+const refreshOfflineCopy = (userId, epoch) => {
   if (!offlineVaultSupported()) return;
   getSnapshot()
-    .then((res) => cacheVault(userId, res?.data ?? []))
+    // Signed out meanwhile: caching it would re-create the keypair and re-save the vault just wiped.
+    .then((res) => (epoch === sessionEpoch ? cacheVault(userId, res?.data ?? []) : undefined))
     .catch(() => { /* best-effort; the next fetch tries again */ });
 };
 
 export async function fetchVault(userId) {
+  const epoch = sessionEpoch;
   try {
     const data = (await getCredential()).data ?? [];
     setVaultOffline(null);
-    refreshOfflineCopy(userId);
+    refreshOfflineCopy(userId, epoch);
     return data;
   } catch (err) {
     // Server unreachable: open the offline copy (prompts biometric / device lock). It holds the full
     // entries (a copy from before the list lost its secrets has the same shape): the screens get the
     // list's summaries, and the secrets stay here for readSecret.
     const res = await readOfflineVault(userId);
+    if (epoch !== sessionEpoch) throw err;   // signed out while it was unlocking: keep nothing
     if (res.status === 'ok') {
       setVaultOffline({ syncedAt: res.syncedAt });
       offlineSecrets = secretsOf(res.vault);

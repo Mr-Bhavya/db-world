@@ -40,9 +40,8 @@ public interface PasswordManagerService {
     /** Moves every entry of the group to Trash (the group stays until they are purged). */
     void trashPasswordManager(String pmId);
 
-    PasswordManagerDto updateCredential(String pmId, CredentialDto credential);
-
-    CredentialDto getCredentialById(String credential);
+    /** Saves an edit. Returns nothing: the response must not carry the entry's secrets. */
+    void updateCredential(String pmId, CredentialDto credential);
 
     /** Moves one entry to Trash, where it waits 30 days before it is removed for good. */
     void trashCredential(String credentialId);

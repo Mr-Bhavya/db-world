@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.PathContainer;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -53,6 +54,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -193,6 +195,28 @@ class PasswordManagerControllerTest {
             assertThat(SECRETS).allSatisfy(secret -> assertThat(body).doesNotContain(secret));
             assertThat(body).doesNotContain("\"password\"").doesNotContain("\"pin\"").doesNotContain("\"notes\"");
         }
+    }
+
+    @Test
+    void anEditAnswersWithoutAnyOfTheEntrysSecrets() throws Exception {
+        PasswordManagerEntity netflix = GROUPS.findAllByUserEntityUserId(7L).getFirst();
+        when(GROUPS.findByIdAndUserEntityUserIdAndCredentialsId("pm1", 7L, "c1")).thenReturn(Optional.of(netflix));
+
+        // Password, PIN and notes left out ("keep what is stored"); the hidden fields sent back as the edit dialog does.
+        String body = mvc.perform(put("/api/pm/pm1").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"id": "c1", "name": "Netflix UK", "username": "me@x.com",
+                         "customFields": [
+                           {"id": "f1", "fieldKey": "Recovery", "fieldValue": "hidden-recovery-code", "fieldType": "HIDDEN"},
+                           {"id": "f2", "fieldKey": "Key", "fieldValue": "multi-line-private-key", "fieldType": "MULTILINE"}]}
+                        """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(netflix.getCredentials().getFirst().getName()).isEqualTo("Netflix UK");   // the edit was saved
+        assertThat(netflix.getCredentials().getFirst().getPassword()).isEqualTo("pw-Netflix-9f3e");   // and kept the password
+        assertThat(SECRETS).allSatisfy(secret -> assertThat(body).doesNotContain(secret));
+        assertThat(body).doesNotContain("\"password\"").doesNotContain("\"pin\"").doesNotContain("\"notes\"")
+                .doesNotContain("\"fieldValue\"");
     }
 
     @Test
