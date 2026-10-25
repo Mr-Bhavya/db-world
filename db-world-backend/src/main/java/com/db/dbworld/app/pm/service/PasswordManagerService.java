@@ -1,6 +1,7 @@
 package com.db.dbworld.app.pm.service;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.EntrySecretsDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.dto.SecretField;
@@ -36,6 +37,16 @@ public interface PasswordManagerService {
      * @throws com.db.dbworld.core.exception.DbWorldException 429 over the limit
      */
     String revealSecret(String credentialId, SecretField field);
+
+    /**
+     * Every secret of the caller's own live entry, for the edit form. One read against the same
+     * per-user limit as {@link #revealSecret}, and logged the same way (ids only).
+     *
+     * @throws com.db.dbworld.core.exception.ResourceNotFoundException another user's entry, an
+     *         unknown id, or an entry in Trash
+     * @throws com.db.dbworld.core.exception.DbWorldException 429 over the limit
+     */
+    EntrySecretsDto revealAll(String credentialId);
 
     /** Moves every entry of the group to Trash (the group stays until they are purged). */
     void trashPasswordManager(String pmId);

@@ -57,6 +57,7 @@ const FieldValue = memo(({ field, onCopy, onCopied, copyKey, copied = false, cre
   }, [multiline, expanded, value]);
 
   if (!locked && !value.trim()) return null;
+  if (locked && field.hasValue === false) return null;   // an empty hidden field: nothing to reveal
 
   const toggleVisible = async () => {
     if (shown) { setVisible(false); if (locked) secret.hide(); return; }

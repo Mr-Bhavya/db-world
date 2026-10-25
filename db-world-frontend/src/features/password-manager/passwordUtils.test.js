@@ -94,13 +94,22 @@ describe('summarizeVault', () => {
       hasPassword: true, hasPin: true, hasNotes: true, strength: 4, reused: true, breached: false,
     });
     expect(c1.customFields).toEqual([
-      { id: 'f1', fieldKey: 'Recovery', fieldType: 'HIDDEN', fieldValue: null },
-      { id: 'f2', fieldKey: 'Account', fieldType: 'TEXT', fieldValue: '12-34' },
-      { id: 'f3', fieldKey: 'Console', fieldType: 'URL', fieldValue: 'https://x.io' },
-      { id: 'f4', fieldKey: 'Key', fieldType: 'MULTILINE', fieldValue: null },
-      { id: 'f5', fieldKey: 'Old', fieldType: 'HIDDEN', fieldValue: null },
+      { id: 'f1', fieldKey: 'Recovery', fieldType: 'HIDDEN', fieldValue: null, hasValue: true },
+      { id: 'f2', fieldKey: 'Account', fieldType: 'TEXT', fieldValue: '12-34', hasValue: true },
+      { id: 'f3', fieldKey: 'Console', fieldType: 'URL', fieldValue: 'https://x.io', hasValue: true },
+      { id: 'f4', fieldKey: 'Key', fieldType: 'MULTILINE', fieldValue: null, hasValue: true },
+      { id: 'f5', fieldKey: 'Old', fieldType: 'HIDDEN', fieldValue: null, hasValue: true },
     ]);
     expect(c2).toMatchObject({ hasPassword: true, hasPin: false, hasNotes: false, strength: 4, reused: true });
     expect(out[1].credentials[0]).toMatchObject({ hasPassword: false, strength: 0, reused: false });
+  });
+
+  it('says when a hidden field has nothing in it, so it is not shown as a masked row', () => {
+    const out = summarizeVault([{ id: 'pm1', host: 'x', credentials: [{ id: 'c1', customFields: [
+      { id: 'f1', fieldKey: 'Empty', fieldValue: '', fieldType: 'HIDDEN' },
+      { id: 'f2', fieldKey: 'Blank', fieldValue: '  ', fieldType: 'MULTILINE' },
+      { id: 'f3', fieldKey: 'Missing', fieldType: 'HIDDEN' },
+    ] }] }]);
+    expect(out[0].credentials[0].customFields.map((f) => f.hasValue)).toEqual([false, false, false]);
   });
 });

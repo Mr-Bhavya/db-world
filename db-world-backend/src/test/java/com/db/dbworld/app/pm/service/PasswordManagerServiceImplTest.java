@@ -1222,6 +1222,7 @@ class PasswordManagerServiceImplTest {
                 .containsExactly(null, null, "12-34", "https://console.x.io", null);
         assertThat(s.customFields()).extracting(CredentialSummaryDto.FieldSummary::fieldType).containsExactly(
                 CustomFieldType.HIDDEN, CustomFieldType.MULTILINE, CustomFieldType.TEXT, CustomFieldType.URL, CustomFieldType.HIDDEN);
+        assertThat(s.customFields()).allSatisfy(f -> assertThat(f.hasValue()).isTrue());
         assertThat(s.customFields()).extracting(CredentialSummaryDto.FieldSummary::id).containsExactly("f1", "f2", "f3", "f4", "f5");
         CredentialSummaryDto b = creds.get(1);
         assertThat(b.hasPassword()).isFalse();
@@ -1242,6 +1243,49 @@ class PasswordManagerServiceImplTest {
         assertThat(service.revealSecret("c1", SecretField.NOTES)).isEqualTo("the notes");
         assertThat(service.revealSecret("c1", new SecretField.Custom("f1"))).isEqualTo("hidden-value");
         assertThat(service.revealSecret("c1", new SecretField.History("h1"))).isEqualTo("older-password");
+    }
+
+    @Test
+    void anEmptyHiddenFieldSaysItHasNothingToReveal() {
+        PasswordManagerEntity pm = group("pm1", "netflix.com");
+        CredentialEntity c = addTo(pm, "c1", "Netflix", "me@x.com", null);
+        field(c, "f1", "Recovery", "", CustomFieldType.HIDDEN);
+        field(c, "f2", "Spare", null, CustomFieldType.MULTILINE);
+        field(c, "f3", "Key", "k", CustomFieldType.HIDDEN);
+        when(pmRepo.findAllByUserEntityUserId(7L)).thenReturn(List.of(pm));
+
+        var fields = service.getPasswordManagerByUser().get(0).credentials().get(0).customFields();
+
+        assertThat(fields).extracting(CredentialSummaryDto.FieldSummary::hasValue).containsExactly(false, false, true);
+    }
+
+    @Test
+    void revealAllReturnsEverySecretOfTheEntryInOneRead() {
+        CredentialEntity c = entryWithPassword("c1", "the-password");
+        c.setPin("4321");
+        c.setNotes("the notes");
+        field(c, "f1", "Recovery", "hidden-value", CustomFieldType.HIDDEN);
+        field(c, "f2", "Account no", "12-34", CustomFieldType.TEXT);
+        field(c, "f3", "Empty", null, CustomFieldType.HIDDEN);
+
+        var all = service.revealAll("c1");
+
+        assertThat(all.password()).isEqualTo("the-password");
+        assertThat(all.pin()).isEqualTo("4321");
+        assertThat(all.notes()).isEqualTo("the notes");
+        assertThat(all.customFields()).hasSize(3)
+                .containsEntry("f1", "hidden-value")
+                .containsEntry("f2", "12-34")
+                .containsEntry("f3", null);   // a field with no value is still the entry's
+    }
+
+    @Test
+    void revealAllOfAnotherUsersOrATrashedEntryIs404() {
+        when(credentialsRepo.findByIdAndPasswordManagerUserEntityUserId("theirs", 7L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.revealAll("theirs")).isInstanceOf(ResourceNotFoundException.class);
+
+        entryWithPassword("c1", "mine").setDeletedAt(NOW);
+        assertThatThrownBy(() -> service.revealAll("c1")).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -1296,8 +1340,9 @@ class PasswordManagerServiceImplTest {
                 userService, userContext, mapper, clock, new SecretReadRateLimiter(clock));
         entryWithPassword("c1", "pw");
 
-        for (int i = 0; i < 59; i++) limited.revealSecret("c1", SecretField.PASSWORD);
-        limited.getSnapshot();   // the 60th read
+        for (int i = 0; i < 58; i++) limited.revealSecret("c1", SecretField.PASSWORD);
+        limited.revealAll("c1");   // the whole entry is one read
+        limited.getSnapshot();     // the 60th read
         assertThatThrownBy(() -> limited.revealSecret("c1", SecretField.PASSWORD))
                 .isInstanceOfSatisfying(DbWorldException.class,
                         e -> assertThat(e.getHttpStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));

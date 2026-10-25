@@ -2,6 +2,7 @@ package com.db.dbworld.app.pm.service.impl;
 
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
+import com.db.dbworld.app.pm.dto.EntrySecretsDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.dto.SecretField;
@@ -40,6 +41,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -423,6 +425,21 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         // INFO: reading a secret is an audit-worthy event. Never the value.
         log.info("Credential secret read: credentialId={}, field={}, userId={}", credentialId, field.spec(), userId);
         return value;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EntrySecretsDto revealAll(String credentialId) {
+        Long userId = userContext.userId();
+        secretReadLimiter.acquire(userId);
+        CredentialEntity credential = ownLiveCredential(credentialId);
+        // A LinkedHashMap, not Collectors.toMap: a field may hold no value (null), which toMap refuses.
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (credential.getCustomFields() != null) {
+            credential.getCustomFields().forEach(f -> fields.put(f.getId(), f.getFieldValue()));
+        }
+        log.info("Credential secret read: credentialId={}, field=all, userId={}", credentialId, userId);
+        return new EntrySecretsDto(credential.getPassword(), credential.getPin(), credential.getNotes(), fields);
     }
 
     // ─────────────────────────────────────────────

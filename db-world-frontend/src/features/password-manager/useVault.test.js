@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@shared/services/ApiServices', () => ({ getCredential: vi.fn(), getSnapshot: vi.fn(), getSecret: vi.fn() }));
+vi.mock('@shared/services/ApiServices', () => ({ getCredential: vi.fn(), getSnapshot: vi.fn(), getSecret: vi.fn(), getEntrySecrets: vi.fn() }));
 vi.mock('./offline/vaultCache', () => ({ cacheVault: vi.fn(), readOfflineVault: vi.fn(), offlineVaultSupported: vi.fn() }));
 vi.mock('@features/auth/context/Authentication', () => ({ useAuth: () => ({ auth: {} }) }));
 
-const { getCredential, getSnapshot, getSecret } = await import('@shared/services/ApiServices');
+const { getCredential, getSnapshot, getSecret, getEntrySecrets } = await import('@shared/services/ApiServices');
 const { cacheVault, readOfflineVault, offlineVaultSupported } = await import('./offline/vaultCache');
-const { fetchVault, getVaultOffline, vaultUserId, readSecret, resetVaultOffline } = await import('./useVault');
+const { fetchVault, getVaultOffline, vaultUserId, readSecret, readAllSecrets, resetVaultOffline } = await import('./useVault');
 
 // What GET /api/pm/ returns now: summaries, no secrets.
 const VAULT = [{ id: 'pm1', host: 'netflix.com', credentials: [{ id: 'c1', hasPassword: true, strength: 4, reused: false }] }];
@@ -119,6 +119,31 @@ describe('readSecret', () => {
 
     getSecret.mockResolvedValue({ data: { value: 'from-server' } });
     await expect(readSecret('c1', 'password')).resolves.toBe('from-server');
+  });
+});
+
+describe('readAllSecrets (the edit form)', () => {
+  beforeEach(() => { vi.clearAllMocks(); offlineVaultSupported.mockReturnValue(false); });
+
+  it('reads the whole entry from the server in one request while online', async () => {
+    getCredential.mockResolvedValue({ data: VAULT });
+    await fetchVault(7);
+    const all = { password: 'pw-1', pin: '1234', notes: 'n', customFields: { f1: 'code' } };
+    getEntrySecrets.mockResolvedValue({ data: all });
+
+    await expect(readAllSecrets('c1')).resolves.toEqual(all);
+    expect(getEntrySecrets).toHaveBeenCalledTimes(1);
+    expect(getSecret).not.toHaveBeenCalled();
+  });
+
+  it('reads it from the unlocked offline copy while offline', async () => {
+    getCredential.mockRejectedValue(new Error('Network Error'));
+    readOfflineVault.mockResolvedValue({ status: 'ok', vault: SNAPSHOT, syncedAt: 123 });
+    await fetchVault(7);
+
+    await expect(readAllSecrets('c1')).resolves.toEqual({ password: 'pw-1', pin: '1234', notes: 'n', customFields: { f1: 'code' } });
+    await expect(readAllSecrets('nope')).rejects.toThrow();
+    expect(getEntrySecrets).not.toHaveBeenCalled();
   });
 });
 

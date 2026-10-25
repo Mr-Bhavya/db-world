@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCredential, getSecret, getSnapshot } from '@shared/services/ApiServices';
+import { getCredential, getEntrySecrets, getSecret, getSnapshot } from '@shared/services/ApiServices';
 import { useAuth } from '@features/auth/context/Authentication';
 import { cacheVault, readOfflineVault, offlineVaultSupported } from './offline/vaultCache';
 import { summarizeVault } from './passwordUtils';
@@ -119,6 +119,19 @@ export async function readSecret(credentialId, field) {
     return value;
   }
   return (await getSecret(credentialId, field))?.data?.value ?? '';
+}
+
+/**
+ * Every secret of one entry ({ password, pin, notes, customFields: { [fieldId]: value } }), in one
+ * read: from the server, or from the unlocked offline copy while the vault is showing it.
+ */
+export async function readAllSecrets(credentialId) {
+  if (getVaultOffline()?.syncedAt && offlineSecrets) {
+    const entry = offlineSecrets.get(credentialId);
+    if (!entry) throw new Error('Not available offline');
+    return { password: entry.password, pin: entry.pin, notes: entry.notes, customFields: { ...entry.custom } };
+  }
+  return (await getEntrySecrets(credentialId))?.data ?? {};
 }
 
 export default function useVaultQuery() {

@@ -67,6 +67,7 @@ public interface PasswordManagerMapper {
 
     @Mapping(target = "fieldType", source = "fieldType", qualifiedByName = "hiddenWhenUntyped")
     @Mapping(target = "fieldValue", expression = "java(shownValue(entity))")
+    @Mapping(target = "hasValue", expression = "java(hasText(entity.getFieldValue()))")
     CredentialSummaryDto.FieldSummary toFieldSummary(CustomFieldEntity entity);
 
     // The helpers below are @Named so MapStruct never picks one on its own for some other

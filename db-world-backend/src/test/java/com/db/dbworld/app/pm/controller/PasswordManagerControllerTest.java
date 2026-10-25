@@ -246,6 +246,19 @@ class PasswordManagerControllerTest {
     }
 
     @Test
+    void theEditFormReadsEverySecretOfTheEntryAtOnceButOnlyTheOwners() throws Exception {
+        mvc.perform(get("/api/pm/credential/c1/secrets")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.password").value("pw-Netflix-9f3e"))
+                .andExpect(jsonPath("$.data.customFields.f1").value("hidden-recovery-code"))
+                .andExpect(jsonPath("$.data.customFields.f2").value("multi-line-private-key"));
+
+        String theirs = mvc.perform(get("/api/pm/credential/theirs/secrets")).andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(theirs).doesNotContain("\"password\"");
+        mvc.perform(get("/api/pm/credential/c2/secrets")).andExpect(status().isNotFound());   // in Trash
+    }
+
+    @Test
     void revealOfATrashedEntryIs404() throws Exception {
         mvc.perform(get("/api/pm/credential/c2/secret").param("field", "password"))
                 .andExpect(status().isNotFound());

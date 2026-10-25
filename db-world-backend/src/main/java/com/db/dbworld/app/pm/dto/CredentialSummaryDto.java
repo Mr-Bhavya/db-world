@@ -33,8 +33,10 @@ public record CredentialSummaryDto(
 
     /**
      * A custom field without its value, except for TEXT and URL fields, which are shown in the
-     * clear anyway.
+     * clear anyway. hasValue says whether there is one to reveal, so an empty hidden field is not
+     * shown as a masked row that has nothing behind it.
      */
-    public record FieldSummary(String id, String fieldKey, CustomFieldType fieldType, String fieldValue) {
+    public record FieldSummary(String id, String fieldKey, CustomFieldType fieldType, String fieldValue,
+                               boolean hasValue) {
     }
 }

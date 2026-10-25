@@ -652,6 +652,18 @@ export const getSecret = async (credentialId, field) => {
 };
 
 // Every live entry with its secrets, for the encrypted offline copy on the installed Android app only.
+// Every secret of one entry ({ password, pin, notes, customFields: { [fieldId]: value } }) in one
+// read: what the edit form opens with.
+export const getEntrySecrets = async (credentialId) => {
+  try {
+    const response = await axiosInstance.get(`/api/pm/credential/${credentialId}/secrets`);
+    return response.data;
+  } catch (error) {
+    console.error('Error reading the secrets of a vault entry:', error?.response?.status ?? error?.message);
+    throw error;
+  }
+};
+
 export const getSnapshot = async () => {
   try {
     const response = await axiosInstance.get('/api/pm/snapshot');

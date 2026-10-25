@@ -244,7 +244,11 @@ export const summarizeVault = (vault = []) => {
         breached: false,
         customFields: (c.customFields ?? []).map((f) => {
           const fieldType = f.fieldType ?? 'HIDDEN';
-          return { id: f.id, fieldKey: f.fieldKey, fieldType, fieldValue: SHOWN_FIELD_TYPES.has(fieldType) ? f.fieldValue : null };
+          return {
+            id: f.id, fieldKey: f.fieldKey, fieldType,
+            fieldValue: SHOWN_FIELD_TYPES.has(fieldType) ? f.fieldValue : null,
+            hasValue: hasText(f.fieldValue),
+          };
         }),
         deletedAt: c.deletedAt ?? null,
       };

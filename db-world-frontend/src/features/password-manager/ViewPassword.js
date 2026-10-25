@@ -39,8 +39,9 @@ import CommonServices from '@shared/services/CommonServices';
 
 import { analyzeVault, STRENGTH_LEVELS, generatePassword } from './passwordUtils';
 import { VaultAurora, GlassPanel, StrengthMeter, useScrollTop, goBackOr, ConfirmDialog, ResponsiveDialogActions, iconButtonSx } from './vaultShared';
-import useVaultQuery, { useVaultOffline, readSecret, VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
+import useVaultQuery, { useVaultOffline, readAllSecrets, VAULT_QUERY_KEY, TRASH_QUERY_KEY } from './useVault';
 import useSecret from './useSecret';
+import fetchEditSecrets from './editSecrets';
 
 // Compact "3 min ago" for the offline-snapshot banner.
 const relativeTime = (ts) => {
@@ -225,24 +226,6 @@ EditCustomFieldRow.displayName = 'EditCustomFieldRow';
 // Edit dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Every secret of the entry, for the edit form. All of them, not only the ones the form shows at
- * first: the update replaces the custom fields wholesale, so a hidden value left unfetched would be
- * saved blank.
- */
-const fetchEditSecrets = async (cred) => {
-  const read = (field) => readSecret(cred.id, field);
-  const [password, pin, notes, customFields] = await Promise.all([
-    cred.hasPassword ? read('password') : '',
-    cred.hasPin ? read('pin') : '',
-    cred.hasNotes ? read('notes') : '',
-    Promise.all((cred.customFields ?? []).map(async (f) => (
-      f.fieldValue == null && f.id ? { ...f, fieldValue: await read(`custom:${f.id}`) } : { ...f }
-    ))),
-  ]);
-  return { password, pin, notes, customFields };
-};
-
 const DIALOG_PAPER = (T, fullScreen) => ({ sx: { bgcolor: T.bg, border: fullScreen ? 'none' : `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3, backgroundImage: 'none' } });
 
 // Opens with a loader while the secrets come in. If they cannot be read, there is no form: a form
@@ -251,8 +234,8 @@ const EditDialog = ({ target, vault, onClose }) => {
   const T = useT();
   const { data: secrets, isError, refetch, isFetching } = useQuery({
     queryKey: ['pm-edit-secrets', target.cred.id],
-    queryFn: () => fetchEditSecrets(target.cred),
-    // Held only while the dialog is open, and fetched once: each read counts against the reveal limit.
+    queryFn: () => fetchEditSecrets(target.cred, readAllSecrets),
+    // Held only while the dialog is open, and fetched once: the read counts against the reveal limit.
     gcTime: 0,
     staleTime: Infinity,
     retry: false,
@@ -499,7 +482,8 @@ const CredentialCard = memo(({ cred, pmId, host, flag, T, readOnly, onEdit, onDe
 
   // A hidden value is not in the list (fieldValue is null), so the field shows whenever it has a label.
   const visibleCustomFields = useMemo(
-    () => (cred.customFields ?? []).filter((f) => hasValue(f.fieldKey) && (isSecretField(f) || hasValue(f.fieldValue))),
+    // A hidden field the list says is empty (hasValue false) has nothing to reveal: no masked row for it.
+    () => (cred.customFields ?? []).filter((f) => hasValue(f.fieldKey) && (isSecretField(f) ? f.hasValue !== false : hasValue(f.fieldValue))),
     [cred.customFields]
   );
 

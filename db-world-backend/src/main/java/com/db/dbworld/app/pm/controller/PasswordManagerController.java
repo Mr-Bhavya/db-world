@@ -3,6 +3,7 @@ package com.db.dbworld.app.pm.controller;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.CredentialSummaryDto;
+import com.db.dbworld.app.pm.dto.EntrySecretsDto;
 import com.db.dbworld.app.pm.dto.HostDto;
 import com.db.dbworld.app.pm.dto.PasswordHistoryDto;
 import com.db.dbworld.app.pm.dto.SecretField;
@@ -50,6 +51,13 @@ public class PasswordManagerController {
                                                  @RequestParam(name = "field", required = false) String field) {
         return ApiResponse.success(new SecretValue(
                 passwordManagerService.revealSecret(credentialId, SecretField.parse(field))));
+    }
+
+    /** Every secret of the caller's own live entry, in one read: what the edit form opens with. */
+    @GetMapping("/credential/{credentialId}/secrets")
+    @AnyRole
+    public ApiResponse<EntrySecretsDto> revealAllSecrets(@Valid @NotEmpty @PathVariable String credentialId) {
+        return ApiResponse.success(passwordManagerService.revealAll(credentialId));
     }
 
     /** {@code { "value": "..." }}: null when the entry has no such value. */
