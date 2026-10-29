@@ -166,7 +166,8 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
             notify.success(`Added to downloads: ${general?.fileName || 'file'}`, { duration: 3000 });
           }
         } else {
-          CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
+          await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName,
+            title: record?.tmdb?.title || general?.fileName, source: 'cinema' });
         }
     } catch (e) {
       const msg = e?.message || e?.code || String(e);

@@ -74,7 +74,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     private static final String TAG               = "DbWorldDownload";
     private static final int    DEFAULT_CONCURRENT = 1;
-    private static final int    MAX_CONCURRENT     = 3;
+    private static final int    MAX_CONCURRENT     = 1;
 
     public  static final String PREFS              = "dbworld_downloads_prefs";
     public  static final String PREF_PENDING_ROUTE = "pending_route";
@@ -269,6 +269,8 @@ public class DbWorldDownloadPlugin extends Plugin {
         final String recordId = orEmpty(call.getString("recordId", ""));
         final String mimeArg  = orEmpty(call.getString("mimeType", ""));
         final String requestId = orEmpty(call.getString("requestId", ""));
+        final String source = orEmpty(call.getString("source", "cinema"));
+        final String jobId = orEmpty(call.getString("jobId", ""));
 
         if (url == null || url.isEmpty()) { call.reject("URL is required"); return; }
         final String fileName = (fileNameArg == null || fileNameArg.isEmpty()) ? "download" : fileNameArg;
@@ -328,6 +330,8 @@ public class DbWorldDownloadPlugin extends Plugin {
                 meta.put("recordId", recordId);
                 meta.put("mimeType", mime);
                 meta.put("requestId", requestId);
+                meta.put("source", source);
+                meta.put("jobId", jobId);
                 meta.put("dir", downloadDir.getAbsolutePath());
                 meta.put("path", new File(downloadDir, fileName).getAbsolutePath());
                 meta.put("status", startPaused ? "paused" : "pending");
@@ -866,6 +870,15 @@ public class DbWorldDownloadPlugin extends Plugin {
         o.put("mediaFileId",      meta.optString("mediaFileId", ""));
         o.put("recordId",         meta.optString("recordId", ""));
         o.put("requestId",        meta.optString("requestId", ""));
+        o.put("source",           meta.optString("source", "cinema"));
+        o.put("jobId",            meta.optString("jobId", ""));
+        if ("failed".equals(status)) {
+            String code = live != null ? live.optString("errorCode", "") : "";
+            o.put("errorMessage", "3".equals(code) ? "The file is unavailable. Prepare it again."
+                : "9".equals(code) ? "There is not enough device storage. Free some space and retry."
+                : "24".equals(code) ? "The server refused access. Prepare a fresh download link."
+                : "The device transfer failed (code " + code + "). Check connectivity and retry.");
+        }
         o.put("connections",      connections);
         o.put("canPlay",          done && !localUri.isEmpty());
         return o;

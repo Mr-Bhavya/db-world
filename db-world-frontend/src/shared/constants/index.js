@@ -86,6 +86,8 @@ export const DB_CINEMA_COLLECTION_ROUTE = `${DB_CINEMA_ROUTE}/collection/:collec
 export const DB_RECORD_MEDIA_FILES_ROUTE =
   `${DB_CINEMA_ROUTE}/record/:recordId/media-files`;
 export const DB_DOWNLOAD_QUEUE_ROUTE = `${DB_CINEMA_ROUTE}/downloads`;
+export const DB_DOWNLOAD_CENTER_ROUTE = `${APP_BASE}/downloads`;
+export const DB_MEDIA_DOWNLOADER_ROUTE = `${APP_BASE}/media-downloader`;
 export const DB_PLAYER_ROUTE = `${DB_CINEMA_ROUTE}/player`;
 // The player route carries the file id so URLs are unique + shareable + refreshable.
 export const DB_PLAYER_ROUTE_PATTERN = `${DB_PLAYER_ROUTE}/:mediaFileId`;
@@ -288,6 +290,8 @@ export default {
   DB_CINEMA_COLLECTION_ROUTE,
   DB_RECORD_MEDIA_FILES_ROUTE,
   DB_DOWNLOAD_QUEUE_ROUTE,
+  DB_DOWNLOAD_CENTER_ROUTE,
+  DB_MEDIA_DOWNLOADER_ROUTE,
   DB_PLAYER_ROUTE,
   DB_PLAYER_ROUTE_PATTERN,
   playerPath,

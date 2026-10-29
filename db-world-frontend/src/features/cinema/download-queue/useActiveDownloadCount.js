@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 /**
@@ -14,7 +13,7 @@ export function useActiveDownloadCount() {
     try {
       const res = await DbWorldDownload.listDownloads();
       const n = (res?.downloads ?? []).filter(
-        d => d.status === 'running' || d.status === 'pending'
+        d => d.status === 'running' || d.status === 'pending' || d.status === 'handed_off'
       ).length;
       setCount(n);
     } catch {
@@ -23,7 +22,6 @@ export function useActiveDownloadCount() {
   }, []);
 
   useEffect(() => {
-    if (Capacitor.getPlatform() !== 'android') return undefined;
     let mounted = true;
     const listeners = [];
     refresh();

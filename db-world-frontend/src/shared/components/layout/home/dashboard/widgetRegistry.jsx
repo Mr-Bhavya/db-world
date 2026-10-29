@@ -17,6 +17,7 @@ import TallyWidget from './widgets/TallyWidget';
 import VaultWidget from './widgets/VaultWidget';
 import WalletWidget from './widgets/WalletWidget';
 import WeatherWidget from './widgets/WeatherWidget';
+import DownloadWidget from './widgets/DownloadWidget';
 
 /**
  * Which widget renders each app, and how big it starts.
@@ -29,6 +30,8 @@ import WeatherWidget from './widgets/WeatherWidget';
  * short list of figures and stretching them to a large tile only adds whitespace.
  */
 const APP_WIDGETS = {
+  'media-downloader': { Component: DownloadWidget, defaultSize: 'md', sizes: ['sm', 'md', 'lg'] },
+  'download-center': { Component: DownloadWidget, defaultSize: 'md', sizes: ['sm', 'md', 'lg'] },
   ipo: { Component: IpoWidget, defaultSize: 'lg', sizes: ['md', 'lg'] },
   cinema: { Component: CinemaWidget, defaultSize: 'lg', sizes: ['md', 'lg'] },
   // Medium by default: three counts and a logo strip fill that footprint exactly,

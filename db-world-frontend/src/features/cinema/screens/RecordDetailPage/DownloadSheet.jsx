@@ -255,9 +255,9 @@ function FileRow({ file, recommended, poster, title, plate }) {
         });
         notify.success(started?.alreadyDownloaded ? 'Already downloaded.' : 'Download started.');
       } else {
-        CommonServices.handleDownload(cdnUrl, {
+        await DbWorldDownload.startDownload({ url: cdnUrl,
           fileName: file?.general?.fileName,
-          openInNewTab: true,
+          title, thumbnailUrl: poster || '', source: 'cinema',
         });
         notify.success('Download started.');
       }

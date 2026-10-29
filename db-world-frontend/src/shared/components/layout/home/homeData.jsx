@@ -8,6 +8,8 @@ import {
   ShowChart as IpoIcon,
   SportsEsports as ArcadeIcon,
   WbSunny as WeatherIcon,
+  VideoFile as MediaDownloaderIcon,
+  DownloadForOffline as DownloadCenterIcon,
 } from '@mui/icons-material';
 
 import Constants from '@shared/constants';
@@ -66,6 +68,20 @@ export const APPS = [
     adminOnly: false,
     accent: '#84cc16',
     gradient: 'linear-gradient(135deg, #a3e635 0%, #4d7c0f 100%)',
+  },
+  {
+    id: 'media-downloader', label: 'Media Downloader',
+    description: 'Prepare video and audio from supported media URLs.',
+    tagline: 'Video & audio', Icon: MediaDownloaderIcon,
+    route: Constants.DB_MEDIA_DOWNLOADER_ROUTE, adminOnly: false,
+    accent: '#e05252', gradient: 'linear-gradient(135deg, #ed7770 0%, #b63a3a 100%)',
+  },
+  {
+    id: 'download-center', label: 'Download Center',
+    description: 'Cinema and media downloads in one queue.',
+    tagline: 'Queue & saved files', Icon: DownloadCenterIcon,
+    route: Constants.DB_DOWNLOAD_CENTER_ROUTE, adminOnly: false,
+    accent: '#2563eb', gradient: 'linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)',
   },
   {
     id: 'password',

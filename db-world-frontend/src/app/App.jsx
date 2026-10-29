@@ -70,7 +70,8 @@ const LazyCollectionPage      = lazy(() => import('@features/cinema/screens/Coll
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
 const LazyRecordDetailSheet   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailSheet.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
-const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
+const LazyDownloadQueuePage   = lazy(() => import('@features/downloader/DownloadCenter.jsx'));
+const LazyMediaDownloader     = lazy(() => import('@features/downloader/MediaDownloader.jsx'));
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
 const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybrid/PlayerDemo.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
@@ -284,7 +285,9 @@ const routeConfig = {
     // the stream surface.
     { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
-    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
+    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <Navigate to={Constants.DB_DOWNLOAD_CENTER_ROUTE} replace /> },
+    { path: Constants.DB_DOWNLOAD_CENTER_ROUTE, element: <LazyDownloadQueuePage /> },
+    { path: Constants.DB_MEDIA_DOWNLOADER_ROUTE, element: <LazyMediaDownloader /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.DB_VAULT_TRASH_ROUTE, element: <VaultTrash /> },

@@ -1,346 +1,86 @@
-import React from 'react';
-import { Box, Button, IconButton, LinearProgress, Typography } from '@mui/material';
-import { motion } from 'framer-motion';
+import React, { useId } from 'react';
+import { Alert, Box, Button, IconButton, LinearProgress, Stack, Tooltip, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import { useT } from '@shared/theme';
 import SheetDialog from '@shared/components/SheetDialog';
 
-/**
- * AppPromoDialog — the single "premium glass" popup used for every app-distribution
- * prompt: the in-app update gate, the download/install-progress state, and the
- * mobile-web "install the app" invite. It is purely presentational — the parent
- * gate owns all behaviour (when to show, what the buttons do) and feeds it props,
- * so update / download / install all share one visual language. All colours come
- * from theme tokens, so it adapts to light and dark automatically.
- *
- * Props:
- *   open, dismissible, onClose
- *   icon           React node for the header tile (an MUI icon)
- *   title, subtitle
- *   chip           small pill under the title (e.g. "v3.0.2" or "APK · 24 MB")
- *   benefits       [{ icon, label }]  bulleted value props (install mode)
- *   body           freeform node (e.g. changelog) shown in a scrollable card
- *   note           { tone: 'warning' | 'error', text }  inline status line
- *   progress       number 0..100 | null — when set, shows the download bar
- *   busy           disables the primary button / drives the indeterminate bar
- *   primaryLabel, onPrimary
- *   secondaryLabel, onSecondary   (secondary hidden when label omitted)
- *   dismissLongLabel, onDismissLong  optional — renders a SEPARATE pill below the
- *                                    card (e.g. "Dismiss for 24 hours")
- *   dismissLongIcon                  icon for that pill (defaults to a clock)
- */
 export default function AppPromoDialog({
-  open,
-  dismissible = true,
-  onClose,
-  icon,
-  title,
-  subtitle,
-  chip,
-  benefits,
-  body,
-  note,
-  progress = null,
-  busy = false,
-  primaryLabel,
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-  dismissLongLabel,
-  onDismissLong,
-  dismissLongIcon = <AccessTimeRoundedIcon />,
+  open, dismissible = true, onClose, icon, title, subtitle, chip, benefits, body, note,
+  progress = null, busy = false, primaryLabel, onPrimary, secondaryLabel, onSecondary,
+  dismissLongLabel, onDismissLong, dismissLongIcon = <AccessTimeRoundedIcon />,
+  primaryIcon = <DownloadRoundedIcon />,
 }) {
   const T = useT();
-  const dark = T.bg === '#000000';
-  const showProgress = progress != null;
-  const cardShadow = dark ? '0 30px 90px rgba(0,0,0,0.6)' : '0 26px 70px rgba(15,23,42,0.18)';
+  const titleId = useId();
+  const descriptionId = useId();
+  const showProgress = Number.isFinite(progress);
+  const percentage = showProgress ? Math.min(100, Math.max(0, progress)) : null;
 
   return (
     <SheetDialog
       open={open}
-      /*
-       * Centred at every width, not a bottom sheet.
-       *
-       * This is a floating card with a dismiss pill stacked under it -- see the transparent
-       * paper below, which exists so the two read as separate surfaces. As a sheet it lost the
-       * `m: 2` that made it float and the 420px cap that kept it card-shaped, so a fully
-       * rounded card sat flush against the bottom edge with the sheet's top-only radius applied
-       * to a wrapper nobody can see. There are no fields here to strand, which is what the
-       * sheet treatment is for.
-       */
       asSheet={false}
-      disableEscapeKeyDown={!dismissible}
-      onClose={(_e, reason) => {
-        if (!dismissible) return;
-        if (reason === 'backdropClick') return; // require an explicit choice
-        onClose?.();
+      aria-labelledby={titleId}
+      aria-describedby={subtitle ? descriptionId : undefined}
+      disableEscapeKeyDown={!dismissible || busy}
+      onClose={(_event, reason) => {
+        if (dismissible && !busy && reason !== 'backdropClick') onClose?.();
       }}
-      slotProps={{
-        backdrop: {
-          sx: {
-            backgroundColor: dark ? 'rgba(0,0,0,0.62)' : 'rgba(15,23,42,0.32)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-          },
-        },
-      }}
-      PaperProps={{
-        sx: {
-          // Transparent wrapper so the card and the dismiss pill read as two
-          // separate stacked surfaces.
-          bgcolor: 'transparent',
-          backgroundImage: 'none',
-          boxShadow: 'none',
-          overflow: 'visible',
-          width: '100%',
-          maxWidth: 420,
-          m: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.25,
-        },
-      }}
+      slotProps={{ backdrop: { sx: { bgcolor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' } } }}
+      PaperProps={{ sx: {
+        bgcolor: T.bg, color: T.textPrimary, backgroundImage: 'none', border: `1px solid ${T.glassBorder}`,
+        borderRadius: 2, width: 'calc(100% - 32px)', maxWidth: 480, m: 2,
+        maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        letterSpacing: 0,
+      } }}
     >
-      {/* ── Main card ─────────────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          position: 'relative',
-          overflow: 'hidden',
-          borderRadius: 4,
-          bgcolor: T.glass,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: `1px solid ${T.glassBorder}`,
-          color: T.text,
-          boxShadow: cardShadow,
-        }}
-      >
-        {/* Soft top light source, echoing the app-wide Aurora surface. */}
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            background: `radial-gradient(120% 60% at 50% -10%, ${T.tealGlow} 0%, transparent 60%)`,
-          }}
-        />
-
-        {dismissible && (
-          <IconButton
-            onClick={() => onClose?.()}
-            aria-label="Close"
-            size="small"
-            sx={{ position: 'absolute', top: 10, right: 10, color: T.textFaint, '&:hover': { color: T.textPrimary } }}
-          >
-            <CloseRoundedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        )}
-
-        <Box sx={{ position: 'relative', p: { xs: 2.75, sm: 3.25 }, textAlign: 'center' }}>
-          {/* Floating, glowing app-icon tile. */}
-          <Box
-            component={motion.div}
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-            sx={{
-              width: 68,
-              height: 68,
-              mx: 'auto',
-              mb: 1.75,
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: `linear-gradient(140deg, ${T.tealBgHover}, ${T.tealBg})`,
-              border: `1px solid ${T.glassBorder}`,
-              boxShadow: `0 12px 34px ${T.tealGlow}`,
-              '& .MuiSvgIcon-root': { fontSize: 34, color: T.teal },
-            }}
-          >
-            {icon}
-          </Box>
-
-          <Typography sx={{ fontWeight: 800, fontSize: '1.22rem', lineHeight: 1.25 }}>{title}</Typography>
-
-          {chip && (
-            <Box
-              sx={{
-                display: 'inline-block',
-                mt: 1,
-                px: 1.25,
-                py: 0.35,
-                borderRadius: 999,
-                bgcolor: T.tealBg,
-                border: `1px solid ${T.glassBorder}`,
-                color: T.teal,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                letterSpacing: '.02em',
-              }}
-            >
-              {chip}
-            </Box>
-          )}
-
-          {subtitle && (
-            <Typography sx={{ color: T.textMuted, mt: 1, fontSize: '0.9rem', lineHeight: 1.5 }}>
-              {subtitle}
-            </Typography>
-          )}
-
-          {/* Value props (install mode). */}
-          {Array.isArray(benefits) && benefits.length > 0 && (
-            <Box sx={{ mt: 2.25, display: 'flex', flexDirection: 'column', gap: 1.1, textAlign: 'left' }}>
-              {benefits.map((b, i) => (
-                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                  <Box
-                    sx={{
-                      width: 30,
-                      height: 30,
-                      flexShrink: 0,
-                      borderRadius: 2,
-                      bgcolor: T.tealBg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      '& .MuiSvgIcon-root': { fontSize: 18, color: T.teal },
-                    }}
-                  >
-                    {b.icon ?? <CheckRoundedIcon />}
-                  </Box>
-                  <Typography sx={{ color: T.text, fontSize: '0.86rem', lineHeight: 1.35 }}>{b.label}</Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-
-          {/* Freeform body — used for the update changelog. */}
-          {body && (
-            <Box
-              sx={{
-                mt: 2.25,
-                p: 1.5,
-                maxHeight: 168,
-                overflowY: 'auto',
-                textAlign: 'left',
-                borderRadius: 2.5,
-                bgcolor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(15,23,42,0.03)',
-                border: `1px solid ${T.glassBorder}`,
-                color: T.textMuted,
-                fontSize: '0.83rem',
-                lineHeight: 1.55,
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {body}
-            </Box>
-          )}
-
-          {note && (
-            <Typography
-              sx={{
-                display: 'block',
-                mt: 2,
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                lineHeight: 1.45,
-                color: note.tone === 'error' ? T.error : T.warning,
-              }}
-            >
-              {note.text}
-            </Typography>
-          )}
-
-          {/* Download progress. Determinate once we have a %, indeterminate while busy. */}
-          {(showProgress || busy) && (
-            <Box sx={{ mt: 2.5 }}>
-              <LinearProgress
-                variant={showProgress ? 'determinate' : 'indeterminate'}
-                value={showProgress ? progress : undefined}
-                sx={{
-                  height: 7,
-                  borderRadius: 999,
-                  bgcolor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
-                  '& .MuiLinearProgress-bar': { borderRadius: 999, bgcolor: T.teal },
-                }}
-              />
-              {showProgress && (
-                <Typography sx={{ color: T.textFaint, mt: 0.75, fontSize: '0.74rem' }}>
-                  Downloading… {Math.round(progress)}%
-                </Typography>
-              )}
-            </Box>
-          )}
-
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 3 }}>
-            {secondaryLabel && !busy && (
-              <Button
-                onClick={() => onSecondary?.()}
-                sx={{ color: T.textMuted, textTransform: 'none', fontWeight: 600, px: 2, '&:hover': { color: T.text, bgcolor: T.hoverBg } }}
-              >
-                {secondaryLabel}
-              </Button>
-            )}
-            <Button
-              onClick={() => onPrimary?.()}
-              disabled={busy}
-              variant="contained"
-              disableElevation
-              sx={{
-                px: 3.25,
-                py: 0.9,
-                borderRadius: 2.5,
-                textTransform: 'none',
-                fontWeight: 800,
-                fontSize: '0.92rem',
-                color: '#fff',
-                background: `linear-gradient(135deg, ${T.teal}, ${T.tealHover})`,
-                boxShadow: `0 10px 26px ${T.tealGlow}`,
-                '&:hover': { background: `linear-gradient(135deg, ${T.tealHover}, ${T.tealHover})` },
-                '&.Mui-disabled': { color: 'rgba(255,255,255,0.75)', background: T.tealHover, opacity: 0.85 },
-              }}
-            >
-              {primaryLabel}
-            </Button>
-          </Box>
+      <Stack direction="row" alignItems="center" gap={1.5} sx={{ px: { xs: 2, sm: 3 }, py: 2, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+        <Box sx={{ width: 48, height: 48, flexShrink: 0, borderRadius: 1.5, bgcolor: T.tealBg, color: T.teal,
+          display: 'grid', placeItems: 'center', '& .MuiSvgIcon-root': { fontSize: 28 } }}>{icon}</Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography component="h2" id={titleId} sx={{ fontWeight: 800, fontSize: '1.15rem', lineHeight: 1.35, overflowWrap: 'anywhere' }}>{title}</Typography>
+          <Typography sx={{ mt: 0.25, color: T.textMuted, fontSize: '0.78rem' }}>DB World for Android</Typography>
         </Box>
+        {dismissible && <Tooltip title="Close"><span><IconButton disabled={busy} onClick={onClose} aria-label="Close" sx={{ color: T.textMuted, width: 44, height: 44 }}><CloseRoundedIcon /></IconButton></span></Tooltip>}
+      </Stack>
+
+      <Box sx={{ overflowY: 'auto', minHeight: 0, px: { xs: 2, sm: 3 }, py: 2.5 }}>
+        {chip && <Typography sx={{ display: 'inline-block', mb: 1.5, px: 1, py: 0.5, bgcolor: T.tealBg, borderRadius: 1, color: T.teal, fontSize: '0.8rem', fontWeight: 700, overflowWrap: 'anywhere' }}>{chip}</Typography>}
+        {subtitle && <Typography id={descriptionId} sx={{ color: T.textMuted, fontSize: '0.9rem', lineHeight: 1.6 }}>{subtitle}</Typography>}
+
+        {benefits?.length > 0 && <Stack component="ul" spacing={1.5} sx={{ listStyle: 'none', m: 0, p: 0, mt: 2.5 }}>
+          {benefits.map((benefit, index) => <Stack component="li" key={index} direction="row" alignItems="flex-start" gap={1.25}>
+            <Box sx={{ display: 'flex', color: T.teal, pt: 0.15, '& .MuiSvgIcon-root': { fontSize: 21 } }}>{benefit.icon || <CheckRoundedIcon />}</Box>
+            <Typography sx={{ color: T.textPrimary, fontSize: '0.86rem', lineHeight: 1.5, overflowWrap: 'anywhere' }}>{benefit.label}</Typography>
+          </Stack>)}
+        </Stack>}
+
+        {body && <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${T.border}`, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: T.textMuted, fontSize: '0.85rem', lineHeight: 1.65 }}>{body}</Box>}
+
+        {note && <Alert severity={note.tone === 'error' ? 'error' : note.tone === 'success' ? 'success' : 'warning'} sx={{ mt: 2, borderRadius: 1, overflowWrap: 'anywhere' }} role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</Alert>}
+
+        {(showProgress || busy) && <Box sx={{ mt: 2.5 }} role="status" aria-live="polite">
+          <Stack direction="row" justifyContent="space-between" gap={1} mb={1}>
+            <Typography sx={{ color: T.textMuted, fontSize: '0.82rem' }}>{showProgress ? 'Downloading update' : 'Preparing update'}</Typography>
+            {showProgress && <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{Math.round(percentage)}%</Typography>}
+          </Stack>
+          <LinearProgress aria-label="App update download" variant={showProgress ? 'determinate' : 'indeterminate'} value={percentage || 0}
+            sx={{ height: 6, borderRadius: 1, bgcolor: T.tealBg, '& .MuiLinearProgress-bar': { bgcolor: T.teal } }} />
+        </Box>}
       </Box>
 
-      {/* ── Separate "dismiss for longer" pill, below the card ─────────────── */}
-      {dismissLongLabel && onDismissLong && !busy && (
-        <Box
-          component="button"
-          type="button"
-          onClick={() => onDismissLong()}
-          sx={{
-            appearance: 'none',
-            cursor: 'pointer',
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 1,
-            px: 2,
-            py: 1.15,
-            borderRadius: 3,
-            bgcolor: T.glass,
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: `1px solid ${T.glassBorder}`,
-            color: T.textMuted,
-            boxShadow: dark ? '0 18px 50px rgba(0,0,0,0.45)' : '0 14px 36px rgba(15,23,42,0.10)',
-            transition: 'color .2s ease, border-color .2s ease',
-            '& .MuiSvgIcon-root': { fontSize: 18, color: T.teal },
-            '&:hover': { color: T.text, borderColor: T.glassBorderHover },
-          }}
-        >
-          {dismissLongIcon}
-          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{dismissLongLabel}</Typography>
-        </Box>
-      )}
+      <Box sx={{ px: { xs: 2, sm: 3 }, pt: 2, pb: 'max(16px, env(safe-area-inset-bottom))', borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+        <Stack direction={{ xs: 'column', sm: 'row-reverse' }} gap={1}>
+          <Button onClick={onPrimary} disabled={busy} variant="contained" disableElevation startIcon={primaryIcon}
+            sx={{ flex: 1, minHeight: 48, borderRadius: 1, textTransform: 'none', fontWeight: 750, bgcolor: T.teal, color: '#ffffff', '&:hover': { bgcolor: T.tealHover } }}>{primaryLabel}</Button>
+          {secondaryLabel && !busy && <Button onClick={onSecondary} sx={{ minHeight: 44, px: 2, color: T.textMuted, textTransform: 'none' }}>{secondaryLabel}</Button>}
+        </Stack>
+        {dismissLongLabel && onDismissLong && !busy && <Button onClick={onDismissLong} startIcon={dismissLongIcon} fullWidth
+          sx={{ mt: 0.5, minHeight: 44, color: T.textMuted, fontSize: '0.8rem', textTransform: 'none' }}>{dismissLongLabel}</Button>}
+      </Box>
     </SheetDialog>
   );
 }

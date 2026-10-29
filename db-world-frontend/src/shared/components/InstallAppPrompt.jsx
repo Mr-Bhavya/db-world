@@ -3,6 +3,8 @@ import InstallMobileRoundedIcon from '@mui/icons-material/InstallMobileRounded';
 import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { isNative } from '@shared/platform/platform';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 import AppPromoDialog from '@shared/components/AppPromoDialog';
@@ -47,6 +49,7 @@ function snooze() {
 export default function InstallAppPrompt() {
   const [open, setOpen] = useState(false);
   const [started, setStarted] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!isAndroidWeb() || isStandalone() || recentlyDismissed()) return undefined;
@@ -61,16 +64,20 @@ export default function InstallAppPrompt() {
   const dismiss24h = () => { snooze(); setOpen(false); };
 
   const download = () => {
+    setError('');
     const url = `${getApiBaseUrl()}/api/app/download`;
     // An APK is served as an attachment, so this downloads without navigating away.
     const a = document.createElement('a');
     a.href = url;
     a.rel = 'noopener';
     a.setAttribute('download', '');
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setStarted(true);
+    try {
+      document.body.appendChild(a);
+      a.click();
+      setStarted(true);
+    } catch {
+      setError('Could not open the download. Please try again.');
+    } finally { a.remove(); }
   };
 
   if (!open) return null;
@@ -87,16 +94,18 @@ export default function InstallAppPrompt() {
       dismissible
       onClose={close}
       icon={<InstallMobileRoundedIcon />}
-      title={started ? 'Download started' : 'Get the DB-World app'}
+      title={started ? 'Download requested' : 'Get DB World'}
+      chip="Android APK"
       subtitle={
         started
           ? 'Open the downloaded file to install. You may need to allow installs from your browser.'
           : 'Install the Android app for offline access and a faster, native experience.'
       }
       benefits={started ? undefined : benefits}
-      note={started ? { tone: 'warning', text: 'Not seeing it? Check your notifications or Downloads folder.' } : null}
-      primaryLabel={started ? 'Done' : 'Download app'}
-      onPrimary={started ? close : download}
+      note={error ? { tone: 'error', text: error } : started ? { tone: 'warning', text: 'Your browser manages download progress. Check Downloads for the APK.' } : null}
+      primaryIcon={started ? <CheckRoundedIcon /> : <DownloadRoundedIcon />}
+      primaryLabel={started ? 'Done' : error ? 'Retry download' : 'Download APK'}
+      onPrimary={started ? dismiss24h : download}
       secondaryLabel={started ? undefined : 'Not now'}
       onSecondary={close}
       dismissLongLabel={started ? undefined : 'Dismiss for 24 hours'}

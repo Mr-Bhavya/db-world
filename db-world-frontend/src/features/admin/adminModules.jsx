@@ -69,6 +69,7 @@ export const ADMIN_MODULES = [
 
   // Standalone apps managed from admin
   { id: 'document-wallet', path: 'document-wallet',  label: 'Document Wallet',     icon: WalletRounded,         group: 'Apps',     element: lazy(() => import('./wallet')) },
+  { id: 'download-management', path: 'downloads', label: 'Download Management', icon: CloudDownloadRounded, group: 'Apps', element: lazy(() => import('@features/downloader/DownloadManagement.jsx')) },
   { id: 'ipo-admin',       path: 'ipo',              label: 'IPO Tracker',         icon: CandlestickChartRounded, group: 'Apps',   element: lazy(() => import('./ipo')) },
 ];
 

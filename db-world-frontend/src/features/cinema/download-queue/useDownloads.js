@@ -68,8 +68,9 @@ export function useDownloads() {
       try {
         const s = await DbWorldDownload.getSettings();
         setWifiOnly(Boolean(s?.wifiOnly));
-        if (Number.isFinite(s?.concurrentLimit))    setConcurrencyState(s.concurrentLimit);
-        if (Number.isFinite(s?.maxConcurrentLimit)) setMaxConcurrency(s.maxConcurrentLimit);
+        setConcurrencyState(1);
+        setMaxConcurrency(1);
+        await DbWorldDownload.setConcurrentLimit({ limit: 1 });
       } catch { /* web stub / older native — ignore */ }
     })();
   }, []);
@@ -114,7 +115,7 @@ export function useDownloads() {
   useEffect(() => {
     const id = setInterval(() => {
       const hasActive = downloadsRef.current.some(
-        d => d.status === 'running' || d.status === 'pending' || d.status === 'paused'
+        d => d.status === 'running' || d.status === 'pending' || d.status === 'paused' || d.status === 'handed_off'
       );
       if (hasActive) refresh();
     }, 2000);
@@ -188,7 +189,7 @@ export function useDownloads() {
     const prev = concurrency;
     setConcurrencyState(next); // optimistic
     try {
-      const res = await DbWorldDownload.setConcurrentLimit({ limit: next });
+      const res = await DbWorldDownload.setConcurrentLimit({ limit: 1 });
       if (Number.isFinite(res?.concurrentLimit)) setConcurrencyState(res.concurrentLimit);
     } catch (e) {
       console.error('[useDownloads] setConcurrentLimit failed', e);

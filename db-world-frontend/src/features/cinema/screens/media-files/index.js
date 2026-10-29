@@ -88,7 +88,8 @@ function useFileActions(file, allFiles, record) {
           notify.success(`Added: ${file.general?.fileName || 'file'}`);
         }
       } else {
-        CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
+        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: file.general?.fileName,
+          title: record?.tmdb?.title || file.general?.fileName, source: 'cinema' });
       }
     } catch (err) {
       const msg = err?.message || err?.code || String(err);

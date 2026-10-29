@@ -57,6 +57,7 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                    .requestMatchers(HttpMethod.GET, "/api/downloader/transfers/*").permitAll()
                         .requestMatchers(AppConstants.PUBLIC_APIS).permitAll()
                         // Read-only browse surface. GET-scoped on purpose: the browse
                         // endpoints share their base paths with admin writes (rails) and
