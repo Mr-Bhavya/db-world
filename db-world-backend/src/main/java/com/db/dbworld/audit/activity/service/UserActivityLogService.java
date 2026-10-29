@@ -4,7 +4,6 @@ import com.db.dbworld.audit.activity.entity.UserActivityLogEntity;
 import com.db.dbworld.audit.activity.repository.UserActivityLogRepository;
 import com.db.dbworld.payloads.RequestLogData;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 import org.springframework.data.domain.Page;
@@ -12,15 +11,25 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 
 @Log4j2
 @Service
-@RequiredArgsConstructor
 public class UserActivityLogService {
 
     private final UserActivityLogRepository logRepository;
+    private final TransactionTemplate auditTransaction;
+
+    public UserActivityLogService(UserActivityLogRepository logRepository, PlatformTransactionManager transactionManager) {
+        this.logRepository = logRepository;
+        this.auditTransaction = new TransactionTemplate(transactionManager);
+        this.auditTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.auditTransaction.setTimeout(10);
+    }
 
     // ==============================
     // ✅ ASYNC LOGGING (SPRING MANAGED)
@@ -51,7 +60,7 @@ public class UserActivityLogService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        logRepository.save(entity);
+        auditTransaction.executeWithoutResult(status -> logRepository.saveAndFlush(entity));
     }
 
     private String truncate(String body) {

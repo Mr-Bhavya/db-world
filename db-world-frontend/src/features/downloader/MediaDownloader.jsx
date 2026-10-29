@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Checkbox, CircularProgress,
   Container, FormControlLabel, IconButton, InputAdornment, LinearProgress, MenuItem, Radio,
@@ -8,7 +9,7 @@ import {
 } from '@mui/material';
 import {
   ArrowBack, ArrowForward, AudioFile, CheckCircleOutline, ContentPaste, Edit, ExpandMore,
-  HighQuality, Link as LinkIcon, MusicNote, Queue, Search, Tune, VideoFile,
+  Close, HighQuality, Link as LinkIcon, MusicNote, Queue, Search, Tune, VideoFile,
 } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -19,10 +20,12 @@ import {
 } from './downloaderSelection';
 
 const steps = ['Link', 'Content', 'Output', 'Review'];
+const stepIcons = [LinkIcon, VideoFile, Tune, CheckCircleOutline];
 const icons = { recommended: CheckCircleOutline, best: HighQuality, small: VideoFile, audio: AudioFile, music: MusicNote };
 
 export default function MediaDownloader() {
   const T = useT();
+  const reducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const client = useQueryClient();
   const [params] = useSearchParams();
@@ -36,10 +39,12 @@ export default function MediaDownloader() {
   const [query, setQuery] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const heading = useRef(null);
   const submittingRef = useRef(false);
+  const inspectionRef = useRef(null);
   const entries = preview?.entries || [];
   const isPlaylist = entries.length > 0;
   const count = isPlaylist ? selected.length : preview ? 1 : 0;
@@ -50,6 +55,17 @@ export default function MediaDownloader() {
   const update = (patch) => { setSelection((previous) => ({ ...previous, ...patch })); setError(''); };
 
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [step]);
+  useEffect(() => () => inspectionRef.current?.abort(), []);
+  useEffect(() => {
+    if (!busy) return undefined;
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
+
+  const cancelInspection = () => {
+    inspectionRef.current?.abort(); inspectionRef.current = null; setBusy(false); setError('');
+  };
 
   const invalidate = () => {
     setPreview(null); setSelected([]); setFurthest(0); setStep(0); setError(''); setQuery('');
@@ -59,9 +75,12 @@ export default function MediaDownloader() {
   const inspect = async (event) => {
     event?.preventDefault();
     if (busy) return;
-    setBusy(true); setError('');
+    const controller = new AbortController();
+    inspectionRef.current = controller;
+    setBusy(true); setElapsed(0); setError('');
     try {
-      const result = await inspectMedia(url.trim(), playlist);
+      const result = await inspectMedia(url.trim(), playlist, controller.signal);
+      if (controller.signal.aborted) return;
       setPreview(result);
       setSelected([...new Set((result.entries || []).map((entry) => entry.url))]);
       setSelection((previous) => ({
@@ -69,8 +88,12 @@ export default function MediaDownloader() {
         quality: String(result.resolutions?.includes(1080) ? 1080 : result.resolutions?.[0] || 1080),
       }));
       setStep(1); setFurthest(1); setQuery('');
-    } catch (failure) { setError(errorMessage(failure)); }
-    finally { setBusy(false); }
+    } catch (failure) {
+      if (!controller.signal.aborted) setError(failure.code === 'ECONNABORTED'
+        ? 'Inspection timed out. Try again or inspect a single video instead of a playlist.' : errorMessage(failure));
+    } finally {
+      if (inspectionRef.current === controller) { inspectionRef.current = null; setBusy(false); }
+    }
   };
 
   const go = (next) => {
@@ -101,26 +124,31 @@ export default function MediaDownloader() {
     : { videoPreset: value, videoFormat: '', audioFormat: '', container: 'auto' });
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: T.bg, color: T.textPrimary, pt: { xs: 2, md: 4 }, pb: 2, letterSpacing: 0,
+    <Box sx={{ minHeight: '100vh', bgcolor: T.bg, color: T.textPrimary, pt: { xs: '76px', sm: '88px', md: '104px', xl: '120px' }, pb: 2, letterSpacing: 0,
       '& .MuiInputBase-root': { color: T.textPrimary, bgcolor: T.surface || T.bg },
       '& .MuiInputLabel-root': { color: T.textMuted },
       '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
       '& .MuiFormControlLabel-label': { color: T.textPrimary },
+      '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', transition: 'none' } },
     }}>
       <Container maxWidth="lg">
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} mb={3}>
-          <Typography component="h1" sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', md: '1.75rem' }, overflowWrap: 'anywhere' }}>Media Downloader</Typography>
+          <Stack direction="row" alignItems="center" gap={1.5} sx={{ minWidth: 0 }}>
+            <Box sx={{ width: 44, height: 44, flexShrink: 0, borderRadius: 2, bgcolor: T.tealBg, color: T.teal, display: 'grid', placeItems: 'center' }}><VideoFile /></Box>
+            <Typography component="h1" sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', md: '1.75rem' }, overflowWrap: 'anywhere' }}>Media Downloader</Typography>
+          </Stack>
           <Tooltip title="Open Download Center"><IconButton aria-label="Open Download Center" onClick={() => navigate(Constants.DB_DOWNLOAD_CENTER_ROUTE)} sx={{ color: T.textPrimary, width: 44, height: 44 }}><Queue /></IconButton></Tooltip>
         </Stack>
 
         <Stepper nonLinear activeStep={step} alternativeLabel sx={{ mb: { xs: 3, md: 4 }, '& .MuiStepLabel-label': { fontSize: '0.8rem', color: T.textMuted }, '& .MuiStepLabel-label.Mui-active, & .MuiStepLabel-label.Mui-completed': { color: T.textPrimary, fontWeight: 700 }, '& .MuiStepConnector-line': { borderColor: T.border } }}>
           {steps.map((label, index) => <Step key={label} completed={furthest > index}>
-            <StepButton disabled={busy || submitting || index > furthest || (index > 1 && !count)} onClick={() => go(index)} aria-current={step === index ? 'step' : undefined}>{label}</StepButton>
+            <StepButton disabled={busy || submitting || index > furthest || (index > 1 && !count)} onClick={() => go(index)} aria-current={step === index ? 'step' : undefined}
+              icon={<Box sx={{ width: 32, height: 32, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: step === index || furthest > index ? T.tealBg : T.glass, color: step === index || furthest > index ? T.teal : T.textFaint, border: `1px solid ${step === index ? T.teal : T.border}` }}>{React.createElement(furthest > index ? CheckCircleOutline : stepIcons[index], { sx: { fontSize: 18 } })}</Box>}>{label}</StepButton>
           </Step>)}
         </Stepper>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: preview && step !== 3 ? 'minmax(0, 1fr) 280px' : 'minmax(0, 1fr)' }, gap: { xs: 2, md: 4 }, alignItems: 'start' }}>
-          <Box sx={{ minWidth: 0, minHeight: { xs: 320, md: 380 } }}>
+          <Box key={step} component={motion.section} initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.18 }} sx={{ minWidth: 0, minHeight: { xs: 320, md: 380 } }}>
             <Typography ref={heading} tabIndex={-1} component="h2" sx={{ fontSize: '1.15rem', fontWeight: 750, mb: 2, outline: 'none' }}>
               {['Add a link', 'Choose content', 'Choose output', 'Review & prepare'][step]}
             </Typography>
@@ -135,7 +163,13 @@ export default function MediaDownloader() {
                 } }} />
               <FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={playlist} disabled={busy || submitting} onChange={(event) => { setPlaylist(event.target.checked); invalidate(); }} />} label="Include playlist" />
               <Box mt={2}><Button type="submit" variant="contained" disabled={busy || submitting || !url.trim()} startIcon={busy ? <CircularProgress size={18} color="inherit" /> : <Search />} sx={{ minHeight: 48, minWidth: 145 }}>{busy ? 'Inspecting' : 'Inspect'}</Button></Box>
-              {busy && <LinearProgress aria-label="Inspecting media" sx={{ mt: 3 }} />}
+              {busy && <Box sx={{ mt: 3, borderTop: `1px solid ${T.border}`, pt: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} mb={1}>
+                  <Box><Typography role="status" sx={{ fontSize: '0.9rem', fontWeight: 650 }}>{elapsed < 20 ? 'Reading media details' : 'Waiting for source response'}</Typography><Typography sx={{ fontSize: '0.8rem', color: T.textMuted }}>{elapsed}s elapsed</Typography></Box>
+                  <Button startIcon={<Close />} onClick={cancelInspection} sx={{ minHeight: 44 }}>Cancel</Button>
+                </Stack>
+                <LinearProgress aria-label="Inspecting media" />
+              </Box>}
             </Box>}
 
             {step === 1 && preview && <>
@@ -244,7 +278,7 @@ function PresetOptions({ presets, value, onChange }) {
   return <RadioGroup aria-label="Output preset" value={value} onChange={(event) => onChange(event.target.value)} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
     {presets.map((preset) => {
       const Icon = icons[preset.icon];
-      return <FormControlLabel key={preset.value} value={preset.value} control={<Radio size="small" />} sx={{ m: 0, p: 1, border: '1px solid', borderColor: value === preset.value ? 'primary.main' : T.border, borderRadius: 2, minHeight: 78, minWidth: 0, alignItems: 'flex-start', bgcolor: value === preset.value ? 'action.selected' : 'transparent', '& .MuiFormControlLabel-label': { minWidth: 0, flex: 1 } }}
+      return <FormControlLabel key={preset.value} value={preset.value} control={<Radio size="small" />} sx={{ m: 0, p: 1, border: '1px solid', borderColor: value === preset.value ? 'primary.main' : T.border, borderRadius: 2, minHeight: 78, minWidth: 0, alignItems: 'flex-start', bgcolor: value === preset.value ? 'action.selected' : 'transparent', transition: 'border-color 160ms ease, background-color 160ms ease', '&:hover': { borderColor: T.teal, bgcolor: T.tealBg }, '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '& .MuiFormControlLabel-label': { minWidth: 0, flex: 1 } }}
         label={<Box sx={{ pt: 0.5 }}><Icon sx={{ fontSize: 20, color: value === preset.value ? 'primary.main' : T.textMuted, mb: 0.5 }} /><Typography sx={{ fontSize: '0.9rem', fontWeight: 700, overflowWrap: 'anywhere' }}>{preset.label}</Typography><Typography sx={{ color: T.textMuted, fontSize: '0.78rem', mt: 0.25 }}>{preset.detail}</Typography></Box>} />;
     })}
   </RadioGroup>;

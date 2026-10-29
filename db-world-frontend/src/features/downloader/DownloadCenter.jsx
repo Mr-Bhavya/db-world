@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
-import { Cancel, Check, DeleteOutline, Download, Pause, PlayArrow, Refresh, Replay } from '@mui/icons-material';
+import { Cancel, Check, DeleteOutline, Download, Downloading, Pause, PlayArrow, Refresh, Replay } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
@@ -15,6 +16,7 @@ const deviceLabels = { pending: 'Queued', running: 'Saving to device', paused: '
 
 export default function DownloadCenter() {
   const T = useT();
+  const reducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const media = useMediaJobs();
   const device = useDownloads();
@@ -45,11 +47,14 @@ export default function DownloadCenter() {
   };
 
   return (
-    <Box sx={{ bgcolor: T.bg, color: T.textPrimary, minHeight: '100vh', py: { xs: 3, md: 5 } }}>
+    <Box sx={{ bgcolor: T.bg, color: T.textPrimary, minHeight: '100vh', pt: { xs: '76px', sm: '88px', md: '104px', xl: '120px' }, pb: { xs: 3, md: 5 }, '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', transition: 'none' } } }}>
       <Container maxWidth="lg">
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} mb={2}>
-          <Box sx={{ minWidth: 0 }}><Typography component="h1" variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.65rem', md: '2rem' } }}>Download Center</Typography>
-            <Typography variant="body2" color="text.secondary">{active} active</Typography></Box>
+          <Stack direction="row" gap={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+            <Box sx={{ width: 44, height: 44, flexShrink: 0, borderRadius: 2, bgcolor: T.tealBg, color: T.teal, display: 'grid', placeItems: 'center' }}><Downloading /></Box>
+            <Box sx={{ minWidth: 0 }}><Typography component="h1" variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.35rem', md: '2rem' }, overflowWrap: 'anywhere' }}>Download Center</Typography>
+              <Typography variant="body2" color="text.secondary">{active} active</Typography></Box>
+          </Stack>
           <Stack direction="row" gap={0.5}>
             <Tooltip title="Refresh downloads"><IconButton aria-label="Refresh downloads" onClick={() => { media.refetch(); device.refresh(); }}><Refresh /></IconButton></Tooltip>
             <Tooltip title="New media download"><IconButton aria-label="New media download" onClick={() => navigate(Constants.DB_MEDIA_DOWNLOADER_ROUTE)}><Download /></IconButton></Tooltip>
@@ -72,7 +77,7 @@ export default function DownloadCenter() {
         <Typography component="h2" variant="h6" fontWeight={700} mb={1}>Device downloads</Typography>
         {device.loading && <LinearProgress aria-label="Loading device downloads" />}
         {!device.loading && !transfers.length && <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No device downloads.</Typography>}
-        {transfers.map((item) => <Box key={item.downloadId} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+        {transfers.map((item) => <Box key={item.downloadId} component={motion.div} initial={reducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.18 }} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Stack direction="row" gap={1.5}>
             {item.thumbnailUrl && <Box component="img" src={item.thumbnailUrl} alt="" sx={{ width: { xs: 64, sm: 112 }, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 1, alignSelf: 'flex-start' }} />}
             <Box sx={{ flex: 1, minWidth: 0 }}>

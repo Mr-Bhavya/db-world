@@ -1,6 +1,7 @@
 package com.db.dbworld.app.downloader;
 
 import com.db.dbworld.config.AppConstants;
+import com.db.dbworld.core.exception.DbWorldException;
 import java.nio.file.*;
 import java.util.List;
 import org.springframework.core.io.FileSystemResource;
@@ -59,9 +60,14 @@ public class MediaDownloaderController {
     @PostMapping("/inspect")
     public MediaDownloaderService.Preview inspect(@RequestBody InspectRequest request) {
         try { return service.inspect(request.url(), request.playlist()); }
-        catch (ResponseStatusException exception) { throw exception; }
+        catch (java.net.SocketTimeoutException exception) {
+            throw new DbWorldException(HttpStatus.GATEWAY_TIMEOUT, exception.getMessage());
+        }
+        catch (ResponseStatusException exception) {
+            throw new DbWorldException(HttpStatus.valueOf(exception.getStatusCode().value()), exception.getReason());
+        }
         catch (Exception exception) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, MediaDownloaderService.failureReason(exception.getMessage()));
+            throw new DbWorldException(HttpStatus.UNPROCESSABLE_ENTITY, MediaDownloaderService.failureReason(exception.getMessage()));
         }
     }
 

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Stack, Tooltip, Typography } from '@mui/material';
-import { Cancel, DeleteOutline, Download, Replay, Subtitles } from '@mui/icons-material';
+import { Cancel, CheckCircleOutline, DeleteOutline, Download, Downloading, ErrorOutline, Replay, Schedule, Subtitles } from '@mui/icons-material';
 import { useQueryClient } from '@tanstack/react-query';
 import { activeStatuses, DOWNLOADS_KEY, errorMessage, formatBytes, formatEta, jobAction, mediaFiles, saveMedia, statusLabel } from './downloaderApi';
 
 export default function MediaJobList({ jobs = [], admin = false }) {
   const client = useQueryClient();
+  const reducedMotion = useReducedMotion();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [confirm, setConfirm] = useState(null);
@@ -37,7 +39,7 @@ export default function MediaJobList({ jobs = [], admin = false }) {
       {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice('')}>{notice}</Alert>}
       {!admin && readySelected.length > 1 && <Button startIcon={<Download />} onClick={() => save(readySelected)} disabled={!!busy} sx={{ mb: 1 }}>Save {readySelected.length} as ZIP</Button>}
       {!jobs.length && <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>No preparations yet.</Typography>}
-      {jobs.map((job) => <Box key={job.id} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider', minWidth: 0 }}>
+      {jobs.map((job) => <Box key={job.id} component={motion.div} initial={reducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.18 }} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider', minWidth: 0 }}>
         <Stack direction="row" gap={1.5} alignItems="flex-start">
           {!admin && job.status === 'READY' && <Checkbox inputProps={{ 'aria-label': `Select ${job.title}` }} checked={selected.includes(job.id)}
             onChange={(event) => setSelected((previous) => event.target.checked ? [...previous, job.id] : previous.filter((id) => id !== job.id))} />}
@@ -45,7 +47,7 @@ export default function MediaJobList({ jobs = [], admin = false }) {
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{job.title || job.fileName || 'Preparing media'}</Typography>
             <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" mt={0.75}>
-              <Chip size="small" label={statusLabel(job)} color={job.status === 'FAILED' ? 'error' : job.status === 'READY' ? 'success' : 'default'} />
+              <Chip size="small" icon={job.status === 'READY' ? <CheckCircleOutline /> : job.status === 'FAILED' ? <ErrorOutline /> : job.status === 'QUEUED' ? <Schedule /> : <Downloading />} label={statusLabel(job)} color={job.status === 'FAILED' ? 'error' : job.status === 'READY' ? 'success' : 'default'} />
               <Typography variant="caption" color="text.secondary">{job.preset}{job.preset === 'custom' ? ` / ${job.quality}p` : ''}</Typography>
               {job.source && <Typography variant="caption" color="text.secondary">{job.source}</Typography>}
               {admin && <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>{job.owner}</Typography>}

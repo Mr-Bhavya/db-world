@@ -17,7 +17,7 @@ export function useMediaJobs(admin = false, enabled = true) {
   });
 }
 
-export const inspectMedia = async (url, playlist) => (await api.post('/api/downloader/inspect', { url, playlist }, { timeout: 150000 })).data;
+export const inspectMedia = async (url, playlist, signal) => (await api.post('/api/downloader/inspect', { url, playlist }, { timeout: 90000, signal })).data;
 export const createMediaJobs = async (request) => (await api.post('/api/downloader/jobs', request)).data;
 export const mediaFiles = async (id) => (await api.get(`/api/downloader/jobs/${id}/files`)).data;
 export const cleanupMedia = async () => (await api.post('/api/downloader/admin/cleanup')).data;

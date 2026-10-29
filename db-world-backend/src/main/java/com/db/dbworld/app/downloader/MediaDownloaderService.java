@@ -20,6 +20,7 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Log4j2
@@ -34,6 +35,8 @@ public class MediaDownloaderService {
     private final Set<Process> processes = ConcurrentHashMap.newKeySet();
     private final Map<String, Ticket> tickets = new ConcurrentHashMap<>();
     private volatile boolean stopping;
+    @Value("${app.downloader.probe-timeout-seconds:75}")
+    private long probeTimeoutSeconds = 75;
 
     public record Request(List<String> urls, String preset, String quality, boolean subtitles,
                           boolean thumbnailFile, String subtitleLanguage, String audioLanguage,
@@ -87,6 +90,7 @@ public class MediaDownloaderService {
         String normalized = DownloadPolicy.validateUrl(url).toString();
         try (DownloadEgressProxy proxy = new DownloadEgressProxy()) {
             List<String> command = baseCommand(normalized, proxy);
+            command.addAll(List.of("--socket-timeout", "15", "--retries", "1", "--extractor-retries", "1"));
             command.addAll(List.of("--dump-single-json", "--skip-download", playlist ? "--flat-playlist" : "--no-playlist", "--", normalized));
             String output = execute(command, null, task, true);
             JsonNode metadata = json.readTree(output);
@@ -390,6 +394,15 @@ public class MediaDownloaderService {
     }
 
     private String execute(List<String> command, DownloadJob job, Running task, boolean probe) throws Exception {
+        return execute(command, job, task, probe, Duration.ofSeconds(Math.max(1, probeTimeoutSeconds)));
+    }
+
+    String runProbeCommand(List<String> command, Duration timeout) throws Exception {
+        return execute(command, null, null, true, timeout);
+    }
+
+    private String execute(List<String> command, DownloadJob job, Running task, boolean probe, Duration probeTimeout) throws Exception {
+        long startedAt = System.nanoTime();
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         processes.add(process);
         if (task != null) {
@@ -397,12 +410,22 @@ public class MediaDownloaderService {
             if (task.cancelled) stop(process);
         }
         AtomicLong lastActivity = new AtomicLong(System.currentTimeMillis());
+        AtomicReference<String> stoppedBecause = new AtomicReference<>();
         Thread watchdog = Thread.startVirtualThread(() -> {
             try {
                 while (process.isAlive()) {
-                    Thread.sleep(5000);
-                    if (System.currentTimeMillis() - lastActivity.get() > (probe ? 120_000 : 600_000)) stop(process);
-                    if (!probe && Files.exists(root) && Files.getFileStore(root).getUsableSpace() < 64L * 1024 * 1024) stop(process);
+                    Thread.sleep(probe ? 100 : 1000);
+                    if (probe && System.nanoTime() - startedAt >= probeTimeout.toNanos()) {
+                        stoppedBecause.compareAndSet(null, "Inspection exceeded " + probeTimeout.toSeconds() + " seconds. The source is too slow. Try again or inspect a single video instead of a playlist.");
+                        stop(process);
+                    } else if (!probe && System.currentTimeMillis() - lastActivity.get() > 600_000) {
+                        stoppedBecause.compareAndSet(null, "Preparation stalled for 10 minutes with no output. Retry the download.");
+                        stop(process);
+                    }
+                    if (!probe && Files.exists(root) && Files.getFileStore(root).getUsableSpace() < 64L * 1024 * 1024) {
+                        stoppedBecause.compareAndSet(null, "Server storage is full. Ask an administrator to free space.");
+                        stop(process);
+                    }
                 }
             } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
             catch (IOException exception) { stop(process); }
@@ -439,8 +462,20 @@ public class MediaDownloaderService {
                     if (errors.length() > 8000) errors.delete(0, errors.length() - 8000);
                 }
             }
-            if (process.waitFor() != 0) throw new IOException(errors.toString());
+            int exit = process.waitFor();
+            if (stoppedBecause.get() != null) {
+                if (probe) throw new java.net.SocketTimeoutException(stoppedBecause.get());
+                throw new IOException(stoppedBecause.get());
+            }
+            if (exit != 0) {
+                log.warn("Media process failed kind={} exit={} elapsedMs={} reason={}", probe ? "inspection" : "preparation", exit,
+                        Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), failureReason(errors.toString()));
+                throw new IOException(errors.toString());
+            }
             return output.toString();
+        } catch (IOException exception) {
+            if (stoppedBecause.get() != null && probe) throw new java.net.SocketTimeoutException(stoppedBecause.get());
+            throw exception;
         } finally {
             watchdog.interrupt();
             stop(process);
@@ -490,6 +525,10 @@ public class MediaDownloaderService {
 
     static String failureReason(String message) {
         String lower = Objects.toString(message, "").toLowerCase(Locale.ROOT);
+        if (lower.contains("inspection exceeded")) return message;
+        if (lower.contains("stalled for 10 minutes")) return "Preparation stalled for 10 minutes with no output. Retry the download.";
+        if (lower.contains("javascript runtime") || lower.contains("js runtime") || lower.contains("n challenge") || lower.contains("signature solving")) return "YouTube extraction requires an up-to-date yt-dlp and supported JavaScript runtime. Ask an administrator to check the server tools.";
+        if (lower.contains("not a bot") || lower.contains("confirm you're not")) return "The source requires a browser verification. Ask an administrator to refresh the shared cookies.";
         if (lower.contains("drm")) return "This video is DRM-protected and cannot be downloaded here.";
         if (lower.contains("unsupported url") || lower.contains("no suitable extractor")) return "This site or URL is not supported by the installed yt-dlp version.";
         if (lower.contains("cookie") || lower.contains("sign in") || lower.contains("login") || lower.contains("401")) return "The source requires authentication. Ask an administrator to refresh the shared cookies.";
@@ -500,7 +539,7 @@ public class MediaDownloaderService {
         if (lower.contains("space") || lower.contains("disk")) return "Server storage is unavailable or full. Ask an administrator to check the media disk.";
         if (lower.contains("ffmpeg") || lower.contains("cannot run program")) return "A required server tool is missing or failed. Ask an administrator to check yt-dlp and FFmpeg.";
         if (lower.contains("format")) return "The selected format or language is unavailable. Try Recommended or another quality.";
-        if (lower.contains("timed out") || lower.contains("connection") || lower.contains("network")) return "The source connection failed or stalled. Retry when the source is reachable.";
+        if (lower.contains("timed out") || lower.contains("connection") || lower.contains("network") || lower.contains("remote end closed") || lower.contains("unable to download webpage")) return "The source connection failed or stalled. Retry when the source is reachable.";
         return "The source or media processor failed, or preparation stalled. Retry with Recommended; ask an administrator to check the server tools if it persists.";
     }
 

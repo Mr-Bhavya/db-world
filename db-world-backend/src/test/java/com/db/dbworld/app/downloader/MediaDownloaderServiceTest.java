@@ -96,6 +96,52 @@ class MediaDownloaderServiceTest {
         assertTrue(MediaDownloaderService.failureReason("DRM protected").contains("DRM"));
         assertTrue(MediaDownloaderService.failureReason("HTTP Error 429").contains("rate-limiting"));
         assertFalse(MediaDownloaderService.failureReason("secret-cookie-file=/private/token").contains("/private/token"));
+        assertTrue(MediaDownloaderService.failureReason("No supported JavaScript runtime").contains("JavaScript runtime"));
+        assertTrue(MediaDownloaderService.failureReason("Sign in to confirm you're not a bot").contains("verification"));
+    }
+
+    @Test
+    @Timeout(15)
+    void hardProbeDeadlineStopsEvenAProcessThatKeepsProducingOutput() {
+        long start = System.nanoTime();
+        var exception = assertThrows(java.net.SocketTimeoutException.class,
+                () -> service.runProbeCommand(probeCommand("noisy"), Duration.ofMillis(1200)));
+        assertTrue(exception.getMessage().contains("Inspection exceeded"));
+        assertTrue(Duration.ofNanos(System.nanoTime() - start).toSeconds() < 12);
+    }
+
+    @Test
+    @Timeout(15)
+    void successfulProbeReturnsItsJson() throws Exception {
+        assertEquals("{\"title\":\"probe\"}", service.runProbeCommand(probeCommand("success"), Duration.ofSeconds(10)));
+    }
+
+    @Test void inspectionTimeoutUsesTheDomain504Response() throws Exception {
+        var downloader = mock(MediaDownloaderService.class);
+        when(downloader.inspect("https://example.com", false)).thenThrow(new java.net.SocketTimeoutException("Inspection exceeded 75 seconds."));
+        var controller = new MediaDownloaderController(downloader);
+        var exception = assertThrows(com.db.dbworld.core.exception.DbWorldException.class,
+                () -> controller.inspect(new MediaDownloaderController.InspectRequest("https://example.com", false)));
+        assertEquals(org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, exception.getHttpStatus());
+        assertTrue(exception.getMessage().contains("75 seconds"));
+    }
+
+    private List<String> probeCommand(String mode) throws Exception {
+        return List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-cp",
+                Path.of(ProbeFixture.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString(), ProbeFixture.class.getName(), mode);
+    }
+
+    public static class ProbeFixture {
+        public static void main(String[] args) throws Exception {
+            if (args[0].equals("success")) {
+                System.out.println("{\"title\":\"probe\"}");
+                return;
+            }
+            while (true) {
+                System.err.println("Retrying source");
+                Thread.sleep(40);
+            }
+        }
     }
 
     @Test void rejectsInvalidClipRanges() {

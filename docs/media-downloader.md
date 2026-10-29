@@ -25,6 +25,14 @@ Shared source cookies use the existing server configuration. They never go to cl
 
 The queue is designed for the existing single backend instance. Multiple backend replicas would require distributed job claiming before enabling workers on every instance.
 
+## Inspection Troubleshooting
+
+Inspection has a hard 75-second deadline, configurable with `app.downloader.probe-timeout-seconds`. Progress or retry output cannot extend that deadline. Probe requests use shorter network timeouts and fewer retries than downloads. The browser allows 90 seconds for the request, so keep that client timeout above the configured server deadline. Cancelling inspection stops the client request; an already-running server probe remains bounded by its deadline.
+
+For YouTube extraction failures, check that yt-dlp is current, its supported JavaScript runtime is available to the backend account, and shared cookies are fresh. Authentication, verification challenges and rate limits cannot be fixed by retrying indefinitely. Process-failure logs include the stage, exit code, elapsed time and a classified reason without echoing cookie contents or credential-bearing URLs.
+
+Audit writes use an independent transaction with a 10-second statement timeout. Hikari's apparent-leak warning identifies a connection held longer than the configured detection threshold, not necessarily a permanently leaked connection. If it persists, check MySQL lock waits, slow inserts, connection/socket health and whether Hikari subsequently reports that the connection was returned. A JDBC transaction timeout does not guarantee that a broken network socket will be interrupted.
+
 ## Administration
 
 Download Management lists user jobs, source, status, queue position, progress, failure reason, size and expiry. Administrators can cancel, retry and delete server files or run expired-file cleanup. Mutations are recorded in backend logs. A running job must stop before its files can be deleted.
