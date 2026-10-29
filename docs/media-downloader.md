@@ -31,6 +31,8 @@ Inspection has a hard 75-second deadline, configurable with `app.downloader.prob
 
 For YouTube extraction failures, check that yt-dlp is current, its supported JavaScript runtime is available to the backend account, and shared cookies are fresh. Authentication, verification challenges and rate limits cannot be fixed by retrying indefinitely. Process-failure logs include the stage, exit code, elapsed time and a classified reason without echoing cookie contents or credential-bearing URLs.
 
+FFmpeg must be available inside the backend's runtime, not just on the host. The backend Dockerfile installs FFmpeg and ffprobe. A configured standard command name (`ffmpeg` or `ffmpeg.exe`) uses yt-dlp's PATH discovery; an explicit file/directory path is passed through `--ffmpeg-location`. That option requires a filesystem location, so passing a bare command name previously produced a misleading missing-file warning even when FFmpeg was installed. An explicit path such as `/usr/bin/ffmpeg` must exist inside the container if the backend is containerized.
+
 ### Capturing Inspection Diagnostics
 
 After deploying the diagnostics and restarting the backend, reproduce once and save the request's JSON response body and request ID. Collect `Media inspection`, `Media process` and `Media egress` lines for that request/trace ID; proxy logs preserve the request context across their virtual threads. An additional `inspection` ID ties source validation, proxy connections and the completion/failure summary together.

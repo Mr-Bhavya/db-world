@@ -6,6 +6,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DownloadPolicyTest {
     @Test
+    void ffmpegCommandNamesUsePathDiscoveryAndExplicitLocationsArePreserved() {
+        assertTrue(DownloadPolicy.ffmpegLocationArguments(null).isEmpty());
+        assertTrue(DownloadPolicy.ffmpegLocationArguments(" ").isEmpty());
+        assertTrue(DownloadPolicy.ffmpegLocationArguments("ffmpeg").isEmpty());
+        assertTrue(DownloadPolicy.ffmpegLocationArguments(" FFMPEG.EXE ").isEmpty());
+        assertEquals(java.util.List.of("--ffmpeg-location", "/usr/bin/ffmpeg"), DownloadPolicy.ffmpegLocationArguments("/usr/bin/ffmpeg"));
+        assertEquals(java.util.List.of("--ffmpeg-location", "/opt/tools/bin"), DownloadPolicy.ffmpegLocationArguments("/opt/tools/bin"));
+        assertEquals(java.util.List.of("--ffmpeg-location", "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"),
+                DownloadPolicy.ffmpegLocationArguments("C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"));
+    }
+
+    @Test
     void blocksPrivateAndReservedDestinations() throws Exception {
         for (String address : new String[]{"127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fc00::1"}) {
             assertFalse(DownloadPolicy.isPublic(InetAddress.getByName(address)), address);

@@ -164,15 +164,34 @@ class MediaDownloaderServiceTest {
         assertEquals(1, video.size());
         assertEquals(4320, video.getFirst().height());
         assertEquals("HDR10", video.getFirst().dynamicRange());
+        assertEquals(1234L, video.getFirst().bytes());
         assertEquals(1, audio.size());
         assertTrue(audio.getFirst().estimated());
+        assertEquals(100L, audio.getFirst().bytes());
         var preview = new MediaDownloaderService.Preview("Title", null, "YouTube", 60.0, List.of(4320), List.of(), List.of(), List.of(), video, audio);
         assertDoesNotThrow(() -> MediaDownloaderService.validateTracks(preview, "401", "251", "webm"));
         assertThrows(ResponseStatusException.class, () -> MediaDownloaderService.validateTracks(preview, "401", "251", "mp4"));
         assertThrows(ResponseStatusException.class, () -> MediaDownloaderService.validateTracks(preview, "missing", null, "auto"));
     }
 
-    @Test void rejectsExactIdsAcrossPlaylistItems() {
+        @Test void missingAndNullFileSizesRemainUnknownWithoutFailingInspection() throws Exception {
+                var metadata = new ObjectMapper().readTree("""
+                                {"formats":[
+                                    {"format_id":"401","vcodec":"av01.0","acodec":"none","height":4320,"ext":"mp4"},
+                                    {"format_id":"251","vcodec":"none","acodec":"opus","ext":"webm","filesize":null,"filesize_approx":null}
+                                ]}
+                                """);
+                var video = MediaDownloaderService.tracks(metadata, true);
+                var audio = MediaDownloaderService.tracks(metadata, false);
+                assertEquals(1, video.size());
+                assertEquals(1, audio.size());
+                assertEquals("401", video.getFirst().id());
+                assertEquals("251", audio.getFirst().id());
+                assertNull(video.getFirst().bytes());
+                assertNull(audio.getFirst().bytes());
+        }
+
+        @Test void rejectsExactIdsAcrossPlaylistItems() {
         var request = new MediaDownloaderService.Request(List.of("https://example.com/1", "https://example.com/2"), "best", null,
                 false, false, null, null, null, null, "401", "251", "mkv");
         assertThrows(ResponseStatusException.class, () -> MediaDownloaderService.validateRequest(request));

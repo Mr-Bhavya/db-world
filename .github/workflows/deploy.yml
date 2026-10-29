@@ -75,15 +75,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve-source:
+    name: Resolve deployment commit
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+      - name: Pin source revision
+        id: source
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   # ── Backend: build the WAR on a cloud runner ───────────────────────────────
   backend-build:
     name: Backend · build WAR
+    needs: resolve-source
     if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime != 'docker' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.ref || github.sha }}
+          ref: ${{ needs.resolve-source.outputs.revision }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -124,13 +138,14 @@ jobs:
   # ── Backend (docker): build + push the image, then run it on the Pi ─────────
   backend-image:
     name: Backend · build image
+    needs: resolve-source
     if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime == 'docker' }}
     permissions:
       contents: read
       packages: write
     uses: ./.github/workflows/backend-image.yml
     with:
-      ref: ${{ github.event.inputs.ref }}
+      ref: ${{ needs.resolve-source.outputs.revision }}
       push: true
       ytdlp: ${{ github.event.inputs.ytdlp_latest == 'true' && 'latest' || '' }}
 
@@ -154,15 +169,18 @@ jobs:
   # ── Frontend: build the web bundle on a cloud runner ───────────────────────
   frontend-build:
     name: Frontend · build web
-    if: ${{ github.event.inputs.frontend == 'true' }}
+    needs: resolve-source
+    if: ${{ github.event.inputs.frontend == 'true' || github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.ref || github.sha }}
+          ref: ${{ needs.resolve-source.outputs.revision }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: db-world-frontend/package-lock.json
       - name: Build web bundle
         working-directory: db-world-frontend
         env:
@@ -193,7 +211,13 @@ jobs:
   # ── Frontend: deploy the bundle to the Pi (self-hosted) ────────────────────
   frontend-deploy:
     name: Frontend · deploy to Pi
-    needs: frontend-build
+    needs: [frontend-build, backend-deploy, backend-deploy-docker]
+    if: >-
+      ${{ always() && !cancelled() && github.event.inputs.frontend == 'true'
+          && needs.frontend-build.result == 'success'
+          && (github.event.inputs.backend != 'true'
+              || (github.event.inputs.backend_runtime == 'docker' && needs.backend-deploy-docker.result == 'success')
+              || (github.event.inputs.backend_runtime != 'docker' && needs.backend-deploy.result == 'success')) }}
     runs-on: self-hosted
     environment: production
     steps:
@@ -220,20 +244,23 @@ jobs:
           # swallowed it, so /var/www grew unbounded and nobody saw a thing.
           sudo /usr/local/bin/dbworldctl publish-frontend "$PWD/dist"
 
-  # ── Android: build the signed APK and publish the versioned Release ────────
-  android-release:
-    name: Android · publish APK release
+  # ── Android: compile in parallel; publishing below waits for deployments ──
+  android-build:
+    name: Android · build signed APK
+    needs: [resolve-source, frontend-build]
     if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write   # the only job that publishes a GitHub Release
+    outputs:
+      version: ${{ steps.ver.outputs.name }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.ref || github.sha }}
+          ref: ${{ needs.resolve-source.outputs.revision }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: db-world-frontend/package-lock.json
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -258,6 +285,10 @@ jobs:
             fi
           fi
           NAME="${NAME#v}"
+          if [[ ! "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Android version must be a numeric major.minor.patch version."
+            exit 1
+          fi
           # Minutes since the Unix epoch: monotonic + minute-granular AND stays inside Android's
           # signed-int versionCode (~29.7M now). The old yymmddHHmm was 10 digits (~2.6B) and
           # overflowed int → "For input string" build failure.
@@ -266,27 +297,15 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Resolved v$NAME (versionCode $CODE)"
 
-      - name: Build web bundle + Capacitor sync
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: db-world-frontend/dist
+
+      - name: Install dependencies and sync shared web bundle
         working-directory: db-world-frontend
-        env:
-          FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
           npm ci --no-audit --no-fund
-          # No silent fallback to `npm run build`. That path compiles fine with no
-          # env at all, so every VITE_* inlines as undefined and the deploy looks
-          # healthy while features quietly do nothing.
-          if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
-            echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
-            echo "A production bundle built without it has no API URL, no Firebase"
-            echo "config and no ad slots, and fails silently rather than loudly."
-            exit 1
-          fi
-          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-          # Catches a secret that has drifted behind the code -- adding a VITE_* var
-          # does not update the secret, and the resulting gap is invisible at build,
-          # deploy and runtime.
-          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
-          npm run build:production
           npx cap sync android
 
       - name: Inject google-services.json (Firebase / FCM)
@@ -319,6 +338,9 @@ jobs:
 
       - name: Assemble release APK
         working-directory: db-world-frontend/android
+        env:
+          VERSION_CODE: ${{ steps.ver.outputs.code }}
+          VERSION_NAME: ${{ steps.ver.outputs.name }}
         run: |
           chmod +x gradlew
           # --stacktrace because packageRelease can fail with nothing but
@@ -328,10 +350,10 @@ jobs:
           # it a failed release build tells you which task died and nothing about why,
           # which is where 2026-09-06 went. Cheap: it adds nothing to a passing run.
           ./gradlew assembleRelease --stacktrace \
-            -PappVersionCode=${{ steps.ver.outputs.code }} \
-            -PappVersionName=${{ steps.ver.outputs.name }}
+            -PappVersionCode="$VERSION_CODE" \
+            -PappVersionName="$VERSION_NAME"
           cp app/build/outputs/apk/release/app-release.apk \
-             "$GITHUB_WORKSPACE/db-world-${{ steps.ver.outputs.name }}.apk"
+             "$GITHUB_WORKSPACE/db-world-${VERSION_NAME}.apk"
 
       - name: Write version.json (updater metadata)
         env:
@@ -350,14 +372,43 @@ jobs:
              > "$GITHUB_WORKSPACE/version.json"
           cat "$GITHUB_WORKSPACE/version.json"
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-release-files
+          path: |
+            db-world-*.apk
+            version.json
+          if-no-files-found: error
+
+  android-release:
+    name: Android · publish APK release
+    needs: [resolve-source, android-build, backend-deploy, backend-deploy-docker, frontend-deploy]
+    if: >-
+      ${{ always() && !cancelled() && github.event.inputs.android == 'true'
+          && needs.android-build.result == 'success'
+          && (github.event.inputs.backend != 'true'
+              || (github.event.inputs.backend_runtime == 'docker' && needs.backend-deploy-docker.result == 'success')
+              || (github.event.inputs.backend_runtime != 'docker' && needs.backend-deploy.result == 'success'))
+          && (github.event.inputs.frontend != 'true' || needs.frontend-deploy.result == 'success') }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: android-release-files
+          path: release
+
       - name: Publish GitHub Release
         # Pinned to a full commit SHA: a mutable tag on a third-party action can be
         # repointed at malicious code, and this job holds contents:write. v3 = 3d0d988.
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
-          tag_name: v${{ steps.ver.outputs.name }}
-          name: v${{ steps.ver.outputs.name }}
+          tag_name: v${{ needs.android-build.outputs.version }}
+          name: v${{ needs.android-build.outputs.version }}
+          target_commitish: ${{ needs.resolve-source.outputs.revision }}
           generate_release_notes: true
           files: |
-            db-world-*.apk
-            version.json
+            release/db-world-*.apk
+            release/version.json

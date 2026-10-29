@@ -29,6 +29,8 @@ jobs:
       # lockfile and package.json ever drift apart, which is the point.
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Check release workflow ordering
+        run: node ../scripts/ci/check-release-workflow.cjs
       - name: Lint
         run: npm run lint
 

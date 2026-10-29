@@ -50,6 +50,13 @@ final class DownloadPolicy {
         return formatArguments(preset, quality, null, null, null);
     }
 
+    static List<String> ffmpegLocationArguments(String configured) {
+        if (configured == null || configured.isBlank()) return List.of();
+        String location = configured.trim();
+        if (location.equalsIgnoreCase("ffmpeg") || location.equalsIgnoreCase("ffmpeg.exe")) return List.of();
+        return List.of("--ffmpeg-location", location);
+    }
+
     static List<String> formatArguments(String preset, String quality, String videoFormat, String audioFormat, String container) {
         for (String format : new String[]{videoFormat, audioFormat}) {
             if (format != null && !format.isBlank() && !format.matches("[A-Za-z0-9._-]{1,100}")) {

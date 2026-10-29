@@ -38,7 +38,10 @@ Both **Build** and **Deploy & Release** take:
 
 1. **Promote to `main`** — merge `development → main` via PR (main is protected).
 2. **Actions ▸ Deploy & Release ▸ Run workflow**, tick the components you want:
-   - **backend** → builds the WAR (JDK 25) → deploys to the Pi (`dbworldctl update`).
+   - **backend** → by default builds/pushes the arm64 container image and deploys it through
+     `dbworld-compose deploy app`. Select **backend_runtime=war** only for a Pi using the legacy
+     WAR service (`dbworldctl update`). Both deployment commands must return successfully only
+     after their health check has passed.
    - **frontend** → builds the web bundle → deploys under `/var/www/dbworld` (timestamped release
      folder + `current` symlink; keeps the last 5).
    - **android** → builds the signed APK + `version.json` → publishes GitHub Release `v<version>`.
@@ -47,6 +50,35 @@ Both **Build** and **Deploy & Release** take:
    - Tick all three to ship everything in one run.
 3. *(Optional)* Run **Build** first to sanity-check the artifacts (or grab a debug APK) without
    shipping anything.
+
+## Release Ordering And Build Reuse
+
+Deploy & Release resolves the selected branch/tag to one immutable commit before any build.
+That commit is used by the backend, web bundle, Android build and release tag. The production
+web bundle is built once, cached npm downloads speed up dependency installation, and the same
+`frontend-dist` artifact feeds both web deployment and Capacitor sync.
+
+Backend and web builds can run concurrently. Android compilation can also run while the backend
+deploys, but compilation only uploads a private workflow artifact; it does not publish an app update.
+
+When backend deployment is selected, frontend deployment waits for the selected WAR/container
+deployment to succeed. Android publication waits for the APK build and every selected deployment
+to succeed, including production environment approvals. Failure, cancellation or an unexpected
+skip blocks publication. Only the final publish job has permission to write a GitHub Release.
+
+An Android-only run intentionally does not redeploy the backend. For an APK that depends on a new
+backend API, select backend and Android together in the same run. This gate cannot prove the status
+of a deployment started separately through another workflow or Jenkins. The Pi's external
+`dbworld-compose`/`dbworldctl` commands remain responsible for waiting on health and reporting errors.
+
+Run the local ordering regression check after installing frontend dependencies:
+
+```bash
+node scripts/ci/check-release-workflow.cjs
+```
+
+The same check runs in CI and covers runtime choices, component selections, deployment failures,
+cancellation, artifact reuse and commit pinning.
 
 ## Versioning (the release number)
 - **`versionName`** (human, e.g. `3.1.0`) — the **`version`** input on *Deploy & Release ▸ Android*.

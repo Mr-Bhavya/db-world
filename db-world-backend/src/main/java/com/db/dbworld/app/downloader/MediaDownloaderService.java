@@ -160,8 +160,9 @@ public class MediaDownloaderService {
             boolean videoOnly = videoCodec != null && !videoCodec.equals("none") && "none".equals(audioCodec);
             boolean audioOnly = audioCodec != null && !audioCodec.equals("none") && "none".equals(videoCodec);
             if (video ? !videoOnly : !audioOnly) continue;
-            Long bytes = format.path("filesize").isNumber() ? format.path("filesize").asLong()
-                    : format.path("filesize_approx").isNumber() ? format.path("filesize_approx").asLong() : null;
+                Long bytes = null;
+                if (format.path("filesize").isNumber()) bytes = format.path("filesize").asLong();
+                else if (format.path("filesize_approx").isNumber()) bytes = format.path("filesize_approx").asLong();
             result.add(new MediaTrack(id, text(format, "ext"), video ? videoCodec : audioCodec,
                     format.path("height").isNumber() ? format.path("height").asInt() : null, number(format, "fps"),
                     number(format, video ? "vbr" : "abr"), text(format, "language"),
@@ -416,7 +417,7 @@ public class MediaDownloaderService {
         }
         List<String> command = new ArrayList<>(List.of(properties.getYtDlp(), "--ignore-config", "--no-plugin-dirs",
             "--proxy", proxy.url(), "--downloader", "native", "--hls-prefer-native", "--socket-timeout", "30", "--retries", "3", "--fragment-retries", "3", "--no-warnings"));
-        if (properties.getFfmpeg() != null && !properties.getFfmpeg().isBlank()) command.addAll(List.of("--ffmpeg-location", properties.getFfmpeg()));
+        command.addAll(DownloadPolicy.ffmpegLocationArguments(properties.getFfmpeg()));
         Path cookies = properties.getCookieForUrl(url);
         if (cookies != null) command.addAll(List.of("--cookies", cookies.toString()));
         return command;
