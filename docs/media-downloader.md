@@ -31,6 +31,14 @@ Inspection has a hard 75-second deadline, configurable with `app.downloader.prob
 
 For YouTube extraction failures, check that yt-dlp is current, its supported JavaScript runtime is available to the backend account, and shared cookies are fresh. Authentication, verification challenges and rate limits cannot be fixed by retrying indefinitely. Process-failure logs include the stage, exit code, elapsed time and a classified reason without echoing cookie contents or credential-bearing URLs.
 
+### Capturing Inspection Diagnostics
+
+After deploying the diagnostics and restarting the backend, reproduce once and save the request's JSON response body and request ID. Collect `Media inspection`, `Media process` and `Media egress` lines for that request/trace ID; proxy logs preserve the request context across their virtual threads. An additional `inspection` ID ties source validation, proxy connections and the completion/failure summary together.
+
+INFO logs record the source host (not the URL), URL-validation time, cookie configuration/readability, tool path, effective retry/timeouts, process PID, first-output delay, exit code, metadata counts and proxy DNS/connect/relay stages. WARN logs include bounded, redacted tool output on errors and timeouts. For one difficult reproduction, temporarily enable `logging.level.com.db.dbworld.app.downloader=DEBUG` to see each redacted probe-output line, then return to INFO. Full metadata JSON, raw command lines and cookie contents are not logged.
+
+Share the public source URL, the request's `playlist` value, JSON response body, correlated diagnostic lines, deployed backend commit, yt-dlp version, and available supported JavaScript runtime/version. Also report whether the identical URL works through Admin Media Ingestion on the same server. Do not share authorization headers, browser cookies, cookie files, private links, full HAR exports or unredacted verbose yt-dlp output.
+
 Audit writes use an independent transaction with a 10-second statement timeout. Hikari's apparent-leak warning identifies a connection held longer than the configured detection threshold, not necessarily a permanently leaked connection. If it persists, check MySQL lock waits, slow inserts, connection/socket health and whether Hikari subsequently reports that the connection was returned. A JDBC transaction timeout does not guarantee that a broken network socket will be interrupted.
 
 ## Administration

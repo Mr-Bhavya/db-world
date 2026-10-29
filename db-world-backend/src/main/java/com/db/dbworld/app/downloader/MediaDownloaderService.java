@@ -87,12 +87,31 @@ public class MediaDownloaderService {
     }
 
     private Preview inspect(String url, boolean playlist, Running task) throws Exception {
-        String normalized = DownloadPolicy.validateUrl(url).toString();
-        try (DownloadEgressProxy proxy = new DownloadEgressProxy()) {
+        String inspectionId = UUID.randomUUID().toString();
+        long inspectionStarted = System.nanoTime();
+        String stage = "url-validation";
+        log.info("Media inspection started inspection={} sourceHost={} playlist={} probeTimeoutSeconds={}",
+            inspectionId, DownloadDiagnostics.sourceHost(url), playlist, probeTimeoutSeconds);
+        try {
+          String normalized = DownloadPolicy.validateUrl(url).toString();
+          log.info("Media inspection URL validated inspection={} elapsedMs={}", inspectionId,
+              Duration.ofNanos(System.nanoTime() - inspectionStarted).toMillis());
+          stage = "proxy-start";
+          try (DownloadEgressProxy proxy = new DownloadEgressProxy(inspectionId)) {
+            stage = "command-configuration";
             List<String> command = baseCommand(normalized, proxy);
+            command.remove("--no-warnings");
             command.addAll(List.of("--socket-timeout", "15", "--retries", "1", "--extractor-retries", "1"));
             command.addAll(List.of("--dump-single-json", "--skip-download", playlist ? "--flat-playlist" : "--no-playlist", "--", normalized));
+            Path cookies = properties.getCookieForUrl(normalized);
+            log.info("Media inspection configured inspection={} tool={} ffmpegConfigured={} cookiesConfigured={} cookiesReadable={} socketTimeoutSeconds={} retries={} extractorRetries={} proxy=public-egress-only elapsedMs={}",
+                inspectionId, DownloadDiagnostics.safeText(properties.getYtDlp()), properties.getFfmpeg() != null && !properties.getFfmpeg().isBlank(),
+                cookies != null, cookies != null && Files.isReadable(cookies), DownloadDiagnostics.option(command, "--socket-timeout"),
+                DownloadDiagnostics.option(command, "--retries"), DownloadDiagnostics.option(command, "--extractor-retries"),
+                Duration.ofNanos(System.nanoTime() - inspectionStarted).toMillis());
+            stage = "extractor-process";
             String output = execute(command, null, task, true);
+            stage = "metadata-parse";
             JsonNode metadata = json.readTree(output);
             List<Entry> entries = new ArrayList<>();
             for (JsonNode entry : metadata.path("entries")) {
@@ -115,9 +134,19 @@ public class MediaDownloaderService {
             TreeSet<String> subtitles = new TreeSet<>();
             metadata.path("subtitles").properties().forEach(entry -> subtitles.add(entry.getKey()));
             metadata.path("automatic_captions").properties().forEach(entry -> subtitles.add(entry.getKey()));
-            return new Preview(text(metadata, "title"), thumbnail(metadata), text(metadata, "extractor_key"),
+                Preview preview = new Preview(text(metadata, "title"), thumbnail(metadata), text(metadata, "extractor_key"),
                     number(metadata, "duration"), List.copyOf(resolutions), List.copyOf(languages), List.copyOf(subtitles), entries,
                     tracks(metadata, true), tracks(metadata, false));
+                log.info("Media inspection completed inspection={} elapsedMs={} extractor={} videoTracks={} audioTracks={} playlistItems={}",
+                    inspectionId, Duration.ofNanos(System.nanoTime() - inspectionStarted).toMillis(),
+                    DownloadDiagnostics.safeText(preview.source()), preview.videoFormats().size(), preview.audioFormats().size(), preview.entries().size());
+                return preview;
+              }
+            } catch (Exception exception) {
+                log.warn("Media inspection failed inspection={} stage={} elapsedMs={} exceptionType={} diagnostic={}", inspectionId, stage,
+                    Duration.ofNanos(System.nanoTime() - inspectionStarted).toMillis(), exception.getClass().getSimpleName(),
+                    DownloadDiagnostics.safeText(exception.getMessage()));
+                throw exception;
         }
     }
 
@@ -403,7 +432,16 @@ public class MediaDownloaderService {
 
     private String execute(List<String> command, DownloadJob job, Running task, boolean probe, Duration probeTimeout) throws Exception {
         long startedAt = System.nanoTime();
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String kind = probe ? "inspection" : "preparation";
+        log.info("Media process launching kind={} tool={} timeoutSeconds={}", kind, DownloadDiagnostics.safeText(command.getFirst()), probe ? probeTimeout.toSeconds() : "idle:600");
+        Process process;
+        try { process = new ProcessBuilder(command).redirectErrorStream(true).start(); }
+        catch (IOException exception) {
+            log.warn("Media process launch failed kind={} elapsedMs={} diagnostic={}", kind,
+                    Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), DownloadDiagnostics.safeText(exception.getMessage()));
+            throw exception;
+        }
+        log.info("Media process started kind={} pid={} startupMs={}", kind, process.pid(), Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
         processes.add(process);
         if (task != null) {
             task.process = process;
@@ -432,12 +470,18 @@ public class MediaDownloaderService {
         });
         StringBuilder output = new StringBuilder();
         StringBuilder errors = new StringBuilder();
+        StringBuilder diagnosticOutput = new StringBuilder();
+        boolean firstOutput = true;
         long lastSaved = 0;
         try (BufferedReader reader = process.inputReader(StandardCharsets.UTF_8)) {
             String line;
             while ((line = reader.readLine()) != null) {
+                if (firstOutput) {
+                    log.info("Media process first output kind={} pid={} elapsedMs={}", kind, process.pid(), Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
+                    firstOutput = false;
+                }
                 lastActivity.set(System.currentTimeMillis());
-                if (probe && line.startsWith("{")) {
+                if (probe && line.stripLeading().startsWith("{")) {
                     output.append(line);
                 } else if (job != null && line.startsWith("DBFILE:")) {
                     job.setFileName(Path.of(json.readTree(line.substring(7)).asText()).getFileName().toString());
@@ -460,20 +504,31 @@ public class MediaDownloaderService {
                 } else {
                     errors.append(line).append('\n');
                     if (errors.length() > 8000) errors.delete(0, errors.length() - 8000);
+                    String safeLine = DownloadDiagnostics.safeText(line);
+                    diagnosticOutput.append(safeLine).append(" | ");
+                    if (diagnosticOutput.length() > 8000) diagnosticOutput.delete(0, diagnosticOutput.length() - 8000);
+                    if (probe) log.debug("Media probe output pid={} diagnostic={}", process.pid(), safeLine);
                 }
             }
             int exit = process.waitFor();
+            log.info("Media process exited kind={} pid={} exit={} elapsedMs={} stdoutChars={}", kind, process.pid(), exit,
+                    Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), output.length());
             if (stoppedBecause.get() != null) {
+                log.warn("Media process stopped kind={} pid={} reason={} diagnostic={}", kind, process.pid(), stoppedBecause.get(), DownloadDiagnostics.safeText(diagnosticOutput.toString()));
                 if (probe) throw new java.net.SocketTimeoutException(stoppedBecause.get());
                 throw new IOException(stoppedBecause.get());
             }
             if (exit != 0) {
-                log.warn("Media process failed kind={} exit={} elapsedMs={} reason={}", probe ? "inspection" : "preparation", exit,
-                        Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), failureReason(errors.toString()));
+                log.warn("Media process failed kind={} pid={} exit={} elapsedMs={} reason={} diagnostic={}", kind, process.pid(), exit,
+                    Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), failureReason(errors.toString()), DownloadDiagnostics.safeText(diagnosticOutput.toString()));
                 throw new IOException(errors.toString());
             }
+                if (probe && !diagnosticOutput.isEmpty()) log.warn("Media inspection tool warnings pid={} diagnostic={}", process.pid(), DownloadDiagnostics.safeText(diagnosticOutput.toString()));
             return output.toString();
         } catch (IOException exception) {
+                log.warn("Media process IO failure kind={} pid={} elapsedMs={} stopReason={} diagnostic={} outputTail={}", kind, process.pid(),
+                    Duration.ofNanos(System.nanoTime() - startedAt).toMillis(), stoppedBecause.get(),
+                    DownloadDiagnostics.safeText(exception.getMessage()), DownloadDiagnostics.safeText(diagnosticOutput.toString()));
             if (stoppedBecause.get() != null && probe) throw new java.net.SocketTimeoutException(stoppedBecause.get());
             throw exception;
         } finally {

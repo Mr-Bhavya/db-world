@@ -6,7 +6,7 @@ import { Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogConte
 import { Cancel, Check, DeleteOutline, Download, Downloading, Pause, PlayArrow, Refresh, Replay } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
-import DbWorldDownload from '@platform/android/DbWorldDownload';
+import DbWorldDownload, { openDownloadedFile } from '@platform/android/DbWorldDownload';
 import { useDownloads } from '@features/cinema/download-queue/useDownloads';
 import { activeStatuses, errorMessage, formatBytes, formatEta, useMediaJobs } from './downloaderApi';
 import MediaJobList from './MediaJobList';
@@ -39,7 +39,7 @@ export default function DownloadCenter() {
     setBusy(item.downloadId); setError('');
     try {
       if (action === 'finish') await DbWorldDownload.completeBrowserDownload({ downloadId: item.downloadId });
-      else if (action === 'play') await DbWorldDownload.openDownloadedFile({ localUri: item.localUri, playableUri: item.playableUri });
+      else if (action === 'play') await openDownloadedFile(item);
       else await device.actions[action](item.downloadId);
       await device.refresh();
     } catch (failure) { setError(errorMessage(failure)); }
