@@ -58,7 +58,7 @@ spring:
     show-sql: false
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate.jdbc.batch_size: 25
       hibernate.order_inserts: true
