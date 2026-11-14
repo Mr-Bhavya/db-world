@@ -19,7 +19,7 @@
 
   // Serve on your own domain; Cloudflare creates the DNS record and certificate
   "routes": [
-    { "pattern": "app.yourdomain.com", "custom_domain": true }
+    { "pattern": "db-world.in", "custom_domain": true }
   ],
 
   // Don't also expose the site on *.workers.dev or per-version preview URLs
