@@ -1,0 +1,28 @@
+{
+  // Editor autocomplete/validation (resolves after `npm i -D wrangler`)
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  // Worker name shown in the Cloudflare dashboard
+  "name": "dbworld-web",
+
+  // Pins Workers runtime behaviour; leave as-is, bump only on purpose
+  "compatibility_date": "2026-11-14",
+
+  // Static-only site: no "main" script, Cloudflare serves the files directly
+  "assets": {
+    // Vite build output, relative to this file
+    "directory": "./dist",
+
+    // Unknown paths (/dashboard, /profile/42) return index.html so the SPA router handles them
+    "not_found_handling": "single-page-application"
+  },
+
+  // Serve on your own domain; Cloudflare creates the DNS record and certificate
+  "routes": [
+    { "pattern": "app.yourdomain.com", "custom_domain": true }
+  ],
+
+  // Don't also expose the site on *.workers.dev or per-version preview URLs
+  "workers_dev": false,
+  "preview_urls": false
+}
