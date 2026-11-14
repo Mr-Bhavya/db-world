@@ -3,7 +3,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
 
   // Worker name shown in the Cloudflare dashboard
-  "name": "dbworld-web",
+  "name": "db-world",
 
   // Pins Workers runtime behaviour; leave as-is, bump only on purpose
   "compatibility_date": "2026-11-14",
