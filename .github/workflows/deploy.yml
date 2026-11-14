@@ -1,31 +1,35 @@
 name: Deploy & Release
 
-# Manual deploy pipeline. Tick any combination of components when starting a run:
-#   • Backend  — build the Docker image, push it to GHCR, run it on the Pi via dbworld-compose
-#   • Frontend — build the web bundle and publish it to Cloudflare Workers (static assets)
-#   • Android  — build the signed APK + version.json and publish a GitHub Release
-#                (the in-app updater reads version.json from the latest release)
+# Builds AND ships each ticked component. Manual only (workflow_dispatch). Tick any combination:
+#   • Backend  — build the container image, push it to GHCR and run it on the Pi with
+#                dbworld-compose (Docker is the only backend runtime)
+#   • Frontend — build the web bundle and deploy it to Cloudflare Workers (static assets)
+#   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
+#                (the source the in-app updater reads)
 #
-# All deploy jobs use the `production` Environment; add a required reviewer there to gate them.
+# Release number (Android): the `version` input, e.g. 3.1.0 (blank = auto-bump the patch of the
+# latest published release). versionCode is an auto UTC timestamp (always increasing).
 #
-# Secrets (on the `production` Environment):
-#   FRONTEND_ENV_PRODUCTION      .env.production contents for the Vite build
-#   CLOUDFLARE_API_TOKEN         Cloudflare token with Workers Scripts: Edit on this account only
-#   CLOUDFLARE_ACCOUNT_ID        Cloudflare account that owns the Worker
-#   GOOGLE_SERVICES_JSON_BASE64  Firebase config for push notifications (optional)
-#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Every deploy job runs under the `production` Environment — add a required reviewer there to
+# gate every prod ship. Only the backend deploy uses the self-hosted runner on the Pi.
 #
-# Cloudflare settings (Worker name, domain, SPA fallback) live in db-world-frontend/wrangler.jsonc.
+# Secrets (put them on the `production` Environment): FRONTEND_ENV_PRODUCTION,
+# CLOUDFLARE_API_TOKEN (scope: Account > Workers Scripts: Edit, this account only),
+# CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICES_JSON_BASE64, ANDROID_KEYSTORE_BASE64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+#
+# Cloudflare config lives in db-world-frontend/wrangler.jsonc (Worker name, custom domain,
+# SPA fallback). It holds no secrets and is safe to commit.
 
 on:
   workflow_dispatch:
     inputs:
       backend:
-        description: Build the backend image and deploy it to the Pi
+        description: Build the backend image and deploy it to the Pi with dbworld-compose
         type: boolean
         default: false
       ytdlp_latest:
-        description: "Backend: use the newest yt-dlp release instead of the Dockerfile's pinned version"
+        description: "Backend: build with the newest yt-dlp release instead of the Dockerfile's pin — for when YouTube downloads break"
         type: boolean
         default: false
       frontend:
@@ -33,21 +37,21 @@ on:
         type: boolean
         default: true
       android:
-        description: Build and publish the signed Android APK release
+        description: Build + publish the signed Android APK release
         type: boolean
         default: false
       ref:
-        description: "Branch, tag (e.g. v3.0.3) or SHA to deploy. Blank = the ref you launched from. Use an older tag to roll back."
+        description: "Version to deploy/release — branch, tag (e.g. v3.0.3) or SHA. Blank = the ref you launched from. Pick a PREVIOUS tag to roll back."
         required: false
       version:
-        description: "Android release version, e.g. 3.1.0. Blank = bump the patch of the latest release."
+        description: "Android release version, e.g. 3.1.0 (blank = auto-bump latest patch). Ignored for backend/frontend."
         required: false
       mandatory:
-        description: "Android: force users to install this update"
+        description: "Android: force (mandatory) update?"
         type: boolean
         default: false
       audience:
-        description: "Android: who sees the update prompt — 'all' or 'admin' (ADMIN/OWNER only)"
+        description: "Android: who sees the update prompt — 'all' (everyone) or 'admin' (ADMIN/OWNER only, for admin-only changes)"
         type: choice
         options:
           - all
@@ -57,242 +61,205 @@ on:
         description: "Android: release notes shown in the update dialog"
         required: false
 
-# Read-only by default; jobs that need more request it themselves.
+# Least privilege by default: only android-release publishes a Release, so only that
+# job gets contents:write (see its own permissions block). The build/deploy jobs just
+# need to read the repo.
 permissions:
   contents: read
 
-# One deploy at a time; a new run queues instead of cancelling the one in progress.
 concurrency:
   group: deploy-release
   cancel-in-progress: false
 
 jobs:
-  # ── Resolve the requested ref to one fixed commit used by every job ────────
   resolve-source:
     name: Resolve deployment commit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     outputs:
       revision: ${{ steps.source.outputs.revision }}
     steps:
-      # Looks up the SHA through the API, so no checkout is needed.
-      - name: Resolve ref to commit SHA
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+      - name: Pin source revision
         id: source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REF: ${{ github.event.inputs.ref || github.sha }}
-        run: |
-          SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$REF" --jq .sha)
-          echo "revision=$SHA" >> "$GITHUB_OUTPUT"
-          echo "Deploying \`$REF\` → \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  # ── Backend: build and push the container image (reusable workflow) ────────
+  # ── Backend: build + push the image, then run it on the Pi ─────────────────
   backend-image:
     name: Backend · build image
     needs: resolve-source
     if: ${{ github.event.inputs.backend == 'true' }}
     permissions:
       contents: read
-      packages: write   # push to GHCR
+      packages: write
     uses: ./.github/workflows/backend-image.yml
     with:
       ref: ${{ needs.resolve-source.outputs.revision }}
       push: true
       ytdlp: ${{ github.event.inputs.ytdlp_latest == 'true' && 'latest' || '' }}
 
-  # ── Backend: run the new image on the Pi (self-hosted runner) ──────────────
   backend-deploy:
     name: Backend · deploy container to Pi
     needs: backend-image
     runs-on: self-hosted
     environment: production
-    timeout-minutes: 15
     steps:
-      # dbworld-compose pulls the tag, restarts the app, health-checks it and starts
-      # the previous tag again if the check fails. The runner's sudoers rule allows
-      # only this exact command. Manual rollback on the Pi: `sudo dbworld-compose rollback app`.
+      # Pull, restart, health-check, and on failure start the previous tag again.
+      # To roll back later: `sudo dbworld-compose rollback app` on the Pi, or deploy an
+      # older ref here. The runner's sudo rule allows exactly
+      # `dbworld-compose deploy app <tag>` (sudoers.d/dbworld-deploy in db-world-config).
       - name: Deploy image
         env:
           TAG: ${{ needs.backend-image.outputs.tag }}
         run: sudo /usr/local/bin/dbworld-compose deploy app "$TAG"
 
-      - name: Write summary
-        env:
-          TAG: ${{ needs.backend-image.outputs.tag }}
-        run: echo "Backend running image tag \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
-
-  # ── Frontend: build the web bundle (shared by Cloudflare and Android) ──────
+  # ── Frontend: build the web bundle on a cloud runner ───────────────────────
   frontend-build:
     name: Frontend · build web
     needs: resolve-source
     if: ${{ github.event.inputs.frontend == 'true' || github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-source.outputs.revision }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: db-world-frontend/package-lock.json
-
-      - name: Install dependencies
-        working-directory: db-world-frontend
-        run: npm ci --no-audit --no-fund
-
-      # Fails the run if the secret is missing: a build without it still succeeds,
-      # but every VITE_* value becomes undefined (no API URL, Firebase or ads).
-      - name: Write production env file
+      - name: Build web bundle
         working-directory: db-world-frontend
         env:
           FRONTEND_ENV_PRODUCTION: ${{ secrets.FRONTEND_ENV_PRODUCTION }}
         run: |
+          npm ci --no-audit --no-fund
+          # No silent fallback to `npm run build`. That path compiles fine with no
+          # env at all, so every VITE_* inlines as undefined and the deploy looks
+          # healthy while features quietly do nothing.
           if [ -z "$FRONTEND_ENV_PRODUCTION" ]; then
             echo "::error::FRONTEND_ENV_PRODUCTION secret is not set."
+            echo "A production bundle built without it has no API URL, no Firebase"
+            echo "config and no ad slots, and fails silently rather than loudly."
             exit 1
           fi
-          mkdir -p ../runtime
-          printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
-
-      # Fails if .env.example lists a VITE_* variable the secret doesn't define.
-      - name: Check env file against .env.example
-        working-directory: db-world-frontend
-        run: bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
-
-      - name: Build web bundle
-        working-directory: db-world-frontend
-        run: npm run build:production
-
-      # Ships wrangler.jsonc with the bundle, so the Cloudflare job needs no checkout.
-      # Both paths share db-world-frontend/, so the artifact contains dist/ + wrangler.jsonc.
-      - name: Upload web bundle
-        uses: actions/upload-artifact@v7
+          mkdir -p ../runtime && printf '%s' "$FRONTEND_ENV_PRODUCTION" > ../runtime/.env.production
+          # Catches a secret that has drifted behind the code -- adding a VITE_* var
+          # does not update the secret, and the resulting gap is invisible at build,
+          # deploy and runtime.
+          bash ../scripts/ci/check-frontend-env.sh ../runtime/.env.production ../runtime/.env.example
+          npm run build:production
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
-          path: |
-            db-world-frontend/dist
-            db-world-frontend/wrangler.jsonc
+          path: db-world-frontend/dist
           if-no-files-found: error
-          retention-days: 1   # public repo: keep artifacts only as long as this run needs them
+          # Public repo: anyone signed in can download artifacts. Only this run needs it.
+          retention-days: 1
 
-  # ── Frontend: publish the bundle to Cloudflare Workers ─────────────────────
+  # ── Frontend: deploy the bundle to Cloudflare Workers (static assets) ──────
   frontend-deploy:
     name: Frontend · deploy to Cloudflare
     needs: [resolve-source, frontend-build, backend-deploy]
-    # Runs after the backend when both are ticked, so the UI never goes live before its API.
+    # Waits for the backend when it's ticked, so the new UI never goes live ahead of
+    # the API it calls.
     if: >-
       ${{ always() && !cancelled() && github.event.inputs.frontend == 'true'
           && needs.frontend-build.result == 'success'
           && (github.event.inputs.backend != 'true' || needs.backend-deploy.result == 'success') }}
+    # GitHub-hosted: a fresh workspace every run, so no stale dist/ to clear, and no
+    # code from this public repo runs on the Pi for a frontend ship.
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 10
     steps:
-      - name: Download web bundle
-        uses: actions/download-artifact@v8
+      # Only wrangler.jsonc is needed from the repo; the bundle comes from the artifact.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve-source.outputs.revision }}
+          sparse-checkout: db-world-frontend/wrangler.jsonc
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
-          path: site
-
-      # Uploads site/dist as a new Worker version and makes it live.
-      # The commit SHA is attached as the version message (see `wrangler deployments list`).
+          path: db-world-frontend/dist
       - name: Deploy to Cloudflare Workers
-        id: wrangler
-        # TODO: pin to the full commit SHA of the v4 tag; this step holds the deploy token.
+        # TODO: pin to a full commit SHA (like softprops below) — this step holds the
+        # Cloudflare deploy token. Look up the SHA for the v4 tag in cloudflare/wrangler-action.
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: site
+          workingDirectory: db-world-frontend
+          # Tags the Cloudflare version with the commit, so `wrangler deployments list`
+          # shows exactly what is live.
           command: deploy --message "${{ needs.resolve-source.outputs.revision }}"
 
-      - name: Write summary
-        env:
-          URL: ${{ steps.wrangler.outputs.deployment-url }}
-          SHA: ${{ needs.resolve-source.outputs.revision }}
-        run: |
-          echo "Frontend deployed from \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
-          [ -n "$URL" ] && echo "URL: $URL" >> "$GITHUB_STEP_SUMMARY" || true
-
-  # ── Android: build the signed APK (runs alongside the deploys) ─────────────
+  # ── Android: compile in parallel; publishing below waits for deployments ──
   android-build:
     name: Android · build signed APK
     needs: [resolve-source, frontend-build]
     if: ${{ github.event.inputs.android == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     outputs:
       version: ${{ steps.ver.outputs.name }}
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-source.outputs.revision }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: db-world-frontend/package-lock.json
-
-      - name: Set up Java (with Gradle cache)
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      # versionName: the `version` input, or the latest release's patch + 1 (3.1.0 → 3.1.1),
-      #              or 3.0.0 when no release exists yet.
-      # versionCode: minutes since the Unix epoch — always increasing and within
-      #              Android's signed 32-bit limit.
       - name: Resolve version (name + code)
         id: ver
         env:
-          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           IN_NAME: ${{ github.event.inputs.version }}
         run: |
-          NAME="${IN_NAME#v}"
+          NAME="$IN_NAME"
+          # Blank version → auto-bump the patch of the latest published release (3.1.0 -> 3.1.1).
           if [ -z "$NAME" ]; then
-            LATEST=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+            # --proto '=https' --proto-redir '=https' so -L can't be walked down to
+            # plaintext http by a redirect; the resolved version drives the release tag.
+            LATEST=$(curl -fsSL --proto '=https' --proto-redir '=https' "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+                     | grep -m1 '"tag_name"' | sed 's/.*: *"\(.*\)".*/\1/' || true)
             LATEST="${LATEST#v}"
-            if [ -z "$LATEST" ]; then
-              NAME="3.0.0"
-            else
+            if [ -z "$LATEST" ]; then NAME="3.0.0"; else
               NAME=$(echo "$LATEST" | awk -F. -v OFS=. '{ $NF = $NF + 1; print }')
             fi
           fi
+          NAME="${NAME#v}"
           if [[ ! "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Android version must be numeric major.minor.patch (got '$NAME')."
+            echo "::error::Android version must be a numeric major.minor.patch version."
             exit 1
           fi
+          # Minutes since the Unix epoch: monotonic + minute-granular AND stays inside Android's
+          # signed-int versionCode (~29.7M now). The old yymmddHHmm was 10 digits (~2.6B) and
+          # overflowed int → "For input string" build failure.
           CODE="$(( $(date -u +%s) / 60 ))"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Resolved v$NAME (versionCode $CODE)"
 
-      # Same bundle the website gets, so web and app ship identical frontend code.
-      - name: Download web bundle
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
-          path: db-world-frontend
+          path: db-world-frontend/dist
 
-      # Copies dist/ into the Android project and updates native plugins.
-      - name: Install dependencies and sync Capacitor
+      - name: Install dependencies and sync shared web bundle
         working-directory: db-world-frontend
         run: |
           npm ci --no-audit --no-fund
           npx cap sync android
 
-      # Without this file the APK still builds but has no push notifications.
-      - name: Add google-services.json (Firebase / FCM)
+      - name: Inject google-services.json (Firebase / FCM)
         working-directory: db-world-frontend
         env:
           GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
@@ -300,11 +267,9 @@ jobs:
           if [ -n "$GS_B64" ]; then
             echo "$GS_B64" | base64 -d > android/app/google-services.json
           else
-            echo "::warning::GOOGLE_SERVICES_JSON_BASE64 not set — APK will have no push notifications."
+            echo "No GOOGLE_SERVICES_JSON_BASE64 — released APK will lack push (FCM)."
           fi
 
-      # Writes the keystore and keystore.properties read by app/build.gradle.
-      # Without the keystore secret the APK is debug-signed and unfit for release.
       - name: Configure release signing
         working-directory: db-world-frontend/android
         env:
@@ -317,11 +282,11 @@ jobs:
             echo "$KS_B64" | base64 -d > app/release.keystore
             printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
               "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > keystore.properties
+            echo "Release signing configured."
           else
-            echo "::warning::ANDROID_KEYSTORE_BASE64 not set — APK will be DEBUG-signed."
+            echo "No ANDROID_KEYSTORE_BASE64 — APK will be DEBUG-signed (not for public release)."
           fi
 
-      # --stacktrace shows the real cause when packaging fails inside a Gradle worker.
       - name: Assemble release APK
         working-directory: db-world-frontend/android
         env:
@@ -329,14 +294,19 @@ jobs:
           VERSION_NAME: ${{ steps.ver.outputs.name }}
         run: |
           chmod +x gradlew
+          # --stacktrace because packageRelease can fail with nothing but
+          # "A failure occurred while executing
+          #  PackageAndroidArtifact$IncrementalSplitterRunnable" — the real cause is
+          # inside the packaging worker and is only printed with a stack trace. Without
+          # it a failed release build tells you which task died and nothing about why,
+          # which is where 2026-09-06 went. Cheap: it adds nothing to a passing run.
           ./gradlew assembleRelease --stacktrace \
             -PappVersionCode="$VERSION_CODE" \
             -PappVersionName="$VERSION_NAME"
           cp app/build/outputs/apk/release/app-release.apk \
              "$GITHUB_WORKSPACE/db-world-${VERSION_NAME}.apk"
 
-      # Metadata the in-app updater downloads to decide whether to prompt the user.
-      - name: Write version.json
+      - name: Write version.json (updater metadata)
         env:
           CODE: ${{ steps.ver.outputs.code }}
           NAME: ${{ steps.ver.outputs.name }}
@@ -344,25 +314,25 @@ jobs:
           AUDIENCE: ${{ github.event.inputs.audience }}
           LOG: ${{ github.event.inputs.changelog }}
         run: |
-          APK="https://github.com/$GITHUB_REPOSITORY/releases/download/v${NAME}/db-world-${NAME}.apk"
+          [ -z "$MAND" ] && MAND=false
+          [ -z "$AUDIENCE" ] && AUDIENCE=all
+          APK="https://github.com/${{ github.repository }}/releases/download/v${NAME}/db-world-${NAME}.apk"
           jq -n --argjson code "$CODE" --arg name "$NAME" --argjson mandatory "$MAND" \
                 --arg audience "$AUDIENCE" --arg apk "$APK" --arg changelog "$LOG" \
-             '{versionCode:$code, versionName:$name, mandatory:$mandatory, minSupportedCode:0,
-               releaseAudience:$audience, apkUrl:$apk, changelog:$changelog}' \
+             '{versionCode:$code, versionName:$name, mandatory:$mandatory, minSupportedCode:0, releaseAudience:$audience, apkUrl:$apk, changelog:$changelog}' \
              > "$GITHUB_WORKSPACE/version.json"
           cat "$GITHUB_WORKSPACE/version.json"
 
-      - name: Upload APK and version.json
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
           name: android-release-files
           path: |
             db-world-*.apk
             version.json
           if-no-files-found: error
+          # The signed APK is published on the Release anyway; no need to keep a copy here.
           retention-days: 1
 
-  # ── Android: publish the GitHub Release after all ticked deploys succeed ───
   android-release:
     name: Android · publish APK release
     needs: [resolve-source, android-build, backend-deploy, frontend-deploy]
@@ -373,18 +343,17 @@ jobs:
           && (github.event.inputs.frontend != 'true' || needs.frontend-deploy.result == 'success') }}
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 10
     permissions:
-      contents: write   # create the tag and Release
+      contents: write
     steps:
-      - name: Download APK and version.json
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: android-release-files
           path: release
 
-      # Pinned to a commit SHA because this job can write to the repo. v3 = 3d0d988.
       - name: Publish GitHub Release
+        # Pinned to a full commit SHA: a mutable tag on a third-party action can be
+        # repointed at malicious code, and this job holds contents:write. v3 = 3d0d988.
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: v${{ needs.android-build.outputs.version }}
@@ -394,8 +363,3 @@ jobs:
           files: |
             release/db-world-*.apk
             release/version.json
-
-      - name: Write summary
-        env:
-          VERSION: ${{ needs.android-build.outputs.version }}
-        run: echo "Android release \`v$VERSION\` published" >> "$GITHUB_STEP_SUMMARY"
