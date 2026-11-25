@@ -1,42 +1,39 @@
 name: Deploy & Release
 
 # Builds AND ships each ticked component. Manual only (workflow_dispatch). Tick any combination:
-#   • Backend  — (backend_runtime: docker, the default) build the container image, push it to
-#                GHCR and run it on the Pi with dbworld-compose; or (war) build the WAR and deploy
-#                it with dbworldctl, only while the Pi runs the WAR
-#   • Frontend — build the web bundle and deploy it to the Pi
+#   • Backend  — build the container image, push it to GHCR and run it on the Pi with
+#                dbworld-compose (Docker is the only backend runtime)
+#   • Frontend — build the web bundle and deploy it to Cloudflare Workers (static assets)
 #   • Android  — build the SIGNED APK + version.json and publish a versioned GitHub Release
 #                (the source the in-app updater reads)
 #
 # Release number (Android): the `version` input, e.g. 3.1.0 (blank = auto-bump the patch of the
 # latest published release). versionCode is an auto UTC timestamp (always increasing).
 #
-# Pi deploys run on the self-hosted runner under the `production` Environment — add a required
-# reviewer there to gate every prod ship.
+# Every deploy job runs under the `production` Environment — add a required reviewer there to
+# gate every prod ship. Only the backend deploy uses the self-hosted runner on the Pi.
 #
-# Secrets: FRONTEND_ENV_PRODUCTION, GOOGLE_SERVICES_JSON_BASE64, ANDROID_KEYSTORE_BASE64,
+# Secrets (put them on the `production` Environment): FRONTEND_ENV_PRODUCTION,
+# CLOUDFLARE_API_TOKEN (scope: Account > Workers Scripts: Edit, this account only),
+# CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICES_JSON_BASE64, ANDROID_KEYSTORE_BASE64,
 # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+#
+# Cloudflare config lives in db-world-frontend/wrangler.jsonc (Worker name, custom domain,
+# SPA fallback). It holds no secrets and is safe to commit.
 
 on:
   workflow_dispatch:
     inputs:
       backend:
-        description: Build and deploy the backend to the Pi (how is set by backend_runtime below)
+        description: Build the backend image and deploy it to the Pi with dbworld-compose
         type: boolean
         default: false
-      backend_runtime:
-        description: "Backend: 'docker' (the default since the app runs as a container, 2026-10-08) builds the image and runs it with dbworld-compose; if the Pi runs the WAR again (dbworld-compose revert app), it deploys the WAR from that image. 'war' is the old Maven WAR + dbworldctl path, only for a Pi on the WAR."
-        type: choice
-        options:
-          - docker
-          - war
-        default: docker
       ytdlp_latest:
-        description: "Backend (docker): build with the newest yt-dlp release instead of the Dockerfile's pin — for when YouTube downloads break"
+        description: "Backend: build with the newest yt-dlp release instead of the Dockerfile's pin — for when YouTube downloads break"
         type: boolean
         default: false
       frontend:
-        description: Deploy the frontend web bundle to the Pi
+        description: Deploy the frontend web bundle to Cloudflare
         type: boolean
         default: true
       android:
@@ -88,58 +85,11 @@ jobs:
         id: source
         run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  # ── Backend: build the WAR on a cloud runner ───────────────────────────────
-  backend-build:
-    name: Backend · build WAR
-    needs: resolve-source
-    if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime != 'docker' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve-source.outputs.revision }}
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-      - name: Package WAR
-        working-directory: db-world-backend
-        run: mvn -B -ntp -P prod -DskipTests package
-      - uses: actions/upload-artifact@v7
-        with:
-          name: backend-war
-          path: db-world-backend/target/*.war
-          if-no-files-found: error
-
-  # ── Backend: deploy the WAR to the Pi (self-hosted) ────────────────────────
-  backend-deploy:
-    name: Backend · deploy to Pi
-    needs: backend-build
-    runs-on: self-hosted
-    environment: production
-    steps:
-      # Same stale-workspace problem as the frontend, but this one can deploy the
-      # WRONG BUILD: the step below takes `ls war/*.war | head -1`, which is
-      # alphabetical, so an older WAR left behind from a previous run can sort
-      # first and get deployed instead of the one just built.
-      - name: Clear the workspace before downloading
-        run: rm -rf war
-      - uses: actions/download-artifact@v8
-        with:
-          name: backend-war
-          path: war
-      - name: Deploy WAR
-        run: |
-          set -euxo pipefail
-          WAR=$(ls war/*.war | head -1)
-          sudo /usr/local/bin/dbworldctl update "$WAR"
-
-  # ── Backend (docker): build + push the image, then run it on the Pi ─────────
+  # ── Backend: build + push the image, then run it on the Pi ─────────────────
   backend-image:
     name: Backend · build image
     needs: resolve-source
-    if: ${{ github.event.inputs.backend == 'true' && github.event.inputs.backend_runtime == 'docker' }}
+    if: ${{ github.event.inputs.backend == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -149,17 +99,15 @@ jobs:
       push: true
       ytdlp: ${{ github.event.inputs.ytdlp_latest == 'true' && 'latest' || '' }}
 
-  backend-deploy-docker:
+  backend-deploy:
     name: Backend · deploy container to Pi
     needs: backend-image
     runs-on: self-hosted
     environment: production
     steps:
-      # Pull, restart, health-check, and on failure start the previous tag again: the same
-      # contract as `dbworldctl update`. While the Pi still runs the WAR, the WAR inside this
-      # image is deployed through `dbworldctl update` instead, so this path works before and
-      # after `dbworld-compose switch app`. To roll back later: `sudo dbworld-compose rollback app`
-      # on the Pi, or deploy an older ref here. The runner's sudo rule allows exactly
+      # Pull, restart, health-check, and on failure start the previous tag again.
+      # To roll back later: `sudo dbworld-compose rollback app` on the Pi, or deploy an
+      # older ref here. The runner's sudo rule allows exactly
       # `dbworld-compose deploy app <tag>` (sudoers.d/dbworld-deploy in db-world-config).
       - name: Deploy image
         env:
@@ -207,42 +155,45 @@ jobs:
           name: frontend-dist
           path: db-world-frontend/dist
           if-no-files-found: error
+          # Public repo: anyone signed in can download artifacts. Only this run needs it.
+          retention-days: 1
 
-  # ── Frontend: deploy the bundle to the Pi (self-hosted) ────────────────────
+  # ── Frontend: deploy the bundle to Cloudflare Workers (static assets) ──────
   frontend-deploy:
-    name: Frontend · deploy to Pi
-    needs: [frontend-build, backend-deploy, backend-deploy-docker]
+    name: Frontend · deploy to Cloudflare
+    needs: [resolve-source, frontend-build, backend-deploy]
+    # Waits for the backend when it's ticked, so the new UI never goes live ahead of
+    # the API it calls.
     if: >-
       ${{ always() && !cancelled() && github.event.inputs.frontend == 'true'
           && needs.frontend-build.result == 'success'
-          && (github.event.inputs.backend != 'true'
-              || (github.event.inputs.backend_runtime == 'docker' && needs.backend-deploy-docker.result == 'success')
-              || (github.event.inputs.backend_runtime != 'docker' && needs.backend-deploy.result == 'success')) }}
-    runs-on: self-hosted
+          && (github.event.inputs.backend != 'true' || needs.backend-deploy.result == 'success') }}
+    # GitHub-hosted: a fresh workspace every run, so no stale dist/ to clear, and no
+    # code from this public repo runs on the Pi for a frontend ship.
+    runs-on: ubuntu-latest
     environment: production
     steps:
-      # The runner is SELF-HOSTED, so its workspace survives between runs, and
-      # download-artifact does not clean its target directory. Without this, every
-      # build's output piles up in dist/ and `cp -r dist/.` copies the lot into the
-      # new release: 76 MB and ~1000 files instead of 5.9 MB and 81, with several
-      # generations of index-*.js sitting side by side.
-      - name: Clear the workspace before downloading
-        run: rm -rf dist
+      # Only wrangler.jsonc is needed from the repo; the bundle comes from the artifact.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve-source.outputs.revision }}
+          sparse-checkout: db-world-frontend/wrangler.jsonc
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v8
         with:
           name: frontend-dist
-          path: dist
-      - name: Publish to /var/www/dbworld
-        run: |
-          set -euxo pipefail
-          # Goes through dbworldctl for the same reason the WAR does: it runs under
-          # sudo, so it can set ownership to dbworld_admin:dbworld and prune releases
-          # left behind by earlier manual deploys.
-          #
-          # Doing it inline as the runner user is what caused the old failure -- the
-          # prune hit "Permission denied" on root-owned directories, and `|| true`
-          # swallowed it, so /var/www grew unbounded and nobody saw a thing.
-          sudo /usr/local/bin/dbworldctl publish-frontend "$PWD/dist"
+          path: db-world-frontend/dist
+      - name: Deploy to Cloudflare Workers
+        # TODO: pin to a full commit SHA (like softprops below) — this step holds the
+        # Cloudflare deploy token. Look up the SHA for the v4 tag in cloudflare/wrangler-action.
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: db-world-frontend
+          # Tags the Cloudflare version with the commit, so `wrangler deployments list`
+          # shows exactly what is live.
+          command: deploy --message "${{ needs.resolve-source.outputs.revision }}"
 
   # ── Android: compile in parallel; publishing below waits for deployments ──
   android-build:
@@ -379,16 +330,16 @@ jobs:
             db-world-*.apk
             version.json
           if-no-files-found: error
+          # The signed APK is published on the Release anyway; no need to keep a copy here.
+          retention-days: 1
 
   android-release:
     name: Android · publish APK release
-    needs: [resolve-source, android-build, backend-deploy, backend-deploy-docker, frontend-deploy]
+    needs: [resolve-source, android-build, backend-deploy, frontend-deploy]
     if: >-
       ${{ always() && !cancelled() && github.event.inputs.android == 'true'
           && needs.android-build.result == 'success'
-          && (github.event.inputs.backend != 'true'
-              || (github.event.inputs.backend_runtime == 'docker' && needs.backend-deploy-docker.result == 'success')
-              || (github.event.inputs.backend_runtime != 'docker' && needs.backend-deploy.result == 'success'))
+          && (github.event.inputs.backend != 'true' || needs.backend-deploy.result == 'success')
           && (github.event.inputs.frontend != 'true' || needs.frontend-deploy.result == 'success') }}
     runs-on: ubuntu-latest
     environment: production
