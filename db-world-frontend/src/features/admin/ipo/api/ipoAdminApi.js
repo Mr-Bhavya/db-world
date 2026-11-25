@@ -5,6 +5,11 @@ const unwrap = (r) => r.data?.data ?? r.data;
 
 export const getSourceHealth = () => axiosInstance.get(`${BASE}/sources`).then(unwrap);
 export const getIpoChanges = () => axiosInstance.get(`${BASE}/changes`).then(unwrap);
+/** One page of the change feed: optional `type` filter, `before` = createdAt cursor ("load older"). */
+export const getIpoChangesPage = ({ type, before, limit = 50 } = {}) =>
+  axiosInstance.get(`${BASE}/changes`, { params: { type: type || undefined, before: before || undefined, limit } }).then(unwrap);
+// DRY RUN of the next status sweep — read-only.
+export const getIpoStatusPreview = () => axiosInstance.get(`${BASE}/status-preview`).then(unwrap);
 export const repoll = () => axiosInstance.post(`${BASE}/repoll`).then((r) => r.data);
 
 // Duplicate listings. GET is a DRY RUN — it proposes clusters and changes nothing. POST applies

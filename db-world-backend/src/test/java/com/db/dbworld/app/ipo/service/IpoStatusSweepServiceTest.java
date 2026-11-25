@@ -11,12 +11,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -144,6 +146,70 @@ class IpoStatusSweepServiceTest {
     }
 
     @Test
+    void preview_reportsPlannedMovesWithoutWritingOrMutating() {
+        IpoListingEntity opening = ipo("1", "upcoming", OPEN_DAY, CLOSE_DAY);
+        IpoListingEntity oldListing = ipo("2", "closed", OPEN_DAY, CLOSE_DAY);
+        oldListing.setListingDate(OPEN_DAY.minusDays(1));
+        oldListing.setListingPrice(new BigDecimal("91"));
+        when(listingRepo.findAllLive()).thenReturn(List.of(opening, oldListing));
+
+        List<IpoStatusSweepService.PlannedChange> plan = serviceAt(MID_MORNING_IST).preview();
+
+        assertThat(plan).extracting(c -> c.ipo().getId() + ":" + c.from() + "->" + c.to() + ":" + c.announces())
+                .containsExactly("1:upcoming->open:true", "2:closed->listed:false");
+        assertThat(opening.getStatus()).isEqualTo("upcoming");
+        assertThat(oldListing.getStatus()).isEqualTo("closed");
+        verify(listingRepo, never()).saveAll(any());
+        verify(changeEventRepo, never()).saveAll(any());
+    }
+
+    @Test
+    void sweep_confirmedOldListing_isPromotedWithoutStalePush() {
+        IpoListingEntity ipo = ipo("1", "closed", OPEN_DAY, CLOSE_DAY);
+        ipo.setListingDate(OPEN_DAY);
+        ipo.setListingPrice(new BigDecimal("91"));
+        when(listingRepo.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(serviceAt(EVENING_CLOSE_DAY).sweep()).isEqualTo(1);
+        assertThat(ipo.getStatus()).isEqualTo("listed");
+        ArgumentCaptor<List<IpoChangeEventEntity>> captor = ArgumentCaptor.captor();
+        verify(changeEventRepo).saveAll(captor.capture());
+        assertThat(captor.getValue()).singleElement().satisfies(e -> {
+            assertThat(e.getNewValue()).isEqualTo("listed");
+            assertThat(e.getNotifiedAt()).isEqualTo(EVENING_CLOSE_DAY);
+        });
+    }
+
+    @Test
+    void sweep_futureListingDateOrNonpositivePrice_doesNotConfirmListing() {
+        IpoListingEntity future = ipo("1", "closed", OPEN_DAY, CLOSE_DAY);
+        future.setListingDate(CLOSE_DAY.plusDays(1));
+        future.setListingPrice(new BigDecimal("91"));
+        IpoListingEntity zero = ipo("2", "closed", OPEN_DAY, CLOSE_DAY);
+        zero.setListingDate(OPEN_DAY);
+        zero.setListingPrice(BigDecimal.ZERO);
+        when(listingRepo.findAllLive()).thenReturn(List.of(future, zero));
+
+        assertThat(serviceAt(EVENING_CLOSE_DAY).sweep()).isZero();
+    }
+
+    @Test
+    void sweep_todayConfirmedListing_queuesNotification() {
+        IpoListingEntity ipo = ipo("1", "closed", OPEN_DAY, CLOSE_DAY);
+        ipo.setListingDate(CLOSE_DAY);
+        ipo.setListingPrice(new BigDecimal("91"));
+        when(listingRepo.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(serviceAt(EVENING_CLOSE_DAY).sweep()).isEqualTo(1);
+        ArgumentCaptor<List<IpoChangeEventEntity>> captor = ArgumentCaptor.captor();
+        verify(changeEventRepo).saveAll(captor.capture());
+        assertThat(captor.getValue()).singleElement().satisfies(e -> {
+            assertThat(e.getNewValue()).isEqualTo("listed");
+            assertThat(e.getNotifiedAt()).isNull();
+        });
+    }
+
+    @Test
     void sweep_nothingMoved_writesNothingAtAll() {
         when(listingRepo.findAllLive()).thenReturn(List.of(ipo("1", "open", OPEN_DAY, CLOSE_DAY)));
 
@@ -153,10 +219,11 @@ class IpoStatusSweepServiceTest {
     }
 
     @Test
-    void sweep_repositoryBlowsUp_isSwallowedSoTheLiveRefreshStillRuns() {
+    void sweep_repositoryFailure_propagatesForTransactionRollback() {
         when(listingRepo.findAllLive()).thenThrow(new RuntimeException("db down"));
 
-        assertThat(serviceAt(MID_MORNING_IST).sweepQuietly()).isZero();
+        assertThatThrownBy(() -> serviceAt(MID_MORNING_IST).sweep())
+                .isInstanceOf(RuntimeException.class).hasMessage("db down");
     }
 
     @Test

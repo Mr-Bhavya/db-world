@@ -72,7 +72,7 @@ describe('fileManagerApi', () => {
     await searchFiles({ locationId: 'loc1', q: 'report', path: '/docs', recursive: false });
 
     expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/search`, {
-      params: { locationId: 'loc1', q: 'report', path: '/docs', recursive: false },
+      params: { locationId: 'loc1', q: 'report', path: '/docs', recursive: false, limit: 500 },
     });
   });
 

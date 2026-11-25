@@ -28,8 +28,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Persists the merged per-IPO feed produced by {@link IpoMergeService}: creates new listings,
@@ -57,7 +55,7 @@ public class IpoIngestService {
      * days, and the feeds pick that up at different times), narrow enough that a company's SME
      * issue and its later mainboard issue — identical name, months apart — stay two rows.
      */
-    private static final int ALIAS_DATE_TOLERANCE_DAYS = 21;
+    static final int ALIAS_DATE_TOLERANCE_DAYS = 21;
 
     private final IpoListingRepository listingRepo;
     private final IpoGmpHistoryRepository gmpHistoryRepo;
@@ -118,10 +116,12 @@ public class IpoIngestService {
                 withDerivedStatus(withCanonicalType(withCanonicalStatus(rawDto)))));
         Instant now = clock.instant();
         String aliasKey = normalizer.aliasKey(dto.companyName());
-        IpoListingEntity existing = listingRepo.findByMatchKey(dto.matchKey())
-                .orElseGet(() -> resolveByAlias(aliasKey, dto));
+        IpoListingEntity matched = listingRepo.findByMatchKey(dto.matchKey()).orElse(null);
+        if (matched == null) {
+            matched = resolveByAlias(aliasKey, dto);
+        }
 
-        if (existing == null) {
+        if (matched == null) {
             IpoListingEntity entity = mapper.toNewEntity(dto);
             entity.setAliasKey(aliasKey);
             entity.setFirstSeenAt(now);
@@ -133,14 +133,30 @@ public class IpoIngestService {
             return;
         }
 
+        boolean matchedTombstone = matched.getMergedIntoId() != null;
+        IpoListingEntity existing = IpoMergeResolver.resolve(listingRepo, matched);
+        LocalDate today = LocalDate.now(clock.withZone(IST));
+        boolean confirmedListing = STATUS_LISTED.equals(existing.getStatus())
+                && IpoStatusSweepService.hasConfirmedListing(existing, today);
+        LocalDate confirmedListingDate = existing.getListingDate();
+        BigDecimal confirmedListingPrice = existing.getListingPrice();
+        if (confirmedListing && !STATUS_LISTED.equals(dto.status())) {
+            dto = withStatus(dto, STATUS_LISTED);
+        }
         List<IpoChangeEventEntity> events = detectChanges(existing, dto, now);
         mapper.applyUpdatable(dto, existing);
+        if (confirmedListing) {
+            if (existing.getListingDate().isAfter(today)) existing.setListingDate(confirmedListingDate);
+            if (existing.getListingPrice().signum() <= 0) existing.setListingPrice(confirmedListingPrice);
+        }
         // Keep the identity and the resolution key in step with the name/date we just accepted:
         // when the alias fallback rescued this row from a revised open date, its stored matchKey
         // still encodes the OLD date, and leaving it there would let the next poll miss on
         // matchKey again and re-enter this same fallback forever.
-        existing.setMatchKey(dto.matchKey());
-        existing.setAliasKey(aliasKey);
+        if (!matchedTombstone) {
+            existing.setMatchKey(dto.matchKey());
+            existing.setAliasKey(aliasKey);
+        }
         existing.setLastSeenAt(now);
         listingRepo.save(existing);
         events.forEach(changeEventRepo::save);
@@ -220,19 +236,6 @@ public class IpoIngestService {
         if (rows == null || rows.isEmpty()) {
             return;
         }
-        // Reconcile: drop any previously-stored fiscal year that the current scrape no longer
-        // reports — e.g. stale rows left by an earlier parse that mis-read metric labels ("Assets",
-        // "Profit After Tax", …) as periods — so the detail view/chart never shows orphaned empty
-        // rows. Guarded by the empty check above, so a transient empty scrape can't wipe good data.
-        Set<String> incomingYears = rows.stream()
-                .map(IpoFinancialRowDto::fiscalYear)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        for (IpoFinancialEntity existing : financialRepo.findByIpoIdOrderByPeriodEndAsc(ipoId)) {
-            if (!incomingYears.contains(existing.getFiscalYear())) {
-                financialRepo.delete(existing);
-            }
-        }
         for (IpoFinancialRowDto row : rows) {
             if (row.fiscalYear() == null) {
                 continue; // no usable natural key for this row
@@ -248,20 +251,20 @@ public class IpoIngestService {
                         .periodEnd(row.periodEnd())
                         .build());
             } else if (financialRowChanged(entity, row)) {
-                entity.setRevenue(row.revenue());
-                entity.setPat(row.pat());
-                entity.setTotalAssets(row.totalAssets());
-                entity.setPeriodEnd(row.periodEnd());
+                if (row.revenue() != null) entity.setRevenue(row.revenue());
+                if (row.pat() != null) entity.setPat(row.pat());
+                if (row.totalAssets() != null) entity.setTotalAssets(row.totalAssets());
+                if (row.periodEnd() != null) entity.setPeriodEnd(row.periodEnd());
                 financialRepo.save(entity);
             }
         }
     }
 
     private static boolean financialRowChanged(IpoFinancialEntity entity, IpoFinancialRowDto row) {
-        return bigDecimalDiffers(entity.getRevenue(), row.revenue())
-                || bigDecimalDiffers(entity.getPat(), row.pat())
-                || bigDecimalDiffers(entity.getTotalAssets(), row.totalAssets())
-                || !Objects.equals(entity.getPeriodEnd(), row.periodEnd());
+        return (row.revenue() != null && bigDecimalDiffers(entity.getRevenue(), row.revenue()))
+                || (row.pat() != null && bigDecimalDiffers(entity.getPat(), row.pat()))
+                || (row.totalAssets() != null && bigDecimalDiffers(entity.getTotalAssets(), row.totalAssets()))
+                || (row.periodEnd() != null && !Objects.equals(entity.getPeriodEnd(), row.periodEnd()));
     }
 
     /** Compares {@code dto} against {@code entity}'s pre-update state — must run before {@code applyUpdatable}. */

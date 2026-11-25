@@ -6,9 +6,9 @@ import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
-import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
+import com.db.dbworld.app.media.aria2.Aria2Progress;
 import com.db.dbworld.app.media.aria2.Aria2StatusKeys;
 import com.db.dbworld.app.media.aria2.model.Aria2AddDownloadResponse;
 import com.db.dbworld.app.media.aria2.model.Aria2StatusParam;
@@ -39,9 +39,6 @@ import java.util.Map;
 public class Aria2DownloadStrategy implements DownloadStrategy {
 
     private static final int  POLL_INTERVAL_MS  = 2000;
-    private static final int  MAX_WAIT_HOURS    = 6;
-    private static final long MAX_POLL_ITERATIONS =
-            (MAX_WAIT_HOURS * 3600 * 1000L) / POLL_INTERVAL_MS;
 
     private final Aria2RpcService    aria2RpcService;
     private final FileStorageService fileStorageService;
@@ -63,6 +60,11 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         boolean queued = false;
 
         try {
+            String adoptGid = ctx.getRequest().getAdoptGid();
+            if (adoptGid != null && !adoptGid.isBlank()) {
+                return adoptExisting(ctx, adoptGid);
+            }
+
             boolean isMagnet = isMagnet(ctx);
             queued = downloadQueue.enqueue(jobId, isMagnet);
             if (queued) {
@@ -102,31 +104,16 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
             String gid = addResponse.getGid();
 
-            // ── Register GID and actions in the job store ──────────────────
-            jobStore.setGid(jobId, gid);
-            jobStore.setCancelAction(jobId, () -> {
-                try {
-                    jobStore.getGid(jobId).ifPresent(aria2RpcService::forceRemove);
-                } catch (Exception e) {
-                    log.warn("[{}] forceRemove failed: {}", jobId, e.getMessage());
-                } finally {
-                    downloadQueue.cancel(jobId);
-                }
-            });
-            jobStore.setPauseAction(jobId, () ->
-                    jobStore.getGid(jobId).ifPresent(g -> {
-                        try { aria2RpcService.pause(g); }
-                        catch (Exception e) { log.warn("[{}] pause failed: {}", jobId, e.getMessage()); }
-                    })
-            );
-            jobStore.setResumeAction(jobId, () ->
-                    jobStore.getGid(jobId).ifPresent(g -> {
-                        try { aria2RpcService.unpause(g); }
-                        catch (Exception e) { log.warn("[{}] unpause failed: {}", jobId, e.getMessage()); }
-                    })
-            );
+            registerGidActions(jobId, gid);
 
-            // ──────────────────────────────────────────────────────────────
+            if (ctx.isParallel()) {
+                try {
+                    aria2RpcService.startParallelDownload(gid);
+                } catch (Exception e) {
+                    jobStore.executeCancelAction(jobId);
+                    throw e;
+                }
+            }
 
             ctx.log("ARIA2", "Download queued with GID: " + gid);
             return pollUntilDone(ctx, gid, tempDir);
@@ -138,6 +125,54 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             ctx.logError("ARIA2", "Download failed: " + e.getMessage());
             return DownloadResult.failure(jobId, e.getMessage());
         }
+    }
+
+    /**
+     * Restart recovery: aria2 still owns this download (active/waiting/paused), so track the existing
+     * GID instead of adding the URI again — re-adding would start a second copy into the same dir.
+     * aria2 already orders it in its own queue, so it skips the app download slot like a magnet.
+     */
+    private DownloadResult adoptExisting(IngestionContext ctx, String gid) throws InterruptedException {
+        String jobId = ctx.getJobId();
+        trackingService.updateStatus(jobId, com.db.dbworld.app.media.ingestion.tracking.MirrorStatus.DOWNLOADING);
+        ctx.setStatus(com.db.dbworld.app.media.ingestion.tracking.MirrorStatus.DOWNLOADING);
+        ctx.setCurrentStep(com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType.DOWNLOAD);
+        trackingService.updateStep(jobId, com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType.DOWNLOAD);
+
+        fileStorageService.prepareDirectories(ctx);
+        Path tempDir = fileStorageService.resolveTempDir(ctx);
+
+        registerGidActions(jobId, gid);
+        // surfaceExternalDownloads may have shown this GID as a synthetic job before we claimed it.
+        String syntheticId = "ext-" + gid;
+        if (trackingService.hasJob(syntheticId)) trackingService.remove(syntheticId);
+        ctx.log("ARIA2", "Adopted existing aria2 download with GID: " + gid);
+        return pollUntilDone(ctx, gid, tempDir);
+    }
+
+    private void registerGidActions(String jobId, String gid) {
+        jobStore.setGid(jobId, gid);
+        jobStore.setCancelAction(jobId, () -> {
+            try {
+                jobStore.getGid(jobId).ifPresent(aria2RpcService::forceRemove);
+            } catch (Exception e) {
+                log.warn("[{}] forceRemove failed: {}", jobId, e.getMessage());
+            } finally {
+                downloadQueue.cancel(jobId);
+            }
+        });
+        jobStore.setPauseAction(jobId, () ->
+                jobStore.getGid(jobId).ifPresent(g -> {
+                    try { aria2RpcService.pause(g); }
+                    catch (Exception e) { log.warn("[{}] pause failed: {}", jobId, e.getMessage()); }
+                })
+        );
+        jobStore.setResumeAction(jobId, () ->
+                jobStore.getGid(jobId).ifPresent(g -> {
+                    try { aria2RpcService.unpause(g); }
+                    catch (Exception e) { log.warn("[{}] unpause failed: {}", jobId, e.getMessage()); }
+                })
+        );
     }
 
     @Override
@@ -170,10 +205,9 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     private DownloadResult pollUntilDone(IngestionContext ctx, String gid, Path tempDir)
             throws InterruptedException {
         String jobId = ctx.getJobId();
-        long iterations = 0;
         int consecutiveErrors = 0;
 
-        while (iterations < MAX_POLL_ITERATIONS) {
+        while (true) {
 
             if (ctx.isCancelled() || trackingService.isCancelled(jobId)) {
                 jobStore.executeCancelAction(jobId);
@@ -182,7 +216,6 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             }
 
             Thread.sleep(POLL_INTERVAL_MS);
-            iterations++;
 
             String activeGid = null;
 
@@ -197,7 +230,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
                 if (status == null) {
                     ctx.logError("ARIA2", "Null status for GID: " + activeGid);
-                    continue;
+                    throw new IllegalStateException("Null aria2 status for GID " + activeGid);
                 }
 
                 consecutiveErrors = 0;
@@ -255,9 +288,6 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             }
         }
 
-        jobStore.executeCancelAction(jobId);
-        return DownloadResult.failure(jobId,
-                "Timed out after " + MAX_WAIT_HOURS + " hours");
     }
 
     private DownloadResult handleComplete(IngestionContext ctx, String gid,
@@ -341,17 +371,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
     private void updateProgress(IngestionContext ctx, Aria2StatusParam status) {
         try {
-            Long total     = status.getTotalLength();
-            Long completed = status.getCompletedLength();
-            Long speed     = status.getDownloadSpeed();
-
-            if (total != null && total > 0 && completed != null) {
-                long remaining = total - completed;
-                long eta = (speed != null && speed > 0) ? remaining / speed : 0;
-                trackingService.updateProgress(ctx.getJobId(),
-                        ProgressSnapshot.downloading(completed, total,
-                                speed != null ? speed.doubleValue() : 0.0, eta));
-            }
+            trackingService.updateProgress(ctx.getJobId(), Aria2Progress.from(status));
         } catch (Exception e) {
             log.debug("[{}] updateProgress skipped: {}", ctx.getJobId(), e.getMessage());
         }

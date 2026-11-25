@@ -48,12 +48,13 @@ public class IpoApplicationService {
     /** Creates or updates the caller's saved application for {@code ipoId}. 404s if the IPO itself doesn't exist. */
     @Transactional
     public IpoApplicationDto upsert(Long userId, String ipoId, SaveApplicationRequest req) {
-        if (!listingRepository.existsById(ipoId)) {
-            throw new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found");
-        }
+        IpoListingEntity listing = listingRepository.findById(ipoId)
+                .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
+        ipoId = IpoMergeResolver.resolve(listingRepository, listing).getId();
+        String resolvedId = ipoId;
 
         IpoUserApplicationEntity entity = applicationRepository.findByUserIdAndIpoId(userId, ipoId)
-                .orElseGet(() -> IpoUserApplicationEntity.builder().userId(userId).ipoId(ipoId).build());
+                .orElseGet(() -> IpoUserApplicationEntity.builder().userId(userId).ipoId(resolvedId).build());
 
         entity.setApplicantName(req.applicantName());
         entity.setApplicationNo(req.applicationNo());
@@ -71,7 +72,8 @@ public class IpoApplicationService {
     }
 
     public Optional<IpoApplicationDto> getMine(Long userId, String ipoId) {
-        return applicationRepository.findByUserIdAndIpoId(userId, ipoId).map(mapper::toApplicationDto);
+        return applicationRepository.findByUserIdAndIpoId(userId,
+                IpoMergeResolver.resolveIdIfPresent(listingRepository, ipoId)).map(mapper::toApplicationDto);
     }
 
     /** Every saved application for this user, joined with its IPO's summary; orphaned ipoIds (IPO since removed) are skipped. */
@@ -94,7 +96,8 @@ public class IpoApplicationService {
 
     @Transactional
     public void delete(Long userId, String ipoId) {
-        applicationRepository.deleteByUserIdAndIpoId(userId, ipoId);
+        applicationRepository.deleteByUserIdAndIpoId(userId,
+                IpoMergeResolver.resolveIdIfPresent(listingRepository, ipoId));
     }
 
     /**

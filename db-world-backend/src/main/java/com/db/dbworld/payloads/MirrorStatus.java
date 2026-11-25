@@ -38,6 +38,7 @@ public class MirrorStatus {
     private String folderName;
     private String fileUrl;
     private String urlUsername;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     private String urlPassword;
     private boolean isUrlProtected;
     private boolean magnet;

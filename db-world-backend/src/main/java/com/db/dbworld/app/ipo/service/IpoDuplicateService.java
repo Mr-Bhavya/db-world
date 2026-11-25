@@ -8,10 +8,13 @@ import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoUserApplicationRepository;
+import com.db.dbworld.core.exception.DbWorldException;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,8 +41,8 @@ import java.util.function.Function;
  * {@code ipo_user_application} — the last of which is real user data. Name similarity genuinely
  * produces false positives: a company's SME issue and its later mainboard issue carry a
  * byte-identical name and must stay two rows. So {@link #report()} proposes and
- * {@link #mergeAll()} applies, and every merge is reversible — the loser is tombstoned via
- * {@code mergedIntoId} rather than deleted, keeping its own identity and dates.
+ * {@link #mergeAll()} applies. The loser remains as a tombstone, but its child records move to the
+ * survivor, so restoring the row alone does not undo the merge.
  */
 @Log4j2
 @Service
@@ -134,30 +137,21 @@ public class IpoDuplicateService {
             }
             candidates.sort(survivorOrder());
             IpoListingEntity survivor = candidates.get(0);
+            for (int i = 0; i < candidates.size(); i++) {
+                for (int j = i + 1; j < candidates.size(); j++) {
+                    rejectConflicts(candidates.get(i), candidates.get(j));
+                }
+            }
             for (IpoListingEntity loser : candidates.subList(1, candidates.size())) {
-                // Colliding rows are dropped BEFORE the repoint in every case: for applications
-                // because (user_id, ipo_id) is UNIQUE and the update would throw, and for the
-                // history tables because two rows for the same instant would draw a doubled series.
-                List<String> collidingApplications =
-                        userApplicationRepo.findCollidingIdsForMerge(survivor.getId(), loser.getId());
-                userApplicationRepo.deleteAllById(collidingApplications);
-                applicationsDropped += collidingApplications.size();
                 applicationsMoved += userApplicationRepo.repointToSurvivor(survivor.getId(), loser.getId());
 
-                gmpHistoryRepo.deleteAllById(
-                        gmpHistoryRepo.findCollidingIdsForMerge(survivor.getId(), loser.getId()));
                 gmpHistoryRepo.repointToSurvivor(survivor.getId(), loser.getId());
-                subHistoryRepo.deleteAllById(
-                        subHistoryRepo.findCollidingIdsForMerge(survivor.getId(), loser.getId()));
                 subHistoryRepo.repointToSurvivor(survivor.getId(), loser.getId());
-                financialRepo.deleteAllById(
-                        financialRepo.findCollidingIdsForMerge(survivor.getId(), loser.getId()));
                 financialRepo.repointToSurvivor(survivor.getId(), loser.getId());
                 changeEventRepo.repointToSurvivor(survivor.getId(), loser.getId());
 
                 fillMissingFrom(survivor, loser);
-                // Tombstone rather than delete: the loser keeps its own row, dates and match_key, so
-                // the merge can be undone by clearing merged_into_id and nothing is unrecoverable.
+                // Preserve the old row and key for existing links and subsequent source updates.
                 loser.setMergedIntoId(survivor.getId());
                 listingRepo.save(loser);
                 rows++;
@@ -173,6 +167,26 @@ public class IpoDuplicateService {
         log.info("IPO duplicate merge: clusters={} rowsMerged={} applicationsMoved={} applicationsDropped={}",
                 clusters, rows, applicationsMoved, applicationsDropped);
         return result;
+    }
+
+    private void rejectConflicts(IpoListingEntity first, IpoListingEntity second) {
+        if ((first.getOpenDate() != null && second.getOpenDate() != null
+                && Math.abs(ChronoUnit.DAYS.between(first.getOpenDate(), second.getOpenDate()))
+                    > IpoIngestService.ALIAS_DATE_TOLERANCE_DAYS)
+                || (first.getIpoType() != null && second.getIpoType() != null
+                && !first.getIpoType().equalsIgnoreCase(second.getIpoType()))) {
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    "Cannot merge IPOs: dates or issue types indicate different issues");
+        }
+        String a = first.getId();
+        String b = second.getId();
+        if (!userApplicationRepo.findCollidingIdsForMerge(a, b).isEmpty()
+                || !gmpHistoryRepo.findCollidingIdsForMerge(a, b).isEmpty()
+                || !subHistoryRepo.findCollidingIdsForMerge(a, b).isEmpty()
+                || !financialRepo.findCollidingIdsForMerge(a, b).isEmpty()) {
+            throw new DbWorldException(HttpStatus.CONFLICT,
+                    "Cannot merge IPOs: application or history records conflict; review them first");
+        }
     }
 
     /**

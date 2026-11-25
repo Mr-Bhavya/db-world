@@ -14,16 +14,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.FileVisitResult;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Set;
 
 /** Location-aware file operations: list/search/info/mkdir/rename/move/copy/delete. */
 @Log4j2
@@ -31,7 +34,8 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class FileOperationsService {
 
-    private static final int MAX_SEARCH_RESULTS = 200;
+    private static final int DEFAULT_SEARCH_RESULTS = 200;
+    private static final int MAX_SEARCH_RESULTS = 1000;
     private static final int MAX_SEARCH_DEPTH = 8;
 
     private final FileLocationService locationService;
@@ -80,27 +84,50 @@ public class FileOperationsService {
     }
 
     public List<FileItemDto> search(String locationId, String path, String query, boolean recursive) throws IOException {
-        log.debug("search locationId={} path={} query={} recursive={}", locationId, path, query, recursive);
+        return search(locationId, path, query, recursive, DEFAULT_SEARCH_RESULTS);
+    }
+
+    /** {@code limit} is clamped to 1..{@value #MAX_SEARCH_RESULTS}; a result list of exactly {@code limit} means "maybe more". */
+    public List<FileItemDto> search(String locationId, String path, String query, boolean recursive, int limit) throws IOException {
+        log.debug("search locationId={} path={} query={} recursive={} limit={}", locationId, path, query, recursive, limit);
         Path base = locationService.resolveBase(locationId);
         Path root = PathJail.resolve(base, path);
         if (query == null || query.isBlank()) {
             return List.of();
         }
+        int max = Math.clamp(limit, 1, MAX_SEARCH_RESULTS);
         List<FileItemDto> results = new ArrayList<>();
         String lowerQ = query.toLowerCase();
 
         if (recursive) {
-            try (Stream<Path> walk = Files.walk(root, MAX_SEARCH_DEPTH)) {
-                walk.filter(p -> !p.equals(root))
-                    .filter(p -> {
+            // walkFileTree (not Files.walk) so one unreadable sub-folder is skipped instead of
+            // throwing UncheckedIOException and failing the whole search.
+            Files.walkFileTree(root, java.util.EnumSet.noneOf(java.nio.file.FileVisitOption.class), MAX_SEARCH_DEPTH,
+                new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (!dir.equals(root)) collect(dir);
+                        return results.size() >= max ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        collect(file);
+                        return results.size() >= max ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        log.debug("search skipped unreadable {}: {}", file, exc.getMessage());
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    private void collect(Path p) {
                         String fname = p.getFileName() != null ? p.getFileName().toString() : "";
-                        return fname.toLowerCase().contains(lowerQ);
-                    })
-                    .limit(MAX_SEARCH_RESULTS)
-                    .forEach(p -> {
+                        if (!fname.toLowerCase().contains(lowerQ)) return;
                         try { results.add(FileMetadataMapper.toDto(locationId, base, p, false)); } catch (IOException ignored) { /* Skip an entry that vanished or is unreadable; the rest of the results stand. */ }
-                    });
-            }
+                    }
+                });
         } else {
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(root)) {
                 for (Path entry : ds) {
@@ -108,7 +135,7 @@ public class FileOperationsService {
                     if (fname.toLowerCase().contains(lowerQ)) {
                         try { results.add(FileMetadataMapper.toDto(locationId, base, entry, false)); } catch (IOException ignored) { /* Skip an entry that vanished or is unreadable; the rest of the results stand. */ }
                     }
-                    if (results.size() >= MAX_SEARCH_RESULTS) break;
+                    if (results.size() >= max) break;
                 }
             }
         }
@@ -124,6 +151,7 @@ public class FileOperationsService {
         log.info("mkdir locationId={} parent={} name={}", locationId, parentPath, name);
         Path base = locationService.resolveBase(locationId);
         Path parent = PathJail.resolve(base, parentPath); // validates parentPath is within jail and exists
+        PathJail.resolveReal(base, parentPath);
         requireMediaDisk("Creating the folder", parent);
         if (!Files.isDirectory(parent)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Parent path is not a directory: " + parentPath);
         rejectUnsafeName(name);
@@ -142,13 +170,14 @@ public class FileOperationsService {
         log.info("renameItem locationId={} path={} newName={}", locationId, path, newName);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, path);
+        requireSafeParent(base, source);
         requireMediaDisk("Renaming", source);
         rejectUnsafeName(newName);
         Path dest = PathJail.resolve(base, PathJail.toRelative(base, source.getParent()) + "/" + newName);
-        if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists");
+        if (Files.exists(dest, LinkOption.NOFOLLOW_LINKS)) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "A file with that name already exists");
+        }
         try {
-            Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, dest);
         } catch (IOException e) {
             log.error("renameItem failed locationId={} path={} newName={}", locationId, path, newName, e);
@@ -161,14 +190,15 @@ public class FileOperationsService {
         log.info("moveItem locationId={} source={} dest={}", locationId, sourcePath, destinationPath);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, sourcePath);
+        requireSafeParent(base, source);
         requireMediaDisk("Moving", source, PathJail.resolve(base, destinationPath));
         Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a move, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
-        if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
+        if (Files.exists(dest, LinkOption.NOFOLLOW_LINKS)) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "A file with that name already exists in destination");
+        }
         try {
-            Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, dest);
         } catch (IOException e) {
             log.error("moveItem failed locationId={} source={} dest={}", locationId, sourcePath, destinationPath, e);
@@ -185,36 +215,56 @@ public class FileOperationsService {
         Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a copy, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
+        if (Files.isDirectory(source) && destDir.startsWith(source)) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Cannot copy a folder into itself or its descendants");
+        }
+        if (Files.exists(dest, LinkOption.NOFOLLOW_LINKS)) {
+            throw new DbWorldException(HttpStatus.CONFLICT, "A file with that name already exists in destination");
+        }
         try {
             if (Files.isDirectory(source)) {
-                copyDirRecursive(base, source, dest);
+                Path realDest = destDir.resolve(source.getFileName());
+                copyDirRecursive(base.toRealPath(), source, realDest, realDest, new HashSet<>());
             } else {
-                if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
                 Files.copy(source, dest);
             }
         } catch (IOException e) {
             log.error("copyItem failed locationId={} source={} dest={}", locationId, sourcePath, destinationPath, e);
-            throw e;
+            throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Copy failed; an incomplete destination may remain in " + destinationPath, e);
+        } catch (SecurityException e) {
+            log.warn("copyItem blocked locationId={} source={} dest={}", locationId, sourcePath, destinationPath, e);
+            throw new SecurityException("Copy blocked; an incomplete destination may remain in " + destinationPath, e);
         }
         return FileMetadataMapper.toDto(locationId, base, dest, false);
     }
 
-    private void copyDirRecursive(Path base, Path src, Path dest) throws IOException {
-        Files.createDirectories(dest);
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(src)) {
-            for (Path child : ds) {
-                // Resolve real path to follow symlinks and then verify it stays within jail
-                Path realChild = child.toRealPath();
-                if (!realChild.startsWith(base)) {
-                    throw new SecurityException("Symlink escape blocked during copy: " + child);
+    private void copyDirRecursive(Path base, Path src, Path dest, Path copyRoot, Set<Path> ancestors) throws IOException {
+        Path realSource = src.toRealPath();
+        if (!realSource.startsWith(base)) {
+            throw new SecurityException("Symlink escape blocked during copy: " + src);
+        }
+        if (realSource.startsWith(copyRoot) || copyRoot.startsWith(realSource)) {
+            throw new IOException("Copy source links to the destination: " + src);
+        }
+        if (!ancestors.add(realSource)) {
+            throw new IOException("Symlink cycle detected during copy: " + src);
+        }
+        try {
+            Files.createDirectory(dest);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(realSource)) {
+                for (Path child : ds) {
+                    Path realChild = child.toRealPath();
+                    if (!realChild.startsWith(base)) {
+                        throw new SecurityException("Symlink escape blocked during copy: " + child);
+                    }
+                    Path childDest = dest.resolve(child.getFileName());
+                    if (Files.isDirectory(realChild)) copyDirRecursive(base, realChild, childDest, copyRoot, ancestors);
+                    else Files.copy(realChild, childDest);
                 }
-                Path childDest = dest.resolve(child.getFileName());
-                if (!childDest.normalize().startsWith(base)) {
-                    throw new SecurityException("Path traversal blocked during copy: " + childDest);
-                }
-                if (Files.isDirectory(child)) copyDirRecursive(base, child, childDest);
-                else Files.copy(child, childDest, StandardCopyOption.REPLACE_EXISTING);
             }
+        } finally {
+            ancestors.remove(realSource);
         }
     }
 
@@ -223,7 +273,11 @@ public class FileOperationsService {
         Path base = locationService.resolveBase(locationId);
         Path target = PathJail.resolve(base, path);
         requireMediaDisk("Deleting", target);
-        if (!Files.exists(target)) throw new NoSuchFileException(path);
+        if (target.equals(base.toAbsolutePath().normalize())) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Cannot delete the location root");
+        }
+        requireSafeParent(base, target);
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) throw new NoSuchFileException(path);
         try {
             if (Files.isDirectory(target)) {
                 deleteDirectoryRecursive(target);
@@ -237,16 +291,26 @@ public class FileOperationsService {
     }
 
     private void deleteDirectoryRecursive(Path dir) throws IOException {
-        try (Stream<Path> walk = Files.walk(dir)) {
-            List<Path> sorted = walk.sorted(Comparator.reverseOrder()).toList();
-            for (Path p : sorted) {
-                try {
-                    Files.delete(p);
-                } catch (IOException e) {
-                    log.warn("Could not delete {}", p, e);
-                    throw new IOException("Failed to delete " + p + ": " + e.getMessage(), e);
-                }
+        Files.walkFileTree(dir, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
             }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path directory, IOException error) throws IOException {
+                if (error != null) throw error;
+                Files.delete(directory);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private static void requireSafeParent(Path base, Path target) throws IOException {
+        Path normalizedBase = base.toAbsolutePath().normalize();
+        if (!target.equals(normalizedBase)) {
+            PathJail.resolveReal(base, PathJail.toRelative(base, target.getParent()));
         }
     }
 

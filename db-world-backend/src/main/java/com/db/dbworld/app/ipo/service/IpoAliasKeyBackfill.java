@@ -9,7 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Populates {@code ipo_listing.alias_key} for rows that predate the column.
@@ -20,10 +22,11 @@ import java.util.List;
  * that drifts from the first, and the failure mode of drift is silent — rows simply stop resolving
  * to each other again.
  *
- * <p>Runs once per boot and only over rows whose alias is still null, so it is a cheap no-op on
- * every boot after the first. Failure is logged and swallowed: an unresolved alias degrades
- * de-duplication back to the previous {@code matchKey}-only behaviour, which is not worth refusing
- * to start the application over.
+ * <p>Runs once per boot over rows whose alias is null plus live rows whose stored alias no longer
+ * matches the current rule, so a rule change re-keys existing rows and newly detectable duplicates
+ * surface in the admin duplicate report (they are never merged automatically). Failure is logged
+ * and swallowed: an unresolved alias degrades de-duplication back to the previous
+ * {@code matchKey}-only behaviour, which is not worth refusing to start the application over.
  */
 @Log4j2
 @Component
@@ -53,19 +56,21 @@ public class IpoAliasKeyBackfill {
         }
     }
 
-    /** @return how many rows were given an alias key. Visible for tests. */
+    /**
+     * @return how many rows were given a new alias key. Covers rows that never had one and live rows
+     * whose stored alias was computed by an older version of the rule. Visible for tests.
+     */
     @Transactional
     public int backfill() {
-        List<IpoListingEntity> pending = listingRepo.findByAliasKeyIsNull();
-        if (pending.isEmpty()) {
-            return 0;
-        }
+        Map<String, IpoListingEntity> candidates = new LinkedHashMap<>();
+        listingRepo.findByAliasKeyIsNull().forEach(e -> candidates.put(e.getId(), e));
+        listingRepo.findAllLive().forEach(e -> candidates.putIfAbsent(e.getId(), e));
         List<IpoListingEntity> batch = new ArrayList<>(BATCH_SIZE);
         int updated = 0;
-        for (IpoListingEntity entity : pending) {
+        for (IpoListingEntity entity : candidates.values()) {
             String alias = normalizer.aliasKey(entity.getCompanyName());
-            if (alias == null) {
-                continue; // nothing identifiable in the name - leave it null, it matches nothing
+            if (alias == null || alias.equals(entity.getAliasKey())) {
+                continue;
             }
             entity.setAliasKey(alias);
             batch.add(entity);

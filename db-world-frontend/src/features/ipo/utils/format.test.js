@@ -70,9 +70,9 @@ describe('daysLeftLabel', () => {
       expect(daysLeftLabel({ status: 'closed', listingDate: '2026-07-28' })).toBe('Lists in 4d');
     });
 
-    it('falls back to "Listing soon" when neither date is in the future', () => {
+    it('does not imply a past listing date is still upcoming', () => {
       expect(daysLeftLabel({ status: 'closed' })).toBe('Listing soon');
-      expect(daysLeftLabel({ status: 'closed', listingDate: '2026-07-20' })).toBe('Listing soon');
+      expect(daysLeftLabel({ status: 'closed', listingDate: '2026-07-20' })).toBe('Listing status pending');
     });
   });
 

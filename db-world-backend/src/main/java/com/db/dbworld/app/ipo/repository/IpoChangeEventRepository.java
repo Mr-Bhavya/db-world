@@ -14,6 +14,17 @@ import java.util.List;
 public interface IpoChangeEventRepository extends JpaRepository<IpoChangeEventEntity, String> {
     List<IpoChangeEventEntity> findTop50ByOrderByCreatedAtDesc();
 
+    /** Admin change feed page: optional event-type filter, keyset cursor on {@code createdAt}, newest first. */
+    @Query("""
+            select e from IpoChangeEventEntity e
+            where (:eventType is null or e.eventType = :eventType)
+              and (:before is null or e.createdAt < :before)
+            order by e.createdAt desc
+            """)
+    List<IpoChangeEventEntity> findFeedPage(@Param("eventType") String eventType,
+                                            @Param("before") Instant before,
+                                            Limit limit);
+
     /**
      * Events still awaiting a user-facing push, oldest first so alerts arrive in the order they
      * happened. Scoped to the notifiable event types so the audit-only rows (a NEW listing, a date

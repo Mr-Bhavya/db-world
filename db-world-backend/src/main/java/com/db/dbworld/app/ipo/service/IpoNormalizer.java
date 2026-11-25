@@ -54,6 +54,10 @@ public class IpoNormalizer {
     /** Legal-suffix TOKENS dropped from an alias key's tail (post-expansion, so "pvt" reads as "private"). */
     private static final Set<String> ALIAS_LEGAL_TOKENS = Set.of("limited", "private", "llp");
 
+    private static final Pattern TRAILING_IPO_PARENTHETICAL =
+            Pattern.compile("\\s*[(\\[][^()\\[\\]]*\\bipo\\b[^()\\[\\]]*[)\\]]\\s*$");
+    private static final Pattern TRAILING_IPO_WORD = Pattern.compile("[\\s\\-:]+ipo\\s*$");
+
     /**
      * Abbreviation to expansion, applied per token when building an alias key. Deliberately short:
      * every entry is a pair the Indian IPO feeds genuinely disagree on, and each one widens the set
@@ -109,7 +113,8 @@ public class IpoNormalizer {
         if (companyName == null || companyName.isBlank()) {
             return null;
         }
-        String[] tokens = NON_ALPHANUMERIC_ALIAS.split(companyName.toLowerCase().replace("&", " and "));
+        String[] tokens = NON_ALPHANUMERIC_ALIAS.split(
+                stripIpoDescriptor(companyName.toLowerCase()).replace("&", " and "));
         StringBuilder alias = new StringBuilder();
         // Walk backwards so a run of trailing legal suffixes ("... Private Limited") peels off in a
         // single pass, while the same word EARLIER in the name (e.g. "Private Sector Bank Ltd") is
@@ -127,6 +132,17 @@ public class IpoNormalizer {
             alias.insert(0, token);
         }
         return alias.isEmpty() ? null : alias.toString();
+    }
+
+    /**
+     * Feeds sometimes append the issue label to the name — "X Ltd. (X IPO)", "X IPO", "X (SME IPO)".
+     * Only a TRAILING descriptor that names the issue as an IPO is removed; other parentheticals
+     * such as "(India)" are part of the legal name. Never strips the name down to nothing.
+     */
+    private String stripIpoDescriptor(String lowerName) {
+        String stripped = TRAILING_IPO_PARENTHETICAL.matcher(lowerName).replaceFirst("");
+        stripped = TRAILING_IPO_WORD.matcher(stripped).replaceFirst("");
+        return NON_ALPHANUMERIC_ALIAS.matcher(stripped).replaceAll("").isEmpty() ? lowerName : stripped;
     }
 
     private String normalize(String companyName) {

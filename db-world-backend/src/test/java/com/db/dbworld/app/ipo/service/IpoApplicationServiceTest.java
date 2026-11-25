@@ -38,6 +38,8 @@ class IpoApplicationServiceTest {
     void setUp() {
         applicationRepository = mock(IpoUserApplicationRepository.class);
         listingRepository = mock(IpoListingRepository.class);
+        when(listingRepository.findById(IPO_ID)).thenReturn(
+                Optional.of(IpoListingEntity.builder().id(IPO_ID).build()));
         service = new IpoApplicationService(applicationRepository, listingRepository, new IpoMapper());
     }
 
@@ -95,7 +97,7 @@ class IpoApplicationServiceTest {
 
     @Test
     void upsert_ipoDoesNotExist_throwsNotFound() {
-        when(listingRepository.existsById(IPO_ID)).thenReturn(false);
+        when(listingRepository.findById(IPO_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.upsert(USER_ID, IPO_ID, request("ABCDE1234F")))
                 .isInstanceOf(DbWorldException.class)
@@ -103,6 +105,23 @@ class IpoApplicationServiceTest {
                         .isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND));
 
         verify(applicationRepository, never()).save(any());
+    }
+
+    @Test
+    void applicationOperations_followMergedId() {
+        IpoListingEntity old = IpoListingEntity.builder().id("old").mergedIntoId(IPO_ID).build();
+        when(listingRepository.findById("old")).thenReturn(Optional.of(old));
+        when(applicationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.upsert(USER_ID, "old", request(null));
+        service.getMine(USER_ID, "old");
+        service.delete(USER_ID, "old");
+
+        verify(applicationRepository, org.mockito.Mockito.times(2)).findByUserIdAndIpoId(USER_ID, IPO_ID);
+        verify(applicationRepository).deleteByUserIdAndIpoId(USER_ID, IPO_ID);
+        ArgumentCaptor<IpoUserApplicationEntity> captor = ArgumentCaptor.forClass(IpoUserApplicationEntity.class);
+        verify(applicationRepository).save(captor.capture());
+        assertThat(captor.getValue().getIpoId()).isEqualTo(IPO_ID);
     }
 
     @Test

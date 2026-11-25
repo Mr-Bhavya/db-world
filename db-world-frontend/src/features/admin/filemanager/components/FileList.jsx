@@ -12,9 +12,6 @@ import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
 import { setDragItems, clearDragItems } from './dndPayload';
 
-/** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
-const RENDER_LIMIT = 300;
-
 const COL = { name: '38%', size: '12%', modified: '20%', type: '10%', actions: '20%' };
 
 function HeaderCell({ label, sortKey, sortBy, sortOrder, onSort, width }) {
@@ -78,6 +75,7 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
     <Tooltip title={title} key={title}>
       <IconButton
         size="small"
+        aria-label={`${title} ${item.name}`}
         onClick={(e) => { e.stopPropagation(); onClick(item); }}
         sx={{ color, '&:hover': { color: T.teal, bgcolor: T.hoverBg } }}
       >
@@ -117,6 +115,7 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
         <Checkbox
           size="small"
           checked={selected}
+          inputProps={{ 'aria-label': `Select ${item.name}` }}
           onClick={(e) => e.stopPropagation()}
           onChange={() => toggleSelect(item.path, { additive: true, items: visibleItems })}
           sx={{ p: 0.25, color: T.textFaint, '&.Mui-checked': { color: T.teal } }}
@@ -148,7 +147,7 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
           className="fm-row-actions"
           sx={{
             width: COL.actions, display: 'flex', gap: 0.25, justifyContent: 'flex-end',
-            opacity: 0, transition: 'opacity 0.12s',
+            opacity: 0, transition: 'opacity 0.12s', '&:focus-within': { opacity: 1 },
           }}
         >
           {actionBtn('Open', OpenInNewIcon, () => openItem())}
@@ -180,6 +179,7 @@ export default function FileList({
   const setSortBy = useFileManagerStore((s) => s.setSortBy);
   const sortOrder = useFileManagerStore((s) => s.sortOrder);
   const setSortOrder = useFileManagerStore((s) => s.setSortOrder);
+  const visibleItems = items;
 
   const handleSort = (key) => {
     if (sortBy === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -204,8 +204,6 @@ export default function FileList({
     );
   }
 
-  const visibleItems = items.slice(0, RENDER_LIMIT);
-  const truncated = items.length > RENDER_LIMIT;
   const allSelected = visibleItems.length > 0 && visibleItems.every((i) => selection.has(i.path));
 
   return (
@@ -217,6 +215,7 @@ export default function FileList({
       }}>
         <Checkbox
           size="small" checked={allSelected}
+          inputProps={{ 'aria-label': 'Select all shown items' }}
           onChange={() => (allSelected ? clearSelection() : selectAll(visibleItems))}
           sx={{ p: 0.25, color: T.textFaint, '&.Mui-checked': { color: T.teal } }}
         />
@@ -246,13 +245,6 @@ export default function FileList({
         ))}
       </AnimatePresence>
 
-      {truncated && (
-        <Box sx={{ px: 2, py: 1.5, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 12, color: T.textFaint }}>
-            Showing first {RENDER_LIMIT} of {items.length} — refine with search
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 }

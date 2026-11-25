@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notify } from '@shared/notify';
 import { Box, Button, CircularProgress, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
@@ -13,11 +13,14 @@ import { useDirectory } from './hooks/useDirectory';
 import { useInvalidateFm } from './hooks/useInvalidateFm';
 import { useUploadManager } from './upload/useUploadManager';
 import * as fmApi from './api/fileManagerApi';
+import { settleFileOperations } from './api/batchOperations';
 import { getDragItems, clearDragItems } from './components/dndPayload';
 
 import LocationsRail from './components/LocationsRail';
 import Breadcrumb from './components/Breadcrumb';
 import Toolbar from './components/Toolbar';
+import SelectionActions from './components/SelectionActions';
+import { ShowMoreItems, useVisibleItems } from './components/VisibleItems';
 import FileGrid from './components/FileGrid';
 import FileList from './components/FileList';
 import FileMobileList from './components/FileMobileList';
@@ -73,17 +76,15 @@ function matchesFilter(item, filter) {
  * `Array.from(selection)`), or (c) nothing at all — the Toolbar's bulk-action
  * buttons invoke handlers with the raw click event, which is *not* a
  * FileItemDto, so it's treated the same as "no arg". `resolveItems` below
- * normalizes all three into an array of item objects drawn from the current
- * (unfiltered) listing, always falling back to the live `selection` set.
+ * normalizes all three into item objects from the current filtered listing,
+ * always falling back to the live `selection` set.
  *
  * Copy/Move/Cut split: `Move` and `Copy` (Toolbar bulk bar + ContextMenu) both
  * open the shared `MoveCopyDialog` folder-tree picker (mode 'move'/'copy') for
  * an immediate, explicit-destination operation — that's what the dialog
  * component exists for. `Cut` (mouse) and the `Ctrl/Cmd+C` keyboard shortcut
  * instead populate the store's clipboard for a later `Ctrl/Cmd+V` paste into
- * whatever folder you've navigated to — there is no mouse "paste" affordance
- * in this build (Toolbar/ContextMenu expose no such action), so clipboard
- * paste is keyboard-only by design.
+ * whatever folder you've navigated to, using Paste or Ctrl/Cmd+V.
  */
 export default function FileManager() {
   const T = useT();
@@ -133,6 +134,8 @@ export default function FileManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [uploadConflict, setUploadConflict] = useState(null); // { files: File[], conflictNames: string[] } | null
+  const [isPasting, setIsPasting] = useState(false);
+  const pastingRef = useRef(false);
 
   // Default to the first configured location once locations have loaded.
   useEffect(() => {
@@ -163,7 +166,9 @@ export default function FileManager() {
     [searchActive, searchResults, dirData]
   );
   const items = useMemo(() => rawItems.filter((i) => matchesFilter(i, filter)), [rawItems, filter]);
+  const { visibleItems, showMore } = useVisibleItems(items);
   const isLoadingContent = searchActive ? searchLoading : dirLoading;
+  const searchCapped = searchActive && (searchResults?.length ?? 0) >= fmApi.SEARCH_LIMIT;
   const contentIsError = searchActive ? searchIsError : dirIsError;
   const contentError = searchActive ? searchError : dirError;
 
@@ -179,17 +184,17 @@ export default function FileManager() {
    */
   const resolveItems = useCallback((arg) => {
     if (Array.isArray(arg)) {
-      return rawItems.filter((i) => arg.includes(i.path));
+      return visibleItems.filter((i) => arg.includes(i.path));
     }
     if (typeof arg === 'string') {
-      const found = rawItems.find((i) => i.path === arg);
+      const found = visibleItems.find((i) => i.path === arg);
       return found ? [found] : [];
     }
     if (arg && typeof arg.path === 'string') {
       return [arg];
     }
-    return rawItems.filter((i) => selection.has(i.path));
-  }, [rawItems, selection]);
+    return visibleItems.filter((i) => selection.has(i.path));
+  }, [visibleItems, selection]);
 
   /* ─── Open / preview / navigate ──────────────────────────────────────── */
 
@@ -225,43 +230,52 @@ export default function FileManager() {
   /* ─── Cut / Copy (clipboard) + Paste ─────────────────────────────────── */
 
   const handleCutToClipboard = useCallback((arg) => {
+    if (pastingRef.current) { notify.warning('Wait for the current paste to finish'); return; }
     const targets = resolveItems(arg);
     if (targets.length === 0) return;
     setClipboard('cut', targets);
-    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} cut — paste with Ctrl/Cmd+V`);
+    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} cut — navigate to a folder and paste`);
   }, [resolveItems, setClipboard]);
 
   const handleCopyToClipboard = useCallback((arg) => {
+    if (pastingRef.current) { notify.warning('Wait for the current paste to finish'); return; }
     const targets = resolveItems(arg);
     if (targets.length === 0) return;
     setClipboard('copy', targets);
-    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} copied — paste with Ctrl/Cmd+V`);
+    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} copied — navigate to a folder and paste`);
   }, [resolveItems, setClipboard]);
 
   const handlePaste = useCallback(async () => {
-    if (!clipboard || !locationId) return;
+    if (!clipboard || !locationId || pastingRef.current) return;
     const { mode, items: clipItems } = clipboard;
     if (clipItems.some((item) => item.locationId !== locationId)) {
       notify.warning('Cannot paste across locations');
-      clearClipboard();
       return;
     }
     const op = mode === 'copy' ? fmApi.copyItem : fmApi.moveItem;
-    const results = await Promise.allSettled(
-      clipItems.map((item) => op({ locationId, sourcePath: item.path, destinationPath: path }))
-    );
-    invalidateDir(locationId);
-    clearClipboard();
-    const failed = results.filter((r) => r.status === 'rejected');
-    const verb = mode === 'copy' ? 'Copied' : 'Moved';
-    if (failed.length === 0) {
-      notify.success(`${verb} ${clipItems.length} item${clipItems.length === 1 ? '' : 's'}`);
-    } else if (failed.length === clipItems.length) {
-      notify.error(failed[0].reason?.response?.data?.message ?? `Failed to paste item${clipItems.length === 1 ? '' : 's'}`);
-    } else {
-      notify.warning(`${verb} ${clipItems.length - failed.length}/${clipItems.length} — some failed`);
+    pastingRef.current = true;
+    setIsPasting(true);
+    try {
+      const results = await settleFileOperations(
+        clipItems, (item) => op({ locationId, sourcePath: item.path, destinationPath: path })
+      );
+      invalidateDir(locationId);
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) setClipboard(mode, clipItems.filter((_, index) => results[index].status === 'rejected'));
+      else clearClipboard();
+      const verb = mode === 'copy' ? 'Copied' : 'Moved';
+      if (failed.length === 0) {
+        notify.success(`${verb} ${clipItems.length} item${clipItems.length === 1 ? '' : 's'}`);
+      } else if (failed.length === clipItems.length) {
+        notify.error(failed[0].reason?.response?.data?.message ?? `Failed to paste item${clipItems.length === 1 ? '' : 's'}`);
+      } else {
+        notify.warning(`${verb} ${clipItems.length - failed.length}/${clipItems.length} — some failed`);
+      }
+    } finally {
+      pastingRef.current = false;
+      setIsPasting(false);
     }
-  }, [clipboard, locationId, path, invalidateDir, clearClipboard]);
+  }, [clipboard, locationId, path, invalidateDir, clearClipboard, setClipboard]);
 
   /* ─── Drag-to-move: drop the dragged payload onto any folder (card/row/tree) ── */
 
@@ -278,8 +292,8 @@ export default function FileManager() {
     });
     clearDragItems();
     if (!valid.length) return;
-    const results = await Promise.allSettled(
-      valid.map((it) => fmApi.moveItem({ locationId, sourcePath: it.path, destinationPath: destPath }))
+    const results = await settleFileOperations(
+      valid, (it) => fmApi.moveItem({ locationId, sourcePath: it.path, destinationPath: destPath })
     );
     invalidateDir(locationId);
     clearSelection();
@@ -304,8 +318,8 @@ export default function FileManager() {
   const handleConfirmDelete = useCallback(async () => {
     const targets = confirmDelete.items;
     setConfirmDelete({ open: false, items: [] });
-    const results = await Promise.allSettled(
-      targets.map((item) => fmApi.deleteItem({ locationId: item.locationId, path: item.path }))
+    const results = await settleFileOperations(
+      targets, (item) => fmApi.deleteItem({ locationId: item.locationId, path: item.path })
     );
     invalidateDir(locationId);
     clearSelection();
@@ -446,7 +460,7 @@ export default function FileManager() {
       }
       if (mod && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        selectAll(items);
+        selectAll(visibleItems);
         return;
       }
       if (mod && e.key.toLowerCase() === 'c') {
@@ -477,7 +491,7 @@ export default function FileManager() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    isMobile, resolveItems, items, selectAll, openRename, handleDeleteRequest,
+    isMobile, resolveItems, visibleItems, selectAll, openRename, handleDeleteRequest,
     handleCopyToClipboard, handleCutToClipboard, handlePaste, handleOpen, handleEscape,
     contextMenu, previewItem, infoTargets, moveCopyMode, renameTarget,
     newFolderOpen, locationManagerOpen, confirmDelete, uploadConflict,
@@ -491,6 +505,8 @@ export default function FileManager() {
 
   const dropZoneSx = {
     flex: 1, overflow: 'auto', minHeight: 0, position: 'relative',
+    pb: isMobile && (selection.size > 0 || clipboard?.items?.length)
+      ? 'calc(76px + env(safe-area-inset-bottom, 0px))' : 0,
     outline: dragActive ? `2px dashed ${T.teal}` : 'none', outlineOffset: -4,
   };
 
@@ -539,17 +555,30 @@ export default function FileManager() {
       <>
         <Breadcrumb />
         <Toolbar
+          sticky={isMobile}
           onUpload={handleUpload}
           onNewFolder={() => setNewFolderOpen(true)}
           onSearch={setSearchQuery}
+        />
+        <SelectionActions
+          isMobile={isMobile}
+          isPasting={isPasting}
           onDownload={handleDownload}
           onCopy={handleCopyDialog}
           onCut={handleCutToClipboard}
+          onPaste={handlePaste}
           onMove={handleMove}
           onDelete={handleDeleteRequest}
           onInfo={handleInfo}
         />
 
+        {searchActive && (
+          <Typography sx={{ px: 2, py: 0.5, fontSize: 12, color: searchCapped ? T.warning : T.textMuted }}>
+            {searchCapped
+              ? `Showing the first ${fmApi.SEARCH_LIMIT} matches — there may be more. Refine the search or open a sub-folder.`
+              : `Search covers up to ${fmApi.SEARCH_LIMIT} matches within 8 folder levels.`}
+          </Typography>
+        )}
         {contentIsError && (
           <Box sx={{ px: 2, py: 1.5 }}>
             <Box sx={{
@@ -573,12 +602,12 @@ export default function FileManager() {
           onDrop={handleDrop}
         >
           {viewMode === 'grid' ? (
-            <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} onMoveTo={handleMoveTo} touchSelect={isMobile} />
+            <FileGrid items={visibleItems} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} onMoveTo={handleMoveTo} touchSelect={isMobile} />
           ) : isMobile ? (
-            <FileMobileList items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
+            <FileMobileList items={visibleItems} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
           ) : (
             <FileList
-              items={items}
+              items={visibleItems}
               isLoading={isLoadingContent}
               onOpen={handleOpen}
               onContextMenu={handleContextMenu}
@@ -589,6 +618,9 @@ export default function FileManager() {
               onMoveTo={handleMoveTo}
             />
           )}
+          {!isLoadingContent && !contentIsError && (
+            <ShowMoreItems visibleCount={visibleItems.length} total={items.length} onShowMore={showMore} />
+          )}
         </Box>
       </>
     );
@@ -597,7 +629,7 @@ export default function FileManager() {
   return (
     <Box sx={{
       height: '100%', display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-      bgcolor: T.adminBg, color: T.textPrimary, minHeight: 0, overflow: 'hidden',
+      bgcolor: T.adminBg, color: T.textPrimary, minHeight: 0, overflow: isMobile ? 'visible' : 'hidden',
     }}>
       <LocationsRail onManageLocations={() => setLocationManagerOpen(true)} onDropItems={handleMoveTo} />
 
@@ -665,6 +697,7 @@ export default function FileManager() {
       />
 
       <UploadTray
+        raised={isMobile && Boolean(selection.size || clipboard?.items?.length)}
         onPause={uploadManager.pause}
         onResume={uploadManager.resume}
         onCancel={uploadManager.cancel}

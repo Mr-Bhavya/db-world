@@ -236,6 +236,7 @@ export const daysLeftLabel = (ipo) => {
       if (allotmentN != null && allotmentN > 0) return `Allotment in ${allotmentN}d`;
       const listingN = daysUntil(ipo.listingDate);
       if (listingN != null && listingN > 0) return `Lists in ${listingN}d`;
+      if (listingN != null && listingN < 0) return 'Listing status pending';
       return 'Listing soon';
     }
     case 'listed': {

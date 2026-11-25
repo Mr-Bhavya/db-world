@@ -114,7 +114,7 @@ function UploadRow({ id, upload, onPause, onResume, onCancel, onRetry }) {
  * queued upload; the header close button hides the tray without touching
  * any in-flight transfers.
  */
-export default function UploadTray({ onPause, onResume, onCancel, onRetry, onClose }) {
+export default function UploadTray({ onPause, onResume, onCancel, onRetry, onClose, raised = false }) {
   const T = useT();
   const uploads = useUploadStore((s) => s.uploads);
   const trayOpen = useUploadStore((s) => s.trayOpen);
@@ -140,7 +140,7 @@ export default function UploadTray({ onPause, onResume, onCancel, onRetry, onClo
           exit={{ opacity: 0, y: 40 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
           style={{
-            position: 'fixed', right: 20, bottom: 20, zIndex: 1300,
+            position: 'fixed', right: 20, bottom: raised ? 'calc(76px + env(safe-area-inset-bottom, 0px))' : 20, zIndex: 1200,
             width: 320, maxWidth: 'calc(100vw - 40px)',
           }}
         >
@@ -163,10 +163,10 @@ export default function UploadTray({ onPause, onResume, onCancel, onRetry, onClo
                   sx={{ height: 18, fontSize: 10.5, bgcolor: T.tealBg, color: T.teal }}
                 />
               )}
-              <IconButton size="small" onClick={() => setCollapsed((v) => !v)} sx={{ color: T.textFaint, p: 0.25 }}>
+              <IconButton size="small" aria-label={collapsed ? 'Expand uploads' : 'Collapse uploads'} onClick={() => setCollapsed((v) => !v)} sx={{ color: T.textFaint, p: 0.25 }}>
                 {collapsed ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
               </IconButton>
-              <IconButton size="small" onClick={handleTrayClose} sx={{ color: T.textFaint, p: 0.25 }}>
+              <IconButton size="small" aria-label="Close uploads" onClick={handleTrayClose} sx={{ color: T.textFaint, p: 0.25 }}>
                 <CloseIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Box>

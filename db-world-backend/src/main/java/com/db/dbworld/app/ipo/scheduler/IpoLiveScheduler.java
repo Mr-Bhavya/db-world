@@ -49,8 +49,7 @@ public class IpoLiveScheduler {
 
     /**
      * One live cycle: refresh the numbers, advance any status the calendar has moved past, then
-     * deliver whatever those two produced. Every part is self-guarded and never throws, so a bad
-     * upstream response can neither fail the job nor stop the others from running.
+     * deliver whatever those two produced. A sweep failure is reported without stopping delivery.
      *
      * <p>The status sweep sits HERE rather than in the poll because an IPO opening is a clock
      * event, not a network one: bidding starts at 10&nbsp;AM IST whether or not an expensive poll
@@ -60,14 +59,17 @@ public class IpoLiveScheduler {
      */
     public void refreshOnce(JobRunSummary.Builder summary) {
         int refreshed     = liveService.refresh();
-        int statusChanges = statusSweepService.sweepQuietly();
+        int statusChanges = 0;
+        try {
+            statusChanges = statusSweepService.sweep();
+        } catch (RuntimeException e) {
+            log.warn("IPO status sweep failed; changes rolled back", e);
+            summary.note("Status sweep failed; see server logs");
+        }
         int pushesSent    = notificationService.deliverPending();
 
         summary.count("ipoNumbersRefreshed", refreshed)
                .count("statusesAdvanced",    statusChanges)
                .count("pushesSent",          pushesSent);
-        if (refreshed == 0) {
-            summary.note("No live IPOs to refresh — investorgain returned nothing for the current window");
-        }
     }
 }

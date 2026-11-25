@@ -4,7 +4,7 @@ import com.db.dbworld.app.media.aria2.Aria2DownloadMappingService;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.aria2.model.*;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
-import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
+import com.db.dbworld.app.media.aria2.Aria2Progress;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.infrastructure.logging.backoff.FailureBackoff;
 import tools.jackson.databind.JsonNode;
@@ -250,16 +250,7 @@ public class Aria2WebSocketClientService {
         String jobId = resolveJobId(gid);
         if (jobId == null) return;
 
-        Long   total     = status.getTotalLength();
-        Long   completed = status.getCompletedLength();
-        Long   speed     = status.getDownloadSpeed();
-
-        if (total != null && total > 0 && completed != null) {
-            long eta = (speed != null && speed > 0) ? (total - completed) / speed : 0L;
-            trackingService.updateProgress(jobId,
-                    ProgressSnapshot.downloading(completed, total,
-                            speed != null ? speed.doubleValue() : 0.0, eta));
-        }
+        trackingService.updateProgress(jobId, Aria2Progress.from(status));
     }
 
     // ── Torrent metadata GID remap ────────────────────────────────────────────

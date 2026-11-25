@@ -21,9 +21,11 @@ export const listDirectory = ({ locationId, path = '/', sortBy = 'name', order =
     .get(`${BASE}/list`, { params: { locationId, path, sortBy, order } })
     .then(r => r.data.data);
 
-export const searchFiles = ({ locationId, q, path = '/', recursive = true } = {}) =>
+export const SEARCH_LIMIT = 500;
+
+export const searchFiles = ({ locationId, q, path = '/', recursive = true, limit = SEARCH_LIMIT } = {}) =>
   axiosInstance
-    .get(`${BASE}/search`, { params: { locationId, q, path, recursive } })
+    .get(`${BASE}/search`, { params: { locationId, q, path, recursive, limit } })
     .then(r => r.data.data);
 
 export const getFileInfo = ({ locationId, path } = {}) =>

@@ -625,13 +625,30 @@ class IpoIngestServiceTest {
     }
 
     @Test
-    void ingest_financialsReconcile_dropsStaleFiscalYearsNoLongerReported() {
+    void ingest_partialFinancialRow_preservesPreviouslyKnownMetrics() {
         stubNoExisting();
-        // The DB already has a stale row (a metric label mis-stored as a "period" by an earlier
-        // parse) alongside a real fiscal year. The fresh scrape reports only the real year, so the
-        // stale row must be deleted and the real one kept.
+        IpoFinancialEntity existing = IpoFinancialEntity.builder()
+                .id("fin-1").ipoId("ipo-1").fiscalYear("FY 2023-24")
+                .revenue(new BigDecimal("100")).pat(new BigDecimal("10"))
+                .totalAssets(new BigDecimal("500")).periodEnd(LocalDate.of(2024, 3, 31)).build();
+        when(financialRepo.findByIpoIdAndFiscalYear("ipo-1", "FY 2023-24")).thenReturn(Optional.of(existing));
+        IpoDto input = withFinancials(dto("closed", null, null, null, null, null, null, null),
+                List.of(new IpoFinancialRowDto("FY 2023-24", null, new BigDecimal("120"), null, null)));
+
+        service.ingest(List.of(input));
+
+        assertThat(existing.getRevenue()).isEqualByComparingTo("120");
+        assertThat(existing.getPat()).isEqualByComparingTo("10");
+        assertThat(existing.getTotalAssets()).isEqualByComparingTo("500");
+        assertThat(existing.getPeriodEnd()).isEqualTo(LocalDate.of(2024, 3, 31));
+    }
+
+    @Test
+    void ingest_partialFinancials_preservesUnreportedFiscalYears() {
+        stubNoExisting();
+        // A nonempty scrape can still be incomplete; absent years must not be deleted.
         IpoFinancialEntity stale = IpoFinancialEntity.builder()
-                .id("fin-stale").ipoId("ipo-1").fiscalYear("Assets").build();
+                .id("fin-stale").ipoId("ipo-1").fiscalYear("FY 2022-23").build();
         IpoFinancialEntity real = IpoFinancialEntity.builder()
                 .id("fin-24").ipoId("ipo-1").fiscalYear("FY 2023-24")
                 .revenue(new BigDecimal("100.00")).pat(new BigDecimal("10.00")).totalAssets(new BigDecimal("500.00"))
@@ -647,8 +664,39 @@ class IpoIngestServiceTest {
 
         service.ingest(List.of(dto));
 
-        verify(financialRepo).delete(stale);
-        verify(financialRepo, never()).delete(real);
+        verify(financialRepo, never()).delete(any());
+    }
+
+    @Test
+    void ingest_tombstoneMatch_updatesSurvivorWithoutStealingItsMatchKey() {
+        IpoListingEntity tombstone = existingEntity("closed", null, null, null, null, null, null, null);
+        tombstone.setId("old");
+        tombstone.setMergedIntoId("survivor");
+        IpoListingEntity survivor = existingEntity("closed", null, null, null, null, null, null, null);
+        survivor.setId("survivor");
+        survivor.setMatchKey("survivor-key");
+        when(listingRepo.findByMatchKey(MATCH_KEY)).thenReturn(Optional.of(tombstone));
+        when(listingRepo.findById("survivor")).thenReturn(Optional.of(survivor));
+
+        service.ingest(List.of(dto("closed", null, null, null, null, null, null, null)));
+
+        verify(listingRepo).save(survivor);
+        verify(listingRepo, never()).save(tombstone);
+        assertThat(survivor.getMatchKey()).isEqualTo("survivor-key");
+    }
+
+    @Test
+    void ingest_staleClosedStatusDoesNotDemoteConfirmedListing() {
+        IpoListingEntity existing = existingEntity("listed", null, null, null, null, null, null,
+                new BigDecimal("91"));
+        existing.setListingDate(LocalDate.of(2026, 7, 23));
+        stubExisting(existing);
+
+        service.ingest(List.of(dto("closed", null, null, null, null, null, null, null)));
+
+        assertThat(existing.getStatus()).isEqualTo("listed");
+        assertThat(existing.getListingDate()).isEqualTo(LocalDate.of(2026, 7, 23));
+        verify(changeEventRepo, never()).save(argThat(e -> "STATUS".equals(e.getEventType())));
     }
 
     @Test

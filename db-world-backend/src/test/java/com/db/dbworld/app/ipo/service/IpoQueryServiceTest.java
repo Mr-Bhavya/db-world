@@ -339,6 +339,23 @@ class IpoQueryServiceTest {
     }
 
     @Test
+    void histories_followMergedIdToSurvivor() {
+        IpoListingEntity old = entity("old", "closed", null);
+        old.setMergedIntoId("survivor");
+        when(listingRepository.findById("old")).thenReturn(Optional.of(old));
+        when(listingRepository.findById("survivor")).thenReturn(
+                Optional.of(entity("survivor", "closed", null)));
+
+        service.financials("old");
+        service.gmpHistory("old");
+        service.subscriptionHistory("old");
+
+        verify(financialRepository).findByIpoIdOrderByPeriodEndAsc("survivor");
+        verify(gmpHistoryRepository).findByIpoIdOrderByCapturedAtAsc("survivor");
+        verify(subscriptionHistoryRepository).findByIpoIdOrderByCapturedAtAsc("survivor");
+    }
+
+    @Test
     void list_omitsRowsMergedAwayAsDuplicates() {
         // The tombstone is always the emptier half of the pair, so leaving it in is precisely the
         // "second card with no GMP" symptom the merge exists to remove.

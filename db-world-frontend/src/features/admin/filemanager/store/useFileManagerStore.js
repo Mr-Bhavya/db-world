@@ -20,7 +20,7 @@ export const useFileManagerStore = create((set, _get) => ({
   filter: 'all', // 'all' | 'folder' | 'file' | 'image' | 'audio' | 'video' | 'text' | 'pdf' | 'zip'
   setSortBy: (v) => set({ sortBy: v }),
   setSortOrder: (v) => set({ sortOrder: v }),
-  setFilter: (v) => set({ filter: v }),
+  setFilter: (v) => set((s) => (s.filter === v ? {} : { filter: v, selection: new Set(), anchorId: null })),
 
   // Selection (Set of path ids) with anchor-based range select
   selection: new Set(),

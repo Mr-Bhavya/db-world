@@ -51,6 +51,13 @@ describe('useFileManagerStore', () => {
     expect(useFileManagerStore.getState().anchorId).toBeNull();
   });
 
+  it('clears selection and anchor when changing the filter', () => {
+    useFileManagerStore.getState().toggleSelect('/a', {});
+    useFileManagerStore.getState().setFilter('folder');
+    expect(useFileManagerStore.getState().selection.size).toBe(0);
+    expect(useFileManagerStore.getState().anchorId).toBeNull();
+  });
+
   it('a plain (non-additive, non-range) toggle selects only that item and sets the anchor', () => {
     useFileManagerStore.getState().toggleSelect('/a', { additive: true });
     useFileManagerStore.getState().toggleSelect('/c', {});

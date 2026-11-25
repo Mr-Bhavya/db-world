@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -77,18 +78,15 @@ public class IpoStatusSweepService {
     }
 
     /**
-     * One sweep. Never throws — a failure here must not take down the live refresh it shares a job
-     * with, and the next tick simply tries again.
-     *
-     * @return how many listings were advanced
+     * One status move the sweep would make. {@code announces} is false for a silent heal of a
+     * statusless row and for a listing confirmed after its listing day (its push would be stale).
      */
-    public int sweepQuietly() {
-        try {
-            return sweep();
-        } catch (Exception e) {
-            log.warn("IPO status sweep failed — statuses stay as they are until the next tick: {}", e.toString());
-            return 0;
-        }
+    public record PlannedChange(IpoListingEntity ipo, String from, String to, boolean announces) {}
+
+    /** What the next sweep would change, without writing anything — the admin dry run. */
+    @Transactional(readOnly = true)
+    public List<PlannedChange> preview() {
+        return plan(LocalDateTime.now(clock.withZone(IST)));
     }
 
     /** @return how many listings the calendar moved. Visible for tests. */
@@ -99,13 +97,9 @@ public class IpoStatusSweepService {
 
         List<IpoListingEntity> advanced = new ArrayList<>();
         List<IpoChangeEventEntity> events = new ArrayList<>();
-        for (IpoListingEntity ipo : listingRepo.findAllLive()) {
-            String current = ipo.getStatus();
-            String corrected = correct(ipo, current, nowIst);
-            if (corrected == null || Objects.equals(current, corrected)) {
-                continue;
-            }
-            ipo.setStatus(corrected);
+        for (PlannedChange change : plan(nowIst)) {
+            IpoListingEntity ipo = change.ipo();
+            ipo.setStatus(change.to());
             advanced.add(ipo);
             // A row that never had a status is FILLED IN, not transitioned: nothing happened to the
             // IPO, we merely learned where it already was. Emitting a change event here would let
@@ -113,18 +107,22 @@ public class IpoStatusSweepService {
             // issue that opened days ago — or "has listed" for one that listed weeks ago, in a
             // burst, the first time this runs over a backlog. So the heal is silent, and only a
             // genuine move off a known status announces itself.
-            if (current == null) {
+            if (change.from() == null) {
                 continue;
             }
             // Same shape the ingest path writes, so IpoLifecycleChange maps it to the OPENED push
             // exactly as it would have done had a poll caught the transition.
-            events.add(IpoChangeEventEntity.builder()
+            IpoChangeEventEntity event = IpoChangeEventEntity.builder()
                     .ipoId(ipo.getId())
                     .eventType(EVENT_STATUS)
-                    .oldValue(current)
-                    .newValue(corrected)
+                    .oldValue(change.from())
+                    .newValue(change.to())
                     .createdAt(now)
-                    .build());
+                    .build();
+            if (!change.announces()) {
+                event.setNotifiedAt(now);
+            }
+            events.add(event);
         }
         if (advanced.isEmpty()) {
             return 0;
@@ -140,6 +138,22 @@ public class IpoStatusSweepService {
                         .map(i -> i.getCompanyName() + " -> " + i.getStatus())
                         .toList());
         return advanced.size();
+    }
+
+    private List<PlannedChange> plan(LocalDateTime nowIst) {
+        LocalDate today = nowIst.toLocalDate();
+        List<PlannedChange> changes = new ArrayList<>();
+        for (IpoListingEntity ipo : listingRepo.findAllLive()) {
+            String current = ipo.getStatus();
+            String corrected = correct(ipo, current, nowIst);
+            if (corrected == null || Objects.equals(current, corrected)) {
+                continue;
+            }
+            boolean staleListing = "listed".equals(corrected)
+                    && (ipo.getListingDate() == null || ipo.getListingDate().isBefore(today));
+            changes.add(new PlannedChange(ipo, current, corrected, current != null && !staleListing));
+        }
+        return changes;
     }
 
     /**
@@ -164,11 +178,19 @@ public class IpoStatusSweepService {
      * unscheduled issue stays "Other", which is honest rather than guessed)
      */
     private static String correct(IpoListingEntity ipo, String current, LocalDateTime nowIst) {
+        if ((current == null || "closed".equals(current)) && hasConfirmedListing(ipo, nowIst.toLocalDate())) {
+            return "listed";
+        }
         if (current == null) {
             return IpoStatusCanonicalizer.deriveStatus(
                     ipo.getOpenDate(), ipo.getCloseDate(), ipo.getListingDate(), nowIst);
         }
         return IpoStatusCanonicalizer.calendarCorrected(
                 current, ipo.getOpenDate(), ipo.getCloseDate(), nowIst);
+    }
+
+    static boolean hasConfirmedListing(IpoListingEntity ipo, LocalDate today) {
+        return ipo.getListingPrice() != null && ipo.getListingPrice().signum() > 0
+                && ipo.getListingDate() != null && !ipo.getListingDate().isAfter(today);
     }
 }

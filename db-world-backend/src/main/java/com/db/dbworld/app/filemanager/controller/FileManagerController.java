@@ -12,9 +12,12 @@ import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +30,20 @@ public class FileManagerController {
 
     private final FileOperationsService service;
     private final DownloadService downloadService;
+
+    @ExceptionHandler(NoSuchFileException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingFile(NoSuchFileException ex) {
+        log.warn("File not found: {}", ex.getFile());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(HttpStatus.NOT_FOUND, "File not found: " + ex.getFile()));
+    }
+
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFileIOException(IOException ex) {
+        log.error("File manager operation failed", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "File operation failed"));
+    }
 
     @GetMapping("/list")
     public ApiResponse<FileListDto> list(
@@ -42,8 +59,9 @@ public class FileManagerController {
             @RequestParam String locationId,
             @RequestParam String q,
             @RequestParam(defaultValue = "/")    String path,
-            @RequestParam(defaultValue = "true") boolean recursive) throws IOException {
-        return ApiResponse.success(service.search(locationId, path, q, recursive));
+            @RequestParam(defaultValue = "true") boolean recursive,
+            @RequestParam(defaultValue = "200")  int limit) throws IOException {
+        return ApiResponse.success(service.search(locationId, path, q, recursive, limit));
     }
 
     @GetMapping("/info")

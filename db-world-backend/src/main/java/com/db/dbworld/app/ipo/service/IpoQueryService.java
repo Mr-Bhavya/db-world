@@ -39,9 +39,6 @@ public class IpoQueryService {
     private static final String TYPE_ALL = "all";
     private static final String STATUS_LISTED = "listed";
 
-    /** Merge tombstones to follow before giving up — a defence against a hand-edited cycle, not a
-     *  case this code can create (survivors are always picked from live rows). */
-    private static final int MAX_MERGE_HOPS = 5;
     private static final String SORT_GMP = "gmp";
     private static final String SORT_SUBSCRIPTION = "subscription";
     private static final String SORT_CLOSING = "closing";
@@ -175,11 +172,7 @@ public class IpoQueryService {
     public IpoDetailDto detail(String id) {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
-        for (int hops = 0; entity.getMergedIntoId() != null && hops < MAX_MERGE_HOPS; hops++) {
-            String survivorId = entity.getMergedIntoId();
-            entity = listingRepository.findById(survivorId)
-                    .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
-        }
+        entity = IpoMergeResolver.resolve(listingRepository, entity);
         return withDerivedTimelineDates(mapper.toDetail(entity));
     }
 
@@ -190,21 +183,24 @@ public class IpoQueryService {
      * "FY 2021-22"). Empty (not 404) if none captured.
      */
     public List<IpoFinancialDto> financials(String id) {
-        return financialRepository.findByIpoIdOrderByPeriodEndAsc(id).stream()
+        return financialRepository.findByIpoIdOrderByPeriodEndAsc(
+                        IpoMergeResolver.resolveIdIfPresent(listingRepository, id)).stream()
                 .map(mapper::toFinancial)
                 .toList();
     }
 
     /** Chronological GMP series for the chart; empty (not 404) if the IPO has no history yet. */
     public List<GmpPointDto> gmpHistory(String id) {
-        return gmpHistoryRepository.findByIpoIdOrderByCapturedAtAsc(id).stream()
+        return gmpHistoryRepository.findByIpoIdOrderByCapturedAtAsc(
+                        IpoMergeResolver.resolveIdIfPresent(listingRepository, id)).stream()
                 .map(mapper::toGmpPoint)
                 .toList();
     }
 
     /** Chronological subscription series for the chart; empty (not 404) if none captured yet. */
     public List<SubscriptionPointDto> subscriptionHistory(String id) {
-        return subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc(id).stream()
+        return subscriptionHistoryRepository.findByIpoIdOrderByCapturedAtAsc(
+                        IpoMergeResolver.resolveIdIfPresent(listingRepository, id)).stream()
                 .map(mapper::toSubscriptionPoint)
                 .toList();
     }

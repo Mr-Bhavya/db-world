@@ -119,6 +119,49 @@ public class Aria2RpcService {
         return responseMapper.mapToDownloadStatusList(result);
     }
 
+    /**
+     * Give an explicitly released job priority in aria2 and make room for it. The global
+     * limit is shared with other aria2 clients and remains in effect until changed again.
+     */
+    public synchronized void startParallelDownload(String gid) {
+        Aria2StatusParam status = tellStatus(gid);
+        if (status == null || status.getStatus() == null) {
+            throw new DbWorldException("Cannot determine aria2 status for GID " + gid);
+        }
+        if ("active".equals(status.getStatus()) || "complete".equals(status.getStatus())) return;
+        if (!"waiting".equals(status.getStatus())) {
+            throw new DbWorldException("Cannot start aria2 GID " + gid + ": " + status.getStatus());
+        }
+
+        try {
+            callRpc("aria2.changePosition", new Object[]{gid, 0, "POS_SET"}, null);
+        } catch (DbWorldException e) {
+            Aria2StatusParam latest = tellStatus(gid);
+            if (latest != null && ("active".equals(latest.getStatus())
+                    || "complete".equals(latest.getStatus()))) return;
+            throw e;
+        }
+        JsonNode options = callRpc("aria2.getGlobalOption", new Object[]{}, null);
+        String limitText = options.path("max-concurrent-downloads").asText();
+        int limit;
+        try {
+            limit = Integer.parseInt(limitText);
+        } catch (NumberFormatException e) {
+            throw new DbWorldException("Invalid aria2 max-concurrent-downloads: " + limitText, e);
+        }
+        Aria2GlobalStat globalStat = getGlobalStat();
+        Integer active = globalStat != null ? globalStat.getNumActive() : null;
+        if (limit < 1 || active == null || active < 0 || active == Integer.MAX_VALUE) {
+            throw new DbWorldException("Invalid aria2 concurrency or active download count");
+        }
+        int required = Math.max(limit, active + 1);
+        if (required > limit) {
+            callRpc("aria2.changeGlobalOption",
+                    new Object[]{Map.of("max-concurrent-downloads", String.valueOf(required))}, null);
+            log.info("Raised aria2 max-concurrent-downloads from {} to {} for GID {}", limit, required, gid);
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Lifecycle management
     // ──────────────────────────────────────────────────────────────────────────

@@ -171,4 +171,20 @@ class IpoNormalizerTest {
         assertThat(normalizer.aliasKey("Ltd.")).isNull();
         assertThat(normalizer.aliasKey("- , . ")).isNull();
     }
+
+    @Test
+    void aliasKey_trailingIpoDescriptor_isDropped() {
+        String plain = normalizer.aliasKey("Bombay Coated and Special Steels Ltd.");
+        assertThat(normalizer.aliasKey("Bombay Coated and Special Steels Ltd. (Bombay Coated and Special Steels IPO)"))
+                .isEqualTo(plain);
+        assertThat(normalizer.aliasKey("Bombay Coated and Special Steels IPO")).isEqualTo(plain);
+        assertThat(normalizer.aliasKey("Bombay Coated & Special Steels Limited (SME IPO)")).isEqualTo(plain);
+    }
+
+    @Test
+    void aliasKey_nonIpoParentheticalOrMidNameIpo_isKept() {
+        assertThat(normalizer.aliasKey("Tempsens Instruments (India) Limited")).isEqualTo("tempsensinstrumentsindia");
+        assertThat(normalizer.aliasKey("IPO Ventures Ltd")).isEqualTo("ipoventures");
+        assertThat(normalizer.aliasKey("IPO")).isEqualTo("ipo");
+    }
 }

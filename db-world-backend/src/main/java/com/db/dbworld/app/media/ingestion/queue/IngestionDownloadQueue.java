@@ -41,9 +41,6 @@ import java.util.function.BooleanSupplier;
 @RequiredArgsConstructor
 public class IngestionDownloadQueue {
 
-    /** Max allowed runtime for a single job before forced release */
-    private static final long MAX_JOB_RUNTIME_MS = 6 * 60 * 60 * 1000L; // 6 hours
-
     private final TrackingService trackingService;
 
     private final BlockingDeque<QueueEntry> queue = new LinkedBlockingDeque<>();
@@ -75,7 +72,7 @@ public class IngestionDownloadQueue {
             return true;
         }
 
-        QueueEntry entry = new QueueEntry(jobId, System.currentTimeMillis());
+        QueueEntry entry = new QueueEntry(jobId);
         // add() over offer(): the deque is unbounded, so insertion cannot fail — and if that
         // ever changes, add() throws rather than silently dropping the job while entryMap
         // and the tracking status below both go on to claim it was queued.
@@ -97,7 +94,7 @@ public class IngestionDownloadQueue {
      */
     public synchronized boolean enqueueForReprocess(String jobId) {
         if (entryMap.containsKey(jobId)) return true;
-        QueueEntry entry = new QueueEntry(jobId, System.currentTimeMillis());
+        QueueEntry entry = new QueueEntry(jobId);
         queue.offerFirst(entry);
         entryMap.put(jobId, entry);
         log.info("[{}] Re-queued (front) to reclaim slot for processing", jobId);
@@ -130,19 +127,21 @@ public class IngestionDownloadQueue {
     }
 
     public synchronized boolean awaitTurn(String jobId, BooleanSupplier cancelled) throws InterruptedException {
-        while (!jobId.equals(currentlyRunningJobId)) {
-            if (released.contains(jobId)) { // persists until job end so processing can bypass the cap too
-                log.info("[{}] Running in parallel — bypassing the download slot", jobId);
-                return true;
-            }
+        while (true) {
             if (cancelled != null && cancelled.getAsBoolean()) {
                 cancel(jobId);
                 return false;
             }
+            if (jobId.equals(currentlyRunningJobId)) {
+                return true;
+            }
+            if (released.contains(jobId)) { // persists until job end so processing can bypass the cap too
+                log.info("[{}] Running in parallel — bypassing the download slot", jobId);
+                return true;
+            }
             wait(1000L);
             tryStartNext();
         }
-        return true;
     }
 
     public List<String> getQueueSnapshot() {
@@ -174,24 +173,7 @@ public class IngestionDownloadQueue {
         try {
             if (!running.get()) {
                 tryStartNext();
-                return;
             }
-
-            // Validate running job is still active
-            if (currentlyRunningJobId != null) {
-                if (trackingService.isCancelled(currentlyRunningJobId)) {
-                    log.info("[{}] Running job cancelled → releasing queue", currentlyRunningJobId);
-                    releaseRunning();
-                    return;
-                }
-
-                QueueEntry entry = entryMap.get(currentlyRunningJobId);
-                if (entry != null && isTimedOut(entry)) {
-                    log.error("[{}] Job timed out → force releasing", currentlyRunningJobId);
-                    releaseRunning();
-                }
-            }
-
         } catch (Exception e) {
             log.error("Queue supervisor error", e);
         }
@@ -214,11 +196,7 @@ public class IngestionDownloadQueue {
         queue.removeIf(entry -> entry.jobId.equals(jobId));
         entryMap.remove(jobId);
         released.remove(jobId);
-        if (jobId.equals(currentlyRunningJobId)) {
-            releaseRunning();
-        } else {
-            notifyAll();
-        }
+        notifyAll();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -250,10 +228,6 @@ public class IngestionDownloadQueue {
         notifyAll();
     }
 
-    private boolean isTimedOut(QueueEntry entry) {
-        return (System.currentTimeMillis() - entry.enqueuedAt) > MAX_JOB_RUNTIME_MS;
-    }
-
     @PostConstruct
     void init() {
         running.set(false);
@@ -266,5 +240,5 @@ public class IngestionDownloadQueue {
     // Inner record
     // ─────────────────────────────────────────────────────────────────────────
 
-    private record QueueEntry(String jobId, long enqueuedAt) {}
+    private record QueueEntry(String jobId) {}
 }

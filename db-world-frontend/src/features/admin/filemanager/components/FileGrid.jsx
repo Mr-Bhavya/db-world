@@ -7,9 +7,6 @@ import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
 import { setDragItems, clearDragItems } from './dndPayload';
 
-/** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
-const RENDER_LIMIT = 300;
-
 function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItems, touchSelect, selectionActive }) {
   const T = useT();
   const toggleSelect = useFileManagerStore((s) => s.toggleSelect);
@@ -83,18 +80,20 @@ function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItem
       <Checkbox
         size="small"
         checked={selected}
+        inputProps={{ 'aria-label': `Select ${item.name}` }}
         onClick={(e) => e.stopPropagation()}
         onChange={() => toggleSelect(item.path, { additive: true, items: visibleItems })}
         sx={{
-          position: 'absolute', top: 4, left: 4, p: 0.25, zIndex: 1,
+          position: 'absolute', top: 0, left: 0, width: 44, height: 44, zIndex: 1,
           color: T.textFaint, '&.Mui-checked': { color: T.teal },
         }}
       />
       <IconButton
         size="small"
+        aria-label={`More actions for ${item.name}`}
         onClick={handleMore}
         sx={{
-          position: 'absolute', top: 4, right: 4, zIndex: 1,
+          position: 'absolute', top: 0, right: 0, width: 44, height: 44, zIndex: 1,
           color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.hoverBg },
         }}
       >
@@ -133,6 +132,7 @@ function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItem
 export default function FileGrid({ items = [], isLoading = false, onOpen, onContextMenu, onMoveTo, touchSelect = false }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
+  const visibleItems = items;
 
   if (isLoading) {
     return (
@@ -155,8 +155,6 @@ export default function FileGrid({ items = [], isLoading = false, onOpen, onCont
     );
   }
 
-  const visibleItems = items.slice(0, RENDER_LIMIT);
-  const truncated = items.length > RENDER_LIMIT;
   const selectionActive = selection.size > 0;
 
   return (
@@ -188,13 +186,6 @@ export default function FileGrid({ items = [], isLoading = false, onOpen, onCont
           ))}
         </AnimatePresence>
       </Box>
-      {truncated && (
-        <Box sx={{ px: 2, py: 1.5, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 12, color: T.textFaint }}>
-            Showing first {RENDER_LIMIT} of {items.length} — refine with search
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 }

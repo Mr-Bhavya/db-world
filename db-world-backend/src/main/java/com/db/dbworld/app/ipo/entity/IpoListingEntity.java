@@ -44,9 +44,8 @@ public class IpoListingEntity {
 
     /**
      * Set to the SURVIVING row's id when this row has been merged away as a duplicate. A merged row
-     * is a tombstone: it keeps its own history so the merge stays reversible, but it is excluded
-     * from the list, from GMP refresh candidates and from investorgain matching. Null for every
-     * live row.
+     * is a tombstone: it retains its identity for existing links, but is excluded from the list,
+     * GMP refresh candidates and investorgain matching. Child records move to the survivor.
      */
     @Column(name = "merged_into_id", length = 36)
     private String mergedIntoId;

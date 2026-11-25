@@ -8,6 +8,7 @@ import com.db.dbworld.app.ipo.repository.IpoGmpHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.app.ipo.repository.IpoSubscriptionHistoryRepository;
 import com.db.dbworld.app.ipo.repository.IpoUserApplicationRepository;
+import com.db.dbworld.core.exception.DbWorldException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -122,7 +124,7 @@ class IpoDuplicateServiceTest {
         verify(subHistoryRepo).repointToSurvivor("ipo-a", "ipo-b");
         verify(financialRepo).repointToSurvivor("ipo-a", "ipo-b");
         verify(changeEventRepo).repointToSurvivor("ipo-a", "ipo-b");
-        // Tombstoned, not deleted, so the merge can be undone by clearing one column.
+        // Tombstoned rather than deleted, so old links can resolve to the survivor.
         assertThat(loser.getMergedIntoId()).isEqualTo("ipo-a");
         verify(listingRepo, never()).delete(any());
         verify(listingRepo, never()).deleteById(anyString());
@@ -132,23 +134,46 @@ class IpoDuplicateServiceTest {
     }
 
     @Test
-    void merge_dropsCollidingApplicationsBeforeRepointingThem() {
-        // (user_id, ipo_id) is UNIQUE, so a user who tracked BOTH halves would make the repoint
-        // throw. Their duplicate row is dropped first and they lose nothing - they already hold an
-        // application against the survivor.
+    void merge_rejectsCollidingApplicationsWithoutDeletingData() {
         IpoListingEntity survivor = row("ipo-a", "Acme Ltd", "acme|2026-09-09", T0);
         IpoListingEntity loser = row("ipo-b", "Acme Limited", "acmex|2026-09-09", T0.plusSeconds(60));
         when(listingRepo.findDuplicateAliasKeys()).thenReturn(List.of("acme"));
         when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(survivor, loser));
         when(userApplicationRepo.findCollidingIdsForMerge("ipo-a", "ipo-b")).thenReturn(List.of("app-1"));
 
-        IpoDuplicateDto.MergeResult result = service().mergeAll();
+        assertThatThrownBy(() -> service().mergeAll())
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("conflict");
+        verify(userApplicationRepo, never()).deleteAllById(any());
+        verify(userApplicationRepo, never()).repointToSurvivor(anyString(), anyString());
+        verify(listingRepo, never()).save(any());
+    }
 
-        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(userApplicationRepo);
-        inOrder.verify(userApplicationRepo).findCollidingIdsForMerge("ipo-a", "ipo-b");
-        inOrder.verify(userApplicationRepo).deleteAllById(List.of("app-1"));
-        inOrder.verify(userApplicationRepo).repointToSurvivor("ipo-a", "ipo-b");
-        assertThat(result.applicationsDroppedAsDuplicate()).isEqualTo(1);
+    @Test
+    void merge_rejectsConflictsBetweenTwoLosersBeforeMovingAnything() {
+        IpoListingEntity survivor = row("ipo-a", "Acme Ltd", "a", T0);
+        survivor.setInvestorgainId(1234);
+        IpoListingEntity first = row("ipo-b", "Acme Ltd", "b", T0.plusSeconds(1));
+        IpoListingEntity second = row("ipo-c", "Acme Ltd", "c", T0.plusSeconds(2));
+        when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(survivor, first, second));
+        when(financialRepo.findCollidingIdsForMerge("ipo-b", "ipo-c")).thenReturn(List.of("financial-1"));
+
+        assertThatThrownBy(() -> service().merge(List.of("acme")))
+                .isInstanceOf(DbWorldException.class).hasMessageContaining("conflict");
+        verify(financialRepo, never()).repointToSurvivor(anyString(), anyString());
+        verify(listingRepo, never()).save(any());
+    }
+
+    @Test
+    void merge_rejectsDistinctIssuesOfTheSameCompany() {
+        IpoListingEntity first = row("ipo-a", "Acme Ltd", "a", T0);
+        IpoListingEntity second = row("ipo-b", "Acme Ltd", "b", T0.plusSeconds(1));
+        second.setOpenDate(first.getOpenDate().minusYears(1));
+        when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(first, second));
+
+        assertThatThrownBy(() -> service().merge(List.of("acme")))
+                .isInstanceOf(DbWorldException.class).hasMessageContaining("different issues");
+        verify(listingRepo, never()).save(any());
     }
 
     @Test

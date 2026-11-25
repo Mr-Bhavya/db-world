@@ -33,13 +33,13 @@ class IpoStatusCanonicalizerTest {
     }
 
     @Test
-    void deriveStatus_listingDayBeforeTenAm_isClosed_afterIsListed() {
+    void deriveStatus_listingDateAloneNeverConfirmsTrading() {
         LocalDate listing = LocalDate.of(2026, 7, 30);
         LocalDate close = listing.minusDays(3);
         assertThat(IpoStatusCanonicalizer.deriveStatus(
                 close.minusDays(2), close, listing, listing.atTime(9, 30))).isEqualTo("closed");
         assertThat(IpoStatusCanonicalizer.deriveStatus(
-                close.minusDays(2), close, listing, listing.atTime(10, 0))).isEqualTo("listed");
+                close.minusDays(2), close, listing, listing.atTime(10, 0))).isEqualTo("closed");
     }
 
     @Test
@@ -78,12 +78,12 @@ class IpoStatusCanonicalizerTest {
     }
 
     @Test
-    void deriveStatus_listingDateReached_isListed() {
+    void deriveStatus_listingDateReached_staysClosedWithoutEvidence() {
         assertThat(deriveOn(
-                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 18), TODAY)).isEqualTo("listed");
-        // Listing today counts as listed.
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 18), TODAY)).isEqualTo("closed");
         assertThat(deriveOn(
-                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), TODAY, TODAY)).isEqualTo("listed");
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 14), TODAY, TODAY)).isEqualTo("closed");
+        assertThat(deriveOn(null, null, TODAY.minusDays(1), TODAY)).isNull();
     }
 
     @Test

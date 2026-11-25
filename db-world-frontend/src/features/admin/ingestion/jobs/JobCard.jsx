@@ -153,6 +153,8 @@ const PHASE_CFG = {
   QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
   STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
   DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
+  ARIA2_WAITING: { label: 'Waiting for aria2', color: 'warning', Icon: HourglassEmpty },
+  ARIA2_PAUSED: { label: 'Paused in aria2', color: 'warning', Icon: Pause },
   EXTRACT: { label: 'Extracting', color: 'primary', Icon: Archive },
   MERGING: { label: 'Merging', color: 'primary', Icon: Merge },
   FFMPEG: { label: 'Encoding', color: 'warning', Icon: VideoSettings },
@@ -768,6 +770,8 @@ function JobCardComponent({ job }) {
   const phase = useMemo(() => {
     if (isTerminal || status === 'QUEUED' || status === 'STARTED'
         || status === 'PAUSED' || status === 'AWAITING_INPUT') return status;
+    if (progress?.phase === 'aria2-waiting') return 'ARIA2_WAITING';
+    if (progress?.phase === 'aria2-paused') return 'ARIA2_PAUSED';
     if (progress?.phase === 'merging') return 'MERGING';
     if (step === 'EXTRACT') return 'EXTRACT';
     if (step === 'FFMPEG') return 'FFMPEG';
@@ -784,9 +788,14 @@ function JobCardComponent({ job }) {
   const lastSpeedRef = useRef(0);
   const lastEtaRef = useRef(0);
   useEffect(() => {
+    if (phase === 'ARIA2_WAITING' || phase === 'ARIA2_PAUSED' || phase === 'PAUSED') {
+      lastSpeedRef.current = 0;
+      lastEtaRef.current = 0;
+      return;
+    }
     if (Number(progress?.speed) > 0) lastSpeedRef.current = Number(progress.speed);
     if (Number(progress?.eta) > 0) lastEtaRef.current = Number(progress.eta);
-  }, [progress?.speed, progress?.eta]);
+  }, [phase, progress?.speed, progress?.eta]);
   const speed = useMemo(
     () => fmtSpeed(Number(progress?.speed) > 0 ? progress.speed : lastSpeedRef.current),
     [progress?.speed]
@@ -802,6 +811,7 @@ function JobCardComponent({ job }) {
   // step transition, but gate here too so a stale download ETA can never render as "574h"
   // beside a 100% processing bar.
   const isDownload = !isFfmpeg && !isExtract && !isMerging &&
+    !['ARIA2_WAITING', 'ARIA2_PAUSED', 'PAUSED'].includes(phase) &&
     (step === 'DOWNLOAD' || progress?.phase === 'downloading');
 
   const hasFiles = Array.isArray(files) && files.length > 0;

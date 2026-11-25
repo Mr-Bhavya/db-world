@@ -1,20 +1,38 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import {
-  getSourceHealth, getIpoChanges, repoll, getPushStatus, sendTestPush,
-  getIpoDuplicates, mergeIpoDuplicates,
+  getSourceHealth, getIpoChangesPage, repoll, getPushStatus, sendTestPush,
+  getIpoDuplicates, mergeIpoDuplicates, getIpoStatusPreview,
 } from '../api/ipoAdminApi';
 
 const SOURCES_KEY = ['ipo-admin', 'sources'];
 const CHANGES_KEY = ['ipo-admin', 'changes'];
 const DUPLICATES_KEY = ['ipo-admin', 'duplicates'];
+const STATUS_PREVIEW_KEY = ['ipo-admin', 'status-preview'];
+
+/** Read-only dry run of the next status sweep; refreshed with the page, not polled. */
+export function useIpoStatusPreview() {
+  return useQuery({ queryKey: STATUS_PREVIEW_KEY, queryFn: getIpoStatusPreview });
+}
 
 export function useSourceHealth() {
   return useQuery({ queryKey: SOURCES_KEY, queryFn: getSourceHealth, refetchInterval: 30_000 });
 }
 
-export function useIpoChanges() {
-  return useQuery({ queryKey: CHANGES_KEY, queryFn: getIpoChanges, refetchInterval: 30_000 });
+export const CHANGES_PAGE_SIZE = 50;
+
+/**
+ * Change feed with an optional event-type filter and "load older" (keyset on createdAt).
+ * Only the first page auto-refreshes; older pages are immutable history.
+ */
+export function useIpoChanges(type = '') {
+  return useInfiniteQuery({
+    queryKey: [...CHANGES_KEY, type],
+    queryFn: ({ pageParam }) => getIpoChangesPage({ type, before: pageParam, limit: CHANGES_PAGE_SIZE }),
+    initialPageParam: null,
+    getNextPageParam: (last) => (last?.length === CHANGES_PAGE_SIZE ? last[last.length - 1].createdAt : undefined),
+    refetchInterval: 30_000,
+  });
 }
 
 export function useRepoll() {

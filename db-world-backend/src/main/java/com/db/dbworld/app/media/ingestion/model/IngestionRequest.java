@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.ingestion.model;
 
 import com.db.dbworld.app.media.enrichment.TrackFilter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -94,5 +95,13 @@ public class IngestionRequest {
      * default applies as usual).
      */
     private Boolean reviewTracks = false;
+
+    /**
+     * Server-side only: GID of an aria2 download that already exists (e.g. it survived a server
+     * restart). When set, the download step attaches to it instead of adding the URI again, which
+     * would download the same file twice. Never accepted from clients.
+     */
+    @JsonIgnore
+    private String adoptGid;
 
 }

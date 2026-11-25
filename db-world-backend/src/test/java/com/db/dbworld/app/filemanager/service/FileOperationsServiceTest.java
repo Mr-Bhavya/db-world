@@ -10,11 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 import java.nio.file.Files;
+import java.nio.file.FileSystemException;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +36,14 @@ class FileOperationsServiceTest {
 
     private static List<String> names(FileListDto d) {
         return d.getItems().stream().map(FileItemDto::getName).toList();
+    }
+
+    private static void createLinkOrSkip(Path link, Path target) throws Exception {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (FileSystemException | UnsupportedOperationException | SecurityException e) {
+            assumeTrue(false, "Symbolic links unavailable: " + e.getMessage());
+        }
     }
 
     // ── Media-disk guard ─────────────────────────────────────────────────────
@@ -132,6 +142,106 @@ class FileOperationsServiceTest {
     }
 
     @Test
+    void copyingFolderDoesNotOverwriteExistingDestination() throws Exception {
+        Files.createDirectories(base.resolve("source"));
+        Files.createDirectories(base.resolve("dest/source"));
+        Files.writeString(base.resolve("source/file.txt"), "new");
+        Files.writeString(base.resolve("dest/source/file.txt"), "original");
+
+        assertThatThrownBy(() -> svc.copyItem("l", "/source", "/dest"))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(Files.readString(base.resolve("dest/source/file.txt"))).isEqualTo("original");
+    }
+
+    @Test
+    void copyingFolderIntoDescendantIsRejected() throws Exception {
+        Files.createDirectories(base.resolve("source/nested"));
+
+        assertThatThrownBy(() -> svc.copyItem("l", "/source", "/source"))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("itself or its descendants");
+        assertThatThrownBy(() -> svc.copyItem("l", "/source", "/source/nested"))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("itself or its descendants");
+        assertThat(base.resolve("source/nested/source")).doesNotExist();
+    }
+
+    @Test
+    void copyingFolderToNewDestinationPreservesItsContents() throws Exception {
+        Files.createDirectories(base.resolve("source/nested"));
+        Files.createDirectory(base.resolve("dest"));
+        Files.writeString(base.resolve("source/nested/file.txt"), "content");
+
+        svc.copyItem("l", "/source", "/dest");
+
+        assertThat(Files.readString(base.resolve("dest/source/nested/file.txt"))).isEqualTo("content");
+    }
+
+    @Test
+    void copyingFolderWithLinkToDestinationStopsWithoutRecursing() throws Exception {
+        Files.createDirectory(base.resolve("source"));
+        Files.createDirectory(base.resolve("dest"));
+        createLinkOrSkip(base.resolve("source/link"), base.resolve("dest"));
+
+        assertThatThrownBy(() -> svc.copyItem("l", "/source", "/dest"))
+                .hasMessageContaining("incomplete destination may remain")
+                .hasRootCauseMessage("Copy source links to the destination: " + base.resolve("dest"));
+    }
+
+    @Test
+    void deletingLocationRootIsRejected() throws Exception {
+        Files.writeString(base.resolve("keep.txt"), "content");
+
+        assertThatThrownBy(() -> svc.delete("l", "/"))
+                .isInstanceOf(DbWorldException.class)
+                .hasMessageContaining("location root");
+        assertThat(base.resolve("keep.txt")).exists();
+    }
+
+    @Test
+    void moveAndRenameDoNotOverwriteExistingFiles() throws Exception {
+        Files.createDirectory(base.resolve("dest"));
+        Files.writeString(base.resolve("file.txt"), "source");
+        Files.writeString(base.resolve("other.txt"), "rename target");
+        Files.writeString(base.resolve("dest/file.txt"), "move target");
+
+        assertThatThrownBy(() -> svc.renameItem("l", "/file.txt", "other.txt"))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus()).isEqualTo(HttpStatus.CONFLICT));
+        assertThatThrownBy(() -> svc.moveItem("l", "/file.txt", "/dest"))
+                .isInstanceOf(DbWorldException.class)
+                .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(Files.readString(base.resolve("file.txt"))).isEqualTo("source");
+        assertThat(Files.readString(base.resolve("other.txt"))).isEqualTo("rename target");
+        assertThat(Files.readString(base.resolve("dest/file.txt"))).isEqualTo("move target");
+    }
+
+    @Test
+    void delete_removes_nested_directory() throws Exception {
+        Files.createDirectories(base.resolve("folder/nested"));
+        Files.writeString(base.resolve("folder/nested/file.txt"), "content");
+
+        svc.delete("l", "/folder");
+
+        assertThat(base.resolve("folder")).doesNotExist();
+    }
+
+    @Test
+    void mutationsThroughAnOutsideDirectoryLinkAreRejected() throws Exception {
+        Path outside = Files.createTempDirectory("fm-outside");
+        Files.writeString(outside.resolve("keep.txt"), "content");
+        createLinkOrSkip(base.resolve("link"), outside);
+
+        assertThatThrownBy(() -> svc.delete("l", "/link/keep.txt")).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> svc.renameItem("l", "/link/keep.txt", "changed.txt")).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> svc.moveItem("l", "/link/keep.txt", "/")).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> svc.mkdir("l", "/link", "new")).isInstanceOf(SecurityException.class);
+        assertThat(Files.readString(outside.resolve("keep.txt"))).isEqualTo("content");
+        assertThat(outside.resolve("new")).doesNotExist();
+    }
+
+    @Test
     void delete_removes_file() throws Exception {
         Files.writeString(base.resolve("a.txt"), "hi");
 
@@ -158,6 +268,17 @@ class FileOperationsServiceTest {
         List<FileItemDto> results = svc.search("l", "/", "target", false);
 
         assertThat(results).isEmpty();
+    }
+
+    @Test
+    void search_recursive_stopsAtLimit_andMatchesFolders() throws Exception {
+        Files.createDirectories(base.resolve("target-dir"));
+        for (int i = 0; i < 5; i++) Files.writeString(base.resolve("target-dir/target" + i + ".txt"), "x");
+
+        List<FileItemDto> results = svc.search("l", "/", "target", true, 3);
+
+        assertThat(results).hasSize(3);
+        assertThat(svc.search("l", "/", "target", true, 50)).extracting(FileItemDto::getName).contains("target-dir");
     }
 
     @Test

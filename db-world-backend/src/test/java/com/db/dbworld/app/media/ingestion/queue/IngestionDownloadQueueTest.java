@@ -82,7 +82,7 @@ class IngestionDownloadQueueTest {
     }
 
     @Test
-    void cancelRemovesFromQueueAndFreesSlotWhenRunning() {
+    void cancellationKeepsRunningSlotUntilWorkerFinishes() {
         queue.enqueue("A", false);
         queue.enqueue("B", false);
 
@@ -90,7 +90,19 @@ class IngestionDownloadQueueTest {
         assertThat(queue.getQueueSize()).isZero();
         assertThat(queue.getCurrentlyRunningJobId()).isEqualTo("A");
 
-        queue.cancel("A");                      // running job → free the slot
+        queue.cancel("A");                      // running worker must finish before releasing
+        queue.queueSupervisor();
+        assertThat(queue.getCurrentlyRunningJobId()).isEqualTo("A");
+        queue.signalComplete("A");
+        assertThat(queue.getCurrentlyRunningJobId()).isNull();
+    }
+
+    @Test
+    void cancelledJobDoesNotStartAfterAcquiringSlot() throws Exception {
+        queue.enqueue("A", false);
+        assertThat(queue.awaitTurn("A", () -> true)).isFalse();
+        assertThat(queue.getCurrentlyRunningJobId()).isEqualTo("A");
+        queue.signalComplete("A");
         assertThat(queue.getCurrentlyRunningJobId()).isNull();
     }
 }

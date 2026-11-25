@@ -110,11 +110,13 @@ public class IngestionRecoveryService {
         log.debug("[{}] Aria2 reports GID {} status={}", job.getJobId(), job.getGid(), aria2Status);
 
         if ("active".equals(aria2Status) || "waiting".equals(aria2Status) || "paused".equals(aria2Status)) {
-            // Aria2 still has the download — start a new job (Aria2 will resume via partial file)
+            // Aria2 still owns the download — adopt its GID rather than re-adding the URI, which
+            // would start a duplicate download into the same temp dir.
             IngestionRequest req = reconstructRequest(job);
+            req.setAdoptGid(job.getGid());
             String newJobId = pipeline.start(req);
             markFailed(job, "Server restarted; recovery job: " + newJobId);
-            log.info("[{}] GID {} still {} → spawned recovery job {}",
+            log.info("[{}] GID {} still {} → recovery job {} adopted it",
                     job.getJobId(), job.getGid(), aria2Status, newJobId);
 
         } else if ("complete".equals(aria2Status)) {
@@ -205,6 +207,13 @@ public class IngestionRecoveryService {
         req.setSeason(job.getSeasonNumber());
         req.setEpisode(job.getEpisodeNumber());
         req.setFolderName(job.getFolderName());
+        req.setFileName(job.getFileName());
+        req.setVideoITag(job.getVideoITag());
+        req.setAudioITag(job.getAudioITag());
+        req.setOnlyAudio(Boolean.TRUE.equals(job.getOnlyAudio()));
+        req.setVideoQuality(job.getVideoQuality());
+        req.setExtract(Boolean.TRUE.equals(job.getExtract()));
+        req.setRename(Boolean.TRUE.equals(job.getRename()));
         return req;
     }
 

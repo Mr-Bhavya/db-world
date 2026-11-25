@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Box, IconButton, Tooltip, Menu, MenuItem, ToggleButton, ToggleButtonGroup,
-  TextField, InputAdornment, Chip, Divider,
+  TextField, InputAdornment, Divider,
 } from '@mui/material';
 import UploadIcon from '@mui/icons-material/UploadFile';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -11,13 +11,6 @@ import SortIcon from '@mui/icons-material/Sort';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
-import DownloadIcon from '@mui/icons-material/Download';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import ContentCutIcon from '@mui/icons-material/ContentCut';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import DeleteIcon from '@mui/icons-material/Delete';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 
@@ -43,17 +36,13 @@ const FILTER_OPTIONS = [
 const SEARCH_DEBOUNCE_MS = 350;
 
 /**
- * Top action bar: upload / new folder / search / filter / sort / view toggle,
- * plus a bulk-action bar that slides in once something is selected. Page-level
+ * Top action bar: upload / new folder / search / filter / sort / view toggle. Page-level
  * side effects (actually uploading, creating a folder, running a search, or
  * acting on the selection) are all owned by the caller via props — this
  * component only reads/writes view state (viewMode/sort/filter) directly on
  * the store.
  */
-export default function Toolbar({
-  onUpload, onNewFolder, onSearch,
-  onDownload, onCopy, onCut, onMove, onDelete, onInfo,
-}) {
+export default function Toolbar({ onUpload, onNewFolder, onSearch, sticky = false }) {
   const T = useT();
   const viewMode = useFileManagerStore((s) => s.viewMode);
   const setViewMode = useFileManagerStore((s) => s.setViewMode);
@@ -63,7 +52,6 @@ export default function Toolbar({
   const setSortOrder = useFileManagerStore((s) => s.setSortOrder);
   const filter = useFileManagerStore((s) => s.filter);
   const setFilter = useFileManagerStore((s) => s.setFilter);
-  const selection = useFileManagerStore((s) => s.selection);
   const clearSelection = useFileManagerStore((s) => s.clearSelection);
 
   const fileInputRef = useRef(null);
@@ -77,22 +65,23 @@ export default function Toolbar({
   const handleQueryChange = (e) => {
     const v = e.target.value;
     setQuery(v);
+    clearSelection();
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onSearch?.(v), SEARCH_DEBOUNCE_MS);
   };
 
   const clearQuery = () => {
     setQuery('');
+    clearSelection();
     clearTimeout(debounceRef.current);
     onSearch?.('');
   };
-
-  const hasSelection = selection.size > 0;
 
   const iconBtn = (title, Icon, onClick, color = T.textMuted) => (
     <Tooltip title={title} key={title}>
       <IconButton
         size="small"
+        aria-label={title}
         onClick={onClick}
         sx={{ color, '&:hover': { bgcolor: T.hoverBg, color: T.teal } }}
       >
@@ -105,6 +94,7 @@ export default function Toolbar({
     <Box sx={{
       display: 'flex', flexDirection: 'column',
       borderBottom: `1px solid ${T.border}`, bgcolor: T.adminBg,
+      ...(sticky ? { position: 'sticky', top: 0, zIndex: 10 } : {}),
     }}>
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap',
@@ -127,7 +117,8 @@ export default function Toolbar({
 
         <TextField
           size="small"
-          placeholder="Search this location…"
+          placeholder="Search this folder…"
+          inputProps={{ 'aria-label': 'Search files' }}
           value={query}
           onChange={handleQueryChange}
           InputProps={{
@@ -138,7 +129,7 @@ export default function Toolbar({
             ),
             endAdornment: query ? (
               <InputAdornment position="end">
-                <IconButton size="small" onClick={clearQuery} sx={{ color: T.textFaint }}>
+                <IconButton size="small" aria-label="Clear search" onClick={clearQuery} sx={{ color: T.textFaint }}>
                   <CloseIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </InputAdornment>
@@ -202,42 +193,10 @@ export default function Toolbar({
             },
           }}
         >
-          <ToggleButton value="list"><ViewListIcon sx={{ fontSize: 16 }} /></ToggleButton>
-          <ToggleButton value="grid"><GridViewIcon sx={{ fontSize: 16 }} /></ToggleButton>
+          <ToggleButton value="list" aria-label="List view"><ViewListIcon sx={{ fontSize: 16 }} /></ToggleButton>
+          <ToggleButton value="grid" aria-label="Grid view"><GridViewIcon sx={{ fontSize: 16 }} /></ToggleButton>
         </ToggleButtonGroup>
       </Box>
-
-      <AnimatePresence>
-        {hasSelection && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap',
-              px: { xs: 1.5, md: 2 }, py: 0.75,
-              borderTop: `1px solid ${T.border}`, bgcolor: T.tealBg,
-            }}>
-              <Chip
-                label={`${selection.size} selected`} size="small" onDelete={clearSelection}
-                sx={{
-                  fontSize: 11, height: 22, bgcolor: T.tealBgHover, color: T.teal,
-                  '& .MuiChip-deleteIcon': { color: T.teal, fontSize: 14 },
-                }}
-              />
-              <Box sx={{ flex: 1 }} />
-              {iconBtn('Download', DownloadIcon, onDownload)}
-              {iconBtn('Copy', ContentCopyIcon, onCopy)}
-              {iconBtn('Cut', ContentCutIcon, onCut)}
-              {iconBtn('Move', DriveFileMoveIcon, onMove)}
-              {iconBtn('Info', InfoOutlinedIcon, onInfo)}
-              {iconBtn('Delete', DeleteIcon, onDelete, T.error)}
-            </Box>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </Box>
   );
 }

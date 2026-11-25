@@ -1,4 +1,5 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Chip, Typography } from '@mui/material';
+import { useState } from 'react';
 import { DataGrid } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
@@ -13,14 +14,17 @@ import Constants from '@shared/constants';
 import { AdminPage, SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
 import {
   useSourceHealth, useIpoChanges, useRepoll, useSendTestPush, usePushStatus,
-  useIpoDuplicates, useMergeIpoDuplicates,
+  useIpoDuplicates, useMergeIpoDuplicates, useIpoStatusPreview,
 } from '../hooks/useIpoAdmin';
+import { formatAge, sourceHealthTier, STALE_AFTER_MS } from '../ipoAdminUtils';
 
 const SOURCE_LABEL = {
   ipoguru: 'IPO Guru',
   nse: 'NSE',
   chittorgarh: 'Chittorgarh',
 };
+
+const CHANGE_TYPES = ['', 'NEW', 'STATUS', 'GMP', 'ALLOTMENT', 'LISTING'];
 
 const fmtIst = (iso) => {
   if (!iso) return '—';
@@ -36,19 +40,20 @@ const fmtIst = (iso) => {
  * failures) / failing. Not configured means no credentials, so it was skipped rather than failed.
  */
 function healthTier(row, T, S) {
-  if (!row.lastPolledAt) {
-    return { label: 'Never polled', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
+  switch (sourceHealthTier(row)) {
+    case 'unknown':
+      return { label: 'Never polled', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
+    case 'notConfigured':
+      return { label: 'Not configured', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
+    case 'healthy':
+      return { label: 'Healthy', color: T.success, bg: T.successBg, Icon: CheckCircleIcon };
+    case 'stale':
+      return { label: 'Stale', color: T.warning, bg: T.warningBg, Icon: ErrorIcon };
+    case 'warning':
+      return { label: 'Warning', color: T.warning, bg: T.warningBg, Icon: ErrorIcon };
+    default:
+      return { label: 'Failing', color: T.error, bg: T.errorBg, Icon: ErrorIcon };
   }
-  if (row.lastStatus === 'NOT_CONFIGURED') {
-    return { label: 'Not configured', color: T.textFaint, bg: S.inset, Icon: HelpOutlineIcon };
-  }
-  if (row.consecutiveFailures === 0 && row.lastStatus === 'OK') {
-    return { label: 'Healthy', color: T.success, bg: T.successBg, Icon: CheckCircleIcon };
-  }
-  if (row.consecutiveFailures <= 2) {
-    return { label: 'Warning', color: T.warning, bg: T.warningBg, Icon: ErrorIcon };
-  }
-  return { label: 'Failing', color: T.error, bg: T.errorBg, Icon: ErrorIcon };
 }
 
 function SourceHealthCard({ T, S, row }) {
@@ -71,7 +76,7 @@ function SourceHealthCard({ T, S, row }) {
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
         <Row label="Last polled" value={fmtIst(row.lastPolledAt)} T={T} />
-        <Row label="Last success" value={fmtIst(row.lastSuccessAt)} T={T} />
+        <Row label="Last success" value={`${fmtIst(row.lastSuccessAt)} (${formatAge(row.lastSuccessAt)})`} T={T} />
         <Row label="Last status" value={row.lastStatus ?? '—'} T={T} />
         <Row label="Consecutive failures" value={String(row.consecutiveFailures ?? 0)} T={T} />
       </Box>
@@ -123,9 +128,9 @@ function DuplicateRow({ T, S, row, survivor }) {
  * The duplicate review. Rendering the whole proposal before anything is applied is the point:
  * a company's SME issue and its later mainboard issue share a byte-identical name, so an
  * automatic merge could fuse two genuinely different issues and move someone's application onto
- * the wrong one. Every merge stays reversible — losers are tombstoned, never deleted.
+ * the wrong one. Losers are retained as tombstones; related records move to the survivor.
  */
-function DuplicatesSection({ T, S, clusters, loading, onMerge, merging }) {
+function DuplicatesSection({ T, S, clusters, loading, error, onRetry, onMerge, merging }) {
   const totalRows = clusters.reduce((n, c) => n + 1 + (c.losers?.length ?? 0), 0);
   const applicationsAtRisk = clusters.reduce(
     (n, c) => n + (c.losers ?? []).reduce((m, l) => m + (l.userApplications ?? 0), 0), 0,
@@ -134,7 +139,7 @@ function DuplicatesSection({ T, S, clusters, loading, onMerge, merging }) {
   return (
     <SectionCard
       title={`Duplicate listings${clusters.length ? ` (${clusters.length})` : ''}`}
-      action={clusters.length > 0 && (
+      action={!error && clusters.length > 0 && (
         <AdminActionButton variant="primary" icon={MergeTypeIcon} onClick={() => onMerge(null)} loading={merging}>
           Merge all
         </AdminActionButton>
@@ -144,14 +149,20 @@ function DuplicatesSection({ T, S, clusters, loading, onMerge, merging }) {
         One company can become several rows: the stored key bakes in the open date and the feed&apos;s exact
         spelling, so a revised schedule or &quot;Co.&quot; against &quot;Company&quot; mints another row. The extra row shows
         as a second card with no GMP — and a duplicate pair looks ambiguous to the investorgain matcher,
-        which then gives GMP to neither half. This is a dry run; nothing changes until you merge.
+        which then gives GMP to neither half. Review each issue before merging: related records move to the
+        survivor, and this cannot be undone by restoring the old row. Conflicting records block the merge.
       </Typography>
 
       {loading ? (
         <Typography sx={{ color: T.textMuted, fontSize: 13 }}>Loading…</Typography>
+      ) : error ? (
+        <Box role="alert">
+          <Typography sx={{ color: T.error, fontSize: 13 }}>Unable to load duplicate candidates.</Typography>
+          <AdminActionButton variant="secondary" onClick={onRetry}>Retry</AdminActionButton>
+        </Box>
       ) : clusters.length === 0 ? (
         <Typography sx={{ color: T.success, fontSize: 13, fontWeight: 600 }}>
-          No duplicates — every tracked company resolves to exactly one row.
+          No duplicate candidates found by the current matching rules.
         </Typography>
       ) : (
         <>
@@ -194,19 +205,103 @@ function DuplicatesSection({ T, S, clusters, loading, onMerge, merging }) {
   );
 }
 
+const STATUS_LABEL = { upcoming: 'Upcoming', open: 'Open', closed: 'Closed', listed: 'Listed' };
+
+/**
+ * Read-only dry run of the next status sweep. Explains why a corrected listing may not appear
+ * under "Recently listed": the public list hides listings older than the configured window.
+ */
+function StatusPreviewSection({ T, S, report, loading, error, onRetry }) {
+  const changes = report?.changes ?? [];
+  const hideDays = report?.hideListedAfterDays ?? 0;
+  const hiddenCount = changes.filter((c) => c.hiddenFromPublicList).length;
+  return (
+    <SectionCard title={`Pending status changes${changes.length ? ` (${changes.length})` : ''}`}>
+      <Typography sx={{ fontSize: 12, color: T.textFaint, mb: 2 }}>
+        Preview only — nothing is changed here. The status sweep applies these on its next run (every 30 minutes
+        during the notification window). An IPO becomes Listed only when it has a listing price and its listing date
+        is today or earlier.{' '}
+        {hideDays > 0
+          ? `The public list hides listed IPOs ${hideDays} days after listing (Settings → IPO Tracker → "Hide listed after (days)").`
+          : 'Listed IPOs are never hidden from the public list.'}
+      </Typography>
+      {loading ? (
+        <Typography sx={{ color: T.textMuted, fontSize: 13 }}>Loading…</Typography>
+      ) : error ? (
+        <Box role="alert">
+          <Typography sx={{ color: T.error, fontSize: 13 }}>Unable to load the status preview.</Typography>
+          <AdminActionButton variant="secondary" onClick={onRetry}>Retry</AdminActionButton>
+        </Box>
+      ) : changes.length === 0 ? (
+        <Typography sx={{ color: T.success, fontSize: 13, fontWeight: 600 }}>
+          Every IPO status is up to date.
+        </Typography>
+      ) : (
+        <>
+          {hiddenCount > 0 && (
+            <Typography sx={{ fontSize: 12, color: T.warning, mb: 1.5, fontWeight: 600 }}>
+              {hiddenCount} IPO(s) will become Listed but stay hidden from the public list because they listed more
+              than {hideDays} days ago.
+            </Typography>
+          )}
+          <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {changes.map((c) => (
+              <Box component="li" key={c.id} sx={{
+                p: 1.25, borderRadius: 2, bgcolor: S.inset, border: `1px solid ${S.border}`,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 1.5, rowGap: 0.5,
+              }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.text, flex: '1 1 220px', minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {c.companyName}
+                  {c.ipoType && (
+                    <Typography component="span" sx={{ fontSize: 11, color: T.textFaint, ml: 0.75, textTransform: 'uppercase' }}>
+                      {c.ipoType}
+                    </Typography>
+                  )}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                  {STATUS_LABEL[c.currentStatus] ?? c.currentStatus ?? 'Unknown'} → {STATUS_LABEL[c.proposedStatus] ?? c.proposedStatus}
+                </Typography>
+                {c.proposedStatus === 'listed' && (
+                  <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+                    Listed {c.listingDate ?? '—'} at ₹{c.listingPrice ?? '—'}
+                  </Typography>
+                )}
+                <Typography sx={{ fontSize: 11, color: c.announces ? T.teal : T.textFaint }}>
+                  {c.announces ? 'Sends push' : 'No push'}
+                </Typography>
+                {c.hiddenFromPublicList && (
+                  <Typography sx={{ fontSize: 11, color: T.warning, fontWeight: 700 }}>Hidden publicly</Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+        </>
+      )}
+    </SectionCard>
+  );
+}
+
 export default function IpoAdminPage() {
   const T = useT();
   const S = adminSurface(T);
   const navigate = useNavigate();
-  const { data: sources = [], isLoading: sourcesLoading, refetch: refetchSources } = useSourceHealth();
-  const { data: changes = [], isLoading: changesLoading, refetch: refetchChanges } = useIpoChanges();
+  const { data: sources = [], isLoading: sourcesLoading, isError: sourcesError, refetch: refetchSources } = useSourceHealth();
+  const [changeType, setChangeType] = useState('');
+  const {
+    data: changePages, isLoading: changesLoading, isError: changesError, refetch: refetchChanges,
+    fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useIpoChanges(changeType);
+  const changes = changePages?.pages.flat() ?? [];
   const repollMutation = useRepoll();
   const testPush = useSendTestPush();
   const { data: pushStatus } = usePushStatus();
-  const { data: duplicates = [], isLoading: duplicatesLoading, refetch: refetchDuplicates } = useIpoDuplicates();
+  const { data: duplicates = [], isLoading: duplicatesLoading, isError: duplicatesError, refetch: refetchDuplicates } = useIpoDuplicates();
   const mergeDuplicates = useMergeIpoDuplicates();
+  const {
+    data: statusPreview, isLoading: previewLoading, isError: previewError, refetch: refetchPreview,
+  } = useIpoStatusPreview();
 
-  const handleRefresh = () => { refetchSources(); refetchChanges(); refetchDuplicates(); };
+  const handleRefresh = () => { refetchSources(); refetchChanges(); refetchDuplicates(); refetchPreview(); };
 
   const columns = [
     {
@@ -276,11 +371,33 @@ export default function IpoAdminPage() {
       }}>
         {sourcesLoading && sources.length === 0 ? (
           <Typography sx={{ color: T.textMuted, fontSize: 13 }}>Loading…</Typography>
+        ) : sourcesError ? (
+          <Box role="alert">
+            <Typography sx={{ color: T.error, fontSize: 13 }}>Unable to load source health.</Typography>
+            <AdminActionButton variant="secondary" onClick={refetchSources}>Retry</AdminActionButton>
+          </Box>
         ) : sources.length === 0 ? (
           <Typography sx={{ color: T.textMuted, fontSize: 13 }}>No sources polled yet.</Typography>
         ) : (
           sources.map((row) => <SourceHealthCard key={row.source} T={T} S={S} row={row} />)
         )}
+      </Box>
+      {!sourcesLoading && !sourcesError && sources.length > 0 && (
+        <Typography sx={{ fontSize: 11, color: T.textFaint, mt: -2, mb: 3 }}>
+          A source is marked Stale when it has not completed a successful poll in the last{' '}
+          {STALE_AFTER_MS / 3_600_000} hours — its data may be out of date even if no errors were recorded.
+        </Typography>
+      )}
+
+      <Box sx={{ mb: 3 }}>
+        <StatusPreviewSection
+          T={T}
+          S={S}
+          report={statusPreview}
+          loading={previewLoading}
+          error={previewError}
+          onRetry={refetchPreview}
+        />
       </Box>
 
       <Box sx={{ mb: 3 }}>
@@ -289,12 +406,38 @@ export default function IpoAdminPage() {
           S={S}
           clusters={duplicates}
           loading={duplicatesLoading}
+          error={duplicatesError}
+          onRetry={refetchDuplicates}
           merging={mergeDuplicates.isPending}
           onMerge={(aliasKeys) => mergeDuplicates.mutate(aliasKeys)}
         />
       </Box>
 
-      <SectionCard title="Recent changes" padding={false}>
+      <SectionCard title={`Recent changes${changes.length ? ` (${changes.length}${hasNextPage ? '+' : ''})` : ''}`} padding={false}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, px: 2, pt: 1.5, pb: 1 }} role="group" aria-label="Filter by event type">
+          {CHANGE_TYPES.map((t) => (
+            <Chip
+              key={t || 'all'}
+              label={t || 'All'}
+              size="small"
+              clickable
+              aria-pressed={changeType === t}
+              onClick={() => setChangeType(t)}
+              sx={{
+                fontWeight: 600,
+                bgcolor: changeType === t ? T.teal : S.inset,
+                color: changeType === t ? '#fff' : T.text,
+                '&:hover': { bgcolor: changeType === t ? T.teal : S.inset, opacity: 0.85 },
+              }}
+            />
+          ))}
+        </Box>
+        {changesError && (
+          <Box role="alert" sx={{ p: 2 }}>
+            <Typography sx={{ color: T.error, fontSize: 13 }}>Unable to load recent changes.</Typography>
+            <AdminActionButton variant="secondary" onClick={refetchChanges}>Retry</AdminActionButton>
+          </Box>
+        )}
         <Box sx={{ width: '100%', overflowX: 'auto' }}>
           <Box sx={{ height: 480, minWidth: 640 }}>
             <DataGrid
@@ -312,6 +455,13 @@ export default function IpoAdminPage() {
             />
           </Box>
         </Box>
+        {hasNextPage && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 1.5 }}>
+            <AdminActionButton variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
+              Load older changes
+            </AdminActionButton>
+          </Box>
+        )}
       </SectionCard>
     </AdminPage>
   );

@@ -66,7 +66,7 @@ export default function IpoListPage() {
   const status = searchParams.get('status') || '';
   const sort = searchParams.get('sort') || DEFAULT_SORT;
 
-  const { data, isLoading } = useIpos({ status, type, sort });
+  const { data, isLoading, isError, refetch, isFetching } = useIpos({ status, type, sort });
   const lastUpdated = formatIstTime(data?.lastUpdated);
 
   // Search is local state, not a URL param: it's a transient "find this one" gesture rather than a
@@ -131,11 +131,23 @@ export default function IpoListPage() {
         onQueryChange={setQuery}
       />
 
+      {isError && data && (
+        <Typography role="alert" sx={{ color: T.error, mb: 2 }}>
+          Unable to refresh IPOs. Showing previously loaded data.
+          <Button onClick={() => refetch()} disabled={isFetching}>Retry</Button>
+        </Typography>
+      )}
+
       {isLoading ? (
         <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <IpoCardSkeleton key={i} />
           ))}
+        </Box>
+      ) : isError && !data ? (
+        <Box role="alert" sx={{ textAlign: 'center', py: 6 }}>
+          <Typography sx={{ color: T.textPrimary, mb: 1 }}>Unable to load IPOs.</Typography>
+          <Button onClick={() => refetch()} disabled={isFetching}>Retry</Button>
         </Box>
       ) : ipos.length === 0 ? (
         <motion.div

@@ -1,17 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { Box, Typography, IconButton, Divider, Skeleton } from '@mui/material';
+import { Box, Typography, IconButton, Checkbox, Divider, Skeleton } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
 
-/** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
-const RENDER_LIMIT = 300;
 const LONG_PRESS_MS = 500;
 
 function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, visibleItems }) {
@@ -20,6 +16,7 @@ function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, vis
   const navigate = useFileManagerStore((s) => s.navigate);
   const pressTimer = useRef(null);
   const longPressed = useRef(false);
+  const pointerStart = useRef(null);
 
   const clearTimer = () => {
     if (pressTimer.current) {
@@ -32,8 +29,9 @@ function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, vis
   // after the row has already unmounted, e.g. navigating away mid-press.
   useEffect(() => () => clearTimer(), []);
 
-  const handlePointerDown = () => {
+  const handlePointerDown = (event) => {
     longPressed.current = false;
+    pointerStart.current = { x: event.clientX, y: event.clientY, moved: false };
     clearTimer();
     pressTimer.current = setTimeout(() => {
       longPressed.current = true;
@@ -41,12 +39,22 @@ function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, vis
     }, LONG_PRESS_MS);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerMove = (event) => {
+    const start = pointerStart.current;
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) {
+      start.moved = true;
+      clearTimer();
+    }
+  };
+
+  const handleActivate = () => {
     clearTimer();
-    if (longPressed.current) {
+    if (longPressed.current || pointerStart.current?.moved) {
       longPressed.current = false;
+      pointerStart.current = null;
       return;
     }
+    pointerStart.current = null;
     if (selectionActive) {
       toggleSelect(item.path, { additive: true, items: visibleItems });
       return;
@@ -58,59 +66,61 @@ function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, vis
   return (
     <Box
       sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5,
-        px: 2, py: 1.25,
+        display: 'flex', alignItems: 'center', gap: 0.5,
+        px: 1, py: 0.75,
         bgcolor: selected ? T.tealBg : 'transparent',
         '&:active': { bgcolor: selected ? T.tealBgHover : T.hoverBg },
       }}
       onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={clearTimer}
-      onPointerCancel={clearTimer}
+      onPointerMove={handlePointerMove}
+      onPointerUp={clearTimer}
+      onPointerLeave={() => { clearTimer(); if (pointerStart.current) pointerStart.current.moved = true; }}
+      onPointerCancel={() => { clearTimer(); pointerStart.current = null; }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e, item); }}
     >
-      {selected ? (
-        <Box sx={{
-          width: 38, height: 38, borderRadius: 1.5, flexShrink: 0,
-          bgcolor: T.tealBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <CheckCircleIcon sx={{ fontSize: 22, color: T.teal }} />
-        </Box>
-      ) : selectionActive ? (
-        <Box sx={{
-          width: 38, height: 38, borderRadius: 1.5, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <RadioButtonUncheckedIcon sx={{ fontSize: 22, color: T.textFaint }} />
-        </Box>
-      ) : (
+      <Checkbox
+        checked={selected}
+        inputProps={{ 'aria-label': `Select ${item.name}` }}
+        onChange={() => toggleSelect(item.path, { additive: true, items: visibleItems })}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        sx={{ width: 44, height: 44, color: T.textFaint, '&.Mui-checked': { color: T.teal } }}
+      />
+      <Box
+        component="button"
+        type="button"
+        onClick={handleActivate}
+        sx={{
+          flex: 1, minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 1.5,
+          p: 0, border: 0, bgcolor: 'transparent', textAlign: 'left', cursor: 'pointer',
+        }}
+      >
         <ThumbnailImage item={item} size={38} borderRadius={1.5} />
-      )}
-
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{
-          fontSize: 14, fontWeight: item.directory ? 600 : 400, color: T.textPrimary,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {item.name}
-        </Typography>
-        <Typography sx={{ fontSize: 11, color: T.textFaint }}>
-          {item.directory
-            ? (item.childCount > 0 ? `${item.childCount} items` : 'Folder')
-            : item.formattedSize}
-          {item.lastModified && ` · ${format(new Date(item.lastModified), 'MMM d, yyyy')}`}
-        </Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{
+            fontSize: 14, fontWeight: item.directory ? 600 : 400, color: T.textPrimary,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {item.name}
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+            {item.directory
+              ? (item.childCount > 0 ? `${item.childCount} items` : 'Folder')
+              : item.formattedSize}
+            {item.lastModified && ` · ${format(new Date(item.lastModified), 'MMM d, yyyy')}`}
+          </Typography>
+        </Box>
+        {item.directory && !selected && <ChevronRightIcon sx={{ fontSize: 16, color: T.textFaint }} />}
       </Box>
-
-      {item.directory && !selected && <ChevronRightIcon sx={{ fontSize: 16, color: T.textFaint }} />}
 
       <IconButton
         size="small"
+        aria-label={`More actions for ${item.name}`}
         onClick={(e) => { e.stopPropagation(); onContextMenu?.(e, item); }}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
         onPointerLeave={(e) => e.stopPropagation()}
-        sx={{ color: T.textFaint }}
+        sx={{ color: T.textFaint, width: 44, height: 44 }}
       >
         <MoreVertIcon sx={{ fontSize: 18 }} />
       </IconButton>
@@ -128,6 +138,7 @@ function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, vis
 export default function FileMobileList({ items = [], isLoading = false, onOpen, onContextMenu }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
+  const visibleItems = items;
 
   if (isLoading) {
     return (
@@ -147,8 +158,6 @@ export default function FileMobileList({ items = [], isLoading = false, onOpen, 
     );
   }
 
-  const visibleItems = items.slice(0, RENDER_LIMIT);
-  const truncated = items.length > RENDER_LIMIT;
   const selectionActive = selection.size > 0;
 
   return (
@@ -175,13 +184,6 @@ export default function FileMobileList({ items = [], isLoading = false, onOpen, 
         ))}
       </AnimatePresence>
 
-      {truncated && (
-        <Box sx={{ px: 2, py: 1.5, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 12, color: T.textFaint }}>
-            Showing first {RENDER_LIMIT} of {items.length} — refine with search
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 }

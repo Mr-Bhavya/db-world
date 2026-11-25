@@ -10,14 +10,22 @@ import com.db.dbworld.app.filemanager.dto.request.RenameRequest;
 import com.db.dbworld.app.filemanager.service.FileOperationsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class FileManagerControllerTest {
 
@@ -46,11 +54,11 @@ class FileManagerControllerTest {
     @Test
     void search_delegatesWithLocationId() throws Exception {
         FileItemDto item = FileItemDto.builder().name("a.txt").build();
-        when(service.search("l-1", "/", "a", true)).thenReturn(List.of(item));
+        when(service.search("l-1", "/", "a", true, 500)).thenReturn(List.of(item));
 
-        ApiResponse<List<FileItemDto>> response = controller.search("l-1", "a", "/", true);
+        ApiResponse<List<FileItemDto>> response = controller.search("l-1", "a", "/", true, 500);
 
-        verify(service).search("l-1", "/", "a", true);
+        verify(service).search("l-1", "/", "a", true, 500);
         assertThat(response.getData()).containsExactly(item);
     }
 
@@ -131,6 +139,26 @@ class FileManagerControllerTest {
 
         verify(service).delete("l-1", "/a.txt");
         assertThat(response.isSuccess()).isTrue();
+    }
+
+    @Test
+    void ioFailureReturnsErrorRatherThanSuccess() throws Exception {
+        doThrow(new IOException("disk error")).when(service).delete("l-1", "/a.txt");
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mvc.perform(delete("/api/admin/file-manager/delete").param("locationId", "l-1").param("path", "/a.txt"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void missingFileStillReturnsNotFound() throws Exception {
+        doThrow(new NoSuchFileException("/a.txt")).when(service).delete("l-1", "/a.txt");
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mvc.perform(delete("/api/admin/file-manager/delete").param("locationId", "l-1").param("path", "/a.txt"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test

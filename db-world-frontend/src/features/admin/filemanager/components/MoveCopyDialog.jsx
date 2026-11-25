@@ -15,6 +15,7 @@ import { useMutation } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { moveItem, copyItem } from '../api/fileManagerApi';
+import { settleFileOperations } from '../api/batchOperations';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
 import FolderTree from './FolderTree';
@@ -45,8 +46,8 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
   const runOne = mode === 'copy' ? copyItem : moveItem;
 
   const { mutate: confirm, isPending } = useMutation({
-    mutationFn: () => Promise.allSettled(
-      items.map((item) => runOne({ locationId, sourcePath: item.path, destinationPath: dest }))
+    mutationFn: () => settleFileOperations(
+      items, (item) => runOne({ locationId, sourcePath: item.path, destinationPath: dest })
     ),
     onSuccess: (results) => {
       invalidateDir(locationId);
