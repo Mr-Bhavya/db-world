@@ -1,5 +1,6 @@
 package com.db.dbworld.config;
 
+import com.db.dbworld.app.media.download.ws.AdminWsHandshakeInterceptor;
 import com.db.dbworld.app.media.download.ws.MirrorStatusHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,17 +19,24 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final MirrorStatusHandler mirrorStatusHandler;
+    private final AdminWsHandshakeInterceptor adminWsHandshakeInterceptor;
+    private final CorsProperties corsProperties;
 
     public WebSocketConfig(
-            MirrorStatusHandler mirrorStatusHandler) {
+            MirrorStatusHandler mirrorStatusHandler,
+            AdminWsHandshakeInterceptor adminWsHandshakeInterceptor,
+            CorsProperties corsProperties) {
 
         this.mirrorStatusHandler = mirrorStatusHandler;
+        this.adminWsHandshakeInterceptor = adminWsHandshakeInterceptor;
+        this.corsProperties = corsProperties;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(mirrorStatusHandler, "/ws/status")
-                .setAllowedOriginPatterns("*");
+                .addInterceptors(adminWsHandshakeInterceptor)
+                .setAllowedOriginPatterns(corsProperties.allowedOriginPatterns().toArray(String[]::new));
     }
 
     // Configure WebSocket container settings

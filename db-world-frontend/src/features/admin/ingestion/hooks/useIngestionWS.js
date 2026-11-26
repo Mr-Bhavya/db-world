@@ -1,13 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
 import useIngestionStore from '../store/ingestionStore';
 import { resolveWsUrl } from '@shared/config/apiBaseUrl';
-
-const RECONNECT_DELAY = 5000;
+import { accessTokenExpiringSoon, getAccessToken } from '@shared/auth/tokenStore';
+import { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
+import { reconnectDelay, shouldReconnect, withAccessToken } from './wsConnection';
 
 /**
- * Manages the WebSocket connection to /ws/status.
- * Parses the server broadcast (jobId -> JobSnapshot map)
- * and writes it into the Zustand store.
+ * Manages the authenticated WebSocket connection to /ws/status.
+ * Parses the server broadcast (jobId -> JobSnapshot map) and writes it into the Zustand store.
+ * Reconnects with exponential backoff after any close the page did not initiate.
  */
 export function useIngestionWS() {
   const setJobs = useIngestionStore((s) => s.setJobs);
@@ -15,7 +16,9 @@ export function useIngestionWS() {
 
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
+  const attemptRef = useRef(0);
   const unmountedRef = useRef(false);
+  const connectingRef = useRef(false);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectRef.current) {
@@ -25,91 +28,83 @@ export function useIngestionWS() {
   }, []);
 
   const cleanupSocket = useCallback(() => {
-    if (!wsRef.current) return;
-
-    wsRef.current.onopen = null;
-    wsRef.current.onmessage = null;
-    wsRef.current.onerror = null;
-    wsRef.current.onclose = null;
-
+    const socket = wsRef.current;
+    if (!socket) return;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
     try {
-      if (
-        wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING
-      ) {
-        wsRef.current.close(1000, 'cleanup');
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000, 'cleanup');
       }
     } catch {
       // ignore cleanup close errors
     }
-
     wsRef.current = null;
   }, []);
 
   const scheduleReconnect = useCallback((connectFn) => {
     if (unmountedRef.current || reconnectRef.current) return;
-
+    const delay = reconnectDelay(attemptRef.current);
+    attemptRef.current += 1;
     reconnectRef.current = setTimeout(() => {
       reconnectRef.current = null;
       connectFn();
-    }, RECONNECT_DELAY);
+    }, delay);
   }, []);
 
-  const connect = useCallback(() => {
-    if (unmountedRef.current) return;
-
-    // Prevent duplicate active connections
-    if (
-      wsRef.current &&
-      (wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING)
-    ) {
+  const connect = useCallback(async () => {
+    if (unmountedRef.current || connectingRef.current) return;
+    const current = wsRef.current;
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     clearReconnectTimer();
     cleanupSocket();
-
-    const wsUrl = resolveWsUrl('/ws/status');
-
     setWsStatus('connecting');
+    connectingRef.current = true;
 
     try {
-      const socket = new WebSocket(wsUrl);
+      if (accessTokenExpiringSoon(30_000)) {
+        await refreshAccessToken().catch(() => {});
+      }
+    } finally {
+      connectingRef.current = false;
+    }
+    if (unmountedRef.current) return;
+
+    try {
+      const socket = new WebSocket(withAccessToken(resolveWsUrl('/ws/status'), getAccessToken()));
       wsRef.current = socket;
 
       socket.onopen = () => {
         if (unmountedRef.current) return;
+        attemptRef.current = 0;
         clearReconnectTimer();
         setWsStatus('connected');
       };
 
       socket.onmessage = (event) => {
         if (unmountedRef.current) return;
-
         try {
-          // Backend sends:
-          // { jobId: { jobId, status, step, sourceType, fileName, uri, progress, ... } }
-          const data = JSON.parse(event.data);
-          setJobs(data);
+          setJobs(JSON.parse(event.data));
         } catch {
           // ignore malformed payloads
         }
       };
 
       socket.onerror = () => {
-        if (unmountedRef.current) return;
-        setWsStatus('error');
+        if (!unmountedRef.current) setWsStatus('error');
       };
 
-      socket.onclose = (event) => {
+      socket.onclose = () => {
         if (unmountedRef.current) return;
-
         wsRef.current = null;
         setWsStatus('disconnected');
-
-        // 1000 = normal close -> do not reconnect
-        if (event.code !== 1000) {
+        // Our own cleanup detaches onclose first, so any close seen here came from the server/network.
+        if (shouldReconnect({ closedByClient: false, unmounted: unmountedRef.current })) {
           scheduleReconnect(connect);
         }
       };
@@ -121,11 +116,9 @@ export function useIngestionWS() {
     }
   }, [setJobs, setWsStatus, clearReconnectTimer, cleanupSocket, scheduleReconnect]);
 
-  // 1) Initial mount + unmount cleanup
   useEffect(() => {
     unmountedRef.current = false;
     connect();
-
     return () => {
       unmountedRef.current = true;
       clearReconnectTimer();
@@ -133,34 +126,21 @@ export function useIngestionWS() {
     };
   }, [connect, clearReconnectTimer, cleanupSocket]);
 
-  // 2) Reconnect when device/network comes back online
+  // Reconnect immediately when the network or the tab comes back.
   useEffect(() => {
-    const handleOnline = () => {
-      if (!unmountedRef.current) {
-        connect();
-      }
+    const reconnectNow = () => {
+      if (unmountedRef.current) return;
+      attemptRef.current = 0;
+      connect();
     };
-
-    window.addEventListener('online', handleOnline);
-
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') reconnectNow();
+    };
+    window.addEventListener('online', reconnectNow);
+    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
-      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('online', reconnectNow);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [connect]);
-
-  // 3) Reconnect when app/tab becomes visible again
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !unmountedRef.current) {
-        connect();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-
   }, [connect]);
 }

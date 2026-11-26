@@ -239,7 +239,7 @@ export default function TrackReviewDialog({ jobId, open, onClose, onSubmitted })
             />
           ) : null}
         </Stack>
-        <IconButton onClick={onClose} size="small" sx={{ position: 'absolute', top: 12, right: 12 }}>
+        <IconButton onClick={onClose} size="small" aria-label="Close track selection" sx={{ position: 'absolute', top: 12, right: 12 }}>
           <Close fontSize="small" />
         </IconButton>
       </DialogTitle>

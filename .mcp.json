@@ -3,9 +3,37 @@
     "code-review-graph": {
       "command": "code-review-graph",
       "args": [
-        "serve"
+        "serve",
+        "--auto-watch"
       ],
-      "type": "stdio"
+      "type": "stdio",
+      "tools": ["*"]
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "X-MCP-Readonly": "true"
+      }
+    },
+    "mysql": {
+      "type": "stdio",
+      "command": "C:\\Users\\bhavya.dudhia\\AppData\\Roaming\\Python\\Python314\\Scripts\\uvx.exe",
+      "args": [
+        "--from",
+        "mysql-mcp-server",
+        "mysql_mcp_server"
+      ],
+      "tools": [
+        "*"
+      ],
+      "env": {
+        "MYSQL_HOST": "${DBWORLD_MCP_MYSQL_HOST}",
+        "MYSQL_PORT": "${DBWORLD_MCP_MYSQL_PORT}",
+        "MYSQL_DATABASE": "${DBWORLD_MCP_MYSQL_DATABASE}",
+        "MYSQL_USER": "${DBWORLD_MCP_MYSQL_USER}",
+        "MYSQL_PASSWORD": "${DBWORLD_MCP_MYSQL_PASSWORD}"
+      }
     }
   }
 }

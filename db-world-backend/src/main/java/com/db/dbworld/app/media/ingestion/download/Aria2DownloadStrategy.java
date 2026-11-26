@@ -7,10 +7,12 @@ import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
+import com.db.dbworld.app.media.aria2.Aria2ErrorCodes;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.aria2.Aria2Progress;
 import com.db.dbworld.app.media.aria2.Aria2StatusKeys;
 import com.db.dbworld.app.media.aria2.model.Aria2AddDownloadResponse;
+import com.db.dbworld.app.media.aria2.model.Aria2File;
 import com.db.dbworld.app.media.aria2.model.Aria2StatusParam;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -19,8 +21,12 @@ import org.springframework.stereotype.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Downloads HTTP/HTTPS/Torrent/Magnet links via Aria2c RPC.
@@ -122,8 +128,9 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             // pollUntilDone sleeps between polls, so a cancel arrives as an interrupt here.
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.error("[{}] Aria2 download failed", jobId, e);
-            ctx.logError("ARIA2", "Download failed: " + e.getMessage());
-            return DownloadResult.failure(jobId, e.getMessage());
+            String why = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            ctx.logError("ARIA2", "Download failed: " + why);
+            return DownloadResult.failure(jobId, why);
         }
     }
 
@@ -187,6 +194,12 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     private Map<String, Object> buildAria2Options(IngestionContext ctx, Path tempDir) {
         Map<String, Object> options = new HashMap<>();
         options.put("dir", tempDir.toAbsolutePath().toString());
+        // A re-download after a stop/cancel lands on the same deterministic temp path. Resume from a
+        // leftover .aria2 control file when there is one; otherwise overwrite the stale partial file
+        // instead of failing with "file already exists" (13) or silently renaming it to name.1.ext.
+        options.put("continue", "true");
+        options.put("allow-overwrite", "true");
+        options.put("auto-file-renaming", "false");
 
         if (Boolean.TRUE.equals(ctx.getRequest().getUrlProtected())) {
             options.put("http-user", ctx.getRequest().getUsername());
@@ -210,12 +223,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         while (true) {
 
             if (ctx.isCancelled() || trackingService.isCancelled(jobId)) {
-                jobStore.executeCancelAction(jobId);
-                ctx.log("ARIA2", "Download cancelled");
-                return DownloadResult.failure(jobId, "Cancelled");
+                return cancelAndDiscard(ctx, tempDir);
             }
 
-            Thread.sleep(POLL_INTERVAL_MS);
+            try {
+                Thread.sleep(POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                // A cancel interrupts the sleeping poller; tidy up before giving the interrupt back.
+                if (ctx.isCancelled() || trackingService.isCancelled(jobId)) {
+                    DownloadResult cancelled = cancelAndDiscard(ctx, tempDir);
+                    Thread.currentThread().interrupt();
+                    return cancelled;
+                }
+                throw e;
+            }
 
             String activeGid = null;
 
@@ -226,7 +247,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                     return DownloadResult.failure(jobId, "Missing active GID");
                 }
 
-                Aria2StatusParam status = aria2RpcService.tellStatus(activeGid);
+                Aria2StatusParam status = aria2RpcService.tellStatus(activeGid, Aria2StatusKeys.POLL_KEYS);
 
                 if (status == null) {
                     ctx.logError("ARIA2", "Null status for GID: " + activeGid);
@@ -264,16 +285,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                 }
 
                 if ("error".equals(aria2Status)) {
-                    String msg = status.getErrorMessage() != null
-                            ? status.getErrorMessage()
-                            : "Aria2 error (code " + status.getErrorCode() + ")";
+                    String msg = Aria2ErrorCodes.describe(status.getErrorCode(), status.getErrorMessage());
                     ctx.logError("ARIA2", "Error: " + msg);
+                    // Keep partial data so a retry can resume, but free the GID for a clean re-add.
+                    aria2RpcService.removeDownloadResult(activeGid);
                     return DownloadResult.failure(jobId, msg);
                 }
 
                 if ("removed".equals(aria2Status)) {
+                    if (ctx.isCancelled() || trackingService.isCancelled(jobId)) {
+                        return cancelAndDiscard(ctx, tempDir);
+                    }
                     ctx.log("ARIA2", "Download removed");
-                    return DownloadResult.failure(jobId, "Removed");
+                    aria2RpcService.removeDownloadResult(activeGid);
+                    return DownloadResult.failure(jobId, "Download was removed from aria2 outside the app");
                 }
                 // "paused" → keep polling until resume or cancel
 
@@ -288,6 +313,56 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             }
         }
 
+    }
+
+    /**
+     * User cancel: stop aria2, then queue the partial download (file or torrent folder) and its
+     * .aria2 control file for the pipeline's temp cleanup, so a later re-download starts clean.
+     */
+    private DownloadResult cancelAndDiscard(IngestionContext ctx, Path tempDir) {
+        String jobId = ctx.getJobId();
+        String gid = jobStore.getGid(jobId).orElse(null);
+        if (gid != null && tempDir != null) {
+            ctx.getTempArtifacts().addAll(partialArtifacts(gid, tempDir));
+        }
+        jobStore.executeCancelAction(jobId);
+        if (gid != null) {
+            aria2RpcService.removeDownloadResult(gid);
+        }
+        ctx.log("ARIA2", "Download cancelled");
+        return DownloadResult.failure(jobId, "Cancelled");
+    }
+
+    /** Top-level entries this download wrote under tempDir, plus their .aria2 control files. */
+    List<Path> partialArtifacts(String gid, Path tempDir) {
+        Set<Path> out = new LinkedHashSet<>();
+        Path root = tempDir.toAbsolutePath().normalize();
+        try {
+            Aria2StatusParam s = aria2RpcService.tellStatus(gid, Aria2StatusKeys.FILES_KEYS);
+            List<Aria2StatusParam> statuses = new ArrayList<>();
+            if (s != null) statuses.add(s);
+            if (s != null && s.getFollowedBy() != null) {
+                for (String follower : s.getFollowedBy()) {
+                    Aria2StatusParam f = aria2RpcService.tellStatus(follower, Aria2StatusKeys.FILES_KEYS);
+                    if (f != null) statuses.add(f);
+                }
+            }
+            for (Aria2StatusParam st : statuses) {
+                if (st.getFiles() == null) continue;
+                for (Aria2File file : st.getFiles()) {
+                    if (file == null || file.getPath() == null || file.getPath().isBlank()
+                            || file.getPath().startsWith("[METADATA]")) continue;
+                    Path p = Paths.get(file.getPath()).toAbsolutePath().normalize();
+                    if (!p.startsWith(root) || p.equals(root)) continue;
+                    Path top = root.resolve(root.relativize(p).getName(0));
+                    out.add(top);
+                    out.add(top.resolveSibling(top.getFileName() + ".aria2"));
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not list partial files for GID {}: {}", gid, e.getMessage());
+        }
+        return new ArrayList<>(out);
     }
 
     private DownloadResult handleComplete(IngestionContext ctx, String gid,

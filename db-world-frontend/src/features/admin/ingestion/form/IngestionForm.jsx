@@ -1,46 +1,30 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notify } from '@shared/notify';
-
 import {
   Alert,
-  alpha,
   Box,
   Button,
   Chip,
   CircularProgress,
-  Collapse,
   Divider,
   FormControlLabel,
-  IconButton,
   InputAdornment,
   MenuItem,
   Paper,
   Stack,
   Switch,
   TextField,
-  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-
-import {
-  Controller,
-  useFieldArray,
-  useForm,
-  useWatch,
-} from 'react-hook-form';
-
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
   AddRounded as Add,
   ArchiveRounded as Archive,
   ClearRounded as Clear,
   CloseRounded as Close,
-  DeleteRounded as Delete,
-  DriveFileRenameOutlineRounded as DriveFileRenameOutline,
   LinkRounded as LinkIcon,
   LockRounded as Lock,
   LockOutlined,
@@ -54,462 +38,20 @@ import {
   LockResetRounded as LockReset,
   SubtitlesRounded as Subtitles,
 } from '@mui/icons-material';
-
-import { AnimatePresence, motion } from 'framer-motion';
-
+import { AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import RecordSearch from './RecordSearch';
 import YtFormatPicker from './YtFormatPicker';
 import PlaylistPicker from './PlaylistPicker';
-import { detectUrlType, isYtDlp, sourceLabel } from './UrlDetector';
+import { detectUrlType, isYtDlp } from './UrlDetector';
 import { EpisodePicker, SeasonPicker, useTmdbSeasons } from './EpisodePickers';
 import { startIngestion } from '../services/ingestionApi';
 import { useYtFormats } from '../hooks/useYtFormats';
 import useIngestionStore from '../store/ingestionStore';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Schema
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Season 0 is TMDB's Specials season — bonus episodes, behind-the-scenes,
-// recaps. Rejecting it here made specials unlinkable from the ingestion form
-// even though the backend, the TMDB sync and the viewer all handle season 0
-// perfectly well. Episode numbers still start at 1 within that season.
-const nonNegativeOptionalInt = z
-  .union([z.string(), z.number(), z.null(), z.undefined()])
-  .transform((value) => {
-    if (value === '' || value === null || value === undefined) return null;
-    const num = Number(value);
-    return Number.isFinite(num) ? num : null;
-  })
-  .refine((value) => value === null || (Number.isInteger(value) && value >= 0), {
-    message: 'Must be 0 or a positive integer',
-  });
-
-const urlSchema = z.object({
-  url: z.string().trim().optional().default(''),
-  customName: z.string().optional().default(''),
-  rename: z.boolean().default(false),
-  episode: nonNegativeOptionalInt.optional().nullable(),
-});
-
-const schema = z.object({
-  urls: z.array(urlSchema).default([
-    { url: '', customName: '', rename: false, episode: null },
-  ]),
-  record: z.any().optional().nullable(),
-  season: nonNegativeOptionalInt.optional().nullable(),
-  episode: nonNegativeOptionalInt.optional().nullable(),
-
-  username: z.string().optional().default(''),
-  password: z.string().optional().default(''),
-  useAuth: z.boolean().default(false),
-
-  extract: z.boolean().default(false),
-  zipPwd: z.string().optional().default(''),
-
-  audioOnly: z.boolean().default(false),
-
-  reviewTracks: z.boolean().default(false),
-
-  videoITag: z.string().optional().nullable(),
-  audioITag: z.string().optional().nullable(),
-  videoQuality: z.string().optional().default('best'),
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UI Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getSourceColors(T, type) {
-  switch (type) {
-    case 'youtube':
-      return {
-        color: T.error,
-        bg: alpha(T.error, 0.1),
-        border: alpha(T.error, 0.28),
-      };
-    case 'ytdlp':
-      return {
-        color: T.warning,
-        bg: alpha(T.warning, 0.1),
-        border: alpha(T.warning, 0.28),
-      };
-    case 'magnet':
-      return {
-        color: '#9c27b0',
-        bg: alpha('#9c27b0', 0.1),
-        border: alpha('#9c27b0', 0.28),
-      };
-    case 'torrent':
-      return {
-        color: '#0288d1',
-        bg: alpha('#0288d1', 0.1),
-        border: alpha('#0288d1', 0.28),
-      };
-    case 'http':
-      return {
-        color: T.success,
-        bg: alpha(T.success, 0.1),
-        border: alpha(T.success, 0.28),
-      };
-    default:
-      return {
-        color: T.textMuted,
-        bg: alpha(T.textFaint, 0.08),
-        border: alpha(T.textFaint, 0.15),
-      };
-  }
-}
-
-function SourceBadge({ type }) {
-  const T = useT();
-  if (!type || type === 'unknown') return null;
-
-  const colors = getSourceColors(T, type);
-
-  return (
-    <Chip
-      label={sourceLabel(type)}
-      size="small"
-      sx={{
-        bgcolor: colors.bg,
-        color: colors.color,
-        border: `1px solid ${colors.border}`,
-        fontWeight: 700,
-        fontSize: '0.72rem',
-        height: 24,
-        borderRadius: 999,
-      }}
-    />
-  );
-}
-
-function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
-  const T = useT();
-  const S = adminSurface(T);
-
-  return (
-    <Paper
-      elevation={0}
-      variant="outlined"
-      sx={{
-        borderRadius: 3,
-        borderColor: S.border,
-        bgcolor: S.card,
-        boxShadow: 'none',
-        overflow: 'hidden',
-        ...sx,
-      }}
-    >
-      <Box
-        sx={{
-          px: { xs: 1.25, sm: 1.75, md: 2 },
-          py: { xs: 1.25, sm: 1.5 },
-        }}
-      >
-        <Stack
-          direction="row"
-          alignItems="flex-start"
-          justifyContent="space-between"
-          spacing={1.25}
-          mb={children ? 1.25 : 0}
-        >
-          <Stack direction="row" spacing={1} alignItems="center" minWidth={0}>
-            <Box
-              sx={{
-                width: { xs: 34, sm: 38 },
-                height: { xs: 34, sm: 38 },
-                borderRadius: 2,
-                display: 'grid',
-                placeItems: 'center',
-                bgcolor: T.tealBg,
-                color: T.teal,
-                flexShrink: 0,
-              }}
-            >
-              {icon}
-            </Box>
-
-            <Box minWidth={0}>
-              <Typography
-                variant="subtitle1"
-                fontWeight={800}
-                lineHeight={1.15}
-                sx={{ fontSize: { xs: '0.97rem', sm: '1rem' } }}
-              >
-                {title}
-              </Typography>
-              {subtitle ? (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ display: 'block', mt: 0.25, lineHeight: 1.3 }}
-                >
-                  {subtitle}
-                </Typography>
-              ) : null}
-            </Box>
-          </Stack>
-
-          {action ? <Box flexShrink={0}>{action}</Box> : null}
-        </Stack>
-
-        {children}
-      </Box>
-    </Paper>
-  );
-}
-
-function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
-  const T = useT();
-  const S = adminSurface(T);
-
-  return (
-    <Paper
-      variant="outlined"
-      sx={{
-        borderRadius: 3,
-        px: 1.25,
-        py: 1.1,
-        borderColor: checked ? T.teal : S.border,
-        bgcolor: checked ? T.tealBg : S.card,
-        transition: 'border-color .2s ease, background-color .2s ease',
-      }}
-    >
-      <Stack spacing={1}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems={{ xs: 'flex-start', sm: 'center' }}
-          justifyContent="space-between"
-          spacing={0.75}
-        >
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: 2,
-                display: 'grid',
-                placeItems: 'center',
-                bgcolor: T.tealBg,
-                color: T.teal,
-              }}
-            >
-              {icon}
-            </Box>
-
-            <Box>
-              <Typography variant="body2" fontWeight={700}>
-                {title}
-              </Typography>
-              {subtitle ? (
-                <Typography variant="caption" color="text.secondary">
-                  {subtitle}
-                </Typography>
-              ) : null}
-            </Box>
-          </Stack>
-
-          <Switch checked={checked} onChange={onChange} size="small" />
-        </Stack>
-
-        <Collapse in={checked}>{children}</Collapse>
-      </Stack>
-    </Paper>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// URL Row
-// ─────────────────────────────────────────────────────────────────────────────
-
-const UrlRow = memo(function UrlRow({
-  index,
-  control,
-  remove,
-  canRemove,
-  isYtMode,
-  showPerUrlEpisode,
-  tmdbSeasons = [],
-  watchedSeason = null,
-  compact = false,
-}) {
-  const T = useT();
-  const S = adminSurface(T);
-  const urlValue = useWatch({ control, name: `urls.${index}.url` });
-  const renameValue = useWatch({ control, name: `urls.${index}.rename` });
-  const type = detectUrlType(urlValue || '');
-  const sourceColors = getSourceColors(T, type);
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: -8, scale: 0.985 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, x: -18, scale: 0.985 }}
-      transition={{ duration: 0.18 }}
-    >
-      <Paper
-        elevation={0}
-        variant="outlined"
-        sx={{
-          p: compact ? { xs: 1, sm: 1.25 } : { xs: 1.1, sm: 1.35 },
-          borderRadius: 3,
-          borderColor: type !== 'unknown' ? sourceColors.border : S.border,
-          bgcolor: type !== 'unknown' ? sourceColors.bg : S.inset,
-        }}
-      >
-        <Stack spacing={1}>
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={1}
-            alignItems={{ xs: 'stretch', sm: 'flex-start' }}
-          >
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Controller
-                name={`urls.${index}.url`}
-                control={control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    size="small"
-                    label={index === 0 ? 'Source URL' : `Source URL ${index + 1}`}
-                    placeholder={isYtMode ? 'YouTube / streaming URL…' : 'https://, magnet:, ftp:// …'}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message || ' '}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                        </InputAdornment>
-                      ),
-                      endAdornment:
-                        type !== 'unknown' ? (
-                          <InputAdornment position="end">
-                            <SourceBadge type={type} />
-                          </InputAdornment>
-                        ) : undefined,
-                    }}
-                  />
-                )}
-              />
-            </Box>
-
-            {canRemove && !isYtMode ? (
-              <Tooltip title="Remove URL">
-                <IconButton
-                  size="small"
-                  onClick={() => remove(index)}
-                  sx={{
-                    mt: { xs: -0.25, sm: 0.5 },
-                    alignSelf: { xs: 'flex-end', sm: 'unset' },
-                  }}
-                >
-                  <Delete fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            ) : null}
-          </Stack>
-
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={1}
-            alignItems={{ xs: 'stretch', md: 'center' }}
-          >
-            {showPerUrlEpisode ? (
-              <Box sx={{ width: { xs: '100%', md: 210 } }}>
-                <Controller
-                  name={`urls.${index}.episode`}
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <EpisodePicker
-                      seasons={tmdbSeasons}
-                      seasonNumber={watchedSeason}
-                      value={field.value ?? null}
-                      onChange={field.onChange}
-                      error={!!fieldState.error}
-                      helperText={fieldState.error?.message || ' '}
-                      sx={{ width: '100%' }}
-                    />
-                  )}
-                />
-              </Box>
-            ) : null}
-
-            {!isYtMode ? (
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Controller
-                  name={`urls.${index}.rename`}
-                  control={control}
-                  render={({ field }) => (
-                    <FormControlLabel
-                      sx={{ ml: 0.2, mr: 0 }}
-                      control={
-                        <Switch
-                          checked={!!field.value}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                          size="small"
-                        />
-                      }
-                      label={
-                        <Stack direction="row" spacing={0.75} alignItems="center">
-                          <DriveFileRenameOutline sx={{ fontSize: 16 }} />
-                          <Typography variant="caption" fontWeight={600}>
-                            Custom filename
-                          </Typography>
-                        </Stack>
-                      }
-                    />
-                  )}
-                />
-              </Box>
-            ) : null}
-          </Stack>
-
-          {!isYtMode && renameValue ? (
-            <Controller
-              name={`urls.${index}.customName`}
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  size="small"
-                  label="Output filename"
-                  placeholder="output-filename.mkv"
-                />
-              )}
-            />
-          ) : null}
-        </Stack>
-      </Paper>
-    </motion.div>
-  );
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Default form values
-// ─────────────────────────────────────────────────────────────────────────────
-
-const EMPTY_DEFAULTS = {
-  urls: [{ url: '', customName: '', rename: false, episode: null }],
-  record: null,
-  season: null,
-  episode: null,
-  username: '',
-  password: '',
-  useAuth: false,
-  extract: false,
-  zipPwd: '',
-  audioOnly: false,
-  reviewTracks: false,
-  videoITag: null,
-  audioITag: null,
-  videoQuality: 'best',
-};
+import { OptionTile, SectionCard } from './IngestionFormParts';
+import { UrlRow } from './UrlRow';
+import { EMPTY_DEFAULTS, schema } from './ingestionSchema';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Form
@@ -565,7 +107,8 @@ export default function IngestionForm({
     name: 'urls',
   });
 
-  const urls = useWatch({ control, name: 'urls' }) || [];
+  const watchedUrls = useWatch({ control, name: 'urls' });
+  const urls = useMemo(() => watchedUrls || [], [watchedUrls]);
   const audioOnly = !!useWatch({ control, name: 'audioOnly' });
   const videoITag = useWatch({ control, name: 'videoITag' });
   const audioITag = useWatch({ control, name: 'audioITag' });

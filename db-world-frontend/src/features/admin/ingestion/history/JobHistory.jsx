@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { DataGrid } from '@mui/x-data-grid';
 import {
   alpha,
@@ -9,7 +9,9 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
+  Pagination,
   Paper,
+  Skeleton,
   Stack,
   TextField,
   Tooltip,
@@ -44,6 +46,11 @@ import { useJobHistory } from '../hooks/useJobHistory';
 import { deleteJob } from '../services/ingestionApi';
 import LogViewerDrawer from '../jobs/LogViewerDrawer';
 import RerunEditDialog from '../jobs/RerunEditDialog';
+import ConfirmDialog from '@features/admin/filemanager/components/ConfirmDialog';
+import { formatEta, formatSize } from '../utils/format';
+
+const PAGE_SIZES = [25, 50, 100];
+const SEARCH_DEBOUNCE_MS = 300;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -81,20 +88,11 @@ const SOURCE_ICONS = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function fmtBytes(value) {
-  if (value === null || value === undefined) return '—';
-  const bytes = Number(value);
-  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  return formatSize(value, '—');
 }
 
 function fmtDuration(ms) {
-  if (!ms) return '—';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
-  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  return ms ? formatEta(Math.round(ms / 1000)) ?? '—' : '—';
 }
 
 function safeFileName(row) {
@@ -109,36 +107,21 @@ function safeFileName(row) {
   return row?.jobId || '—';
 }
 
-function matchesSearch(row, search) {
-  if (!search) return true;
-  const q = search.toLowerCase();
-
-  return [
-    row?.uri,
-    row?.fileName,
-    row?.jobId,
-    row?.recordName,
-    row?.status,
-    row?.step,
-    row?.sourceType,
-  ]
-    .filter(Boolean)
-    .some((v) => String(v).toLowerCase().includes(q));
-}
-
-function SummaryChip({ icon, label, color = 'default' }) {
+function SummaryChip({ icon, label, color = 'default', active = false, onClick }) {
   return (
     <Chip
       size="small"
       icon={icon}
       label={label}
       color={color}
-      variant="outlined"
+      variant={active ? 'filled' : 'outlined'}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
       sx={{
         borderRadius: 999,
         fontWeight: 700,
         fontSize: '0.72rem',
-        height: 28,
+        height: 30,
       }}
     />
   );
@@ -160,6 +143,7 @@ function HistoryActionButton({
           color={color}
           onClick={onClick}
           disabled={disabled}
+          aria-label={title}
           sx={{
             width: 30,
             height: 30,
@@ -220,7 +204,7 @@ const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
 
           <Typography variant="body2" color="text.secondary">
             {search
-              ? 'No jobs match your search. Try a different keyword.'
+              ? 'No jobs match your filters. Try a different keyword or status.'
               : 'Completed and past jobs will appear here.'}
           </Typography>
 
@@ -231,7 +215,7 @@ const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
               startIcon={<FilterAltOff />}
               onClick={onClear}
             >
-              Clear search
+              Clear filters
             </Button>
           ) : null}
         </Stack>
@@ -240,24 +224,6 @@ const GridEmptyOverlay = memo(function GridEmptyOverlay({ search, onClear }) {
   );
 });
 
-const GridLoadingOverlay = memo(function GridLoadingOverlay() {
-  return (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'grid',
-        placeItems: 'center',
-      }}
-    >
-      <Stack spacing={1.15} alignItems="center">
-        <CircularProgress />
-        <Typography variant="body2" fontWeight={700}>
-          Loading job history…
-        </Typography>
-      </Stack>
-    </Box>
-  );
-});
 
 // Mobile history row — a compact card (a data grid is unusable on a phone).
 function HistoryCard({ row, deleting, onRerun, onLogs, onDelete, T, S }) {
@@ -295,19 +261,43 @@ function HistoryCard({ row, deleting, onRerun, onLogs, onDelete, T, S }) {
         ) : null}
       </Stack>
 
+      {row.status === 'FAILED' && row.failReason ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: T.error,
+          overflowWrap: 'anywhere' }}>
+          {row.failReason}
+        </Typography>
+      ) : null}
+
       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1 }}>
         <Button size="small" variant="outlined" startIcon={<Replay fontSize="small" />}
-          onClick={onRerun} sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Rerun</Button>
+          onClick={onRerun} sx={{ minHeight: 40, borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Rerun</Button>
         <Button size="small" variant="text" startIcon={<Article fontSize="small" />}
-          onClick={onLogs} sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Logs</Button>
+          onClick={onLogs} sx={{ minHeight: 40, borderRadius: 999, textTransform: 'none', fontWeight: 700 }}>Logs</Button>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title="Delete">
-          <span>
-            <IconButton size="small" color="error" onClick={onDelete} disabled={deleting}>
-              {deleting ? <CircularProgress size={14} color="inherit" /> : <Delete fontSize="small" />}
-            </IconButton>
-          </span>
-        </Tooltip>
+        <IconButton color="error" onClick={onDelete} disabled={deleting} aria-label="Delete job"
+          sx={{ width: 44, height: 44 }}>
+          {deleting ? <CircularProgress size={16} color="inherit" /> : <Delete fontSize="small" />}
+        </IconButton>
+      </Stack>
+    </Paper>
+  );
+}
+
+function HistoryCardSkeleton({ S }) {
+  return (
+    <Paper variant="outlined" sx={{ borderRadius: 2.5, p: 1.25, borderColor: S.border, bgcolor: S.card }}>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Skeleton variant="rounded" width={32} height={32} />
+        <Box sx={{ flex: 1 }}>
+          <Skeleton width="70%" />
+          <Skeleton width="40%" />
+        </Box>
+        <Skeleton variant="rounded" width={64} height={21} sx={{ borderRadius: 999 }} />
+      </Stack>
+      <Skeleton width="50%" sx={{ mt: 0.75 }} />
+      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        <Skeleton variant="rounded" width={80} height={32} sx={{ borderRadius: 999 }} />
+        <Skeleton variant="rounded" width={64} height={32} sx={{ borderRadius: 999 }} />
       </Stack>
     </Paper>
   );
@@ -328,56 +318,57 @@ export default function JobHistory() {
   const [logJobId, setLogJobId] = useState(null);
   const [rerunEditJobId, setRerunEditJobId] = useState(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: PAGE_SIZES[0] });
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [busy, setBusy] = useState({});
 
-  const { data, isLoading, error, refetch } = useJobHistory();
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
 
-  const allRows = useMemo(() => data ?? [], [data]);
+  // Any filter change restarts at the first page.
+  useEffect(() => {
+    setPaginationModel((m) => (m.page === 0 ? m : { ...m, page: 0 }));
+  }, [debouncedSearch, statusFilter]);
 
-  const rows = useMemo(
-    () => allRows.filter((row) => matchesSearch(row, search)),
-    [allRows, search]
-  );
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useJobHistory({
+    page: paginationModel.page,
+    size: paginationModel.pageSize,
+    q: debouncedSearch,
+    status: statusFilter,
+  });
 
+  const rows = data?.content ?? [];
+  const totalElements = data?.totalElements ?? 0;
+  const totalPages = data?.totalPages ?? 0;
+
+  // A delete can empty the last page — step back instead of showing a blank page.
+  useEffect(() => {
+    if (!isPlaceholderData && totalPages > 0 && paginationModel.page >= totalPages) {
+      setPaginationModel((m) => ({ ...m, page: totalPages - 1 }));
+    }
+  }, [isPlaceholderData, totalPages, paginationModel.page]);
+
+  // Status totals across the whole table (independent of the current search/filter).
   const counts = useMemo(() => {
-    let success = 0;
-    let failed = 0;
-    let cancelled = 0;
-    let paused = 0;
-    let processing = 0;
-
-    allRows.forEach((row) => {
-      switch (row.status) {
-        case 'SUCCESS':
-          success += 1;
-          break;
-        case 'FAILED':
-          failed += 1;
-          break;
-        case 'CANCELLED':
-          cancelled += 1;
-          break;
-        case 'PAUSED':
-          paused += 1;
-          break;
-        case 'DOWNLOADING':
-        case 'PROCESSING':
-          processing += 1;
-          break;
-        default:
-          break;
-      }
-    });
-
+    const c = data?.counts ?? {};
     return {
-      total: allRows.length,
-      success,
-      failed,
-      cancelled,
-      paused,
-      processing,
+      total: c.TOTAL ?? 0,
+      success: c.SUCCESS ?? 0,
+      failed: c.FAILED ?? 0,
+      cancelled: c.CANCELLED ?? 0,
+      paused: c.PAUSED ?? 0,
+      processing: (c.DOWNLOADING ?? 0) + (c.PROCESSING ?? 0),
     };
-  }, [allRows]);
+  }, [data]);
+
+  const toggleStatus = useCallback(
+    (status) => setStatusFilter((cur) => (cur === status ? null : status)),
+    []
+  );
 
   const act = useCallback(
     async (id, name, fn) => {
@@ -398,6 +389,17 @@ export default function JobHistory() {
   );
 
   const clearSearch = useCallback(() => setSearch(''), []);
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setStatusFilter(null);
+  }, []);
+  const hasFilters = !!search || !!statusFilter;
+
+  const runDelete = useCallback(() => {
+    const row = confirmDelete;
+    setConfirmDelete(null);
+    if (row) act(row.jobId, 'Delete', () => deleteJob(row.jobId));
+  }, [act, confirmDelete]);
 
   const columns = useMemo(
     () => [
@@ -469,19 +471,24 @@ export default function JobHistory() {
         field: 'status',
         headerName: 'Status',
         width: 130,
-        renderCell: ({ value }) => (
-          <Chip
-            label={STATUS_LABELS[value] ?? value}
-            size="small"
-            color={STATUS_COLORS[value] ?? 'default'}
-            sx={{
-              fontSize: '0.68rem',
-              height: 22,
-              fontWeight: 700,
-              borderRadius: 999,
-            }}
-          />
-        ),
+        renderCell: ({ row, value }) => {
+          const chip = (
+            <Chip
+              label={STATUS_LABELS[value] ?? value}
+              size="small"
+              color={STATUS_COLORS[value] ?? 'default'}
+              sx={{
+                fontSize: '0.68rem',
+                height: 22,
+                fontWeight: 700,
+                borderRadius: 999,
+              }}
+            />
+          );
+          return value === 'FAILED' && row.failReason
+            ? <Tooltip title={row.failReason}>{chip}</Tooltip>
+            : chip;
+        },
       },
       {
         field: 'step',
@@ -573,7 +580,7 @@ export default function JobHistory() {
                 color="error"
                 loading={del}
                 disabled={del}
-                onClick={() => act(id, 'Delete', () => deleteJob(id))}
+                onClick={() => setConfirmDelete(row)}
                 icon={<Delete fontSize="small" />}
               />
             </Stack>
@@ -581,7 +588,7 @@ export default function JobHistory() {
         },
       },
     ],
-    [act, busy, T, S]
+    [busy, T, S]
   );
 
   return (
@@ -608,12 +615,13 @@ export default function JobHistory() {
               ),
               endAdornment: search ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={clearSearch}>
+                  <IconButton size="small" onClick={clearSearch} aria-label="Clear search">
                     <Close fontSize="small" />
                   </IconButton>
                 </InputAdornment>
               ) : null,
             }}
+            inputProps={{ 'aria-label': 'Search job history' }}
           />
 
           <Stack
@@ -624,21 +632,31 @@ export default function JobHistory() {
             useFlexGap
             sx={{ ml: { sm: 'auto' } }}
           >
-            <SummaryChip icon={<HistoryIcon sx={{ fontSize: 14 }} />} label={`Total ${counts.total}`} />
-            <SummaryChip icon={<CheckCircle sx={{ fontSize: 14 }} />} label={`${counts.success}`} color="success" />
-            <SummaryChip icon={<ErrorIcon sx={{ fontSize: 14 }} />} label={`${counts.failed}`} color="error" />
-            {counts.cancelled > 0 && <SummaryChip icon={<Delete sx={{ fontSize: 14 }} />} label={`${counts.cancelled}`} />}
-            {counts.paused > 0 && <SummaryChip icon={<Pause sx={{ fontSize: 14 }} />} label={`${counts.paused}`} color="warning" />}
+            <SummaryChip icon={<HistoryIcon sx={{ fontSize: 14 }} />} label={`Total ${counts.total}`}
+              active={!statusFilter} onClick={() => setStatusFilter(null)} />
+            <SummaryChip icon={<CheckCircle sx={{ fontSize: 14 }} />} label={`${counts.success}`} color="success"
+              active={statusFilter === 'SUCCESS'} onClick={() => toggleStatus('SUCCESS')} />
+            <SummaryChip icon={<ErrorIcon sx={{ fontSize: 14 }} />} label={`${counts.failed}`} color="error"
+              active={statusFilter === 'FAILED'} onClick={() => toggleStatus('FAILED')} />
+            {(counts.cancelled > 0 || statusFilter === 'CANCELLED') && (
+              <SummaryChip icon={<Delete sx={{ fontSize: 14 }} />} label={`${counts.cancelled}`}
+                active={statusFilter === 'CANCELLED'} onClick={() => toggleStatus('CANCELLED')} />
+            )}
+            {(counts.paused > 0 || statusFilter === 'PAUSED') && (
+              <SummaryChip icon={<Pause sx={{ fontSize: 14 }} />} label={`${counts.paused}`} color="warning"
+                active={statusFilter === 'PAUSED'} onClick={() => toggleStatus('PAUSED')} />
+            )}
             {counts.processing > 0 && <SummaryChip icon={<CloudDownload sx={{ fontSize: 14 }} />} label={`${counts.processing}`} color="primary" />}
             <Tooltip title="Refresh">
               <span>
                 <IconButton
                   size="small"
                   onClick={() => refetch()}
-                  disabled={isLoading}
+                  disabled={isFetching}
+                  aria-label="Refresh history"
                   sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5 }}
                 >
-                  {isLoading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
+                  {isFetching ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
                 </IconButton>
               </span>
             </Tooltip>
@@ -647,7 +665,8 @@ export default function JobHistory() {
 
         {/* Error */}
         {error ? (
-          <Alert severity="error" sx={{ borderRadius: 3 }}>
+          <Alert severity="error" sx={{ borderRadius: 3 }}
+            action={<Button color="inherit" size="small" onClick={() => refetch()}>Retry</Button>}>
             Failed to load history.
           </Alert>
         ) : null}
@@ -655,16 +674,23 @@ export default function JobHistory() {
         {/* Desktop: data grid · Mobile: card list (a grid is unusable on a phone) */}
         {isSmDown ? (
           isLoading ? (
-            <Stack alignItems="center" sx={{ py: 5 }}><CircularProgress /></Stack>
+            <Stack spacing={1} aria-busy="true" aria-label="Loading job history">
+              {[0, 1, 2, 3].map((i) => <HistoryCardSkeleton key={i} S={S} />)}
+            </Stack>
           ) : rows.length === 0 ? (
             <Paper variant="outlined" sx={{ borderRadius: 3, borderStyle: 'dashed',
               borderColor: S.border, bgcolor: S.inset, p: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
-                {search ? 'No jobs match your search.' : 'Completed and past jobs will appear here.'}
+                {hasFilters ? 'No jobs match your filters.' : 'Completed and past jobs will appear here.'}
               </Typography>
+              {hasFilters ? (
+                <Button size="small" startIcon={<FilterAltOff />} onClick={clearFilters} sx={{ mt: 1 }}>
+                  Clear filters
+                </Button>
+              ) : null}
             </Paper>
           ) : (
-            <Stack spacing={1}>
+            <Stack spacing={1} sx={{ opacity: isPlaceholderData ? 0.6 : 1, transition: 'opacity 150ms' }}>
               {rows.map((row) => (
                 <HistoryCard
                   key={row.jobId}
@@ -672,11 +698,29 @@ export default function JobHistory() {
                   deleting={!!busy[`${row.jobId}_Delete`]}
                   onRerun={() => setRerunEditJobId(row.jobId)}
                   onLogs={() => setLogJobId(row.jobId)}
-                  onDelete={() => act(row.jobId, 'Delete', () => deleteJob(row.jobId))}
+                  onDelete={() => setConfirmDelete(row)}
                   T={T}
                   S={S}
                 />
               ))}
+              {totalPages > 1 ? (
+                <Stack alignItems="center" sx={{ pt: 1 }}>
+                  <Pagination
+                    count={totalPages}
+                    page={paginationModel.page + 1}
+                    onChange={(_, p) => {
+                      setPaginationModel((m) => ({ ...m, page: p - 1 }));
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    size="medium"
+                    siblingCount={0}
+                    color="primary"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {totalElements} jobs
+                  </Typography>
+                </Stack>
+              ) : null}
             </Stack>
           )
         ) : (
@@ -696,23 +740,26 @@ export default function JobHistory() {
               rows={rows}
               columns={columns}
               getRowId={(row) => row.jobId}
-              loading={isLoading}
+              loading={isLoading || isPlaceholderData}
               disableRowSelectionOnClick
+              disableColumnSorting
+              disableColumnFilter
               density="compact"
-              pageSizeOptions={[25, 50, 100]}
-              initialState={{
-                pagination: {
-                  paginationModel: { pageSize: 25 },
-                },
-              }}
+              paginationMode="server"
+              rowCount={totalElements}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={PAGE_SIZES}
               slots={{
                 noRowsOverlay: () => (
-                  <GridEmptyOverlay search={search} onClear={clearSearch} />
+                  <GridEmptyOverlay search={hasFilters} onClear={clearFilters} />
                 ),
                 noResultsOverlay: () => (
-                  <GridEmptyOverlay search={search} onClear={clearSearch} />
+                  <GridEmptyOverlay search={hasFilters} onClear={clearFilters} />
                 ),
-                loadingOverlay: GridLoadingOverlay,
+              }}
+              slotProps={{
+                loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' },
               }}
               sx={{
                 border: 'none',
@@ -738,6 +785,14 @@ export default function JobHistory() {
         </Paper>
         )}
       </Stack>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete job?"
+        message={`"${confirmDelete ? safeFileName(confirmDelete) : ''}" and its logs will be removed from history. Imported media files are not touched.`}
+        onConfirm={runDelete}
+        onClose={() => setConfirmDelete(null)}
+      />
 
       <LogViewerDrawer
         jobId={logJobId}

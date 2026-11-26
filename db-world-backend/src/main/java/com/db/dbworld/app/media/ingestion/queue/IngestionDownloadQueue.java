@@ -164,6 +164,11 @@ public class IngestionDownloadQueue {
         return released.contains(jobId);
     }
 
+    /** Jobs currently released ("Run now") and downloading outside the single slot. */
+    public int getParallelCount() {
+        return released.size();
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Supervisor
     // ─────────────────────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ import {
 } from '../services/ingestionApi';
 import RerunEditDialog from './RerunEditDialog';
 import LiveEditDialog from './LiveEditDialog';
+import ConfirmDialog from '@features/admin/filemanager/components/ConfirmDialog';
 
 const TERMINAL = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
@@ -64,6 +65,7 @@ function DesktopActionButton({
           size="small"
           onClick={onClick}
           disabled={disabled}
+          aria-label={title}
           sx={{
             width: 30,
             height: 30,
@@ -123,9 +125,10 @@ function MobileActionButton({
             size="small"
             onClick={onClick}
             disabled={disabled}
+            aria-label={label}
             sx={{
-              width: 28,
-              height: 28,
+              width: 40,
+              height: 40,
               borderRadius: 2,
               color: paletteColor,
               border: `1px solid ${alpha(paletteColor, subtle ? 0.14 : 0.22)}`,
@@ -151,6 +154,7 @@ function MobileActionButton({
       disabled={disabled}
       sx={{
         minWidth: 0,
+        minHeight: 36,
         px: 0.9,
         py: 0.35,
         borderRadius: 999,
@@ -174,6 +178,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const [busy, setBusy] = useState(null);
   const [rerunEditOpen, setRerunEditOpen] = useState(false);
   const [liveEditOpen, setLiveEditOpen] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState(null);
 
   const status = job.status;
   const sourceType = job.sourceType;
@@ -262,7 +267,12 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
         label: 'Cancel',
         colorKey: 'error',
         icon: <Cancel fontSize="small" />,
-        onClick: () => act('Cancel', () => cancelJob(job.jobId)),
+        onClick: () => setPendingConfirm({
+          title: 'Cancel job?',
+          message: 'The download stops and any partially downloaded files are discarded.',
+          confirmLabel: 'Cancel job',
+          run: () => act('Cancel', () => cancelJob(job.jobId)),
+        }),
       });
     }
 
@@ -283,7 +293,14 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
       label: 'Delete',
       colorKey: 'error',
       icon: <Delete fontSize="small" />,
-      onClick: () => act('Delete', () => deleteJob(job.jobId)),
+      onClick: () => setPendingConfirm({
+        title: isTerminal ? 'Delete job?' : 'Stop and delete job?',
+        message: isTerminal
+          ? 'The job and its logs are removed from history. Imported media files are not touched.'
+          : 'The running job is cancelled, partial files are discarded and the job is removed from history.',
+        confirmLabel: 'Delete',
+        run: () => act('Delete', () => deleteJob(job.jobId)),
+      }),
       subtle: true,
     });
 
@@ -308,6 +325,21 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
     />
   ) : null;
 
+  const confirmDialog = (
+    <ConfirmDialog
+      open={!!pendingConfirm}
+      title={pendingConfirm?.title}
+      message={pendingConfirm?.message}
+      confirmLabel={pendingConfirm?.confirmLabel}
+      onConfirm={() => {
+        const run = pendingConfirm?.run;
+        setPendingConfirm(null);
+        run?.();
+      }}
+      onClose={() => setPendingConfirm(null)}
+    />
+  );
+
   if (layout === 'mobile') {
     return (
       <Stack direction="row" spacing={0.4} alignItems="center" flexShrink={0}>
@@ -326,6 +358,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
         ))}
         {rerunEditDialog}
         {liveEditDialog}
+        {confirmDialog}
       </Stack>
     );
   }
@@ -346,6 +379,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
       ))}
       {rerunEditDialog}
       {liveEditDialog}
+      {confirmDialog}
     </Stack>
   );
 }

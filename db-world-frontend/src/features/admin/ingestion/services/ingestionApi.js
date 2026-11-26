@@ -2,6 +2,7 @@
  * Ingestion pipeline API — all endpoints use the new /api/ingestion/* paths.
  */
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { toHistoryParams } from '../history/historyQuery';
 
 // ── Job lifecycle ────────────────────────────────────────────────────────────
 
@@ -80,6 +81,17 @@ export const getJobStatus = async () => {
   return res.data;
 };
 
+export const getQueueStatus = async () => {
+  const res = await axiosInstance.get('/api/ingestion/queue');
+  return res.data;
+};
+
+/** action: 'pause-all' | 'resume-all' | 'retry-failed' | 'clear-finished' */
+export const runBulkAction = async (action) => {
+  const res = await axiosInstance.post(`/api/ingestion/bulk/${action}`);
+  return res.data;
+};
+
 export const getJobReport = async (jobId) => {
   const res = await axiosInstance.get(`/api/ingestion/${jobId}/report`);
   return res.data;
@@ -87,8 +99,8 @@ export const getJobReport = async (jobId) => {
 
 // ── History ─────────────────────────────────────────────────────────────────
 
-export const getJobHistory = async ({ page = 0, size = 50 } = {}) => {
-  const res = await axiosInstance.get('/api/ingestion/history', { params: { page, size } });
+export const getJobHistory = async (query = {}) => {
+  const res = await axiosInstance.get('/api/ingestion/history', { params: toHistoryParams(query) });
   return res.data;
 };
 

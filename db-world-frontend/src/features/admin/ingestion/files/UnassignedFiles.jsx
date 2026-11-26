@@ -39,18 +39,11 @@ import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import { getUnassignedFiles, linkFileToRecord, searchRecords } from '../services/ingestionApi';
 import SheetDialog from '@shared/components/SheetDialog';
+import { formatSize as fmtSize } from '../utils/format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function fmtSize(bytes) {
-  if (!bytes || !Number.isFinite(Number(bytes))) return null;
-  const value = Number(bytes);
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
-  return `${(value / 1024 ** 3).toFixed(2)} GB`;
-}
 
 function getTrack(tracks = [], type) {
   return tracks.find((track) => track?.type === type) || null;

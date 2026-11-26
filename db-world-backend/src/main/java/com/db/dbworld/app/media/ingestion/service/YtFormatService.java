@@ -37,6 +37,9 @@ public class YtFormatService {
     private static final Duration PLAYLIST_TIMEOUT = Duration.ofSeconds(120);
     private static final int LOG_SNIPPET_LIMIT = 4_000;
 
+    /** At most 2 yt-dlp probes at once; identical probes within 60s reuse the result. */
+    private final ProbeGate probeGate = new ProbeGate(2, Duration.ofSeconds(30), Duration.ofSeconds(60), 64);
+
     private final AppProperties runtimeProperties;
     private final ObjectMapper objectMapper;
 
@@ -48,6 +51,10 @@ public class YtFormatService {
      */
     public YtFormatsResponse fetchFormats(String url) {
         final String normalizedUrl = validateUrl(url);
+        return probeGate.run("formats|" + normalizedUrl, () -> probeFormats(normalizedUrl));
+    }
+
+    private YtFormatsResponse probeFormats(String normalizedUrl) {
         log.debug("fetchFormats url={}", normalizedUrl);
 
         final ProbeContext ctx = resolveContext(normalizedUrl);
@@ -79,6 +86,10 @@ public class YtFormatService {
      */
     public YtFormatsResponse fetchPlaylist(String url) {
         final String normalizedUrl = validateUrl(url);
+        return probeGate.run("playlist|" + normalizedUrl, () -> probePlaylist(normalizedUrl));
+    }
+
+    private YtFormatsResponse probePlaylist(String normalizedUrl) {
         log.debug("fetchPlaylist url={}", normalizedUrl);
 
         final ProbeContext ctx = resolveContext(normalizedUrl);

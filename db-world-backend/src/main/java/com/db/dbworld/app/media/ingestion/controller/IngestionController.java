@@ -7,16 +7,21 @@ import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
+import com.db.dbworld.app.media.ingestion.queue.IngestionQueueStatusService;
 import com.db.dbworld.app.media.ingestion.repository.IngestionJobRepository;
 import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
+import com.db.dbworld.app.media.ingestion.service.IngestionInputGuard;
 import com.db.dbworld.app.media.ingestion.service.YtFormatService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.migration.StreamMigrationService;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
+import com.db.dbworld.app.media.ingestion.repository.IngestionHistoryRow;
 import com.db.dbworld.app.media.ingestion.tracking.TrackReviewCoordinator;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.api.response.ApiResponse;
+import com.db.dbworld.config.AppConstants;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +58,7 @@ import java.util.*;
  */
 @RestController
 @RequestMapping("/api/ingestion")
+@PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
 @Log4j2
 public class IngestionController {
 
@@ -67,6 +73,8 @@ public class IngestionController {
     private final StreamMigrationService streamMigrationService;
     private final TrackReviewCoordinator trackReviewCoordinator;
     private final IngestionDownloadQueue downloadQueue;
+    private final IngestionInputGuard    inputGuard;
+    private final IngestionQueueStatusService queueStatusService;
 
     public IngestionController(
             IngestionPipeline      pipeline,
@@ -79,7 +87,9 @@ public class IngestionController {
             RecordRepository       recordRepository,
             StreamMigrationService streamMigrationService,
             TrackReviewCoordinator trackReviewCoordinator,
-            IngestionDownloadQueue downloadQueue
+            IngestionDownloadQueue downloadQueue,
+            IngestionInputGuard    inputGuard,
+            IngestionQueueStatusService queueStatusService
     ) {
         this.pipeline                = pipeline;
         this.trackingService         = trackingService;
@@ -92,6 +102,8 @@ public class IngestionController {
         this.streamMigrationService  = streamMigrationService;
         this.trackReviewCoordinator  = trackReviewCoordinator;
         this.downloadQueue           = downloadQueue;
+        this.inputGuard              = inputGuard;
+        this.queueStatusService      = queueStatusService;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -100,6 +112,11 @@ public class IngestionController {
 
     @PostMapping
     public ApiResponse<List<String>> ingest(@RequestBody IngestionRequest request) {
+        try {
+            inputGuard.validate(request);
+        } catch (IllegalArgumentException | SecurityException e) {
+            return ApiResponse.error(400, e.getMessage(), (List<String>) null);
+        }
         // Playlist single-card: one job downloads + processes every selected item.
         List<PlaylistItem> playlistItems = request.getPlaylistItems();
         if (playlistItems != null && !playlistItems.isEmpty()) {
@@ -258,6 +275,11 @@ public class IngestionController {
         boolean edited = overrides != null;
         IngestionRequest toRun = edited ? overrides : original;
         if (edited) backfillSecrets(toRun, original);
+        try {
+            inputGuard.validate(toRun);
+        } catch (IllegalArgumentException | SecurityException e) {
+            return ApiResponse.error(400, e.getMessage(), (String) null);
+        }
 
         String newJobId = pipeline.start(toRun);
         log.info("[{}] Rerun started ({}) → new jobId={}", jobId, edited ? "edited" : "as-is", newJobId);
@@ -331,6 +353,13 @@ public class IngestionController {
                     "Job " + jobId + " is already processing or finished — use \"Edit & rerun\" to change it.");
         }
         boolean allowDownloadFields = status == MirrorStatus.QUEUED;
+        if (allowDownloadFields && edit.getUri() != null) {
+            try {
+                inputGuard.validateUri(edit.getUri());
+            } catch (IllegalArgumentException e) {
+                return ApiResponse.error(400, e.getMessage());
+            }
+        }
 
         boolean applied = jobStore.applyEdit(jobId, edit, allowDownloadFields);
         if (!applied) {
@@ -398,6 +427,53 @@ public class IngestionController {
         return ApiResponse.success(trackingService.getAll());
     }
 
+    /** Download-slot occupancy, FIFO order, aria2 throughput and free disk — polled by the queue bar. */
+    @GetMapping("/queue")
+    public ApiResponse<IngestionQueueStatusService.QueueStatus> getQueueStatus() {
+        return ApiResponse.success(queueStatusService.snapshot());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BULK  (clear-finished | retry-failed | pause-all | resume-all)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public record BulkResult(String action, int matched, int succeeded, List<String> failures) {}
+
+    @PostMapping("/bulk/{action}")
+    public ApiResponse<BulkResult> bulk(@PathVariable String action) {
+        Optional<IngestionBulkAction> parsed = IngestionBulkAction.fromPath(action);
+        if (parsed.isEmpty()) {
+            return ApiResponse.error(400, "Unknown bulk action: " + action, (BulkResult) null);
+        }
+        IngestionBulkAction op = parsed.get();
+        List<String> targets = op.targets(trackingService.getAll());
+        int ok = 0;
+        List<String> failures = new ArrayList<>();
+        for (String jobId : targets) {
+            try {
+                ApiResponse<?> r = switch (op) {
+                    case CLEAR_FINISHED -> { trackingService.remove(jobId); yield null; }
+                    case RETRY_FAILED   -> rerun(jobId, null);
+                    case PAUSE_ALL      -> pause(jobId);
+                    case RESUME_ALL     -> resume(jobId);
+                };
+                if (r == null || r.isSuccess()) {
+                    ok++;
+                    // The rerun spawns a fresh card; drop the failed one so it isn't retried twice.
+                    if (op == IngestionBulkAction.RETRY_FAILED) trackingService.remove(jobId);
+                } else {
+                    failures.add(jobId + ": " + r.getMessage());
+                }
+            } catch (Exception e) {
+                log.warn("[{}] Bulk {} failed: {}", jobId, op, e.getMessage());
+                failures.add(jobId + ": " + e.getMessage());
+            }
+        }
+        log.info("Bulk {} — matched={}, ok={}, failed={}", op, targets.size(), ok, failures.size());
+        BulkResult result = new BulkResult(op.name(), targets.size(), ok, failures);
+        return ApiResponse.success(ok + " of " + targets.size() + " job(s) updated", result);
+    }
+
     @GetMapping("/{jobId}/report")
     public ApiResponse<String> getHtmlReport(@PathVariable String jobId) {
         // Prefer DB version (completed/failed/cancelled jobs with persisted report)
@@ -417,26 +493,53 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
 
     @GetMapping("/history")
-    public ResponseEntity<?> getHistory() {
-        List<IngestionJobEntity> entities = jobRepository.findAll(
-                Sort.by(Sort.Direction.DESC, "startedAt"));
+    public ResponseEntity<?> getHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        MirrorStatus statusFilter = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                statusFilter = MirrorStatus.valueOf(status.trim().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Unknown status: " + status));
+            }
+        }
+        String like = q == null || q.isBlank()
+                ? null
+                : "%" + q.trim().toLowerCase(java.util.Locale.ROOT).replace("!", "!!")
+                        .replace("%", "!%").replace("_", "!_") + "%";
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                Math.max(0, page), Math.min(Math.max(1, size), 100),
+                Sort.by(Sort.Direction.DESC, "startedAt").and(Sort.by("jobId")));
+        var result = jobRepository.searchHistory(statusFilter, like, pageable);
 
-        // Batch-load all referenced record names in a single query
-        Set<Long> recordIds = entities.stream()
-                .map(IngestionJobEntity::getRecordId)
+        Set<Long> recordIds = result.getContent().stream()
+                .map(IngestionHistoryRow::recordId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        Map<Long, String> recordNames = recordRepository.findAllById(recordIds)
-                .stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        r -> r.getId(),
-                        r -> r.getName()
-                ));
+        Map<Long, String> recordNames = recordIds.isEmpty() ? Map.of()
+                : recordRepository.findAllById(recordIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(r -> r.getId(), r -> r.getName()));
 
-        List<Map<String, Object>> history = entities.stream()
-                .map(e -> toHistoryDto(e, recordNames))
-                .collect(java.util.stream.Collectors.toList());
-        return ResponseEntity.ok(history);
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        long total = 0;
+        for (Object[] row : jobRepository.countGroupedByStatus()) {
+            long n = ((Number) row[1]).longValue();
+            counts.put(String.valueOf(row[0]), n);
+            total += n;
+        }
+        counts.put("TOTAL", total);
+
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("content", result.getContent().stream().map(r -> toHistoryDto(r, recordNames)).toList());
+        body.put("page", result.getNumber());
+        body.put("size", result.getSize());
+        body.put("totalElements", result.getTotalElements());
+        body.put("totalPages", result.getTotalPages());
+        body.put("counts", counts);
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/history/{jobId}")
@@ -504,6 +607,8 @@ public class IngestionController {
             return ApiResponse.success(fileBrowserService.browse(root, subPath));
         } catch (SecurityException e) {
             return ApiResponse.error(403, e.getMessage(), (java.util.List<FileBrowserItem>) null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(400, e.getMessage(), (java.util.List<FileBrowserItem>) null);
         } catch (Exception e) {
             log.error("File browser error root={} subPath={}", root, subPath, e);
             return ApiResponse.error(500, e.getMessage(), (java.util.List<FileBrowserItem>) null);
@@ -525,6 +630,11 @@ public class IngestionController {
     public ApiResponse<String> linkExisting(@RequestBody IngestionRequest request) {
         if (request.getLocalFilePath() == null || request.getLocalFilePath().isBlank()) {
             return ApiResponse.error(400, "localFilePath is required for link-existing", (String) null);
+        }
+        try {
+            inputGuard.validate(request);
+        } catch (IllegalArgumentException | SecurityException e) {
+            return ApiResponse.error(400, e.getMessage(), (String) null);
         }
         try {
             String jobId = pipeline.start(request);
@@ -562,22 +672,21 @@ public class IngestionController {
     // HELPERS
     // ══════════════════════════════════════════════════════════════════════════
 
-    private Map<String, Object> toHistoryDto(IngestionJobEntity e, Map<Long, String> recordNames) {
+    private Map<String, Object> toHistoryDto(IngestionHistoryRow e, Map<Long, String> recordNames) {
         Map<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("jobId",       e.getJobId());
-        m.put("status",      e.getStatus());
-        m.put("step",        e.getStep());
-        m.put("sourceType",  e.getSourceType());
-        m.put("uri",         e.getUri());
-        m.put("fileName",    e.getFileName());
-        m.put("totalBytes",  e.getTotalBytes());
-        m.put("startedAt",   e.getStartedAt());
-        m.put("completedAt", e.getCompletedAt());
-        m.put("failReason",  e.getFailReason());
-        m.put("recordId",    e.getRecordId());
-        m.put("htmlReport",  null); // omit from list — use /report endpoint instead
-        if (e.getRecordId() != null) {
-            m.put("recordName", recordNames.get(e.getRecordId()));
+        m.put("jobId",       e.jobId());
+        m.put("status",      e.status());
+        m.put("step",        e.step());
+        m.put("sourceType",  e.sourceType());
+        m.put("uri",         e.uri());
+        m.put("fileName",    e.fileName());
+        m.put("totalBytes",  e.totalBytes());
+        m.put("startedAt",   e.startedAt());
+        m.put("completedAt", e.completedAt());
+        m.put("failReason",  e.failReason());
+        m.put("recordId",    e.recordId());
+        if (e.recordId() != null) {
+            m.put("recordName", recordNames.get(e.recordId()));
         }
         return m;
     }

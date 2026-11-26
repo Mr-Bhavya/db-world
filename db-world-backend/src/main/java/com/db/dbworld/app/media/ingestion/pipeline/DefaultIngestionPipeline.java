@@ -218,7 +218,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                     markCancelled(ctx);
                     return;
                 }
-                throw new RuntimeException("Download failed: " + downloadResult.getErrorMessage());
+                String why = downloadResult.getErrorMessage();
+                throw new RuntimeException(why == null || why.isBlank() ? "Download failed" : "Download failed: " + why);
             }
 
             trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
@@ -243,14 +244,15 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 markCancelled(ctx);
                 return;
             }
+            String reason = describeFailure(e);
             log.error("Pipeline failed for jobId={}", jobId, e);
-            ctx.logError("PIPELINE", "Job failed: " + e.getMessage());
+            ctx.logError("PIPELINE", "Job failed: " + reason);
             ctx.setStatus(MirrorStatus.FAILED);
-            ctx.setMessage(e.getMessage());
-            trackingService.fail(jobId, e.getMessage());
+            ctx.setMessage(reason);
+            trackingService.fail(jobId, reason);
             ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
             safeRepositorySave(ctx);
-            notifyAdmins("Ingestion failed", recordName, ctx.getRequest());
+            notifyAdmins("Ingestion failed", recordName, ctx.getRequest(), reason);
         } finally {
             cleanupTempArtifacts(ctx);
             if (ctx.isQueueManaged()) {
@@ -603,6 +605,20 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         safeRepositorySave(ctx);
     }
 
+    /** Never "null": NPEs and wrapped exceptions fall back to the root cause or the exception type. */
+    static String describeFailure(Throwable e) {
+        Throwable t = e;
+        while (t != null) {
+            String m = t.getMessage();
+            boolean wrapperText = t.getCause() != null && t.getCause().toString().equals(m);
+            if (m != null && !m.isBlank() && !"null".equals(m) && !wrapperText) return m;
+            t = t.getCause() == t ? null : t.getCause();
+        }
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        return "Unexpected error (" + root.getClass().getSimpleName() + ")";
+    }
+
     private void safeRepositorySave(IngestionContext ctx) {
         try { repository.save(ctx); } catch (Exception e) {
             log.warn("[{}] Failed to persist final state: {}", ctx.getJobId(), e.getMessage());
@@ -664,8 +680,17 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     // ──────────────────────────────────────────────────────────────────────────
 
     private void notifyAdmins(String title, String recordName, IngestionRequest request) {
+        notifyAdmins(title, recordName, request, null);
+    }
+
+    private void notifyAdmins(String title, String recordName, IngestionRequest request, String detail) {
+        String body = ingestionTargetName(recordName, request);
+        if (detail != null && !detail.isBlank()) {
+            String d = detail.strip();
+            body = body + " — " + (d.length() > 140 ? d.substring(0, 139) + "…" : d);
+        }
         try {
-            pushService.broadcastToAdmins(title, ingestionTargetName(recordName, request),
+            pushService.broadcastToAdmins(title, body,
                     Map.of("route", "admin/ingestion"), "admin");
         } catch (Exception e) {
             log.debug("[push] admin ingestion notify '{}' failed: {}", title, e.toString());

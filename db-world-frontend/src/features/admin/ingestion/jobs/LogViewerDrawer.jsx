@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { getJobReport } from '../services/ingestionApi';
 import SheetDialog from '@shared/components/SheetDialog';
+import { injectLogTheme } from '../utils/logTheme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transition
@@ -34,48 +35,6 @@ import SheetDialog from '@shared/components/SheetDialog';
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theme-aware HTML injection
-// ─────────────────────────────────────────────────────────────────────────────
-
-function injectTheme(html, isDark) {
-  const bg = isDark ? '#111827' : '#ffffff';
-  const fg = isDark ? '#d1d5db' : '#111827';
-
-  const css = `
-    html, body {
-      background: ${bg} !important;
-      color: ${fg} !important;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 12px;
-      margin: 0;
-      padding: 10px;
-      word-break: break-word;
-    }
-    pre, code { white-space: pre-wrap; }
-    a { color: ${isDark ? '#60a5fa' : '#2563eb'} !important; }
-    *[style*="color:red"], *[style*="color:#"], .error, .fail, .FAIL, .FAILED {
-      color: #f87171 !important;
-    }
-    .success, .ok, .SUCCESS { color: #4ade80 !important; }
-    .warn, .warning, .WARN { color: #fbbf24 !important; }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    td, th {
-      padding: 4px 7px;
-      border: 1px solid ${isDark ? '#374151' : '#d1d5db'};
-    }
-  `;
-
-  const styleTag = `<style>${css}</style>`;
-
-  if (html.includes('</head>')) return html.replace('</head>', `${styleTag}</head>`);
-  if (html.includes('<head>')) return html.replace('<head>', `<head>${styleTag}`);
-  return `<html><head>${styleTag}</head><body>${html}</body></html>`;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
@@ -95,8 +54,8 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
 
   const themedHtml = useMemo(() => {
     if (!html || typeof html !== 'string') return '';
-    return injectTheme(html, isDark);
-  }, [html, isDark]);
+    return injectLogTheme(html, { isDark, T, padding: 10 });
+  }, [html, isDark, T]);
 
   const fetchReport = useCallback(async () => {
     if (!jobId) return;

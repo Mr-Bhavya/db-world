@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { mergeJobs } from './mergeJobs';
 
 /**
  * Zustand store for the ingestion pipeline page.
  *
- * jobs     — live job map from WebSocket: { [jobId]: JobSnapshot }
- * wsStatus — 'connecting' | 'connected' | 'disconnected' | 'error'
+ * jobs        — live job map from WebSocket: { [jobId]: JobSnapshot } (structurally shared)
+ * wsStatus    — 'connecting' | 'connected' | 'disconnected' | 'error'
+ * lastUpdated — null until the first snapshot arrives (drives the loading skeleton)
  */
 const useIngestionStore = create((set) => ({
   // ── WebSocket / live jobs ──────────────────────────────────────────────────
@@ -13,7 +15,7 @@ const useIngestionStore = create((set) => ({
   lastUpdated: null,
 
   setJobs: (jobsMap) =>
-    set({ jobs: jobsMap, lastUpdated: Date.now() }),
+    set((s) => ({ jobs: mergeJobs(s.jobs, jobsMap), lastUpdated: Date.now() })),
 
   setWsStatus: (wsStatus) => set({ wsStatus }),
 

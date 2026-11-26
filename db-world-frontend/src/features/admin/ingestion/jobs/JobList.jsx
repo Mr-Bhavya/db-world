@@ -4,6 +4,7 @@ import {
   Box,
   Chip,
   Paper,
+  Skeleton,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
@@ -29,10 +30,10 @@ import { useT } from '@shared/theme';
 import { adminSurface } from '@features/admin/adminUi';
 import JobCard from './JobCard';
 import useIngestionStore from '../store/ingestionStore';
-import JobCardPreview from './JobCardPreview';
-
-// Set to true only when you explicitly want to preview mock cards
-const SHOW_PREVIEW = false;
+import QueueBar from '../queue/QueueBar';
+import { bulkTargetCounts } from '../queue/queueStatus';
+import { useQueueStatus } from '../hooks/useQueueStatus';
+import { formatSpeed } from '../utils/format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Groups
@@ -61,11 +62,6 @@ const STATUS_ORDER = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function formatSpeed(bytesPerSecond) {
-  if (!bytesPerSecond || bytesPerSecond <= 0) return null;
-  return `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`;
-}
 
 function getWsEmptyMessage(wsStatus, filter) {
   if (wsStatus === 'connecting') {
@@ -230,6 +226,33 @@ const EmptyState = memo(function EmptyState({ wsStatus, filter, isMobile }) {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Loading skeleton (shape mirrors a collapsed JobCard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const JobListSkeleton = memo(function JobListSkeleton({ isMobile }) {
+  const T = useT();
+  const S = adminSurface(T);
+  return (
+    <Stack spacing={isMobile ? 0.7 : 1.25} aria-busy="true" aria-label="Loading live jobs">
+      {[0, 1, 2].map((i) => (
+        <Paper key={i} variant="outlined" sx={{ borderRadius: 3, p: isMobile ? 1.1 : 1.6,
+          borderColor: S.border, bgcolor: S.card }}>
+          <Stack direction="row" spacing={1.2} alignItems="center">
+            <Skeleton variant="rounded" width={36} height={36} />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Skeleton width="60%" />
+              <Skeleton width="35%" />
+            </Box>
+            <Skeleton variant="rounded" width={72} height={22} sx={{ borderRadius: 999 }} />
+          </Stack>
+          <Skeleton variant="rounded" height={6} sx={{ mt: 1.2, borderRadius: 999 }} />
+        </Paper>
+      ))}
+    </Stack>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -239,6 +262,7 @@ export default function JobList() {
 
   const jobs = useIngestionStore((s) => s.jobs);
   const wsStatus = useIngestionStore((s) => s.wsStatus);
+  const isInitialLoad = useIngestionStore((s) => s.lastUpdated === null) && wsStatus !== 'error';
   const [filter, setFilter] = useState('all');
 
   const jobArray = useMemo(() => Object.values(jobs), [jobs]);
@@ -271,6 +295,10 @@ export default function JobList() {
     [jobArray]
   );
 
+  const { data: queue, isLoading: queueLoading } = useQueueStatus();
+  const bulkCounts = useMemo(() => bulkTargetCounts(jobArray), [jobArray]);
+  const positions = queue?.positions;
+
   const filtered = useMemo(() => {
     const group = GROUPS.find((g) => g.key === filter);
     if (!group?.statuses) return jobArray;
@@ -292,6 +320,8 @@ export default function JobList() {
   return (
     <Box>
       <Stack spacing={isMobile ? 0.9 : 1.5}>
+        <QueueBar queue={queue} isLoading={queueLoading} bulkCounts={bulkCounts} isMobile={isMobile} />
+
         {/* Compact filter row — status toggles (with counts) + live throughput */}
         <Stack direction="row" spacing={1} alignItems="center">
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -314,11 +344,10 @@ export default function JobList() {
           ) : null}
         </Stack>
 
-        {/* Optional preview for local UI testing only */}
-        {SHOW_PREVIEW ? <JobCardPreview /> : null}
-
-        {/* Jobs */}
-        {!hasJobs ? (
+        {/* Jobs — skeleton until the first live snapshot arrives */}
+        {isInitialLoad ? (
+          <JobListSkeleton isMobile={isMobile} />
+        ) : !hasJobs ? (
           <EmptyState wsStatus={wsStatus} filter={filter} isMobile={isMobile} />
         ) : (
           <Stack spacing={isMobile ? 0.7 : 1.25}>
@@ -326,13 +355,12 @@ export default function JobList() {
               {sorted.map((job) => (
                 <motion.div
                   key={job.jobId}
-                  layout
                   initial={{ opacity: 0, y: 8, scale: 0.995 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.995 }}
                   transition={{ duration: 0.14 }}
                 >
-                  <JobCard job={job} />
+                  <JobCard job={job} queuePosition={positions?.[job.jobId] ?? 0} />
                 </motion.div>
               ))}
             </AnimatePresence>

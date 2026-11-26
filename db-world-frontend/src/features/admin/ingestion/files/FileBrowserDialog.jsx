@@ -6,7 +6,6 @@ import {
   Breadcrumbs,
   Button,
   Chip,
-  CircularProgress,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -18,6 +17,7 @@ import {
   ListItemIcon,
   ListItemText,
   Paper,
+  Skeleton,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
@@ -40,14 +40,7 @@ import {
 import { useT } from '@shared/theme';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import SheetDialog from '@shared/components/SheetDialog';
-
-function fmtSize(bytes) {
-  if (!bytes || !Number.isFinite(Number(bytes))) return null;
-  const value = Number(bytes);
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
-  return `${(value / 1024 ** 3).toFixed(2)} GB`;
-}
+import { formatSize as fmtSize } from '../utils/format';
 
 function extLabel(item) {
   return item?.extension ? item.extension.toUpperCase() : null;
@@ -311,8 +304,16 @@ export default function FileBrowserDialog({
           <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <Box sx={{ minHeight: { xs: 360, sm: 420 }, maxHeight: { xs: 'calc(100dvh - 260px)', sm: 520 }, overflow: 'auto' }}>
               {isLoading ? (
-                <Stack alignItems="center" justifyContent="center" sx={{ py: 7 }}>
-                  <CircularProgress size={28} />
+                <Stack spacing={0.5} sx={{ p: 1 }} aria-busy="true" aria-label="Loading folder">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <Stack key={i} direction="row" spacing={1.25} alignItems="center" sx={{ px: 1, py: 0.75 }}>
+                      <Skeleton variant="rounded" width={32} height={32} />
+                      <Box sx={{ flex: 1 }}>
+                        <Skeleton width={`${70 - i * 6}%`} height={16} />
+                        <Skeleton width="30%" height={12} />
+                      </Box>
+                    </Stack>
+                  ))}
                 </Stack>
               ) : null}
 

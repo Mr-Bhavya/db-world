@@ -39,6 +39,18 @@ public final class Aria2StatusKeys {
             GID, STATUS, TOTAL_LENGTH, COMPLETED_LENGTH, UPLOAD_LENGTH
     );
 
+    /**
+     * Ingestion poll set: sizes plus speed/peers for live progress, and the error fields so a failed
+     * download reports aria2's real reason instead of "code null".
+     */
+    public static final Set<String> POLL_KEYS = Set.of(
+            GID, STATUS, TOTAL_LENGTH, COMPLETED_LENGTH, UPLOAD_LENGTH,
+            DOWNLOAD_SPEED, CONNECTIONS, NUM_SEEDERS, ERROR_CODE, ERROR_MESSAGE
+    );
+
+    /** File list — used to find partial files to delete after a cancel. */
+    public static final Set<String> FILES_KEYS = Set.of(GID, STATUS, DIR, FILES, FOLLOWED_BY);
+
     /** Full active-download set — includes speed, connections, files. */
     public static final Set<String> ACTIVE_KEYS = Set.of(
             GID, STATUS, TOTAL_LENGTH, COMPLETED_LENGTH, UPLOAD_LENGTH,

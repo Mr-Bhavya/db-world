@@ -19,6 +19,7 @@ import {
   ListItemIcon,
   ListItemText,
   Paper,
+  Skeleton,
   Stack,
   TextField,
   ToggleButton,
@@ -51,6 +52,7 @@ import FileBrowserDialog from './FileBrowserDialog';
 import { linkExistingFile } from '../services/ingestionApi';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import useIngestionStore from '../store/ingestionStore';
+import { formatSize as fmtSize } from '../utils/format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Schema
@@ -68,14 +70,6 @@ const fileSchema = z.object({
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function fmtSize(bytes) {
-  if (!bytes || !Number.isFinite(Number(bytes))) return null;
-  const value = Number(bytes);
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
-  return `${(value / 1024 ** 3).toFixed(2)} GB`;
-}
 
 function getFileName(path) {
   return path ? path.split(/[\\/]/).pop() : '';
@@ -492,8 +486,10 @@ const FileListPanel = memo(function FileListPanel({
 
   if (filesLoading) {
     return (
-      <Stack alignItems="center" py={4}>
-        <CircularProgress size={24} />
+      <Stack spacing={0.75} py={1} aria-busy="true" aria-label="Loading files">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} variant="rounded" height={48} sx={{ borderRadius: 2 }} />
+        ))}
       </Stack>
     );
   }

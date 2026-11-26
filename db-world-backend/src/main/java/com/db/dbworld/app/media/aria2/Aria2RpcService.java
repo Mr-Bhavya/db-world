@@ -189,8 +189,20 @@ public class Aria2RpcService {
         }
     }
 
-    /** Immediate cancel — does not wait for pending I/O. */
+    /**
+     * Immediate cancel — does not wait for pending I/O. A torrent's metadata GID hands over to the
+     * real payload GID (followedBy); removing only the metadata GID left the payload running/seeding,
+     * so re-adding the same torrent then failed with "duplicate infohash".
+     */
     public void forceRemove(String gid) {
+        for (String follower : followersOf(gid)) {
+            try {
+                callRpc("aria2.forceRemove", new Object[]{follower}, mappingService.getJobIdByGid(gid));
+                log.info("Force-removed followed-by GID {} of {}", follower, gid);
+            } catch (Exception e) {
+                if (!isGidNotFound(e)) log.warn("forceRemove failed for followed-by GID {}: {}", follower, e.getMessage());
+            }
+        }
         try {
             callRpc("aria2.forceRemove", new Object[]{gid}, mappingService.getJobIdByGid(gid));
             mappingService.removeByGid(gid);
@@ -204,6 +216,32 @@ public class Aria2RpcService {
             log.error("forceRemove failed for GID {}", gid, e);
             throw new DbWorldException("forceRemove failed for GID " + gid + ": " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Drop a stopped download (and its followers) from aria2's result list so the same URI/torrent
+     * can be added again cleanly. Best-effort: a GID that is gone or still stopping is ignored.
+     */
+    public void removeDownloadResult(String gid) {
+        List<String> gids = new java.util.ArrayList<>(followersOf(gid));
+        gids.add(gid);
+        for (String g : gids) {
+            try {
+                callRpc("aria2.removeDownloadResult", new Object[]{g}, null);
+            } catch (Exception e) {
+                log.debug("removeDownloadResult skipped for GID {}: {}", g, e.getMessage());
+            }
+        }
+    }
+
+    private List<String> followersOf(String gid) {
+        try {
+            Aria2StatusParam s = tellStatus(gid, Aria2StatusKeys.FOLLOWED_BY_KEY);
+            if (s != null && s.getFollowedBy() != null) return s.getFollowedBy();
+        } catch (Exception e) {
+            log.debug("Could not read followedBy for GID {}: {}", gid, e.getMessage());
+        }
+        return List.of();
     }
 
     // ──────────────────────────────────────────────────────────────────────────

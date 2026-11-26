@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Divider,
   Paper,
+  Skeleton,
   Stack,
   Table,
   TableBody,
@@ -36,6 +37,7 @@ import {
   Videocam,
 } from '@mui/icons-material';
 import { useT } from '@shared/theme';
+import { formatSize } from '../utils/format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generic helpers (provider-agnostic: YouTube, JioHotstar, Zee5, MX Player, etc.)
@@ -58,11 +60,7 @@ function fmtBitrate(kbps) {
 }
 
 function fmtSize(bytes) {
-  if (!bytes || !Number.isFinite(Number(bytes))) return '—';
-  const value = Number(bytes);
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
-  return `${(value / 1024 ** 3).toFixed(2)} GB`;
+  return formatSize(bytes, '—');
 }
 
 function fmtDuration(seconds) {
@@ -320,7 +318,7 @@ function SelectedDot({ selected }) {
               position: 'absolute',
               inset: 3,
               borderRadius: '50%',
-              bgcolor: '#fff',
+              bgcolor: 'primary.contrastText',
             }
           : undefined,
       }}
@@ -796,6 +794,11 @@ export default function YtFormatPicker({
               Parsing available streams from the source.
             </Typography>
           </Box>
+        </Stack>
+        <Stack spacing={0.8} sx={{ mt: 1.5 }} aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} variant="rounded" height={44} sx={{ borderRadius: 2 }} />
+          ))}
         </Stack>
       </Paper>
     );

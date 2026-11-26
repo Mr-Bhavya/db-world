@@ -36,20 +36,29 @@ public class FileBrowserService {
      */
     public List<FileBrowserItem> browse(String root, String subPath) throws IOException {
         log.debug("browse root={} subPath={}", root, subPath);
-        Path base = resolveRoot(root);
-        Path target = subPath == null || subPath.isBlank()
+        Path base = resolveRoot(root).toRealPath();
+        Path candidate = subPath == null || subPath.isBlank()
                 ? base
                 : base.resolve(subPath).normalize();
 
-        // Security: reject paths outside root
-        if (!target.startsWith(base)) {
-            log.warn("Rejecting path traversal attempt — root={}, subPath={}, target={}", root, subPath, target);
+        if (!candidate.startsWith(base)) {
+            log.warn("Rejecting path traversal attempt — root={}, subPath={}, target={}", root, subPath, candidate);
             throw new SecurityException("Path traversal attempt: " + subPath);
         }
 
-        if (!Files.exists(target)) {
-            log.warn("Browse path missing — root={}, target={}", root, target);
-            throw new IllegalArgumentException("Path does not exist: " + target);
+        if (!Files.exists(candidate)) {
+            log.warn("Browse path missing — root={}, target={}", root, candidate);
+            throw new IllegalArgumentException("Folder does not exist: " + subPath);
+        }
+
+        // Re-check after resolving symlinks so a link inside the root can't point outside it.
+        Path target = candidate.toRealPath();
+        if (!target.startsWith(base)) {
+            log.warn("Rejecting symlink escape — root={}, subPath={}, real={}", root, subPath, target);
+            throw new SecurityException("Path traversal attempt: " + subPath);
+        }
+        if (!Files.isDirectory(target)) {
+            throw new IllegalArgumentException("Not a folder: " + subPath);
         }
 
         try (Stream<Path> stream = Files.list(target)) {
@@ -68,6 +77,7 @@ public class FileBrowserService {
     }
 
     private Path resolveRoot(String root) {
+        if (root == null) throw new IllegalArgumentException("root is required ('stream' or 'temp')");
         return switch (root.toLowerCase()) {
             case "stream" -> {
                 Path p = runtimeProperties.getStreamPath();

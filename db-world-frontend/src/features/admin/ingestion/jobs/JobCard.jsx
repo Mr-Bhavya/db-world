@@ -5,10 +5,6 @@ import {
   Box,
   Card,
   CardContent,
-  Chip,
-  CircularProgress,
-  Collapse,
-  IconButton,
   LinearProgress,
   Paper,
   Stack,
@@ -16,719 +12,37 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
-  Button,
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import {
-  Archive,
-  CheckCircle,
-  ContentCopy,
-  Download,
-  Error as ErrorIcon,
-  ExpandLess,
-  ExpandMore,
-  Folder,
-  HourglassEmpty,
   Http,
-  Link as Magnet,
-  Merge,
-  Pause,
   Queue,
-  Refresh,
-  VideoSettings,
-  YouTube,
   PlayCircleOutline,
   Timer,
-  Notes,
   FiberManualRecord as DotIcon,
-  Subtitles,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import JobActions from './JobActions';
 import TrackReviewDialog from './TrackReviewDialog';
 import CommonServices from '@shared/services/CommonServices';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Formatters
-// ─────────────────────────────────────────────────────────────────────────────
-
-function fmtBytes(value) {
-  if (value === null || value === undefined) return '—';
-  const b = Number(value);
-  if (!Number.isFinite(b)) return '—';
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-  return `${(b / 1024 ** 3).toFixed(2)} GB`;
-}
-
-function fmtDurationMs(ms) {
-  if (ms === null || ms === undefined) return '—';
-  const total = Number(ms);
-  if (!Number.isFinite(total)) return '—';
-
-  const s = Math.floor(total / 1000);
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-
-  if (hh > 0) return `${hh}h ${mm}m ${ss}s`;
-  if (mm > 0) return `${mm}m ${ss}s`;
-  return `${ss}s`;
-}
-
-function fmtClock(ms) {
-  const total = Number(ms);
-  if (!Number.isFinite(total) || total < 0) return null;
-  const s = Math.floor(total / 1000);
-  const hh = Math.floor(s / 3600);
-  const pad = (n) => String(n).padStart(2, '0');
-  const body = `${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-  return hh > 0 ? `${hh}:${body}` : body;
-}
-
-// Guarded "12:03 / 25:40" encode readout: only shown when the position is within the clip's
-// own duration and the duration itself is sane — so a stale/wrong-unit value can never render
-// as hundreds of hours. Returns null (→ hidden) otherwise.
-function encodeTime(positionMs, durationMs) {
-  const pos = Number(positionMs);
-  const dur = Number(durationMs);
-  if (!Number.isFinite(dur) || dur <= 0 || dur > 24 * 3600 * 1000) return null;
-  if (!Number.isFinite(pos) || pos < 0 || pos > dur * 1.05) return null;
-  return `${fmtClock(pos)} / ${fmtClock(dur)}`;
-}
-
-function fmtSpeed(bps) {
-  if (!bps) return null;
-  const n = Number(bps);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  if (n < 1024) return `${n.toFixed(0)} B/s`;
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB/s`;
-  return `${(n / 1024 ** 2).toFixed(1)} MB/s`;
-}
-
-function fmtEta(seconds) {
-  if (!seconds || seconds <= 0) return null;
-  const s = Math.floor(Number(seconds));
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
-  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-}
-
-function timeAgo(ts) {
-  if (!ts) return null;
-  const diff = Date.now() - Number(ts);
-  if (!Number.isFinite(diff)) return null;
-
-  const s = Math.floor(diff / 1000);
-  if (s < 10) return 'Just now';
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-function safeDisplayName(fileName, uri, jobId) {
-  if (fileName) return fileName;
-  if (uri) {
-    try {
-      const raw = uri.split('/').pop()?.split('?')[0];
-      return raw || jobId;
-    } catch {
-      return jobId;
-    }
-  }
-  return jobId;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Phase-aware chip config — ONE label for the current phase. The StageBar below is the visual
-// breadcrumb, so the fine step is never repeated as text. Derived from status + step in the card.
-const PHASE_CFG = {
-  QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
-  STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
-  DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
-  ARIA2_WAITING: { label: 'Waiting for aria2', color: 'warning', Icon: HourglassEmpty },
-  ARIA2_PAUSED: { label: 'Paused in aria2', color: 'warning', Icon: Pause },
-  EXTRACT: { label: 'Extracting', color: 'primary', Icon: Archive },
-  MERGING: { label: 'Merging', color: 'primary', Icon: Merge },
-  FFMPEG: { label: 'Encoding', color: 'warning', Icon: VideoSettings },
-  MEDIA_INFO: { label: 'Media info', color: 'warning', Icon: VideoSettings },
-  PROCESSING: { label: 'Processing', color: 'warning', Icon: VideoSettings },
-  AWAITING_INPUT: { label: 'Needs tracks', color: 'secondary', Icon: Subtitles },
-  PAUSED: { label: 'Paused', color: 'warning', Icon: Pause },
-  SUCCESS: { label: 'Completed', color: 'success', Icon: CheckCircle },
-  FAILED: { label: 'Failed', color: 'error', Icon: ErrorIcon },
-  CANCELLED: { label: 'Cancelled', color: 'default', Icon: ErrorIcon },
-};
-
-const STEP_CFG = {
-  DOWNLOAD: { label: 'Download', Icon: Download },
-  EXTRACT: { label: 'Extract', Icon: Archive },
-  MERGE: { label: 'Merge', Icon: Merge },
-  FFMPEG: { label: 'FFmpeg', Icon: VideoSettings },
-  MEDIA_INFO: { label: 'Media Info', Icon: VideoSettings },
-};
-
-const SOURCE_ICONS = {
-  YOUTUBE: YouTube,
-  HTTP: Http,
-  TORRENT: Magnet,
-  LOCAL: Folder,
-};
-
-const PIPELINE = ['DOWNLOAD', 'EXTRACT', 'MERGE', 'FFMPEG', 'MEDIA_INFO'];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theme-aware HTML log injection
-// ─────────────────────────────────────────────────────────────────────────────
-
-function injectTheme(html, isDark) {
-  const bg = isDark ? '#111827' : '#ffffff';
-  const fg = isDark ? '#d1d5db' : '#111827';
-
-  const css = `
-    html, body {
-      background: ${bg} !important;
-      color: ${fg} !important;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 12px;
-      margin: 0;
-      padding: 8px;
-      word-break: break-word;
-    }
-    pre, code { white-space: pre-wrap; }
-    a { color: ${isDark ? '#60a5fa' : '#2563eb'} !important; }
-    *[style*="color:red"], *[style*="color:#"], .error, .fail, .FAIL, .FAILED {
-      color: #f87171 !important;
-    }
-    .success, .ok, .SUCCESS { color: #4ade80 !important; }
-    .warn, .warning, .WARN { color: #fbbf24 !important; }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    td, th {
-      padding: 2px 6px;
-      border: 1px solid ${isDark ? '#374151' : '#d1d5db'};
-    }
-  `;
-
-  const styleTag = `<style>${css}</style>`;
-
-  if (html.includes('</head>')) return html.replace('</head>', `${styleTag}</head>`);
-  if (html.includes('<head>')) return html.replace('<head>', `<head>${styleTag}`);
-  return `<html><head>${styleTag}</head><body>${html}</body></html>`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Small UI helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function MetaChip({ icon, label, color = 'default', outlined = true }) {
-  return (
-    <Chip
-      size="small"
-      icon={icon}
-      label={label}
-      color={color}
-      variant={outlined ? 'outlined' : 'filled'}
-      sx={{
-        borderRadius: 999,
-        fontSize: '0.68rem',
-        fontWeight: 700,
-        height: 23,
-        '& .MuiChip-label': {
-          px: 0.8,
-        },
-      }}
-    />
-  );
-}
-
-function ProgressInfo({ left, right }) {
-  return (
-    <Stack
-      direction="row"
-      justifyContent="space-between"
-      alignItems="baseline"
-      spacing={1}
-      mb={0.35}
-    >
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontSize: '0.7rem', minWidth: 0 }}
-      >
-        {left}
-      </Typography>
-
-      {right ? (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontSize: '0.7rem', whiteSpace: 'nowrap', flexShrink: 0 }}
-        >
-          {right}
-        </Typography>
-      ) : null}
-    </Stack>
-  );
-}
-
-function StageBar({ step, status }) {
-  const T = useT();
-  const idx = PIPELINE.indexOf(step);
-  const done = status === 'SUCCESS';
-  const failed = ['FAILED', 'CANCELLED'].includes(status);
-
-  return (
-    <Stack direction="row" spacing={0.45} sx={{ my: 0.75 }}>
-      {PIPELINE.map((stage, i) => {
-        const active = stage === step && !done && !failed;
-        const past = i < idx || done;
-        const isFail = failed && stage === step;
-
-        return (
-          <Tooltip key={stage} title={STEP_CFG[stage]?.label ?? stage} placement="top">
-            <Box
-              sx={{
-                height: 4,
-                flex: 1,
-                borderRadius: 999,
-                bgcolor: isFail
-                  ? T.error
-                  : past
-                    ? T.success
-                    : active
-                      ? T.teal
-                      : alpha(T.text ?? '#888', 0.12),
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              {active ? (
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: `linear-gradient(90deg, transparent 0%, ${alpha(
-                      T.teal ?? '#00bcd4',
-                      0.9
-                    )} 50%, transparent 100%)`,
-                    animation: 'jobcard_shimmer 1.35s infinite linear',
-                    '@keyframes jobcard_shimmer': {
-                      '0%': { transform: 'translateX(-100%)' },
-                      '100%': { transform: 'translateX(200%)' },
-                    },
-                  }}
-                />
-              ) : null}
-            </Box>
-          </Tooltip>
-        );
-      })}
-    </Stack>
-  );
-}
-
-// One thin sub-step bar (FFmpeg / Info / Storyboard) inside a file row.
-function SubStepBar({ label, pct, active, T }) {
-  const value = Math.min(100, Math.max(0, Number(pct) || 0));
-  return (
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.15 }}>
-        <Typography sx={{ fontSize: 9.5, fontWeight: active ? 700 : 500, opacity: active ? 1 : 0.6 }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: 9.5, opacity: 0.65 }}>{Math.round(value)}%</Typography>
-      </Stack>
-      <LinearProgress
-        variant="determinate"
-        value={value}
-        sx={{
-          height: 3,
-          borderRadius: 999,
-          bgcolor: alpha(T.text ?? '#888', 0.1),
-          '& .MuiLinearProgress-bar': { bgcolor: active ? (T.teal ?? '#00bcd4') : (T.success ?? '#4caf50') },
-        }}
-      />
-    </Box>
-  );
-}
-
-const FILE_STATUS_LABEL = { active: 'Processing', done: 'Done', failed: 'Failed' };
-
-function fileStatusColor(T, status) {
-  switch (status) {
-    case 'active': return T.teal ?? '#00bcd4';
-    case 'done':   return T.success ?? '#4caf50';
-    case 'failed': return T.error ?? '#f44336';
-    default:       return alpha(T.text ?? '#888', 0.55); // pending
-  }
-}
-
-// The three sub-step bars (FFmpeg / Info / Board) for one file. Wrap to a second line on the
-// narrowest screens so labels + percents never get crushed.
-function SubStepRow({ f, T }) {
-  const active = f.status === 'active';
-  return (
-    <Stack direction="row" spacing={0.75} sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 0.5, sm: 0 } }}>
-      <SubStepBar label="FFmpeg" pct={f.ffmpegPercent} active={active && f.subStep === 'ffmpeg'} T={T} />
-      <SubStepBar label="Info" pct={f.mediaInfoPercent} active={active && f.subStep === 'media_info'} T={T} />
-      <SubStepBar label="Board" pct={f.storyboardPercent} active={active && f.subStep === 'storyboard'} T={T} />
-    </Stack>
-  );
-}
-
-// One file's row: index + name + status chip, and (when active/done) its sub-step bars.
-// The active file also shows a guarded "12:03 / 25:40" encode readout (hidden on mobile).
-function FileRow({ f, fileTotal, T, showIndex = true }) {
-  const color = fileStatusColor(T, f.status);
-  const active = f.status === 'active';
-  const showBars = active || f.status === 'done';
-  const clock = active ? encodeTime(f.ffmpegPositionMs, f.ffmpegDurationMs) : null;
-  return (
-    <Box
-      sx={{
-        px: 0.75,
-        py: 0.5,
-        borderRadius: 1.5,
-        bgcolor: alpha(color, active ? 0.09 : 0.04),
-        border: `1px solid ${alpha(color, 0.18)}`,
-      }}
-    >
-      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: showBars ? 0.4 : 0 }}>
-        {showIndex ? (
-          <Typography sx={{ fontSize: 10, fontWeight: 700, opacity: 0.55, minWidth: 30 }}>
-            {f.index}/{fileTotal}
-          </Typography>
-        ) : null}
-        <Tooltip title={f.name}>
-          <Typography noWrap sx={{ fontSize: 11, flex: 1, minWidth: 0 }}>
-            {f.name}
-          </Typography>
-        </Tooltip>
-        {clock ? (
-          <Typography
-            sx={{
-              fontSize: 9.5,
-              color: alpha(T.text ?? '#888', 0.7),
-              whiteSpace: 'nowrap',
-              display: { xs: 'none', sm: 'block' },
-            }}
-          >
-            {clock}
-          </Typography>
-        ) : null}
-        <Chip
-          size="small"
-          label={FILE_STATUS_LABEL[f.status] ?? 'Queued'}
-          sx={{
-            height: 16,
-            fontSize: 9,
-            fontWeight: 700,
-            color,
-            bgcolor: alpha(color, 0.14),
-            '& .MuiChip-label': { px: 0.6 },
-          }}
-        />
-      </Stack>
-      {showBars ? <SubStepRow f={f} T={T} /> : null}
-    </Box>
-  );
-}
-
-// Single-file jobs: no "N of M" list — the overall bar already IS this file, so just show its
-// three sub-step bars (+ guarded encode time) inline.
-function SingleFileSteps({ file }) {
-  const T = useT();
-  if (!file) return null;
-  const clock = file.status === 'active' ? encodeTime(file.ffmpegPositionMs, file.ffmpegDurationMs) : null;
-  return (
-    <Box sx={{ mt: 0.75 }}>
-      {clock ? (
-        <Typography sx={{ fontSize: 10, color: alpha(T.text ?? '#888', 0.7), mb: 0.4 }}>{clock}</Typography>
-      ) : null}
-      <SubStepRow f={file} T={T} />
-    </Box>
-  );
-}
-
-// Multi-file (season-pack) breakdown: collapsible "Files · N of M" header + a height-capped,
-// scrollable list of file rows. Collapsed by default for large packs (> 8 files).
-function FileBreakdown({ files, fileIndex, fileTotal }) {
-  const T = useT();
-  const [open, setOpen] = useState(fileTotal <= 8);
-  if (!files || files.length === 0) return null;
-
-  return (
-    <Box sx={{ mt: 0.5 }}>
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={0.5}
-        onClick={() => setOpen((o) => !o)}
-        sx={{ cursor: 'pointer', userSelect: 'none' }}
-      >
-        <Typography sx={{ fontSize: 11, fontWeight: 700, opacity: 0.75 }}>
-          {fileIndex ? `Files · ${fileIndex} of ${fileTotal}` : `Files · ${fileTotal}`}
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <IconButton size="small" sx={{ p: 0.1 }}>
-          {open ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
-        </IconButton>
-      </Stack>
-
-      <Collapse in={open}>
-        <Stack spacing={0.5} sx={{ mt: 0.35, maxHeight: 260, overflowY: 'auto', pr: 0.25 }}>
-          {files.map((f) => (
-            <FileRow key={f.index} f={f} fileTotal={fileTotal} T={T} />
-          ))}
-        </Stack>
-      </Collapse>
-    </Box>
-  );
-}
-
-function BottomActions({
-  logOpen,
-  onToggleLogs,
-  onCopyUrl,
-  hasUri,
-  job,
-  compact,
-  spread,
-}) {
-  const pillSx = {
-    minWidth: 0,
-    px: 0.9,
-    py: 0.35,
-    borderRadius: 999,
-    textTransform: 'none',
-    fontSize: '0.7rem',
-    fontWeight: 700,
-    whiteSpace: 'nowrap',
-  };
-  const iconSx = { width: 28, height: 28, borderRadius: 2 };
-
-  const utility = compact ? (
-    <>
-      <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
-        <IconButton size="small" onClick={onToggleLogs} sx={iconSx}>
-          {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
-        </IconButton>
-      </Tooltip>
-      {hasUri ? (
-        <Tooltip title="Copy source URL">
-          <IconButton size="small" onClick={onCopyUrl} sx={iconSx}>
-            <ContentCopy sx={{ fontSize: 15 }} />
-          </IconButton>
-        </Tooltip>
-      ) : null}
-    </>
-  ) : (
-    <>
-      <Button
-        size="small"
-        variant="text"
-        startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-        onClick={onToggleLogs}
-        sx={pillSx}
-      >
-        {logOpen ? 'Hide Logs' : 'Logs'}
-      </Button>
-      {hasUri ? (
-        <Button size="small" variant="text" startIcon={<ContentCopy fontSize="small" />} onClick={onCopyUrl} sx={pillSx}>
-          Copy URL
-        </Button>
-      ) : null}
-    </>
-  );
-
-  return (
-    <Box
-      sx={{
-        overflowX: spread ? 'visible' : 'auto',
-        overflowY: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        pb: 0.1,
-        mx: -0.15,
-      }}
-    >
-      {/* Desktop spreads the row (view/copy on the left, job actions on the right); mobile keeps a
-          single left-aligned scroll row. */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={0.45}
-        sx={spread
-          ? { width: '100%', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: 0.5 }
-          : { width: 'max-content', minWidth: '100%', flexWrap: 'nowrap' }}
-      >
-        <Stack direction="row" spacing={0.45} alignItems="center">
-          {utility}
-        </Stack>
-        <JobActions job={job} layout="mobile" compactMobile={compact} />
-      </Stack>
-    </Box>
-  );
-}
-
-function LogPanel({
-  logOpen,
-  logLoading,
-  logError,
-  logHtml,
-  onRefresh,
-  isDark,
-  T,
-  isSmDown,
-}) {
-  return (
-    <Collapse in={logOpen} unmountOnExit>
-      <Paper
-        elevation={0}
-        variant="outlined"
-        sx={{
-          mt: 0.8,
-          borderRadius: 2.5,
-          overflow: 'hidden',
-          bgcolor: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(15,23,42,0.02)',
-        }}
-      >
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{
-            px: 1,
-            py: 0.5,
-            borderBottom: `1px solid ${alpha(T.text ?? '#888', 0.08)}`,
-          }}
-        >
-          <Stack direction="row" spacing={0.65} alignItems="center">
-            <Notes sx={{ fontSize: 15, color: 'text.secondary' }} />
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontSize: '0.72rem', fontWeight: 700 }}
-            >
-              Job Logs
-            </Typography>
-          </Stack>
-
-          <Tooltip title="Refresh logs">
-            <span>
-              <IconButton
-                size="small"
-                sx={{ p: 0.45 }}
-                disabled={logLoading}
-                onClick={onRefresh}
-              >
-                {logLoading ? (
-                  <CircularProgress size={13} />
-                ) : (
-                  <Refresh sx={{ fontSize: 15 }} />
-                )}
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
-
-        {logLoading ? (
-          <Box sx={{ display: 'grid', placeItems: 'center', py: 2.1 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <CircularProgress size={16} />
-              <Typography variant="caption" color="text.secondary">
-                Loading logs…
-              </Typography>
-            </Stack>
-          </Box>
-        ) : logError ? (
-          <Box sx={{ py: 2.1, textAlign: 'center', px: 2 }}>
-            <Typography variant="caption" color="error" sx={{ display: 'block', mb: 0.65 }}>
-              Failed to load logs.
-            </Typography>
-            <Button size="small" onClick={onRefresh}>
-              Retry
-            </Button>
-          </Box>
-        ) : logHtml ? (
-          <iframe
-            key={isDark ? 'dark' : 'light'}
-            srcDoc={logHtml}
-            title="Job logs"
-            style={{
-              width: '100%',
-              height: isSmDown ? 260 : 320,
-              border: 'none',
-              display: 'block',
-            }}
-            sandbox="allow-same-origin"
-          />
-        ) : (
-          <Box sx={{ py: 2.1, textAlign: 'center' }}>
-            <Typography variant="caption" color="text.secondary">
-              No logs available yet.
-            </Typography>
-          </Box>
-        )}
-      </Paper>
-    </Collapse>
-  );
-}
-
-// Prominent call-to-action shown while a job is parked in AWAITING_INPUT.
-function TrackReviewBanner({ onOpen }) {
-  return (
-    <Paper
-      elevation={0}
-      variant="outlined"
-      sx={{
-        mt: 0.3,
-        px: 1,
-        py: 0.85,
-        borderRadius: 2.5,
-        borderColor: (t) => alpha(t.palette.secondary.main, 0.45),
-        bgcolor: (t) => alpha(t.palette.secondary.main, 0.08),
-      }}
-    >
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Subtitles sx={{ fontSize: 19, color: 'secondary.main', flexShrink: 0 }} />
-        <Box flex={1} minWidth={0}>
-          <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            Waiting for your track selection
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Pick which audio/subtitle languages to keep — other jobs keep running meanwhile.
-          </Typography>
-        </Box>
-        <Button
-          size="small"
-          variant="contained"
-          color="secondary"
-          onClick={onOpen}
-          startIcon={<Subtitles sx={{ fontSize: 16 }} />}
-          sx={{ borderRadius: 999, fontWeight: 700, flexShrink: 0 }}
-        >
-          Select
-        </Button>
-      </Stack>
-    </Paper>
-  );
-}
+import {
+  formatBytes as fmtBytes,
+  formatDurationMs as fmtDurationMs,
+  formatEta as fmtEta,
+  formatSpeed as fmtSpeed,
+} from '../utils/format';
+import { injectLogTheme } from '../utils/logTheme';
+import { BottomActions } from './BottomActions';
+import { FileBreakdown, SingleFileSteps } from './FileBreakdown';
+import { MetaChip, ProgressInfo, StageBar, TransferStats } from './JobCardParts';
+import { LogPanel } from './LogPanel';
+import { TrackReviewBanner } from './TrackReviewBanner';
+import { PHASE_CFG, SOURCE_ICONS, safeDisplayName, timeAgo } from './jobCardConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
-function JobCardComponent({ job }) {
+function JobCardComponent({ job, queuePosition = 0 }) {
   const T = useT();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -824,23 +138,27 @@ function JobCardComponent({ job }) {
     // through as a full bar; show indeterminate until real extraction progress arrives.
     : (isExtract && progress?.phase !== 'processing' ? 0 : pct);
 
+  const showStats = isDownload && Number(progress?.downloaded) > 0;
+
   const progressLeft = useMemo(() => {
     // The phase word lives in the status chip now — here we show only the OVERALL metric so the two
     // don't repeat. Extract/merge have no meaningful % (indeterminate bar), so no left label.
     if (isMerging || isExtract) return '';
     if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Overall';
+    if (showStats) return 'Download';
     return `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
-  }, [isMerging, isExtract, hasFiles, isMultiFile, fileIndex, fileTotal, progress?.downloaded, progress?.total]);
+  }, [isMerging, isExtract, hasFiles, isMultiFile, fileIndex, fileTotal, showStats, progress?.downloaded, progress?.total]);
 
   const progressRight = useMemo(() => {
+    // Speed/ETA move into the TransferStats grid when it is visible.
     return [
-      isDownload && speed ? speed : null,
-      isDownload && eta ? `ETA ${eta}` : null,
+      isDownload && !showStats && speed ? speed : null,
+      isDownload && !showStats && eta ? `ETA ${eta}` : null,
       mainPct > 0 && !isMerging ? `${mainPct.toFixed(1)}%` : null,
     ]
       .filter(Boolean)
       .join('  ·  ');
-  }, [isDownload, speed, eta, mainPct, isMerging]);
+  }, [isDownload, showStats, speed, eta, mainPct, isMerging]);
 
   const showProgress = useMemo(() => {
     return (
@@ -871,13 +189,13 @@ function JobCardComponent({ job }) {
   }, [startTime, elapsedMs, isTerminal]);
 
   const borderColor = useMemo(() => {
-    if (status === 'FAILED') return alpha(T.error ?? '#f44336', 0.5);
-    if (status === 'CANCELLED') return alpha(T.error ?? '#f44336', 0.3);
-    if (status === 'SUCCESS') return alpha(T.success ?? '#4caf50', 0.4);
-    if (status === 'PAUSED') return alpha(T.warning ?? '#ff9800', 0.5);
+    if (status === 'FAILED') return alpha(T.error, 0.5);
+    if (status === 'CANCELLED') return alpha(T.error, 0.3);
+    if (status === 'SUCCESS') return alpha(T.success, 0.4);
+    if (status === 'PAUSED') return alpha(T.warning, 0.5);
     if (status === 'AWAITING_INPUT') return alpha(theme.palette.secondary.main, 0.55);
-    if (isActive) return alpha(T.teal ?? '#00bcd4', 0.4);
-    return T.border ?? 'rgba(0,0,0,0.12)';
+    if (isActive) return alpha(T.teal, 0.4);
+    return T.border;
   }, [status, isActive, T, theme]);
 
   const sourceColor = useMemo(() => {
@@ -888,8 +206,8 @@ function JobCardComponent({ job }) {
 
   const themedLogHtml = useMemo(() => {
     if (!logHtml) return null;
-    return injectTheme(logHtml, isDark);
-  }, [logHtml, isDark]);
+    return injectLogTheme(logHtml, { isDark, T });
+  }, [logHtml, isDark, T]);
 
   const fetchLogs = useCallback(
     async (force = false) => {
@@ -950,7 +268,6 @@ function JobCardComponent({ job }) {
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.99 }}
@@ -963,14 +280,9 @@ function JobCardComponent({ job }) {
           borderColor,
           transition: 'border-color 0.25s ease, box-shadow 0.2s ease',
           overflow: 'hidden',
-          background:
-            theme.palette.mode === 'dark'
-              ? 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.012) 100%)'
-              : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)',
+          bgcolor: theme.palette.background.paper,
           '&:hover': {
-            boxShadow: isDark
-              ? '0 8px 20px rgba(0,0,0,0.24)'
-              : '0 8px 18px rgba(15,23,42,0.06)',
+            boxShadow: `0 8px 20px ${alpha(theme.palette.common.black, isDark ? 0.24 : 0.06)}`,
           },
         }}
       >
@@ -1052,6 +364,14 @@ function JobCardComponent({ job }) {
                 label={sourceType || 'Source'}
               />
 
+              {status === 'QUEUED' && queuePosition > 0 ? (
+                <MetaChip
+                  icon={<Queue sx={{ fontSize: 13 }} />}
+                  label={`#${queuePosition} in queue`}
+                  color="warning"
+                />
+              ) : null}
+
               {footerTime ? (
                 <MetaChip
                   icon={<Timer sx={{ fontSize: 13 }} />}
@@ -1081,6 +401,15 @@ function JobCardComponent({ job }) {
                     bgcolor: alpha(theme.palette.primary.main, 0.08),
                   }}
                 />
+                {showStats ? (
+                  <TransferStats
+                    downloaded={progress?.downloaded}
+                    total={progress?.total}
+                    speed={speed}
+                    eta={eta}
+                    isSmDown={isSmDown}
+                  />
+                ) : null}
               </Box>
             ) : isActive && status !== 'QUEUED' && status !== 'AWAITING_INPUT' ? (
               <LinearProgress
@@ -1115,8 +444,8 @@ function JobCardComponent({ job }) {
                   px: 0.9,
                   py: 0.6,
                   borderRadius: 2,
-                  bgcolor: alpha(T.error ?? '#f44336', isDark ? 0.14 : 0.06),
-                  borderColor: alpha(T.error ?? '#f44336', 0.2),
+                  bgcolor: alpha(T.error, isDark ? 0.14 : 0.06),
+                  borderColor: alpha(T.error, 0.2),
                 }}
               >
                 <Typography
