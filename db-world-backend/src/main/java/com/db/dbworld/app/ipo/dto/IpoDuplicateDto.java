@@ -19,7 +19,7 @@ public final class IpoDuplicateDto {
     private IpoDuplicateDto() {}
 
     /** One duplicate cluster: the row that would survive, and the rows that would be merged into it. */
-    public record Cluster(String aliasKey, Row survivor, List<Row> losers) {
+    public record Cluster(String aliasKey, Row survivor, List<Row> losers, List<Conflict> conflicts) {
 
         /** Total rows in the cluster, survivor included — what an operator scans for "is this 2 or 5?". */
         public int size() {
@@ -29,6 +29,10 @@ public final class IpoDuplicateDto {
         /** Real user data at stake across the whole cluster, the single riskiest thing a merge moves. */
         public long userApplicationsAffected() {
             return losers.stream().mapToLong(Row::userApplications).sum();
+        }
+
+        public boolean mergeBlocked() {
+            return conflicts != null && !conflicts.isEmpty();
         }
     }
 
@@ -52,4 +56,17 @@ public final class IpoDuplicateDto {
                               int applicationsMoved,
                               int applicationsDroppedAsDuplicate,
                               List<String> notes) {}
+
+    public enum ConflictType {
+        APPLICATION,
+        GMP_HISTORY,
+        SUBSCRIPTION_HISTORY,
+        FINANCIAL
+    }
+
+    /** Rows that collide on a uniqueness key and therefore require an explicit resolution. */
+    public record Conflict(ConflictType type, String survivorId, String loserId,
+                           List<String> loserRecordIds, int count) {}
+
+    public record MergeRequest(List<String> aliasKeys, boolean resolveConflicts) {}
 }

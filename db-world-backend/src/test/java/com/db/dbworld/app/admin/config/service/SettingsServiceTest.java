@@ -47,7 +47,7 @@ class SettingsServiceTest {
         // cooldown-hours, max-per-day, digest-threshold, investorgain-fetch-budget)
         // + 2 scheduler run-history retention knobs + the MediaSync max-removal guard
         // + 2 host health alert switches.
-        assertThat(after1).isEqualTo(55);
+        assertThat(after1).isEqualTo(68);
     }
 
     @Test
@@ -107,6 +107,21 @@ class SettingsServiceTest {
     void update_rejectsOutOfBounds() {
         assertThatThrownBy(() -> service.update(ConfigKeys.RECOMMEND_GENRE_COMPLETION_THRESHOLD, "150", "t"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void update_rejectsInvalidIpoBaseUrl() {
+        assertThatThrownBy(() -> service.update(ConfigKeys.IPO_NSE_BASE_URL, "ftp://nse.test", "t"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("absolute http(s)");
+    }
+
+    @Test
+    void update_rejectsAbsoluteIpoEndpointPath() {
+        assertThatThrownBy(() -> service.update(
+                ConfigKeys.IPO_NSE_CURRENT_PATH, "https://nse.test/api/current", "t"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("relative path");
     }
 
     @Test

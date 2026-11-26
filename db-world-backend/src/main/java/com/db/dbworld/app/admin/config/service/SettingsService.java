@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -156,6 +157,7 @@ public class SettingsService {
         SettingDefinition def = SettingsCatalog.byKey(key);
         if (def == null) throw new IllegalArgumentException("Unknown config key: " + key);
         if (rawValue == null) throw new IllegalArgumentException("value is required");
+        validateEndpointSetting(key, rawValue);
         if (!def.type().isValid(rawValue)) {
             throw new IllegalArgumentException("Value '" + rawValue + "' is not a valid " + def.type());
         }
@@ -174,6 +176,30 @@ public class SettingsService {
         cache.put(key, rawValue);
         log.info("app_config '{}' updated to '{}' by {}", key, rawValue, updatedBy);
         return e;
+    }
+
+    private static void validateEndpointSetting(String key, String rawValue) {
+        String value = rawValue.trim();
+        if (value.isEmpty()) {
+            return;
+        }
+        if (key.endsWith(".base-url")) {
+            try {
+                URI uri = URI.create(value);
+                if (!"http".equalsIgnoreCase(uri.getScheme())
+                        && !"https".equalsIgnoreCase(uri.getScheme())) {
+                    throw new IllegalArgumentException(key + " must use http or https");
+                }
+                if (uri.getHost() == null || value.contains("\n") || value.contains("\r")) {
+                    throw new IllegalArgumentException(key + " must be an absolute URL");
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(key + " must be a valid absolute http(s) URL", e);
+            }
+        } else if (key.startsWith("ipo.") && key.endsWith("-path")
+                && (!value.startsWith("/") || value.contains("\n") || value.contains("\r"))) {
+            throw new IllegalArgumentException(key + " must be a relative path starting with /");
+        }
     }
 
     @Transactional

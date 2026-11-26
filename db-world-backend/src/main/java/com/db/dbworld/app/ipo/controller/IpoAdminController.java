@@ -42,11 +42,13 @@ public class IpoAdminController {
     public ApiResponse<List<IpoChangeDto>> changes(
             @RequestParam(required = false) String type,
             @RequestParam(required = false) java.time.Instant before,
+            @RequestParam(required = false) String beforeId,
             @RequestParam(required = false) Integer limit) {
-        if (type == null && before == null && limit == null) {
+        if (type == null && before == null && beforeId == null && limit == null) {
             return ApiResponse.success(adminService.recentChanges());
         }
-        return ApiResponse.success(adminService.recentChanges(type, before, limit != null ? limit : 50));
+        return ApiResponse.success(adminService.recentChanges(
+                type, before, beforeId, limit != null ? limit : 50));
     }
 
     /** DRY RUN of the next status sweep — read-only. */
@@ -77,10 +79,14 @@ public class IpoAdminController {
      */
     @PostMapping("/duplicates/merge")
     public ApiResponse<IpoDuplicateDto.MergeResult> mergeDuplicates(
-            @RequestBody(required = false) List<String> aliasKeys) {
-        IpoDuplicateDto.MergeResult result = aliasKeys == null || aliasKeys.isEmpty()
-                ? duplicateService.mergeAll()
-                : duplicateService.merge(aliasKeys);
+            @RequestBody(required = false) IpoDuplicateDto.MergeRequest request) {
+        List<String> aliasKeys = request == null ? List.of() : request.aliasKeys();
+        IpoDuplicateDto.MergeResult result;
+        if (aliasKeys == null || aliasKeys.isEmpty()) {
+            result = duplicateService.mergeAll();
+        } else {
+            result = duplicateService.merge(aliasKeys, request != null && request.resolveConflicts());
+        }
         return ApiResponse.success("Merged " + result.rowsMerged() + " duplicate row(s)", result);
     }
 }

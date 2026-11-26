@@ -254,13 +254,20 @@ public class InvestorgainLiveService {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return (baseUrl() + LIVE_REPORT_PATH).formatted(nowIst.getMonthValue(), fyStart, fyLabel);
+        return (baseUrl() + configuredPath(
+                ConfigKeys.IPO_INVESTORGAIN_LIVE_REPORT_PATH, LIVE_REPORT_PATH))
+                .formatted(nowIst.getMonthValue(), fyStart, fyLabel);
     }
 
     private String baseUrl() {
         String configured = settingsService.getString(ConfigKeys.IPO_INVESTORGAIN_BASE_URL);
         String base = (configured == null || configured.isBlank()) ? DEFAULT_BASE_URL : configured.trim();
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    private String configuredPath(String key, String fallback) {
+        String configured = settingsService.getString(key);
+        return configured == null || configured.isBlank() ? fallback : configured.trim();
     }
 
     private String fetch(String url) {
@@ -274,7 +281,8 @@ public class InvestorgainLiveService {
     /** The dashboard is a bonus call: a failure just means no price band / allotment link this pass. */
     private Map<Integer, DashboardRow> fetchDashboard() {
         try {
-            return parseDashboard(fetch(baseUrl() + GMP_DASHBOARD_PATH));
+            return parseDashboard(fetch(baseUrl() + configuredPath(
+                    ConfigKeys.IPO_INVESTORGAIN_DASHBOARD_PATH, GMP_DASHBOARD_PATH)));
         } catch (Exception e) {
             log.warn("investorgain live: GMP dashboard fetch failed (price band + allotment link skipped): {}",
                     e.toString());
@@ -482,7 +490,8 @@ public class InvestorgainLiveService {
     /** Best-effort: a failure here costs only the estimates, never the rest of the refresh. */
     private Estimates fetchEstimates(Integer investorgainId) {
         try {
-            return parseEstimates(fetch((baseUrl() + GMP_DETAIL_PATH).formatted(investorgainId)));
+            return parseEstimates(fetch((baseUrl() + configuredPath(
+                    ConfigKeys.IPO_INVESTORGAIN_DETAIL_PATH, GMP_DETAIL_PATH)).formatted(investorgainId)));
         } catch (Exception e) {
             log.warn("investorgain live: estimate fetch failed for id {}: {}", investorgainId, e.toString());
             return null;

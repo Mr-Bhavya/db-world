@@ -142,7 +142,7 @@ public class NseSource implements IpoSource {
     public List<IpoDto> fetchAll() {
         Map<String, String> dataHeaders;
         try {
-            String homeUrl = baseUrl() + HOME_PATH;
+            String homeUrl = baseUrl() + configuredPath(ConfigKeys.IPO_NSE_HOME_PATH, HOME_PATH);
             IpoHttpResponse home = httpClient.get(homeUrl, browserHeaders(null));
             String cookie = buildCookieHeader(home.header(HttpHeaders.SET_COOKIE));
             if (cookie == null || cookie.isBlank()) {
@@ -190,9 +190,9 @@ public class NseSource implements IpoSource {
      */
     private List<CurrentIssue> fetchCurrentIssues(Map<String, String> headers) {
         try {
-            String currentUrl = baseUrl() + CURRENT_PATH;
+            String currentUrl = baseUrl() + configuredPath(ConfigKeys.IPO_NSE_CURRENT_PATH, CURRENT_PATH);
             IpoHttpResponse data = httpClient.get(currentUrl, headers);
-            JsonNode array = resolveArray(MAPPER.readTree(data.body()));
+            JsonNode array = resolveArray(parseBody(data.body(), currentUrl));
             if (array == null) {
                 log.warn("NSE: unexpected response shape at {}", currentUrl);
                 return null;
@@ -211,9 +211,9 @@ public class NseSource implements IpoSource {
     /** Upcoming (not-yet-open) issues. Null when the feed failed; never throws. */
     private List<IpoDto> fetchUpcoming(Map<String, String> headers) {
         try {
-            String upcomingUrl = baseUrl() + UPCOMING_PATH;
+            String upcomingUrl = baseUrl() + configuredPath(ConfigKeys.IPO_NSE_UPCOMING_PATH, UPCOMING_PATH);
             IpoHttpResponse data = httpClient.get(upcomingUrl, headers);
-            JsonNode array = resolveArray(MAPPER.readTree(data.body()));
+            JsonNode array = resolveArray(parseBody(data.body(), upcomingUrl));
             if (array == null) {
                 log.warn("NSE: unexpected response shape at {}", upcomingUrl);
                 return null;
@@ -296,9 +296,10 @@ public class NseSource implements IpoSource {
      */
     private IpoDto enrichFromDetail(IpoDto dto, String symbol, String series, Map<String, String> headers) {
         try {
-            String url = (baseUrl() + DETAIL_PATH_TEMPLATE).formatted(encode(symbol), encode(series));
+            String url = (baseUrl() + configuredPath(ConfigKeys.IPO_NSE_DETAIL_PATH, DETAIL_PATH_TEMPLATE))
+                    .formatted(encode(symbol), encode(series));
             IpoHttpResponse response = httpClient.get(url, headers);
-            JsonNode root = MAPPER.readTree(response.body());
+            JsonNode root = parseBody(response.body(), url);
 
             Map<String, BigDecimal> categories = new LinkedHashMap<>();
             BigDecimal total = null;
@@ -503,6 +504,21 @@ public class NseSource implements IpoSource {
 
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private String configuredPath(String key, String fallback) {
+        String configured = settingsService.getString(key);
+        return configured == null || configured.isBlank() ? fallback : configured.trim();
+    }
+
+    private static JsonNode parseBody(String body, String url) throws com.fasterxml.jackson.core.JsonProcessingException {
+        if (body == null || body.isBlank()) {
+            throw new SourceFetchException("NSE returned an empty response body for " + url);
+        }
+        if (!body.stripLeading().startsWith("{") && !body.stripLeading().startsWith("[")) {
+            throw new SourceFetchException("NSE returned non-JSON content for " + url);
+        }
+        return MAPPER.readTree(body);
     }
 
     private static Map<String, String> browserHeaders(String referer) {

@@ -333,4 +333,15 @@ class NseSourceTest {
 
         assertThat(result).isEmpty();
     }
+
+    @Test
+    void fetchAll_upcomingNullBody_reportsFeedFailureInsteadOfPassingNullToJackson() {
+        stubHomeWithCookie();
+        stubResponse(CURRENT_URL, null);
+        stubResponse(UPCOMING_URL, null);
+
+        assertThatThrownBy(() -> newSource().fetchAll())
+                .isInstanceOf(SourceFetchException.class)
+                .hasMessageContaining("both");
+    }
 }

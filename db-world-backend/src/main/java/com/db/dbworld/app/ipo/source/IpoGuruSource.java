@@ -107,7 +107,10 @@ public class IpoGuruSource implements IpoSource {
                 baseUrl = DEFAULT_BASE_URL;
             }
 
-            IpoHttpResponse response = httpClient.get(baseUrl + IPOS_PATH, Map.of(API_KEY_HEADER, apiKey));
+            String path = settingsService.getString(ConfigKeys.IPO_IPOGURU_LIST_PATH);
+            IpoHttpResponse response = httpClient.get(
+                    baseUrl + (path == null || path.isBlank() ? IPOS_PATH : path.trim()),
+                    Map.of(API_KEY_HEADER, apiKey));
             JsonNode root = MAPPER.readTree(response.body());
             JsonNode data = root.path(F_DATA);
             if (!data.isArray()) {

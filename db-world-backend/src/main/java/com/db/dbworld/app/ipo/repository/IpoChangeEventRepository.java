@@ -18,11 +18,14 @@ public interface IpoChangeEventRepository extends JpaRepository<IpoChangeEventEn
     @Query("""
             select e from IpoChangeEventEntity e
             where (:eventType is null or e.eventType = :eventType)
-              and (:before is null or e.createdAt < :before)
-            order by e.createdAt desc
+              and (:before is null
+                   or e.createdAt < :before
+                   or (e.createdAt = :before and (:beforeId is null or e.id < :beforeId)))
+            order by e.createdAt desc, e.id desc
             """)
     List<IpoChangeEventEntity> findFeedPage(@Param("eventType") String eventType,
                                             @Param("before") Instant before,
+                                            @Param("beforeId") String beforeId,
                                             Limit limit);
 
     /**

@@ -117,21 +117,21 @@ class IpoAdminServiceTest {
         List<IpoChangeDto> result = service.recentChanges();
 
         assertThat(result).containsExactly(
-                new IpoChangeDto("ipo-1", "GMP_JUMP", "10", "25", NOW));
+                new IpoChangeDto("1", "ipo-1", "GMP_JUMP", "10", "25", NOW));
     }
 
     @Test
     void recentChangesPage_normalizesTypeAndClampsLimit() {
         when(changeEventRepository.findFeedPage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
 
-        service.recentChanges(" status ", NOW, 5_000);
-        service.recentChanges("  ", null, 0);
+        service.recentChanges(" status ", NOW, "event-1", 5_000);
+        service.recentChanges("  ", null, null, 0);
 
         org.mockito.Mockito.verify(changeEventRepository)
-                .findFeedPage("STATUS", NOW, org.springframework.data.domain.Limit.of(200));
+                .findFeedPage("STATUS", NOW, "event-1", org.springframework.data.domain.Limit.of(200));
         org.mockito.Mockito.verify(changeEventRepository)
-                .findFeedPage(null, null, org.springframework.data.domain.Limit.of(1));
+                .findFeedPage(null, null, null, org.springframework.data.domain.Limit.of(1));
     }
 
     @Test

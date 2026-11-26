@@ -1,4 +1,6 @@
-import { Box, Chip, Typography } from '@mui/material';
+import {
+  Box, Button, Chip, DialogActions, DialogContent, DialogTitle, IconButton, Typography,
+} from '@mui/material';
 import { useState } from 'react';
 import { DataGrid } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -8,7 +10,10 @@ import ErrorIcon from '@mui/icons-material/Error';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import CandlestickChartRoundedIcon from '@mui/icons-material/CandlestickChartRounded';
 import MergeTypeIcon from '@mui/icons-material/MergeType';
+import CloseIcon from '@mui/icons-material/Close';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useNavigate } from 'react-router-dom';
+import SheetDialog from '@shared/components/SheetDialog';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { AdminPage, SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
@@ -88,7 +93,12 @@ function Row({ label, value, T }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
       <Typography sx={{ fontSize: 11, color: T.textFaint }}>{label}</Typography>
-      <Typography sx={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{value}</Typography>
+      <Typography sx={{
+        minWidth: 0, fontSize: 11, color: T.textMuted, fontWeight: 600,
+        textAlign: 'right', overflowWrap: 'anywhere',
+      }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -131,17 +141,22 @@ function DuplicateRow({ T, S, row, survivor }) {
  * the wrong one. Losers are retained as tombstones; related records move to the survivor.
  */
 function DuplicatesSection({ T, S, clusters, loading, error, onRetry, onMerge, merging }) {
+  const [reviewCluster, setReviewCluster] = useState(null);
   const totalRows = clusters.reduce((n, c) => n + 1 + (c.losers?.length ?? 0), 0);
   const applicationsAtRisk = clusters.reduce(
     (n, c) => n + (c.losers ?? []).reduce((m, l) => m + (l.userApplications ?? 0), 0), 0,
   );
+  const mergeableAliases = clusters
+    .filter((cluster) => !(cluster.conflicts?.length))
+    .map((cluster) => cluster.aliasKey);
 
   return (
     <SectionCard
       title={`Duplicate listings${clusters.length ? ` (${clusters.length})` : ''}`}
-      action={!error && clusters.length > 0 && (
-        <AdminActionButton variant="primary" icon={MergeTypeIcon} onClick={() => onMerge(null)} loading={merging}>
-          Merge all
+      action={!error && mergeableAliases.length > 0 && (
+        <AdminActionButton variant="primary" icon={MergeTypeIcon}
+          onClick={() => onMerge({ aliasKeys: mergeableAliases, resolveConflicts: false })} loading={merging}>
+          Merge conflict-free ({mergeableAliases.length})
         </AdminActionButton>
       )}
     >
@@ -183,10 +198,17 @@ function DuplicatesSection({ T, S, clusters, loading, error, onRetry, onMerge, m
                   <AdminActionButton
                     variant="secondary"
                     icon={MergeTypeIcon}
-                    onClick={() => onMerge([c.aliasKey])}
+                    onClick={() => {
+                      const conflicts = c.conflicts ?? [];
+                      if (conflicts.length === 0) {
+                        onMerge({ aliasKeys: [c.aliasKey], resolveConflicts: false });
+                        return;
+                      }
+                      setReviewCluster(c);
+                    }}
                     loading={merging}
                   >
-                    Merge
+                    {c.conflicts?.length ? 'Review & resolve' : 'Merge'}
                   </AdminActionButton>
                 </Box>
                 <Box sx={{
@@ -196,12 +218,136 @@ function DuplicatesSection({ T, S, clusters, loading, error, onRetry, onMerge, m
                   <DuplicateRow T={T} S={S} row={c.survivor} survivor />
                   {(c.losers ?? []).map((l) => <DuplicateRow key={l.id} T={T} S={S} row={l} survivor={false} />)}
                 </Box>
+                {!!c.conflicts?.length && (
+                  <Box role="alert" sx={{
+                    mt: 0.5, p: 1.25, borderRadius: 2, bgcolor: T.warningBg, border: `1px solid ${T.warning}`,
+                  }}>
+                    <Typography sx={{ fontSize: 12, color: T.warning, fontWeight: 700, mb: 0.5 }}>
+                      Merge blocked until conflicts are reviewed
+                    </Typography>
+                    {c.conflicts.map((conflict, index) => (
+                      <Typography key={`${conflict.type}-${conflict.loserId}-${index}`}
+                        sx={{ fontSize: 11, color: T.textMuted, overflowWrap: 'anywhere' }}>
+                        {conflict.type}: {conflict.count} conflicting loser record(s). IDs:{' '}
+                        {(conflict.loserRecordIds ?? []).join(', ')}
+                      </Typography>
+                    ))}
+                    <Typography sx={{ fontSize: 11, color: T.textFaint, mt: 0.5 }}>
+                      Resolution keeps the survivor&apos;s records and deletes only records that collide on
+                      the same user, timestamp, or financial-period key.
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             ))}
           </Box>
         </>
       )}
+      <ConflictReviewDialog
+        T={T}
+        S={S}
+        cluster={reviewCluster}
+        open={Boolean(reviewCluster)}
+        merging={merging}
+        onClose={() => setReviewCluster(null)}
+        onResolve={() => {
+          if (!reviewCluster) return;
+          onMerge({ aliasKeys: [reviewCluster.aliasKey], resolveConflicts: true });
+          setReviewCluster(null);
+        }}
+      />
     </SectionCard>
+  );
+}
+
+const CONFLICT_LABEL = {
+  APPLICATION: 'User applications',
+  GMP_HISTORY: 'GMP history',
+  SUBSCRIPTION_HISTORY: 'Subscription history',
+  FINANCIAL: 'Financial records',
+};
+
+function ConflictReviewDialog({ T, S, cluster, open, merging, onClose, onResolve }) {
+  const conflicts = cluster?.conflicts ?? [];
+  const recordCount = conflicts.reduce((total, conflict) => total + (conflict.count ?? 0), 0);
+
+  return (
+    <SheetDialog open={open} onClose={merging ? undefined : onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 1, color: T.text, fontWeight: 800,
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon sx={{ color: T.warning }} />
+          Review merge conflicts
+        </Box>
+        <IconButton size="small" onClick={onClose} disabled={merging} aria-label="Close conflict review">
+          <CloseIcon sx={{ color: T.textFaint, fontSize: 18 }} />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Typography sx={{ color: T.text, fontSize: 14, fontWeight: 700 }}>
+          {cluster?.survivor?.companyName ?? 'Duplicate IPO'}
+        </Typography>
+        <Typography sx={{ color: T.textMuted, fontSize: 12 }}>
+          The merge found {recordCount} overlapping loser record{recordCount === 1 ? '' : 's'}.
+          Review the collision groups below before continuing.
+        </Typography>
+
+        <Box sx={{
+          display: 'grid', gap: 1,
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+        }}>
+          <DuplicateRow T={T} S={S} row={cluster?.survivor ?? {}} survivor />
+          {(cluster?.losers ?? []).map((row) => (
+            <DuplicateRow key={row.id} T={T} S={S} row={row} survivor={false} />
+          ))}
+        </Box>
+
+        <Typography sx={{ color: T.warning, fontSize: 12, fontWeight: 800 }}>
+          Records that will be deleted
+        </Typography>
+        {conflicts.map((conflict, index) => (
+          <Box
+            key={`${conflict.type}-${conflict.survivorId}-${conflict.loserId}-${index}`}
+            sx={{ p: 1.25, borderRadius: 2, bgcolor: S.inset, border: `1px solid ${S.border}` }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+              <Typography sx={{ color: T.text, fontSize: 12, fontWeight: 700 }}>
+                {CONFLICT_LABEL[conflict.type] ?? conflict.type}
+              </Typography>
+              <Chip size="small" label={`${conflict.count} record${conflict.count === 1 ? '' : 's'}`} />
+            </Box>
+            <Row label="Survivor IPO" value={conflict.survivorId} T={T} />
+            <Row label="Loser IPO" value={conflict.loserId} T={T} />
+            <Row label="Delete record IDs" value={(conflict.loserRecordIds ?? []).join(', ')} T={T} />
+          </Box>
+        ))}
+
+        <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: T.warningBg, border: `1px solid ${T.warning}` }}>
+          <Typography sx={{ color: T.warning, fontSize: 12, fontWeight: 800 }}>
+            Resolution cannot be undone
+          </Typography>
+          <Typography sx={{ color: T.textMuted, fontSize: 11, mt: 0.5 }}>
+            The survivor&apos;s copy is kept and only the listed loser records are deleted. All remaining
+            applications and history are then moved to the surviving IPO.
+          </Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 2.5, py: 2, gap: 1 }}>
+        <Button onClick={onClose} disabled={merging} sx={{ color: T.textMuted, textTransform: 'none' }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={onResolve}
+          disabled={merging}
+          sx={{ bgcolor: T.error, textTransform: 'none', '&:hover': { bgcolor: T.error, filter: 'brightness(.92)' } }}
+        >
+          Keep survivor &amp; merge
+        </Button>
+      </DialogActions>
+    </SheetDialog>
   );
 }
 
@@ -316,7 +462,7 @@ export default function IpoAdminPage() {
     },
   ];
 
-  const rows = changes.map((c, i) => ({ id: `${c.ipoId}-${c.eventType}-${c.createdAt}-${i}`, ...c }));
+  const rows = changes.map((c, i) => ({ ...c, id: c.id ?? `${c.ipoId}-${c.eventType}-${c.createdAt}-${i}` }));
 
   return (
     <AdminPage
@@ -352,6 +498,12 @@ export default function IpoAdminPage() {
         sx={{ fontSize: 12, color: T.textFaint, mb: 1, cursor: 'pointer', width: 'fit-content', '&:hover': { color: T.teal } }}
       >
         Adjust the poll schedule on the Scheduler page →
+      </Typography>
+      <Typography
+        onClick={() => navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/settings`)}
+        sx={{ fontSize: 12, color: T.textFaint, mb: 1, cursor: 'pointer', width: 'fit-content', '&:hover': { color: T.teal } }}
+      >
+        Configure IPO source URLs and endpoint paths under Settings → IPO Tracker →
       </Typography>
 
       {pushStatus && (
@@ -409,7 +561,7 @@ export default function IpoAdminPage() {
           error={duplicatesError}
           onRetry={refetchDuplicates}
           merging={mergeDuplicates.isPending}
-          onMerge={(aliasKeys) => mergeDuplicates.mutate(aliasKeys)}
+          onMerge={(request) => mergeDuplicates.mutate(request)}
         />
       </Box>
 

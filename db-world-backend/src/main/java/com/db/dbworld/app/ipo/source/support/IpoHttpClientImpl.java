@@ -55,6 +55,10 @@ public class IpoHttpClientImpl implements IpoHttpClient {
             if (entity == null) {
                 throw new SourceFetchException("Null response for GET " + url);
             }
+            if (entity.getBody() == null || entity.getBody().isBlank()) {
+                throw new SourceFetchException(
+                        "Empty response body for GET " + url + " (status=" + entity.getStatusCode().value() + ")");
+            }
             return new IpoHttpResponse(entity.getBody(), entity.getHeaders());
         } catch (SourceFetchException e) {
             throw e;

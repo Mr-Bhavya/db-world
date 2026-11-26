@@ -28,9 +28,17 @@ export const CHANGES_PAGE_SIZE = 50;
 export function useIpoChanges(type = '') {
   return useInfiniteQuery({
     queryKey: [...CHANGES_KEY, type],
-    queryFn: ({ pageParam }) => getIpoChangesPage({ type, before: pageParam, limit: CHANGES_PAGE_SIZE }),
+    queryFn: ({ pageParam }) => getIpoChangesPage({
+      type,
+      before: pageParam?.createdAt,
+      beforeId: pageParam?.id,
+      limit: CHANGES_PAGE_SIZE,
+    }),
     initialPageParam: null,
-    getNextPageParam: (last) => (last?.length === CHANGES_PAGE_SIZE ? last[last.length - 1].createdAt : undefined),
+    getNextPageParam: (last) => {
+      const item = last?.length === CHANGES_PAGE_SIZE ? last[last.length - 1] : null;
+      return item ? { createdAt: item.createdAt, id: item.id } : undefined;
+    },
     refetchInterval: 30_000,
   });
 }
@@ -85,7 +93,7 @@ export function useIpoDuplicates() {
 export function useMergeIpoDuplicates() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (aliasKeys) => mergeIpoDuplicates(aliasKeys),
+    mutationFn: (request) => mergeIpoDuplicates(request),
     onSuccess: (res) => {
       notify.success(res?.message ?? 'Duplicates merged');
       qc.invalidateQueries({ queryKey: DUPLICATES_KEY });

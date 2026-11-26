@@ -105,9 +105,10 @@ public class IpoAdminService {
      * One page of the change feed. {@code eventType} filters (blank = all); {@code before} is the
      * {@code createdAt} of the last row already shown ("load older"); {@code limit} is clamped to 1..200.
      */
-    public List<IpoChangeDto> recentChanges(String eventType, Instant before, int limit) {
+    public List<IpoChangeDto> recentChanges(String eventType, Instant before, String beforeId, int limit) {
         String type = eventType == null || eventType.isBlank() ? null : eventType.trim().toUpperCase(java.util.Locale.ROOT);
-        return changeEventRepository.findFeedPage(type, before, org.springframework.data.domain.Limit.of(Math.clamp(limit, 1, 200)))
+        return changeEventRepository.findFeedPage(type, before, beforeId,
+                        org.springframework.data.domain.Limit.of(Math.clamp(limit, 1, 200)))
                 .stream()
                 .map(mapper::toChangeDto)
                 .toList();

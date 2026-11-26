@@ -55,6 +55,19 @@ public final class ConfigKeys {
     public static final String IPO_NSE_BASE_URL                     = "ipo.nse.base-url";
     public static final String IPO_CHITTORGARH_BASE_URL             = "ipo.chittorgarh.base-url";
     public static final String IPO_INVESTORGAIN_BASE_URL            = "ipo.investorgain.base-url";
+    public static final String IPO_IPOGURU_LIST_PATH                 = "ipo.ipoguru.list-path";
+    public static final String IPO_NSE_HOME_PATH                     = "ipo.nse.home-path";
+    public static final String IPO_NSE_CURRENT_PATH                  = "ipo.nse.current-path";
+    public static final String IPO_NSE_UPCOMING_PATH                 = "ipo.nse.upcoming-path";
+    public static final String IPO_NSE_DETAIL_PATH                   = "ipo.nse.detail-path";
+    public static final String IPO_NSE_HOLIDAY_PATH                  = "ipo.nse.holiday-path";
+    public static final String IPO_CHITTORGARH_LIST_PATH             = "ipo.chittorgarh.list-path";
+    public static final String IPO_INVESTORGAIN_REPORT_PATH          = "ipo.investorgain.report-path";
+    public static final String IPO_INVESTORGAIN_GMP_PATH             = "ipo.investorgain.gmp-path";
+    public static final String IPO_INVESTORGAIN_SUBSCRIPTION_PATH    = "ipo.investorgain.subscription-path";
+    public static final String IPO_INVESTORGAIN_LIVE_REPORT_PATH     = "ipo.investorgain.live-report-path";
+    public static final String IPO_INVESTORGAIN_DASHBOARD_PATH       = "ipo.investorgain.dashboard-path";
+    public static final String IPO_INVESTORGAIN_DETAIL_PATH          = "ipo.investorgain.detail-path";
     // How many per-IPO investorgain detail fetches one refresh pass may spend. Candidates are
     // rotated least-recently-refreshed first, so this sets how FAST every tracked IPO comes round,
     // not which ones ever do.

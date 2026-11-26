@@ -29,7 +29,7 @@ import {
  * character per line. A single content column removes that class of bug entirely:
  * there is no longer a container whose width the breakpoints can disagree with.
  *
- * At 52 settings across 10 categories the rail also does real work — search,
+ * The rail also does real work across the growing settings catalog — search,
  * per-category counts and a dot for categories holding non-default values.
  */
 const SettingsPanel = () => {

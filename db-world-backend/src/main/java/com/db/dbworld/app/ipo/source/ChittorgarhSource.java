@@ -207,7 +207,9 @@ public class ChittorgarhSource implements IpoSource {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
+        String configured = settingsService.getString(ConfigKeys.IPO_CHITTORGARH_LIST_PATH);
+        String path = configured == null || configured.isBlank() ? LIST_PATH_TEMPLATE : configured.trim();
+        return (baseUrl() + path).formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
     }
 
     @Override

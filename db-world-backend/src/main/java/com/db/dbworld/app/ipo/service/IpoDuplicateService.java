@@ -107,7 +107,8 @@ public class IpoDuplicateService {
             rows.sort(survivorOrder());
             IpoListingEntity survivor = rows.get(0);
             List<IpoDuplicateDto.Row> losers = rows.subList(1, rows.size()).stream().map(this::toRow).toList();
-            clusters.add(new IpoDuplicateDto.Cluster(aliasKey, toRow(survivor), losers));
+            clusters.add(new IpoDuplicateDto.Cluster(aliasKey, toRow(survivor), losers,
+                    findConflicts(rows)));
         }
         clusters.sort(Comparator.comparingInt(IpoDuplicateDto.Cluster::size).reversed()
                 .thenComparing(IpoDuplicateDto.Cluster::aliasKey));
@@ -123,6 +124,12 @@ public class IpoDuplicateService {
     /** Applies only the named clusters — the "approve some, not all" path. */
     @Transactional
     public IpoDuplicateDto.MergeResult merge(List<String> aliasKeys) {
+        return merge(aliasKeys, false);
+    }
+
+    /** Applies a reviewed subset; overlapping natural keys are removed only after explicit approval. */
+    @Transactional
+    public IpoDuplicateDto.MergeResult merge(List<String> aliasKeys, boolean resolveConflicts) {
         int clusters = 0;
         int rows = 0;
         int applicationsMoved = 0;
@@ -139,9 +146,19 @@ public class IpoDuplicateService {
             IpoListingEntity survivor = candidates.get(0);
             for (int i = 0; i < candidates.size(); i++) {
                 for (int j = i + 1; j < candidates.size(); j++) {
-                    rejectConflicts(candidates.get(i), candidates.get(j));
+                    rejectDistinctIssues(candidates.get(i), candidates.get(j));
                 }
             }
+            List<IpoDuplicateDto.Conflict> clusterConflicts = findConflicts(candidates);
+            if (!clusterConflicts.isEmpty() && !resolveConflicts) {
+                throw new DbWorldException(HttpStatus.CONFLICT,
+                        "Cannot merge IPOs: application or history records conflict; review them first");
+            }
+            clusterConflicts.forEach(this::deleteConflictingLoserRows);
+            applicationsDropped += clusterConflicts.stream()
+                    .filter(c -> c.type() == IpoDuplicateDto.ConflictType.APPLICATION)
+                    .mapToInt(IpoDuplicateDto.Conflict::count)
+                    .sum();
             for (IpoListingEntity loser : candidates.subList(1, candidates.size())) {
                 applicationsMoved += userApplicationRepo.repointToSurvivor(survivor.getId(), loser.getId());
 
@@ -169,7 +186,7 @@ public class IpoDuplicateService {
         return result;
     }
 
-    private void rejectConflicts(IpoListingEntity first, IpoListingEntity second) {
+    private void rejectDistinctIssues(IpoListingEntity first, IpoListingEntity second) {
         if ((first.getOpenDate() != null && second.getOpenDate() != null
                 && Math.abs(ChronoUnit.DAYS.between(first.getOpenDate(), second.getOpenDate()))
                     > IpoIngestService.ALIAS_DATE_TOLERANCE_DAYS)
@@ -178,14 +195,41 @@ public class IpoDuplicateService {
             throw new DbWorldException(HttpStatus.CONFLICT,
                     "Cannot merge IPOs: dates or issue types indicate different issues");
         }
-        String a = first.getId();
-        String b = second.getId();
-        if (!userApplicationRepo.findCollidingIdsForMerge(a, b).isEmpty()
-                || !gmpHistoryRepo.findCollidingIdsForMerge(a, b).isEmpty()
-                || !subHistoryRepo.findCollidingIdsForMerge(a, b).isEmpty()
-                || !financialRepo.findCollidingIdsForMerge(a, b).isEmpty()) {
-            throw new DbWorldException(HttpStatus.CONFLICT,
-                    "Cannot merge IPOs: application or history records conflict; review them first");
+    }
+
+    private List<IpoDuplicateDto.Conflict> findConflicts(List<IpoListingEntity> rows) {
+        List<IpoDuplicateDto.Conflict> conflicts = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            for (int j = i + 1; j < rows.size(); j++) {
+                String survivorId = rows.get(i).getId();
+                String loserId = rows.get(j).getId();
+                addConflict(conflicts, IpoDuplicateDto.ConflictType.APPLICATION, survivorId, loserId,
+                        userApplicationRepo.findCollidingIdsForMerge(survivorId, loserId));
+                addConflict(conflicts, IpoDuplicateDto.ConflictType.GMP_HISTORY, survivorId, loserId,
+                        gmpHistoryRepo.findCollidingIdsForMerge(survivorId, loserId));
+                addConflict(conflicts, IpoDuplicateDto.ConflictType.SUBSCRIPTION_HISTORY, survivorId, loserId,
+                        subHistoryRepo.findCollidingIdsForMerge(survivorId, loserId));
+                addConflict(conflicts, IpoDuplicateDto.ConflictType.FINANCIAL, survivorId, loserId,
+                        financialRepo.findCollidingIdsForMerge(survivorId, loserId));
+            }
+        }
+        return conflicts;
+    }
+
+    private static void addConflict(List<IpoDuplicateDto.Conflict> conflicts,
+                                    IpoDuplicateDto.ConflictType type,
+                                    String survivorId, String loserId, List<String> loserIds) {
+        if (!loserIds.isEmpty()) {
+            conflicts.add(new IpoDuplicateDto.Conflict(type, survivorId, loserId, loserIds, loserIds.size()));
+        }
+    }
+
+    private void deleteConflictingLoserRows(IpoDuplicateDto.Conflict conflict) {
+        switch (conflict.type()) {
+            case APPLICATION -> userApplicationRepo.deleteAllById(conflict.loserRecordIds());
+            case GMP_HISTORY -> gmpHistoryRepo.deleteAllById(conflict.loserRecordIds());
+            case SUBSCRIPTION_HISTORY -> subHistoryRepo.deleteAllById(conflict.loserRecordIds());
+            case FINANCIAL -> financialRepo.deleteAllById(conflict.loserRecordIds());
         }
     }
 

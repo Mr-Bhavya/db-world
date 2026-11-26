@@ -120,7 +120,7 @@ public class NseHolidayService {
     /** Bootstrap NSE session cookies then GET the holiday feed; empty set on any failure. */
     Set<LocalDate> fetchTradingHolidays() {
         try {
-            String homeUrl = baseUrl() + HOME_PATH;
+            String homeUrl = baseUrl() + configuredPath(ConfigKeys.IPO_NSE_HOME_PATH, HOME_PATH);
             IpoHttpResponse home = httpClient.get(homeUrl, browserHeaders(null));
             String cookie = buildCookieHeader(home.header(HttpHeaders.SET_COOKIE));
             if (cookie == null || cookie.isBlank()) {
@@ -129,7 +129,8 @@ public class NseHolidayService {
             }
             Map<String, String> headers = browserHeaders(homeUrl);
             headers.put(HttpHeaders.COOKIE, cookie);
-            IpoHttpResponse response = httpClient.get(baseUrl() + HOLIDAY_PATH, headers);
+            IpoHttpResponse response = httpClient.get(
+                    baseUrl() + configuredPath(ConfigKeys.IPO_NSE_HOLIDAY_PATH, HOLIDAY_PATH), headers);
             return parseCmHolidays(response.body());
         } catch (Exception e) {
             log.warn("NSE holiday fetch failed (likely anti-bot block or upstream change): {}", e.toString());
@@ -171,6 +172,11 @@ public class NseHolidayService {
         String configured = settings.getString(ConfigKeys.IPO_NSE_BASE_URL);
         String base = (configured == null || configured.isBlank()) ? DEFAULT_BASE_URL : configured.trim();
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    private String configuredPath(String key, String fallback) {
+        String configured = settings.getString(key);
+        return configured == null || configured.isBlank() ? fallback : configured.trim();
     }
 
     private static Map<String, String> browserHeaders(String referer) {

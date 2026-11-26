@@ -150,6 +150,20 @@ class IpoDuplicateServiceTest {
     }
 
     @Test
+    void merge_resolvesReviewedApplicationCollisionByKeepingSurvivorRecord() {
+        IpoListingEntity survivor = row("ipo-a", "Acme Ltd", "acme|2026-09-09", T0);
+        IpoListingEntity loser = row("ipo-b", "Acme Limited", "acmex|2026-09-09", T0.plusSeconds(60));
+        when(listingRepo.findLiveByAliasKey("acme")).thenReturn(List.of(survivor, loser));
+        when(userApplicationRepo.findCollidingIdsForMerge("ipo-a", "ipo-b")).thenReturn(List.of("app-1"));
+
+        IpoDuplicateDto.MergeResult result = service().merge(List.of("acme"), true);
+
+        verify(userApplicationRepo).deleteAllById(List.of("app-1"));
+        verify(userApplicationRepo).repointToSurvivor("ipo-a", "ipo-b");
+        assertThat(result.applicationsDroppedAsDuplicate()).isEqualTo(1);
+    }
+
+    @Test
     void merge_rejectsConflictsBetweenTwoLosersBeforeMovingAnything() {
         IpoListingEntity survivor = row("ipo-a", "Acme Ltd", "a", T0);
         survivor.setInvestorgainId(1234);

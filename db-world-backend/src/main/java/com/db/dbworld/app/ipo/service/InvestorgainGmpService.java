@@ -206,6 +206,11 @@ public class InvestorgainGmpService {
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
+    private String configuredPath(String key, String fallback) {
+        String configured = settingsService.getString(key);
+        return configured == null || configured.isBlank() ? fallback : configured.trim();
+    }
+
     /**
      * Matches investorgain's dashboard IPOs to our listings and backfills their GMP. Never throws —
      * records source health (OK/FAILED for {@value #SOURCE}) and returns the number of listings
@@ -310,7 +315,9 @@ public class InvestorgainGmpService {
     private List<SubPoint> fetchSubscription(String investorgainId) {
         try {
             IpoHttpResponse response = httpClient.get(
-                    (baseUrl() + SUBSCRIPTION_PATH_TEMPLATE).formatted(investorgainId), jsonHeaders());
+                    (baseUrl() + configuredPath(
+                            ConfigKeys.IPO_INVESTORGAIN_SUBSCRIPTION_PATH, SUBSCRIPTION_PATH_TEMPLATE))
+                            .formatted(investorgainId), jsonHeaders());
             return parseSubscriptionPoints(response.body());
         } catch (Exception e) {
             log.warn("investorgain: subscription fetch failed for id {}: {}", investorgainId, e.toString());
@@ -601,7 +608,9 @@ public class InvestorgainGmpService {
         ZonedDateTime nowIst = ZonedDateTime.now(clock.withZone(IST));
         int fyStart = nowIst.getMonthValue() >= 4 ? nowIst.getYear() : nowIst.getYear() - 1;
         String fyLabel = fyStart + "-" + String.format(Locale.ROOT, "%02d", (fyStart + 1) % 100);
-        return (baseUrl() + LIST_PATH_TEMPLATE).formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
+        return (baseUrl() + configuredPath(
+                ConfigKeys.IPO_INVESTORGAIN_REPORT_PATH, LIST_PATH_TEMPLATE))
+                .formatted(page, nowIst.getMonthValue(), fyStart, fyLabel);
     }
 
     /** Extracted for unit testing without HTTP — parses a report-list body into id/name/open-date rows. */
@@ -629,7 +638,9 @@ public class InvestorgainGmpService {
 
     private List<GmpPoint> fetchGmp(String investorgainId) {
         try {
-            IpoHttpResponse response = httpClient.get((baseUrl() + GMP_PATH_TEMPLATE).formatted(investorgainId), jsonHeaders());
+            IpoHttpResponse response = httpClient.get((baseUrl() + configuredPath(
+                    ConfigKeys.IPO_INVESTORGAIN_GMP_PATH, GMP_PATH_TEMPLATE))
+                    .formatted(investorgainId), jsonHeaders());
             return parseGmpPoints(response.body());
         } catch (Exception e) {
             log.warn("investorgain: GMP fetch failed for id {}: {}", investorgainId, e.toString());
