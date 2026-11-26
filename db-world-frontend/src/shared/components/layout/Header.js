@@ -288,6 +288,9 @@ const Header = () => {
 
   const { promptSignIn } = useRequireAuth();
   const location = useLocation();
+  // The hub carries its own full-width search bar, so the header's entry point would be a duplicate
+  // there. Ctrl/⌘ K still opens the palette on every page.
+  const showHeaderSearch = location.pathname !== '/';
 
   const { auth, logout } = useAuth();
   const { mode, toggleMode, T } = useThemeMode();
@@ -548,6 +551,7 @@ const Header = () => {
 
                 {/* Search entry point. A field-shaped button rather than a real input: the
                     palette owns the input, and this way the shortcut hint is discoverable. */}
+                {showHeaderSearch && (
                 <Box
                   component="button"
                   type="button"
@@ -595,6 +599,7 @@ const Header = () => {
                     {SEARCH_SHORTCUT_LABEL}
                   </Box>
                 </Box>
+                )}
               </Box>
             )}
 
@@ -719,6 +724,7 @@ const Header = () => {
                   flexShrink: 0,
                 }}
               >
+                {showHeaderSearch && (
                 <IconButton
                   onClick={() => setPaletteOpen(true)}
                   aria-label="Search DB World"
@@ -736,6 +742,7 @@ const Header = () => {
                 >
                   <SearchIcon />
                 </IconButton>
+                )}
 
                 {isAuth && <NotificationBell size={42} iconSize={22} />}
 
