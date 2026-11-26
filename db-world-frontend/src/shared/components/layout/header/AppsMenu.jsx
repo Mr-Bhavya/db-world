@@ -10,7 +10,7 @@ import { clampTextSx } from '@shared/components/layout/home/homeStyles';
  * show, compressed to a phrase — so the menu tells you whether it is worth opening an app, not
  * just that the app exists. Falls back to the app's static tagline when there is nothing live.
  */
-const liveStatus = (appId, summary) => {
+export const liveStatus = (appId, summary) => {
   if (!summary) return null;
 
   switch (appId) {

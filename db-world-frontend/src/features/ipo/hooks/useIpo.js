@@ -12,11 +12,12 @@ const STALE_TIME = 3 * 60 * 1000;
 // re-opening the on-demand section doesn't re-fetch every time.
 const FINANCIALS_STALE_TIME = 15 * 60 * 1000;
 
-export function useIpos({ status = '', type = 'all', sort = 'date' } = {}) {
+export function useIpos({ status = '', type = 'all', sort = 'date', enabled = true } = {}) {
   return useQuery({
     queryKey: ['ipo', 'list', { status, type, sort }],
     queryFn: () => api.getIpos({ status, type, sort }),
     staleTime: STALE_TIME,
+    enabled,
   });
 }
 

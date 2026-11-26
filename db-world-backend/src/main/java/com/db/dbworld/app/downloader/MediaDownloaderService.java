@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Limit;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,10 @@ public class MediaDownloaderService {
     private static final int MAX_CONCURRENT_DOWNLOADS = 3;
 
     private static final long PROGRESS_SAVE_INTERVAL_MS = 1500;
+
+    static final int MAX_USER_LIST = 200;
+
+    static final int MAX_ADMIN_LIST = 500;
 
     private static final long PREPARATION_IDLE_TIMEOUT_MS = 600_000;
 
@@ -399,15 +404,19 @@ public class MediaDownloaderService {
 
     public List<JobView> list(String owner, boolean admin) {
 
-        List<DownloadJob> jobs = admin ? repository.findAllByOrderByCreatedAtDesc() : repository.findByOwnerOrderByCreatedAtDesc(owner);
+        // Polled every 2s while work is active, so only the newest jobs are returned.
+        List<DownloadJob> jobs = admin
+                ? repository.findAllByOrderByCreatedAtDesc(Limit.of(MAX_ADMIN_LIST))
+                : repository.findByOwnerOrderByCreatedAtDesc(owner, Limit.of(MAX_USER_LIST));
 
         Map<String, Integer> positions = new HashMap<>();
 
-        Map<String, Integer> counts = new HashMap<>();
+        if (jobs.stream().anyMatch(job -> "QUEUED".equals(job.getStatus()))) {
 
-        for (DownloadJob job : jobs.reversed()) {
+            Map<String, Integer> counts = new HashMap<>();
 
-            if ("QUEUED".equals(job.getStatus())) {
+            // Positions come from the full queue (oldest first, per owner) so the list cap cannot skew them.
+            for (DownloadJob job : repository.findByStatusInOrderByCreatedAtAsc(List.of("QUEUED"))) {
 
                 positions.put(job.getId(), counts.merge(job.getOwner(), 1, Integer::sum));
             }
@@ -1184,14 +1193,21 @@ public class MediaDownloaderService {
 
         for (DownloadJob job : repository.findByExpiresAtBeforeAndStatus(now, "READY")) {
 
-            removeFiles(job);
+            try {
+                removeFiles(job);
 
-            job.setStatus("EXPIRED");
-            job.setFileName(null);
+                job.setStatus("EXPIRED");
+                job.setFileName(null);
 
-            repository.save(job);
+                repository.save(job);
 
-            count++;
+                count++;
+
+            } catch (IOException | RuntimeException exception) {
+
+                // Leave the job READY so the next pass retries it; one bad job must not block the rest.
+                log.warn("Downloader expiry failed job={} reason={}", job.getId(), exception.getMessage());
+            }
         }
 
         if (count > 0) {
@@ -1249,7 +1265,22 @@ public class MediaDownloaderService {
 
     private static JobView view(DownloadJob job, int position) {
 
-        return new JobView(job.getId(), job.getOwner(), job.getUrl() == null ? null : java.net.URI.create(job.getUrl()).getHost(), job.getTitle(), job.getThumbnail(), job.getPreset(), job.getQuality(), job.getStatus(), job.getFileName(), job.getBytesDownloaded(), job.getBytesTotal(), job.getSpeed(), job.getEta(), job.getProgress(), job.getError(), job.getCreatedAt(), job.getExpiresAt(), position);
+        return new JobView(job.getId(), job.getOwner(), sourceHost(job.getUrl()), job.getTitle(), job.getThumbnail(), job.getPreset(), job.getQuality(), job.getStatus(), job.getFileName(), job.getBytesDownloaded(), job.getBytesTotal(), job.getSpeed(), job.getEta(), job.getProgress(), job.getError(), job.getCreatedAt(), job.getExpiresAt(), position);
+    }
+
+    static String sourceHost(String url) {
+
+        if (url == null) {
+            return null;
+        }
+
+        try {
+            return java.net.URI.create(url.strip()).getHost();
+
+        } catch (IllegalArgumentException exception) {
+
+            return null;
+        }
     }
 
     // =========================================================

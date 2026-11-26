@@ -41,6 +41,18 @@ import { addBackInterceptor } from '@platform/android/backInterceptors';
  */
 let nextOverlayId = 0;
 
+/**
+ * Whether the browser's current history entry is still the one this overlay pushed.
+ *
+ * <p>Read from {@code window.history.state} (react-router keeps user state under {@code usr}),
+ * not the router's location: v7 applies location updates in a transition, so when a dialog closes
+ * and navigates in the same click the close can commit before the router has caught up, while the
+ * real history entry already belongs to the new page. Popping then would undo that navigation.
+ */
+export function ownsCurrentEntry(historyState, id) {
+  return Boolean(historyState?.usr?.overlayStack?.includes(id));
+}
+
 export default function useOverlayBack(open, onClose) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,7 +98,10 @@ export default function useOverlayBack(open, onClose) {
     return () => {
       // Popped already means Back did the work; popping again would eat the entry underneath,
       // which is either the overlay that opened this one or the page the reader was on.
-      if (idRef.current === id && !poppedRef.current) navigate(-1);
+      // Not owning the current entry means the close came with a navigation (a search result,
+      // a "View" link) — popping would send the reader straight back to where they started.
+      if (idRef.current === id && !poppedRef.current
+          && ownsCurrentEntry(window.history.state, id)) navigate(-1);
       idRef.current = null;
     };
   }, [open, navigate]);

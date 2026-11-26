@@ -43,11 +43,13 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,16 +80,21 @@ class HomeSummaryServiceTest {
     @Mock private CatalogIngestRequestService catalogIngestRequestService;
     @Mock private LiveChannelRepository liveChannelRepository;
     @Mock private UserContext userContext;
+    @Mock private HomeSummaryCache cache;
 
     private HomeSummaryService service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         service = new HomeSummaryService(ipoQueryService, recordRepository, watchProgressService,
                 walletDocumentRepository, passwordManagerRepository, tallyGroupService,
                 notificationRepository, mediaRequestService, catalogIngestRequestService,
-                liveChannelRepository, userContext, FIXED_CLOCK);
+                liveChannelRepository, userContext, cache, FIXED_CLOCK);
 
+        // Cache miss by default: every test exercises the real section builders.
+        when(cache.getOrBuild(any())).thenAnswer(inv ->
+                ((Supplier<HomeSummaryCache.PublicSnapshot>) inv.getArgument(0)).get());
         when(ipoQueryService.list(any(), any(), any()))
                 .thenReturn(new IpoListResponse(List.of(), Instant.now(FIXED_CLOCK)));
         when(recordRepository.findLatestPublished(any())).thenReturn(List.of());
@@ -235,6 +242,57 @@ class HomeSummaryServiceTest {
         assertThat(ipo.closingSoon()).isNull();
         assertThat(ipo.topGmp()).isNull();
         assertThat(ipo.actionable()).isEmpty();
+    }
+
+    /* ── Shared public snapshot ──────────────────────────────────────────────────────────────── */
+
+    /** A cache hit must serve the public tiles without touching the catalogue, IPO or live sources. */
+    @Test
+    void cachedPublicSnapshotSkipsThePublicQueries() {
+        when(userContext.optionalUser()).thenReturn(Optional.empty());
+        var cinema = new HomeSummaryDto.CinemaSection(List.of(), null, 42L, 30L, 12L, 1L);
+        doReturn(new HomeSummaryCache.PublicSnapshot(
+                new HomeSummaryDto.IpoSection(1, 2, null, null, List.of()), cinema, null)).when(cache).getOrBuild(any());
+
+        HomeSummaryDto summary = service.summary();
+
+        assertThat(summary.cinema().publishedTitles()).isEqualTo(42L);
+        assertThat(summary.ipo().upcoming()).isEqualTo(2);
+        verify(ipoQueryService, never()).list(any(), any(), any());
+        verify(recordRepository, never()).findLatestPublished(any());
+        verify(liveChannelRepository, never()).countPublicChannels();
+    }
+
+    /** The shared snapshot never holds a resume item; each viewer's own is merged on top of it. */
+    @Test
+    void viewerResumeIsMergedOntoTheSharedCinemaSection() {
+        signedInAs("VIEWER");
+        var cinema = new HomeSummaryDto.CinemaSection(List.of(), null, 42L, 30L, 12L, 1L);
+        doReturn(new HomeSummaryCache.PublicSnapshot(
+                new HomeSummaryDto.IpoSection(0, 0, null, null, List.of()), cinema, null)).when(cache).getOrBuild(any());
+        when(watchProgressService.getContinueWatching(USER_ID)).thenReturn(List.of(
+                ContinueWatchingDto.builder().recordId(99L).title("The Wire").type("TV_SERIES")
+                        .positionMs(1L).durationMs(4L).build()));
+
+        HomeSummaryDto.CinemaSection merged = service.summary().cinema();
+
+        assertThat(merged.continueWatching().recordId()).isEqualTo(99L);
+        assertThat(merged.publishedTitles()).isEqualTo(42L);
+        assertThat(cinema.continueWatching()).as("shared snapshot is not mutated").isNull();
+    }
+
+    /** A broken watch-progress store costs the resume bar, not the cinema tile. */
+    @Test
+    void failingResumeKeepsThePublicCinemaTile() {
+        signedInAs("VIEWER");
+        when(recordRepository.countByVisibility(RecordVisibility.PUBLISHED)).thenReturn(7L);
+        when(watchProgressService.getContinueWatching(USER_ID)).thenThrow(new IllegalStateException("down"));
+
+        HomeSummaryDto.CinemaSection cinema = service.summary().cinema();
+
+        assertThat(cinema).isNotNull();
+        assertThat(cinema.publishedTitles()).isEqualTo(7L);
+        assertThat(cinema.continueWatching()).isNull();
     }
 
     /* ── Cinema section ──────────────────────────────────────────────────────────────────────── */

@@ -62,7 +62,7 @@ export function useDownloads() {
   }, []);
 
   // Initial fetch + load settings
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
     (async () => {
       try {

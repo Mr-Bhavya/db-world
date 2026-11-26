@@ -39,4 +39,15 @@
         android:progressTint="#009688"
         android:progressBackgroundTint="#4D009688"
         android:indeterminateTint="#009688" />
+
+    <!-- Size + speed line; shown only in the expanded (big) view, where there is room for it. -->
+    <TextView
+        android:id="@+id/dl_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:visibility="gone"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Info" />
 </LinearLayout>

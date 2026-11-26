@@ -89,6 +89,7 @@ public class HomeSummaryService {
     private final CatalogIngestRequestService catalogIngestRequestService;
     private final LiveChannelRepository liveChannelRepository;
     private final UserContext userContext;
+    private final HomeSummaryCache cache;
     private final Clock clock;
 
     @Autowired
@@ -102,11 +103,12 @@ public class HomeSummaryService {
                               MediaRequestService mediaRequestService,
                               CatalogIngestRequestService catalogIngestRequestService,
                               LiveChannelRepository liveChannelRepository,
-                              UserContext userContext) {
+                              UserContext userContext,
+                              HomeSummaryCache cache) {
         this(ipoQueryService, recordRepository, watchProgressService, walletDocumentRepository,
                 passwordManagerRepository, tallyGroupService, notificationRepository,
                 mediaRequestService, catalogIngestRequestService, liveChannelRepository,
-                userContext, Clock.systemUTC());
+                userContext, cache, Clock.systemUTC());
     }
 
     /** Test-friendly constructor with an injectable clock for a deterministic "today" (IST). */
@@ -121,6 +123,7 @@ public class HomeSummaryService {
                        CatalogIngestRequestService catalogIngestRequestService,
                        LiveChannelRepository liveChannelRepository,
                        UserContext userContext,
+                       HomeSummaryCache cache,
                        Clock clock) {
         this.ipoQueryService = ipoQueryService;
         this.recordRepository = recordRepository;
@@ -133,6 +136,7 @@ public class HomeSummaryService {
         this.catalogIngestRequestService = catalogIngestRequestService;
         this.liveChannelRepository = liveChannelRepository;
         this.userContext = userContext;
+        this.cache = cache;
         this.clock = clock;
     }
 
@@ -141,12 +145,14 @@ public class HomeSummaryService {
         Optional<CurrentUser> user = userContext.optionalUser();
         Long userId = user.map(CurrentUser::userId).orElse(null);
 
+        HomeSummaryCache.PublicSnapshot shared = cache.getOrBuild(this::publicSnapshot);
+
         return new HomeSummaryDto(
                 Instant.now(clock),
                 userId != null,
-                section("ipo", this::ipoSection),
-                section("cinema", () -> cinemaSection(userId)),
-                section("live", this::liveSection),
+                shared.ipo(),
+                withResume(shared.cinema(), userId),
+                shared.live(),
                 userId == null ? null : section("wallet", () -> walletSection(userId)),
                 userId == null ? null : section("vault", () -> vaultSection(userId)),
                 userId == null ? null : section("tally", () -> tallySection(userId)),
@@ -156,6 +162,30 @@ public class HomeSummaryService {
     }
 
     /* ── Sections ────────────────────────────────────────────────────────────────────────────── */
+
+    /** The visitor-independent sections; shared across callers through {@link HomeSummaryCache}. */
+    private HomeSummaryCache.PublicSnapshot publicSnapshot() {
+        return new HomeSummaryCache.PublicSnapshot(
+                section("ipo", this::ipoSection),
+                section("cinema", this::cinemaSection),
+                section("live", this::liveSection));
+    }
+
+    /**
+     * Adds the viewer's Continue Watching entry to the shared cinema section. Its own failure
+     * only drops the resume bar; the public posters and counts still render.
+     */
+    private HomeSummaryDto.CinemaSection withResume(HomeSummaryDto.CinemaSection cinema, Long userId) {
+        if (cinema == null || userId == null) return cinema;
+        HomeSummaryDto.ContinueItem resume = section("cinema-resume", () ->
+                watchProgressService.getContinueWatching(userId).stream()
+                        .findFirst()
+                        .map(HomeSummaryService::resumeItem)
+                        .orElse(null));
+        if (resume == null) return cinema;
+        return new HomeSummaryDto.CinemaSection(cinema.latest(), resume, cinema.publishedTitles(),
+                cinema.movies(), cinema.series(), cinema.addedThisWeek());
+    }
 
     private HomeSummaryDto.IpoSection ipoSection() {
         List<IpoSummaryDto> ipos = ipoQueryService.list(null, null, "date").ipos();
@@ -196,23 +226,17 @@ public class HomeSummaryService {
                 open, upcoming, highlight(closingSoon), highlight(topGmp), actionable);
     }
 
-    private HomeSummaryDto.CinemaSection cinemaSection(Long userId) {
+    private HomeSummaryDto.CinemaSection cinemaSection() {
         List<HomeSummaryDto.CinemaTitle> latest =
                 recordRepository.findLatestPublished(PageRequest.of(0, TITLES_PER_ROW)).stream()
                         .map(HomeSummaryService::title)
                         .toList();
 
-        HomeSummaryDto.ContinueItem resume = userId == null ? null
-                : watchProgressService.getContinueWatching(userId).stream()
-                        .findFirst()
-                        .map(HomeSummaryService::resumeItem)
-                        .orElse(null);
-
         Instant weekAgo = Instant.now(clock).minus(NEW_TITLES_WINDOW);
 
         return new HomeSummaryDto.CinemaSection(
                 latest,
-                resume,
+                null,
                 recordRepository.countByVisibility(RecordVisibility.PUBLISHED),
                 recordRepository.countByVisibilityAndType(RecordVisibility.PUBLISHED, RecordType.MOVIE),
                 recordRepository.countByVisibilityAndType(RecordVisibility.PUBLISHED, RecordType.TV_SERIES),

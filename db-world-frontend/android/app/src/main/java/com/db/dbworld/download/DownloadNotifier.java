@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import androidx.core.app.NotificationCompat;
@@ -14,6 +15,8 @@ import com.db.dbworld.MainActivity;
 import com.db.dbworld.R;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Renders per-download notifications (live progress bar + speed/size, and Pause/Resume/Cancel/
@@ -44,35 +47,53 @@ final class DownloadNotifier {
 
         boolean running = "running".equals(status);
         boolean paused  = "paused".equals(status);
+        boolean sized   = total > 0;
         int pct = Math.max(0, Math.min(100, progress));
-        long eta = (running && speed > 0 && total > done) ? (total - done) / speed : -1;
+        // Never show 100% until aria2 actually reports completion.
+        if (pct == 100 && sized && done < total) pct = 99;
 
-        String size = total > 0 ? "  ·  " + fmtBytes(done) + " / " + fmtBytes(total) : "";
-        String text;
-        if (paused)       text = "Paused · " + pct + "%" + size;
-        else if (running) text = pct + "%"
-                + (speed > 0 ? "  ·  " + fmtSpeed(speed) : "")
-                + (eta > 0 ? "  ·  " + fmtEta(eta) + " left" : "")
-                + size;
-        else              text = "Queued";
+        long smooth = running ? smoothSpeed(gid, speed) : 0;
+        if (!running) SPEED.remove(gid); // a resumed download starts its average afresh
+        long eta = (running && smooth > 0 && sized && total > done) ? (total - done) / smooth : -1;
+
+        // Line 1 (both views): what is happening and how long is left — the two things a glance needs.
+        String headline;
+        if (paused)                       headline = "Paused" + (sized ? " · " + pct + "%" : "");
+        else if (!running)                headline = "Queued";
+        else if (speed <= 0 && done == 0) headline = "Connecting…";
+        else if (speed <= 0)              headline = (sized ? pct + "% · " : "") + "Waiting for data…";
+        else if (sized)                   headline = pct + "%" + (eta > 0 ? " · " + fmtEta(eta) + " left" : "");
+        else                              headline = fmtBytes(done) + " downloaded";
+
+        // Line 2 (expanded only): exact sizes and rate.
+        String sizes = sized ? fmtBytes(done) + " of " + fmtBytes(total)
+                             : (done > 0 ? fmtBytes(done) : "Size unknown");
+        String detail = sizes + (running && smooth > 0 ? "  ·  " + fmtSpeed(smooth) : "");
+
+        // Collapsed view keeps one line, so it carries the rate after the headline when there is room.
+        String collapsed = headline + (running && smooth > 0 ? " · " + fmtSpeed(smooth) : "");
+
+        // Indeterminate while queued, or while running with no known size.
+        boolean indeterminate = (!running && !paused) || (running && !sized);
 
         // Custom content view so the progress bar is teal (setColor can't tint it on API 31+/OneUI).
-        RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.notification_download);
-        rv.setTextViewText(R.id.dl_title, title);
-        rv.setTextViewText(R.id.dl_text, text);
-        rv.setProgressBar(R.id.dl_progress, 100, pct, !running && !paused); // indeterminate only while queued
+        RemoteViews small = progressView(ctx, title, collapsed, null, pct, indeterminate);
+        RemoteViews big   = progressView(ctx, title, headline, detail, pct, indeterminate);
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, DownloadForegroundService.CHANNEL_ID)
                 .setSmallIcon(paused ? android.R.drawable.ic_media_pause
                                      : android.R.drawable.stat_sys_download)
                 .setContentTitle(title)   // fallback text if the custom view can't render
-                .setContentText(text)
+                .setContentText(collapsed)
                 .setColor(ACCENT)
                 .setOngoing(running)
                 .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setCategory(NotificationCompat.CATEGORY_PROGRESS)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-                .setCustomContentView(rv)
+                .setCustomContentView(small)
+                .setCustomBigContentView(big)
                 .setContentIntent(openDownloads(ctx));
 
         if (running)      b.addAction(action(ctx, gid, "PAUSE",  android.R.drawable.ic_media_pause, "Pause"));
@@ -82,16 +103,32 @@ final class DownloadNotifier {
         NotificationManagerCompat.from(ctx).notify(notifId(gid), b.build());
     }
 
+    private static RemoteViews progressView(Context ctx, String title, String text, String sub,
+                                            int pct, boolean indeterminate) {
+        RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.notification_download);
+        rv.setTextViewText(R.id.dl_title, title);
+        rv.setTextViewText(R.id.dl_text, text);
+        rv.setProgressBar(R.id.dl_progress, 100, pct, indeterminate);
+        if (sub != null) {
+            rv.setTextViewText(R.id.dl_sub, sub);
+            rv.setViewVisibility(R.id.dl_sub, View.VISIBLE);
+        }
+        return rv;
+    }
+
     @SuppressLint("MissingPermission")
-    static void showComplete(Context ctx, String gid, String title) {
+    static void showComplete(Context ctx, String gid, String title, long total) {
+        SPEED.remove(gid);
         DownloadForegroundService.ensureChannel(ctx);
+        String text = "Download complete" + (total > 0 ? " · " + fmtBytes(total) : "") + " · Tap to open";
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, DownloadForegroundService.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setContentTitle(title)
-                .setContentText("Download complete")
+                .setContentText(text)
                 .setColor(themeColor(ctx))
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(true)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setContentIntent(openDownloads(ctx));
         NotificationManagerCompat.from(ctx).notify(notifId(gid), b.build());
@@ -99,6 +136,7 @@ final class DownloadNotifier {
 
     @SuppressLint("MissingPermission")
     static void showError(Context ctx, String gid, String title) {
+        SPEED.remove(gid);
         DownloadForegroundService.ensureChannel(ctx);
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, DownloadForegroundService.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_notify_error)
@@ -114,7 +152,34 @@ final class DownloadNotifier {
     }
 
     static void cancel(Context ctx, String gid) {
+        SPEED.remove(gid);
         try { NotificationManagerCompat.from(ctx).cancel(notifId(gid)); } catch (Exception ignored) {}
+    }
+
+    // ─── speed smoothing ────────────────────────────────────────────────────────
+
+    /** Per-download exponential moving average of aria2's instantaneous speed (bytes/s). */
+    private static final Map<String, Double> SPEED = new ConcurrentHashMap<>();
+    private static final double SPEED_ALPHA = 0.3;
+
+    /**
+     * Folds one raw speed sample into the download's average and returns it. aria2's 1 Hz speed
+     * swings widely, which made the ETA jump by minutes every tick; the average keeps it steady
+     * while still following real changes within a few seconds.
+     */
+    static long smoothSpeed(String gid, long raw) {
+        if (raw <= 0) return 0; // stalled: report it honestly, but keep the history for recovery
+        Double prev = SPEED.get(gid);
+        double next = prev == null ? raw : prev + SPEED_ALPHA * (raw - prev);
+        SPEED.put(gid, next);
+        return Math.round(next);
+    }
+
+    /** The current smoothed speed without adding a sample; falls back to the raw value. */
+    static long peekSpeed(String gid, long raw) {
+        if (raw <= 0) return 0;
+        Double avg = SPEED.get(gid);
+        return avg == null ? raw : Math.round(avg);
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────
@@ -156,10 +221,12 @@ final class DownloadNotifier {
         return fmtBytes(bytesPerSec) + "/s";
     }
 
-    private static String fmtEta(long seconds) {
+    /** Human ETA matching the app's wording: "1h 5m", "2m 3s", "45s". */
+    static String fmtEta(long seconds) {
         if (seconds <= 0) return "";
         long h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60;
-        return h > 0 ? String.format(Locale.US, "%d:%02d:%02d", h, m, s)
-                     : String.format(Locale.US, "%d:%02d", m, s);
+        if (h > 0) return m > 0 ? h + "h " + m + "m" : h + "h";
+        if (m > 0) return m >= 10 || s == 0 ? m + "m" : m + "m " + s + "s";
+        return s + "s";
     }
 }

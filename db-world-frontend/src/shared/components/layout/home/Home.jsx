@@ -70,7 +70,9 @@ const Home = () => {
   const [recent, setRecent] = useState([]);
   const [editing, setEditing] = useState(false);
 
-  const { data: summary, isLoading } = useHomeSummary();
+  // `isPending`, not `isLoading`: the query waits for auth to settle, and a waiting query is not
+  // "loading" — the tiles would flash their empty fallbacks instead of skeletons.
+  const { data: summary, isPending: isLoading } = useHomeSummary();
 
   useEffect(() => {
     setRecent(getRecent());

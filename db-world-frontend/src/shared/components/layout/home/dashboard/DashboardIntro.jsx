@@ -10,6 +10,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { pageContent } from '@shared/content/siteContent';
 import { clampTextSx } from '../homeStyles';
+import HomeSearchBar from './HomeSearchBar';
 
 /** One height for every control in the band, so nothing reads as accidentally misaligned. */
 const ACTION_HEIGHT = 46;
@@ -76,8 +77,9 @@ function AuthButton({ label, Icon, primary, trailing, onClick, T, reduced }) {
         gap: 0.85,
         height: ACTION_HEIGHT,
         px: { xs: 2, sm: 3 },
-        // Share the row on a phone, sit at their natural width once there is room.
-        flex: { xs: 1, sm: '0 0 auto' },
+        // Share the row on a phone — sized by content, not 50/50, so "Create account" isn't clipped
+        // beside the shorter "Sign in" — and sit at their natural width once there is room.
+        flex: { xs: '1 1 auto', sm: '0 0 auto' },
         minWidth: 0,
         cursor: 'pointer',
         borderRadius: 2.4,
@@ -203,8 +205,10 @@ export default function DashboardIntro({
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
         gridTemplateAreas: {
-          xs: '"copy" "auth" "tools"',
-          sm: isAuthenticated ? '"copy tools"' : '"copy copy" "auth tools"',
+          xs: isAuthenticated ? '"copy" "search" "tools"' : '"copy" "auth" "search" "tools"',
+          sm: isAuthenticated
+            ? '"copy tools" "search search"'
+            : '"copy copy" "auth tools" "search search"',
         },
         columnGap: 2,
         rowGap: { xs: 1.5, sm: 2.5 },
@@ -262,7 +266,7 @@ export default function DashboardIntro({
                 color: T.textMuted,
                 fontSize: { xs: '0.8rem', sm: '0.88rem' },
                 fontWeight: 700,
-                ...clampTextSx(1),
+                ...clampTextSx(2),
               }}
             >
               {digest.join(' · ')}
@@ -302,6 +306,10 @@ export default function DashboardIntro({
           />
         </Box>
       )}
+
+      <Box component={motion.div} {...rise(0.08)} sx={{ gridArea: 'search', minWidth: 0 }}>
+        <HomeSearchBar />
+      </Box>
 
       <Box
         sx={{

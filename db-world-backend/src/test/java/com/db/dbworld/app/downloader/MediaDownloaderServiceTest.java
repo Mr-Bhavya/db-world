@@ -51,9 +51,30 @@ class MediaDownloaderServiceTest {
         DownloadJob aliceFirst = job("1", "alice", "QUEUED");
         DownloadJob bobFirst = job("2", "bob", "QUEUED");
         DownloadJob aliceSecond = job("3", "alice", "QUEUED");
-        when(repository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(aliceSecond, bobFirst, aliceFirst));
+        when(repository.findAllByOrderByCreatedAtDesc(any(org.springframework.data.domain.Limit.class))).thenReturn(List.of(aliceSecond, bobFirst, aliceFirst));
+        when(repository.findByStatusInOrderByCreatedAtAsc(List.of("QUEUED"))).thenReturn(List.of(aliceFirst, bobFirst, aliceSecond));
         var jobs = service.list("admin", true);
         assertEquals(List.of(2, 1, 1), jobs.stream().map(MediaDownloaderService.JobView::queuePosition).toList());
+    }
+
+    @Test void userListIsCappedAndAMalformedSourceUrlDoesNotBreakIt() {
+        DownloadJob broken = job("1", "alice", "READY");
+        broken.setUrl("http://bad host/with space");
+        when(repository.findByOwnerOrderByCreatedAtDesc(eq("alice"), any(org.springframework.data.domain.Limit.class))).thenReturn(List.of(broken));
+        var jobs = service.list("alice", false);
+        assertNull(jobs.getFirst().source());
+        verify(repository).findByOwnerOrderByCreatedAtDesc("alice", org.springframework.data.domain.Limit.of(MediaDownloaderService.MAX_USER_LIST));
+        verify(repository, never()).findByStatusInOrderByCreatedAtAsc(any());
+    }
+
+    @Test void expiryContinuesPastAJobWhoseFilesCannotBeRemoved() throws Exception {
+        DownloadJob failing = job("a", "alice", "READY");
+        DownloadJob fine = job("b", "bob", "READY");
+        doThrow(new IllegalStateException("disk gone")).doNothing().when(disk).requireMounted("Download cleanup");
+        when(repository.findByExpiresAtBeforeAndStatus(any(), eq("READY"))).thenReturn(List.of(failing, fine));
+        assertEquals(1, service.cleanup());
+        assertEquals("READY", failing.getStatus());
+        assertEquals("EXPIRED", fine.getStatus());
     }
 
     @Test void schedulerStartsOneJobPerOwnerAndDifferentOwnersCanRunTogether() throws Exception {

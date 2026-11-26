@@ -1,8 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 const unwrap = (response) => response.data?.data ?? response.data;
+
+/**
+ * Who the summary is for, as a cache-key segment.
+ *
+ * The response differs by viewer (user sections, admin queue), so it must be cached per viewer:
+ * with one shared key, signing in kept serving the anonymous summary until it went stale, and the
+ * tiles stayed on their sign-in pitch. The role is included because promotion changes the payload.
+ */
+export function summaryIdentity(auth) {
+  if (!auth?.isAuthenticated) return 'anon';
+  const user = auth.user ?? {};
+  const id = user.id ?? user.userId ?? user.username ?? user.email ?? 'user';
+  return `${id}:${auth.role ?? ''}`;
+}
 
 /**
  * One request for every widget on the hub.
@@ -32,10 +47,16 @@ export const fetchHomeSummary = () =>
  * the cache, so on the hub — where the dashboard has fetched — the panel gets its live status free.
  */
 export function useHomeSummary({ enabled = true } = {}) {
+  const { auth } = useAuth();
+  // While a stored session is still being verified the identity is not settled, and the access
+  // token is not restored yet either — fetching now would cache an anonymous summary under the
+  // returning user's key. Waiting costs one verify round trip and saves a wasted request.
+  const settled = !auth?.loading;
+
   return useQuery({
-    queryKey: ['home', 'summary'],
+    queryKey: ['home', 'summary', summaryIdentity(auth)],
     queryFn: fetchHomeSummary,
-    enabled,
+    enabled: enabled && settled,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: true,

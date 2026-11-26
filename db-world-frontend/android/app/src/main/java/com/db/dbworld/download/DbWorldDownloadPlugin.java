@@ -749,7 +749,7 @@ public class DbWorldDownloadPlugin extends Plugin {
             emit("downloadComplete", fresh, null);
             emit("downloadStateChanged", fresh, null);
         }
-        DownloadNotifier.showComplete(getContext(), gid, meta.optString("title", fileName));
+        DownloadNotifier.showComplete(getContext(), gid, meta.optString("title", fileName), total);
 
         try {
             MediaScannerConnection.scanFile(getContext(), new String[]{ path }, new String[]{ mime },
@@ -848,7 +848,9 @@ public class DbWorldDownloadPlugin extends Plugin {
         }
         int progress = total > 0 ? (int) Math.min(100, completed * 100 / total)
                                  : ("success".equals(status) ? 100 : 0);
-        long eta = (speed > 0 && total > completed) ? (total - completed) / speed : -1;
+        // Same smoothed speed the notification uses, so the in-app ETA and the shade agree.
+        long etaSpeed = gid.isEmpty() ? speed : DownloadNotifier.peekSpeed(gid, speed);
+        long eta = (etaSpeed > 0 && total > completed) ? (total - completed) / etaSpeed : -1;
         String localUri = meta.optString("localUri", "");
         boolean done = "success".equals(status);
         int connections = live != null ? live.optInt("connections", 0) : 0;

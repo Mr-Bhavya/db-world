@@ -49,8 +49,9 @@ import { useRequireAuth } from '@features/auth/useRequireAuth';
 import { useThemeMode } from '@shared/theme';
 import { APPS } from '@shared/components/layout/home/homeData';
 import { useHomeSummary } from '@shared/components/layout/home/dashboard/homeSummaryApi';
-import AppsMenu from './header/AppsMenu';
+import AppsMenu, { liveStatus } from './header/AppsMenu';
 import CommandPalette from './header/CommandPalette';
+import { onOpenSearch } from './header/searchLauncher';
 import NotificationBell from './header/NotificationBell';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -384,6 +385,11 @@ const Header = () => {
     setPaletteOpen(false);
   }, []);
 
+  // The drawer is mobile-only; rotating or resizing into the desktop layout must not leave it open.
+  useEffect(() => {
+    if (!isMobile) setDrawerOpen(false);
+  }, [isMobile]);
+
   /**
    * Sign in without leaving the page.
    *
@@ -397,12 +403,18 @@ const Header = () => {
   }, [closeAllMenus, promptSignIn]);
 
   const handleNav = useCallback(
-    (route) => {
-      navigate(route);
+    (route, options) => {
+      navigate(route, options);
       closeAllMenus();
     },
     [navigate, closeAllMenus]
   );
+
+  // Pages (the home screen's search bar) open the same palette through searchLauncher.
+  useEffect(() => onOpenSearch(() => {
+    setDrawerOpen(false);
+    setPaletteOpen(true);
+  }), []);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -711,11 +723,15 @@ const Header = () => {
                   onClick={() => setPaletteOpen(true)}
                   aria-label="Search DB World"
                   sx={{
-                    color: T.textMuted,
+                    color: T.teal,
+                    bgcolor: T.tealBg,
+                    border: `1px solid ${T.glassBorder}`,
+                    borderRadius: 2,
                     width: 42,
                     height: 42,
+                    mr: 0.25,
                     ...focusSx(T.teal),
-                    '&:hover': { color: T.teal, bgcolor: T.tealBg },
+                    '&:hover': { color: T.teal, bgcolor: T.tealBg, borderColor: T.teal },
                   }}
                 >
                   <SearchIcon />
@@ -758,12 +774,15 @@ const Header = () => {
                 )}
 
                 <IconButton
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={() => {
+                    setDrawerOpen(true);
+                    setAppsPanelUsed(true);
+                  }}
                   aria-label="Open navigation menu"
                   sx={{
                     color: T.textMuted,
-                    width: 42,
-                    height: 42,
+                    width: 44,
+                    height: 44,
                     ...focusSx(T.teal),
                     '&:hover': {
                       color: T.teal,
@@ -942,8 +961,10 @@ const Header = () => {
               justifyContent: 'space-between',
               gap: 1,
               px: 2,
-              py: 1.5,
+              pb: 1.5,
+              pt: 'calc(12px + env(safe-area-inset-top, 0px))',
               minWidth: 0,
+              flexShrink: 0,
             }}
           >
             <Box
@@ -1010,6 +1031,8 @@ const Header = () => {
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close navigation menu"
                 sx={{
+                  width: 44,
+                  height: 44,
                   color: T.textMuted,
                   ...focusSx(T.teal),
                   '&:hover': {
@@ -1023,11 +1046,33 @@ const Header = () => {
             </Box>
           </Box>
 
-          <Divider sx={{ borderColor: T.border }} />
+          <Divider sx={{ borderColor: T.border, flexShrink: 0 }} />
 
-          {/* User info */}
+          {/*
+           * Everything below the pinned header scrolls as one region. The list of apps alone
+           * is taller than most phones, so without this the account actions were unreachable.
+           */}
+          <Box
+            data-testid="drawer-scroll"
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch',
+              pb: 'env(safe-area-inset-bottom, 0px)',
+            }}
+          >
+          {/* User info — tapping it opens the profile */}
           {isAuth && (
             <Box
+              component="button"
+              type="button"
+              onClick={() => handleNav(Constants.USER_PROFILE_ROUTE)}
+              aria-label="Open my profile"
               sx={{
                 px: 2,
                 py: 1.5,
@@ -1036,6 +1081,15 @@ const Header = () => {
                 alignItems: 'center',
                 gap: 1.4,
                 minWidth: 0,
+                width: '100%',
+                flexShrink: 0,
+                border: 0,
+                bgcolor: 'transparent',
+                textAlign: 'left',
+                font: 'inherit',
+                cursor: 'pointer',
+                '&:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: -3 },
+                '&:hover': { bgcolor: T.tealBg },
               }}
             >
               <Avatar
@@ -1081,41 +1135,15 @@ const Header = () => {
 
           {/* Nav links */}
           <List
+            component="nav"
+            aria-label="Apps"
             sx={{
               px: 1,
               pt: 1,
               minWidth: 0,
+              flexShrink: 0,
             }}
           >
-            <ListItemButton
-              onClick={() => {
-                setDrawerOpen(false);
-                setPaletteOpen(true);
-              }}
-              sx={{
-                borderRadius: 1.7,
-                mb: 0.5,
-                minHeight: 50,
-                border: `1px solid ${T.glassBorder}`,
-                ...focusSx(T.teal),
-                '&:hover': { bgcolor: T.tealBg },
-              }}
-            >
-              <ListItemIcon sx={{ color: T.textMuted, minWidth: 38 }}>
-                <SearchIcon />
-              </ListItemIcon>
-
-              <ListItemText
-                primary="Search"
-                primaryTypographyProps={{
-                  fontSize: '0.9rem',
-                  color: T.textMuted,
-                  fontWeight: 650,
-                  noWrap: true,
-                }}
-              />
-            </ListItemButton>
-
             {visibleApps.map((item) => {
               const active = isRouteActive(location.pathname, item.route);
               const ItemIcon = item.Icon;
@@ -1124,6 +1152,7 @@ const Header = () => {
                 <ListItemButton
                   key={item.id}
                   onClick={() => handleNav(item.route)}
+                  aria-current={active ? 'page' : undefined}
                   sx={{
                     borderRadius: 1.7,
                     mb: 0.5,
@@ -1138,36 +1167,53 @@ const Header = () => {
                     },
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: active ? T.teal : T.textMuted,
-                      minWidth: 38,
-                    }}
-                  >
-                    {ItemIcon && <ItemIcon />}
+                  <ListItemIcon sx={{ minWidth: 44 }}>
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1.75,
+                        background: item.gradient ?? T.tealBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {ItemIcon && <ItemIcon sx={{ color: '#fff', fontSize: 18 }} />}
+                    </Box>
                   </ListItemIcon>
 
                   <ListItemText
                     primary={item.label}
+                    secondary={liveStatus(item.id, summary) ?? item.tagline}
                     primaryTypographyProps={{
                       fontSize: '0.9rem',
                       color: active ? T.teal : T.text,
                       fontWeight: active ? 800 : 650,
                       noWrap: true,
                     }}
+                    secondaryTypographyProps={{
+                      fontSize: '0.72rem',
+                      color: T.textFaint,
+                      fontWeight: 600,
+                      noWrap: true,
+                    }}
+                    sx={{ my: 0.25, minWidth: 0 }}
                   />
                 </ListItemButton>
               );
             })}
           </List>
 
-          {/* Bottom actions */}
+          {/* Bottom actions — pushed to the bottom when there is room, scrolled to otherwise */}
           <Box
             sx={{
               mt: 'auto',
               px: 1,
+              pt: 1,
               pb: 2,
               minWidth: 0,
+              flexShrink: 0,
             }}
           >
             <Divider sx={{ borderColor: T.border, mb: 1 }} />
@@ -1335,6 +1381,7 @@ const Header = () => {
                 </ListItemButton>
               </>
             )}
+          </Box>
           </Box>
         </Box>
       </Drawer>
