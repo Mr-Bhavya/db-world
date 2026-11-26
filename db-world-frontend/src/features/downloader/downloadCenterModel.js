@@ -71,7 +71,8 @@ export function pruneReadySelection(selected = [], jobs = []) {
 
 export function formatRelativeTime(value, reference = Date.now(), direction = 'past') {
   if (!value) return direction === 'future' ? 'Expiration unavailable' : 'Date unavailable';
-  const timestamp = new Date(value).getTime();
+  const parsed = typeof value === 'number' ? value : new Date(value).getTime();
+  const timestamp = Number(parsed);
   const now = reference instanceof Date ? reference.getTime() : Number(reference);
   if (!Number.isFinite(timestamp) || !Number.isFinite(now)) return direction === 'future' ? 'Expiration unavailable' : 'Date unavailable';
   const delta = timestamp - now;
@@ -90,8 +91,10 @@ export function formatRelativeTime(value, reference = Date.now(), direction = 'p
 }
 
 export function formatAbsoluteTime(value) {
-  if (!value || !Number.isFinite(new Date(value).getTime())) return '';
-  return new Date(value).toLocaleString();
+  if (!value) return '';
+  const parsed = typeof value === 'number' ? value : new Date(value).getTime();
+  if (!Number.isFinite(parsed)) return '';
+  return new Date(parsed).toLocaleString();
 }
 
 export function matchesLocalDate(value, date) {

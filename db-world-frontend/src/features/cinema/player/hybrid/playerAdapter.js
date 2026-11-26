@@ -149,11 +149,21 @@ function createWebAdapter(getVideo) {
   // paused/resumed by anything other than our own button (OS, fullscreen, tab/screen off).
   const onPlay  = () => emit('state', { playing: true });
   const onPause = () => emit('state', { playing: false });
+  const onLoadedMetadata = () => emit('tracks', {
+    audio: Array.from(v?.audioTracks || []).map((track, id) => ({
+      id, language: track.language || '', label: track.label || '',
+    })),
+    text: Array.from(v?.textTracks || []).map((track, id) => ({
+      id, language: track.language || '', label: track.label || '', title: track.label || '',
+    })),
+    selectedAudio: Array.from(v?.audioTracks || []).findIndex((track) => track.enabled),
+    selectedText: Array.from(v?.textTracks || []).findIndex((track) => track.mode === 'showing'),
+  });
   const listeners = [
     ['timeupdate', onTime], ['durationchange', onTime], ['progress', onTime],
     ['ended', onEnded], ['error', onError],
     ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onCanplay],
-    ['play', onPlay], ['pause', onPause],
+    ['play', onPlay], ['pause', onPause], ['loadedmetadata', onLoadedMetadata],
   ];
 
   const attach = () => { if (!attached && v) { listeners.forEach(([ev, fn]) => v.addEventListener(ev, fn)); attached = true; } };
@@ -209,7 +219,10 @@ function createWebAdapter(getVideo) {
     setRate:       (rate) => { ensure(); if (v) v.playbackRate = rate; },
     setVolume:     (value) => { ensure(); if (v) v.volume = Math.max(0, Math.min(1, value)); },
     getVolume:     () => Promise.resolve({ value: ensure()?.volume ?? 1 }),
-    setBrightness: () => {},   // not controllable on web
+    setBrightness: (value) => {
+      ensure();
+      if (v) v.style.filter = `brightness(${Math.max(0.05, Math.min(1, value))})`;
+    },
     setZoom:       (scale) => { ensure(); if (v) v.style.transform = `scale(${scale})`; },
     selectAudioTrack: (id) => {
       ensure(); if (!v) return;

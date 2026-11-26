@@ -35,6 +35,7 @@ import { BottomActions } from './BottomActions';
 import { FileBreakdown, SingleFileSteps } from './FileBreakdown';
 import { MetaChip, ProgressInfo, StageBar, TransferStats } from './JobCardParts';
 import { LogPanel } from './LogPanel';
+import LogViewerDrawer from './LogViewerDrawer';
 import { TrackReviewBanner } from './TrackReviewBanner';
 import { PHASE_CFG, SOURCE_ICONS, safeDisplayName, timeAgo } from './jobCardConfig';
 
@@ -50,6 +51,7 @@ function JobCardComponent({ job, queuePosition = 0 }) {
   const isVeryNarrow = useMediaQuery('(max-width:390px)');
 
   const [logOpen, setLogOpen] = useState(false);
+  const [logViewerOpen, setLogViewerOpen] = useState(false);
   const [logHtml, setLogHtml] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(false);
@@ -492,6 +494,7 @@ function JobCardComponent({ job, queuePosition = 0 }) {
               logError={logError}
               logHtml={themedLogHtml}
               onRefresh={refreshLogs}
+              onExpand={() => setLogViewerOpen(true)}
               isDark={isDark}
               T={T}
               isSmDown={isSmDown}
@@ -507,6 +510,11 @@ function JobCardComponent({ job, queuePosition = 0 }) {
           onClose={() => setTrackDlgOpen(false)}
         />
       ) : null}
+      <LogViewerDrawer
+        jobId={jobId}
+        open={logViewerOpen}
+        onClose={() => setLogViewerOpen(false)}
+      />
     </motion.div>
   );
 }

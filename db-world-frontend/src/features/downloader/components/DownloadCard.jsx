@@ -72,7 +72,7 @@ function TransferPanel({ progress, title, tone, inset, T }) {
 
 export default function DownloadCard({
   title, subtitle, thumbnail, statusLabel, statusIcon: StatusIcon, tone = 'teal', toneBg = 'tealBg',
-  progress, detail, error, selection, actions, children, surface = 'glass',
+  progress, detail, error, selection, actions, children, surface = 'glass', compact = false,
 }) {
   const T = useT();
   const reduce = useReducedMotion();
@@ -87,7 +87,7 @@ export default function DownloadCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reduce ? 0 : 0.18 }}
       sx={{
-        minWidth: 0, p: { xs: 1.5, sm: 2 }, borderRadius: 3,
+        minWidth: 0, p: compact ? { xs: 1.1, sm: 1.35 } : { xs: 1.5, sm: 2 }, borderRadius: compact ? 2.5 : 3,
         border: `1px solid ${look.border}`, bgcolor: look.card,
         transition: 'border-color 180ms ease, background-color 180ms ease',
         '&:hover': { borderColor: look.borderHover, bgcolor: look.cardHover },
@@ -97,23 +97,23 @@ export default function DownloadCard({
       <Stack direction="row" alignItems="flex-start" gap={{ xs: 1, sm: 1.5 }}>
         {selection && <Box sx={{ flexShrink: 0, mt: -0.75 }}>{selection}</Box>}
         {thumbnail ? (
-          <Box component="img" src={thumbnail} alt="" loading="lazy" sx={{ width: { xs: 64, sm: 88 }, height: { xs: 44, sm: 56 }, flexShrink: 0, objectFit: 'cover', borderRadius: 1.5, bgcolor: look.inset }} />
+          <Box component="img" src={thumbnail} alt="" loading="lazy" sx={{ width: compact ? { xs: 52, sm: 64 } : { xs: 64, sm: 88 }, height: compact ? { xs: 38, sm: 44 } : { xs: 44, sm: 56 }, flexShrink: 0, objectFit: 'cover', borderRadius: 1.5, bgcolor: look.inset }} />
         ) : (
-          <Box aria-hidden="true" sx={{ width: { xs: 64, sm: 88 }, height: { xs: 44, sm: 56 }, flexShrink: 0, borderRadius: 1.5, bgcolor: look.inset, color: T.textMuted, display: 'grid', placeItems: 'center' }}>
+          <Box aria-hidden="true" sx={{ width: compact ? { xs: 52, sm: 64 } : { xs: 64, sm: 88 }, height: compact ? { xs: 38, sm: 44 } : { xs: 44, sm: 56 }, flexShrink: 0, borderRadius: 1.5, bgcolor: look.inset, color: T.textMuted, display: 'grid', placeItems: 'center' }}>
             <ImageNotSupported sx={{ fontSize: 20 }} />
           </Box>
         )}
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontWeight: 750, lineHeight: 1.35, overflowWrap: 'anywhere', color: T.text }}>
+          <Typography sx={{ fontWeight: 750, fontSize: compact ? 14 : undefined, lineHeight: 1.3, overflowWrap: 'anywhere', color: T.text }}>
             {title || 'Download'}
           </Typography>
-          {!!subtitle && <Typography sx={{ mt: 0.4, fontSize: 12, color: T.textMuted, overflowWrap: 'anywhere' }}>{subtitle}</Typography>}
+          {!!subtitle && <Typography sx={{ mt: compact ? 0.2 : 0.4, fontSize: compact ? 11 : 12, color: T.textMuted, overflowWrap: 'anywhere' }}>{subtitle}</Typography>}
           <Chip
             icon={StatusIcon ? <StatusIcon sx={{ color: `${toneColor} !important` }} /> : undefined}
             label={statusLabel}
             size="small"
             sx={{
-              mt: 1, maxWidth: '100%', bgcolor: toneSurface, color: toneColor, fontWeight: 700,
+              mt: compact ? 0.65 : 1, height: compact ? 24 : undefined, maxWidth: '100%', bgcolor: toneSurface, color: toneColor, fontWeight: 700,
               '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
             }}
           />
@@ -126,7 +126,7 @@ export default function DownloadCard({
       {!!actions && (
         <Stack
           direction="row" gap={0.75} flexWrap="wrap" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
-          sx={{ mt: 1.25, '& .MuiButton-root, & .MuiIconButton-root': { minHeight: 44 }, '& .MuiIconButton-root': { minWidth: 44 }, '& .MuiButton-root:focus-visible, & .MuiIconButton-root:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2 } }}
+          sx={{ mt: compact ? 0.85 : 1.25, '& .MuiButton-root, & .MuiIconButton-root': { minHeight: compact ? 38 : 44 }, '& .MuiIconButton-root': { minWidth: compact ? 38 : 44 }, '& .MuiButton-root:focus-visible, & .MuiIconButton-root:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2 } }}
         >
           {actions}
         </Stack>

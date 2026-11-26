@@ -92,6 +92,7 @@ public class HybridPlayerPlugin extends Plugin {
     // Volume is mapped to the SYSTEM media stream so the in-app bar, the swipe
     // gesture, and the hardware volume keys all stay in sync.
     private AudioManager   audioManager;
+    private Integer originalSystemVolume;
     private ContentObserver volumeObserver;
     private int            lastVolPercent = -1;
     // Picture-in-Picture: a play/pause RemoteAction routed back through this receiver.
@@ -301,6 +302,9 @@ public class HybridPlayerPlugin extends Plugin {
         final float vol = v != null ? Math.max(0f, Math.min(1f, v.floatValue())) : 1f;
         getActivity().runOnUiThread(() -> {
             ensureAudio();
+            if (originalSystemVolume == null) {
+                originalSystemVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            }
             int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
             int idx = Math.round(vol * max);
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, idx, 0);
@@ -400,6 +404,12 @@ public class HybridPlayerPlugin extends Plugin {
             WindowManager.LayoutParams lp = w.getAttributes();
             lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; // back to system
             w.setAttributes(lp);
+            if (audioManager != null && originalSystemVolume != null) {
+                int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
+                        Math.max(0, Math.min(max, originalSystemVolume)), 0);
+                originalSystemVolume = null;
+            }
         });
         call.resolve();
     }
@@ -783,7 +793,19 @@ public class HybridPlayerPlugin extends Plugin {
         unregisterVolumeObserver();
         unregisterPipReceiver();
         if (player != null) { player.release(); player = null; }
-        try { getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); }
+        try {
+            Window window = getActivity().getWindow();
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+            window.setAttributes(lp);
+            if (audioManager != null && originalSystemVolume != null) {
+                int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
+                        Math.max(0, Math.min(max, originalSystemVolume)), 0);
+                originalSystemVolume = null;
+            }
+        }
         catch (Exception ignored) { }
         super.handleOnDestroy();
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isHlsUrl } from './playerAdapter';
+import { createPlayerAdapter, isHlsUrl } from './playerAdapter';
 
 /**
  * Getting this wrong is silent and total: a false negative hands an HLS manifest to a
@@ -10,6 +10,17 @@ import { isHlsUrl } from './playerAdapter';
 describe('isHlsUrl', () => {
   it('matches a plain manifest', () => {
     expect(isHlsUrl('https://cdn.example.com/live/index.m3u8')).toBe(true);
+  });
+
+  describe('web player brightness', () => {
+    it('dims the video surface instead of showing a non-functional gesture HUD', () => {
+      const video = { style: {} };
+      const adapter = createPlayerAdapter(() => video);
+
+      adapter.setBrightness(0.42);
+
+      expect(video.style.filter).toBe('brightness(0.42)');
+    });
   });
 
   it('matches a manifest carrying a query string', () => {

@@ -79,8 +79,13 @@ fun HudOverlay(state: PlayerUiState) {
                 if (onLeft) Icons.Filled.BrightnessHigh else Icons.Filled.VolumeUp,
                 contentDescription = null, tint = Color.White,
             )
+            Text(
+                "${(state.hudValue.coerceIn(0f, 1f) * 100).toInt()}%",
+                color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 6.dp),
+            )
             Box(
-                Modifier.padding(top = 12.dp).width(6.dp).height(130.dp)
+                Modifier.padding(top = 8.dp).width(6.dp).height(130.dp)
                     .clip(RoundedCornerShape(3.dp)).background(PlayerTheme.HudTrack),
                 contentAlignment = Alignment.BottomCenter,
             ) {

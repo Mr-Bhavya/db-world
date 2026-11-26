@@ -144,8 +144,8 @@ export function useDownloads() {
       d.downloadId === id ? { ...d, status: 'cancelled', speedBytesPerSec: 0 } : d));
   }, []);
 
-  const remove = useCallback(async (id) => {
-    await DbWorldDownload.deleteDownload({ downloadId: id });
+  const remove = useCallback(async (id, { deleteFile = true } = {}) => {
+    await DbWorldDownload.deleteDownload({ downloadId: id, deleteFile });
     setDownloads(prev => prev.filter(d => d.downloadId !== id));
   }, []);
 

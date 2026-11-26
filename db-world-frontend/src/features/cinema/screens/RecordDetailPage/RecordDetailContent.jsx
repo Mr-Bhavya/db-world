@@ -37,7 +37,7 @@ import AdSlot from '@shared/ads/AdSlot';
 import DownloadSheet from './DownloadSheet';
 import { getUserId } from './helpers';
 import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
-import { buildHybridEpisodes, episodeRefOf } from '../../utils/episodeUtils';
+import { buildHybridEpisodes, episodeRefOf, fileMatchesId, firstEpisodeFile } from '../../utils/episodeUtils';
 import {
   DEFAULT_KIND, applyVote, indexRequests, requestScopeKey, scopeSuffix,
 } from '../../utils/requestScope';
@@ -291,6 +291,7 @@ export default function RecordDetailContent({
   // goes straight to the player; the file list survives as an on-demand sheet.
 
   const [downloadFiles, setDownloadFiles] = useState(null);   // null = closed
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const [downloadLabel, setDownloadLabel] = useState(null);
   // The episode the sheet is open for, when it was opened from an episode row. The
   // sheet doubles as that episode's detail view, so it needs the TMDB side too.
@@ -370,7 +371,7 @@ export default function RecordDetailContent({
     if (!pool.length) { notify.warning('No playable file for this title yet.'); return; }
 
     try {
-      const seed = pool[0];
+      const seed = epRef ? pool[0] : firstEpisodeFile(pool);
       const episodes = buildHybridEpisodes(mediaFiles, seed, record?.tmdb?.seasons);
       const media = await resolveAndBuildMedia({
         current: seed,
@@ -421,7 +422,7 @@ export default function RecordDetailContent({
   const playResume = useCallback(async () => {
     const files = await ensureMediaFiles();
     const resumeFile = continueItem?.resumeFileId
-      ? files.find((f) => String(f.mediaFileId ?? f.id) === String(continueItem.resumeFileId))
+      ? files.find((f) => fileMatchesId(f, continueItem.resumeFileId))
       : null;
     if (!resumeFile) { launch(files); return; }
 
@@ -437,6 +438,7 @@ export default function RecordDetailContent({
     setDownloadEp(null);
     setDownloadFiles(await ensureMediaFiles());
     setDownloadLabel(null);
+    setDownloadOpen(true);
   }, [ensureMediaFiles]);
 
   const playEpisode = useCallback((ep) => {
@@ -451,6 +453,7 @@ export default function RecordDetailContent({
         ? `S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`
         : null,
     );
+    setDownloadOpen(true);
   }, []);
 
   // Streaming and downloading are the two hard gates — the routes behind them
@@ -805,20 +808,13 @@ export default function RecordDetailContent({
       )}
 
       <DownloadSheet
-        open={downloadFiles !== null}
+        open={downloadOpen}
         /**
-         * Closing clears ONLY `downloadFiles`, which is what `open` reads.
-         *
-         * Clearing the episode here too looked tidier and froze the page: a dialog
-         * plays an exit transition, so for those few hundred milliseconds it is still
-         * mounted and still measured. Dropping the episode mid-flight tore the header
-         * out from under it, and SheetDialog's ResizeObserver — which sets the very
-         * height it is observing — got a size change while the paper was already
-         * animating and span instead of settling. Nothing below re-reads these until
-         * the next open, which sets both, so leaving them stale costs nothing. Same
-         * reason `downloadLabel` has never been cleared either.
+         * Keep the selected files/episode unchanged during the exit transition. Changing
+         * `open` only avoids SheetDialog measuring a newly-empty body while the desktop
+         * modal is animating out, which previously left its backdrop/pointer lock behind.
          */
-        onClose={() => setDownloadFiles(null)}
+        onClose={() => setDownloadOpen(false)}
         files={downloadFiles ?? []}
         episode={downloadEp}
         // The sheet is an episode's detail view, so it has to be able to do what the

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -428,6 +429,7 @@ private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean, onClick: 
         Modifier.clip(RoundedCornerShape(20.dp))
             .background(if (active) PlayerTheme.Teal.copy(alpha = 0.16f) else Color(0x1FFFFFFF))
             .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

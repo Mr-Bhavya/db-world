@@ -121,7 +121,7 @@ export default function HybridPlayerPage() {
     if (!media?.url) return undefined;
     let cancelled = false;
     (async () => {
-      const startMs = await resumePointFor(media.fileId);
+      const startMs = media.offline ? 0 : await resumePointFor(media.fileId);
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
         storyboard: media.storyboard || null,
@@ -293,6 +293,8 @@ export default function HybridPlayerPage() {
     // crash. Finishing clears the entry so a stale position can't resurrect a done file.
     if (ended) clearCachedProgress(cur.fileId);
     else writeCachedProgress(cur.fileId, { positionMs, durationMs });
+
+    if (media?.offline) return;
 
     // The network save is the cross-device copy, and runs on the player's slower cadence.
     if (!network && !ended) return;

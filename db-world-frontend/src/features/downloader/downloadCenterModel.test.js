@@ -47,6 +47,8 @@ describe('download center model', () => {
     expect(formatRelativeTime(null, now, 'future')).toBe('Expiration unavailable');
     expect(formatRelativeTime('not-a-date', now)).toBe('Date unavailable');
     expect(formatAbsoluteTime(null)).toBe('');
+    expect(formatAbsoluteTime(1795651200000)).toBe(new Date(1795651200000).toLocaleString());
+    expect(formatRelativeTime(1795650700000, 1795651200000)).toBe('Added 8 min ago');
   });
 
   it('matches date filters in local time and safely rejects missing or invalid values', () => {

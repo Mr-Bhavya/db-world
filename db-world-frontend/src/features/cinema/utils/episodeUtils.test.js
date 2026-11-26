@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildHybridEpisodes } from './episodeUtils';
+import { buildHybridEpisodes, fileMatchesId, firstEpisodeFile } from './episodeUtils';
 
 /** A converted media file (the shape CommonServices.convertMediaInfoToCustomFormat emits). */
 const file = (id, season, episode, height, video = {}) => ({
@@ -13,6 +13,26 @@ const file = (id, season, episode, height, video = {}) => ({
 });
 
 describe('buildHybridEpisodes', () => {
+  it('selects the earliest episode independent of API ordering', () => {
+    const files = [file('s2e1', 2, 1, 1080), file('s1e2', 1, 2, 720), file('s1e1', 1, 1, 2160)];
+
+    expect(firstEpisodeFile(files).mediaFileId).toBe('s1e1');
+    expect(firstEpisodeFile([...files].reverse()).mediaFileId).toBe('s1e1');
+  });
+
+  it('starts at season one instead of a special when both exist', () => {
+    const files = [file('special', 0, 1, 1080), file('episode', 1, 1, 1080)];
+
+    expect(firstEpisodeFile(files).mediaFileId).toBe('episode');
+  });
+
+  it('matches resume progress by internal file id as well as public media id', () => {
+    const episode = { ...file('media-7', 1, 1, 1080), id: 'internal-7' };
+
+    expect(fileMatchesId(episode, 'internal-7')).toBe(true);
+    expect(fileMatchesId(episode, 'media-7')).toBe(true);
+  });
+
   it('lists an episode ONCE no matter how many qualities it has', () => {
     const files = [
       file('a', 1, 1, 1080), file('b', 1, 1, 720),

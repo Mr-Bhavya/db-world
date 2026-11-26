@@ -63,6 +63,8 @@ const scaleFor = (w) => (w >= 3000 ? 1.9 : w >= 2200 ? 1.55 : w >= 1600 ? 1.28 :
 // Remembered selections (global, per device).
 const PREF_AUDIO = 'dbworld:player:audioLang';
 const PREF_SUB   = 'dbworld:player:subLang';
+const PREF_BRIGHTNESS = 'dbworld:player:brightness';
+const PREF_VOLUME = 'dbworld:player:volume';
 const DEFAULT_AUDIO = 'Hindi';
 const DEFAULT_SUB   = 'off';
 const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
@@ -194,6 +196,11 @@ const webAudioTracks = (meta) => (meta || []).map((a, i) => ({
   channels: a.channels, channelLayout: a.channelLayout,
   format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
   bitRate: a.bitRate, sampleRate: a.sampleRate, samplingRate: a.samplingRate,
+}));
+const webTextTracks = (meta) => (meta || []).map((t, i) => ({
+  id: i, language: t.language, title: t.title, format: t.format || t.codecId,
+  codecId: t.codecId || t.codecID, forced: t.forced, defaultFlag: t.defaultFlag,
+  unavailableOnWeb: true,
 }));
 
 const subFormat = (t) => {
@@ -365,7 +372,7 @@ export default function DbWorldVideoPlayer({
   // Watch-progress save (resume) + fire-and-forget STREAM_* telemetry both read a single
   // progress ref that the adapter 'time' handler below keeps current. Extracted into a hook
   // to keep this component focused on UI/transport.
-  const { progressRef, report, emitStreamEvent, streamStartedRef, streamStoppedRef } =
+  const { progressRef, report, emitStreamEvent, emitPlaybackError, streamStartedRef, streamStoppedRef } =
     usePlayerReporting({ isNative, requestId, mediaFileId, recordId, onProgress });
   // Heartbeat bookkeeping. `force` is raised by anything that means "the position just
   // changed for a reason, don't wait for the cadence" — a seek, mainly.
@@ -450,7 +457,7 @@ export default function DbWorldVideoPlayer({
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
   const [volume, setVolume]       = useState(1);
-  const [brightness, setBrightness] = useState(0.5);
+  const [brightness, setBrightness] = useState(() => Number(lsGet(PREF_BRIGHTNESS, isNative ? 0.5 : 1)));
   const [zoom, setZoom]           = useState(1);
   const [errorMsg, setErrorMsg]   = useState(null);
   const [infoMsg, setInfoMsg]     = useState(null);
@@ -581,6 +588,13 @@ export default function DbWorldVideoPlayer({
       }),
       adapter.on('error', (d) => {
         setBuffering(false);
+        emitPlaybackError(d, {
+          codec: activeInfo?.video?.[0]?.format
+            || activeInfo?.video?.codecId
+            || activeInfo?.video?.format
+            || '',
+          device: `${navigator.platform || ''} ${navigator.userAgent || ''}`.trim().slice(0, 240),
+        });
         if (onErrorRef.current?.(d) === true) return;   // caller is retrying — no overlay
         setErrorMsg(d?.message || 'This video could not be played.');
       }),
@@ -613,7 +627,12 @@ export default function DbWorldVideoPlayer({
     ];
     // Initialise the bar from the current device media volume.
     adapter.getVolume?.().then((r) => {
-      if (typeof r?.value === 'number') setVolume(r.value);
+      const preferred = Number(lsGet(PREF_VOLUME, -1));
+      const next = preferred >= 0 && preferred <= 1 ? preferred : r?.value;
+      if (typeof next === 'number') {
+        setVolume(next);
+        adapter.setVolume?.(next);
+      }
     }).catch(() => {});
     adapter.setDecoderMode?.('auto'); // always auto — the player already falls back HW→SW on a decode error
 
@@ -632,6 +651,7 @@ export default function DbWorldVideoPlayer({
       // (browsers that expose HTMLMediaElement.audioTracks honour this).
       setTimeout(() => adapter.selectAudioTrack?.(idx), 0);
     }
+    if (!isNative) setTextTracks(webTextTracks(trackMetaRef.current.subtitle));
     adapter.load(src, startMs);
 
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
@@ -768,8 +788,11 @@ export default function DbWorldVideoPlayer({
 
   const toggleMute = useCallback(() => {
     const a = adapterRef.current; if (!a) return;
-    if (volume > 0) { muteRef.current = volume; a.setVolume(0); setVolume(0); }
-    else            { const v = muteRef.current || 1; a.setVolume(v); setVolume(v); }
+    if (volume > 0) {
+      muteRef.current = volume; a.setVolume(0); setVolume(0); lsSet(PREF_VOLUME, 0);
+    } else {
+      const v = muteRef.current || 1; a.setVolume(v); setVolume(v); lsSet(PREF_VOLUME, v);
+    }
     showControls();
   }, [volume, showControls]);
 
@@ -780,6 +803,7 @@ export default function DbWorldVideoPlayer({
     const v = Math.max(0, Math.min(1, val));
     adapterRef.current?.setVolume(v);
     setVolume(v);
+    lsSet(PREF_VOLUME, v);
     if (v > 0) muteRef.current = v;
   }, []);
   const onWheelVolume = useCallback((e) => {
@@ -916,7 +940,9 @@ export default function DbWorldVideoPlayer({
   const chooseAudio = (t) => { adapterRef.current?.selectAudioTrack(t.id); setCurAudio(t.id); lsSet(PREF_AUDIO, t.language); };
   const chooseSub   = (t) => {
     if (!t) { adapterRef.current?.selectTextTrack(-1); setCurText(-1); lsSet(PREF_SUB, DEFAULT_SUB); }
-    else    { adapterRef.current?.selectTextTrack(t.id); setCurText(t.id); lsSet(PREF_SUB, t.language); }
+    else if (!t.unavailableOnWeb) {
+      adapterRef.current?.selectTextTrack(t.id); setCurText(t.id); lsSet(PREF_SUB, t.language);
+    }
   };
   const chooseSpeed = (i) => { setRateIdx(i); adapterRef.current?.setRate(SPEEDS[i]); };
 
@@ -1098,8 +1124,8 @@ export default function DbWorldVideoPlayer({
         switch (e.key) {
           case 'ArrowUp':    e.preventDefault(); bumpVolume(0.05);  return;
           case 'ArrowDown':  e.preventDefault(); bumpVolume(-0.05); return;
-          case 'ArrowRight': seekBy(10000, false);  return;
-          case 'ArrowLeft':  seekBy(-10000, false); return;
+          case 'ArrowRight': e.preventDefault(); seekBy(10000, false);  return;
+          case 'ArrowLeft':  e.preventDefault(); seekBy(-10000, false); return;
           default: break;
         }
       }
@@ -1113,6 +1139,7 @@ export default function DbWorldVideoPlayer({
       }
       switch (e.key) {
         case ' ': case 'k': e.preventDefault(); togglePlay(); break;
+        case 'm': case 'M': e.preventDefault(); toggleMute(); break;
         case 'f': case 'F': if (!isNative) toggleFullscreen(); break;
         case 'Escape':
           // Back closes any open panel first, else closes the player.
@@ -1124,7 +1151,7 @@ export default function DbWorldVideoPlayer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [controls, qualityOpen, episodesOpen, speedOpen, audioSubsOpen, infoOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative, bumpVolume]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controls, qualityOpen, episodesOpen, speedOpen, audioSubsOpen, infoOpen, togglePlay, toggleMute, seekBy, showControls, toggleFullscreen, isNative, bumpVolume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── seek bar drag + hover preview ───────────────────────────────────────────
   // Builds the { leftPx, time } preview from a 0..1 fraction along the bar,
@@ -1189,10 +1216,12 @@ export default function DbWorldVideoPlayer({
     const frac = dy / (window.innerHeight * 0.6);   // full swipe ≈ 60% of height
     if (g.side === 'right') {
       const val = Math.max(0, Math.min(1, g.startVol + frac));
-      setVolume(val); adapterRef.current?.setVolume(val); setHud({ kind: 'volume', value: val });
+      setVolume(val); adapterRef.current?.setVolume(val); lsSet(PREF_VOLUME, val);
+      setHud({ kind: 'volume', value: val });
     } else {
       const val = Math.max(0.05, Math.min(1, g.startBright + frac));
-      setBrightness(val); adapterRef.current?.setBrightness(val); setHud({ kind: 'brightness', value: val });
+      setBrightness(val); adapterRef.current?.setBrightness(val); lsSet(PREF_BRIGHTNESS, val);
+      setHud({ kind: 'brightness', value: val });
     }
   };
   const onTouchEnd = () => {
@@ -1387,6 +1416,9 @@ export default function DbWorldVideoPlayer({
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
           background: 'rgba(0,0,0,0.6)', borderRadius: 22, padding: '16px 12px', pointerEvents: 'none' }}>
           {hud.kind === 'volume' ? <VolumeUpIcon /> : <BrightnessHighIcon />}
+          <span style={{ fontSize: 12, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+            {Math.round(hud.value * 100)}%
+          </span>
           <div style={{ width: 6, height: 130, background: 'rgba(255,255,255,0.3)', borderRadius: 3,
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' }}>
             <div style={{ width: '100%', height: `${Math.round(hud.value * 100)}%`, background: '#fff', borderRadius: 3 }} />
@@ -1521,7 +1553,8 @@ export default function DbWorldVideoPlayer({
                   )}
                   <span ref={audioBtnRef} style={{ display: 'inline-flex' }}
                     onMouseEnter={() => hoverOpen(() => openAudioSubs(audioBtnRef))} onMouseLeave={hoverLeaveBtn}>
-                    <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles" active={audioSubsOpen}
+                    <CtrlBtn icon={<AudiotrackIcon />} label={textTracks.length ? `CC ${textTracks.length}` : ''}
+                      tip={textTracks.length ? `${textTracks.length} embedded subtitle track(s)` : 'Audio & subtitles'} active={audioSubsOpen}
                       ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                   </span>
                   {!live && episodes.length > 1 && (
@@ -1573,7 +1606,7 @@ export default function DbWorldVideoPlayer({
                 </span>
                 )}
                 <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
-                  <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subtitles" active={audioSubsOpen}
+                  <CtrlBtn icon={<AudiotrackIcon />} label={textTracks.length ? `Audio · CC ${textTracks.length}` : 'Audio & Subtitles'} active={audioSubsOpen}
                     ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                 </span>
                 {!live && episodes.length > 1 && (
@@ -1607,7 +1640,7 @@ export default function DbWorldVideoPlayer({
       {/* Locked: just an unlock affordance */}
       {locked && controls && (
         <div style={{ position: 'absolute', top: 14, left: 14 }}>
-          <IconBtn onClick={toggleLock}><LockIcon /></IconBtn>
+          <IconBtn onClick={toggleLock} ariaLabel="Unlock controls"><LockIcon /></IconBtn>
         </div>
       )}
 
@@ -1651,12 +1684,13 @@ export default function DbWorldVideoPlayer({
 
       {/* Speed — Netflix-style slider. */}
       <Sheet open={speedOpen} hasHover={hasHover} pos={speedPos} title="Playback speed" onClose={() => setSpeedOpen(false)}
-        desktopPad={0} panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
-        <SpeedSlider rateIdx={rateIdx} showLabel={hasHover} onPick={chooseSpeed} />
+        desktopHeader desktopPad={0} panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <SpeedSlider rateIdx={rateIdx} showLabel={!hasHover} onPick={chooseSpeed} />
       </Sheet>
 
       {/* Audio & Subtitles — two columns. */}
       <Sheet open={audioSubsOpen} hasHover={hasHover} pos={audioSubsPos} title="Audio & Subtitles" onClose={() => setAudioSubsOpen(false)}
+        desktopHeader
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <AudioSubsColumns audioTracks={audioTracks} textTracks={textTracks}
           curAudio={curAudio} curText={curText}
@@ -1665,6 +1699,7 @@ export default function DbWorldVideoPlayer({
 
       {/* Quality — resolution picker (decoder removed — HW→SW fallback is automatic). */}
       <Sheet open={qualityOpen} hasHover={hasHover} pos={qualityPos} title="Quality" onClose={() => setQualityOpen(false)}
+        desktopHeader
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         {/* byUser=true latches the lock, so no automatic downgrade can later
             override what the viewer picked here. */}
@@ -1683,7 +1718,7 @@ export default function DbWorldVideoPlayer({
 
       {/* Media info — read-only details of the current video/audio/subtitle tracks. */}
       <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos}
-        title={live ? 'Channel info' : 'Media info'} onClose={() => setInfoOpen(false)}
+        title={live ? 'Channel info' : 'Media info'} desktopHeader onClose={() => setInfoOpen(false)}
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         {live ? (
           <LiveInfoContent title={title} info={liveInfo} />
@@ -1700,12 +1735,12 @@ export default function DbWorldVideoPlayer({
 }
 
 // ── settings-sheet helpers ──────────────────────────────────────────────────
-function SheetRow({ label, detail, selected, onClick }) {
+function SheetRow({ label, detail, selected, disabled = false, onClick }) {
   const scale = useContext(ScaleCtx);
   return (
-    <button onClick={onClick} className="dbw-row"
+    <button onClick={disabled ? undefined : onClick} disabled={disabled} className="dbw-row"
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10,
-        minHeight: Math.round(44 * scale),
+        minHeight: Math.round(44 * scale), opacity: disabled ? 0.52 : 1,
         padding: `${Math.round(10 * scale)}px 16px`, border: 'none', cursor: 'pointer',
         color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left' }}>
       <span style={{ minWidth: 0 }}>
@@ -2116,7 +2151,17 @@ function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio,
       <div style={{ flex: 1, minWidth: 0 }}>
         <SheetSection>Subtitles</SheetSection>
         <SheetRow selected={curText < 0} label="Off" onClick={() => onSub(null)} />
-        {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => onSub(t)} />)}
+        {textTracks.length === 0 && <SheetEmpty>No embedded subtitles found</SheetEmpty>}
+        {textTracks.map(t => (
+          <SheetRow
+            key={t.id}
+            selected={t.id === curText}
+            disabled={t.unavailableOnWeb}
+            label={subtitleLabel(t)}
+            detail={t.unavailableOnWeb ? 'Embedded track · unavailable in this browser' : undefined}
+            onClick={() => onSub(t)}
+          />
+        ))}
       </div>
     </div>
   );

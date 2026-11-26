@@ -35,6 +35,8 @@ class NativePlayerPlugin : Plugin() {
     private var videoH = 0
     private var fillMode = false  // false = letterbox-fit (default; whole frame, no distortion), true = crop-to-fill
     private var volFrac = -1f     // continuous volume accumulator for smooth swipe (seeded per gesture)
+    private var originalSystemVolume: Int? = null
+    private var playerOverridesActive = false
     private var seekAccum = 0     // accumulated seek seconds for rapid consecutive double-taps
     private var lastSeekAt = 0L
     private var lastSeekFwd = true
@@ -83,6 +85,17 @@ class NativePlayerPlugin : Plugin() {
             try {
                 // Open in landscape full-screen (like a video player should).
                 activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                if (!playerOverridesActive) {
+                    originalSystemVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                    playerOverridesActive = true
+                }
+                val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                audioManager.setStreamVolume(
+                    android.media.AudioManager.STREAM_MUSIC,
+                    Math.round(prefs.getFloat("volume", 0.7f).coerceIn(0f, 1f) * maxVolume),
+                    0,
+                )
+                applyPreferredBrightness()
                 // Draw edge-to-edge INTO the display cutout, else the video is pushed off the
                 // notch edge leaving a black bar on one side.
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -376,6 +389,7 @@ class NativePlayerPlugin : Plugin() {
         ui.removeCallbacks(ticker)
         unregisterPipReceiver()
         activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        restoreSystemDisplayAndVolume()
         activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             val lp = activity.window.attributes
@@ -458,12 +472,55 @@ class NativePlayerPlugin : Plugin() {
     fun adjustBrightness(delta: Float) = activity.runOnUiThread {
         val w = activity.window
         val lp = w.attributes
-        val cur = if (lp.screenBrightness in 0f..1f) lp.screenBrightness else 0.5f
+        val cur = if (lp.screenBrightness in 0f..1f) {
+            lp.screenBrightness
+        } else {
+            android.provider.Settings.System.getInt(
+                context.contentResolver,
+                android.provider.Settings.System.SCREEN_BRIGHTNESS,
+                128,
+            ).coerceIn(1, 255) / 255f
+        }
         val next = (cur + delta).coerceIn(0.01f, 1f)
+        prefs.edit().putFloat("brightness", next).apply()
         lp.screenBrightness = next
         w.attributes = lp
         uiState.hudKind = "brightness"; uiState.hudValue = next
     }
+
+    private fun restoreSystemBrightness() {
+        activity.runOnUiThread {
+            val w = activity.window
+            val lp = w.attributes
+            lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            w.attributes = lp
+            uiState.hudKind = null
+        }
+    }
+
+    private fun restoreSystemDisplayAndVolume() {
+        restoreSystemBrightness()
+        originalSystemVolume?.let {
+            val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, it.coerceIn(0, max), 0)
+        }
+        originalSystemVolume = null
+        playerOverridesActive = false
+    }
+
+    private fun applyPreferredBrightness() {
+        val w = activity.window
+        val lp = w.attributes
+        lp.screenBrightness = prefs.getFloat("brightness", currentSystemBrightness()).coerceIn(0.01f, 1f)
+        w.attributes = lp
+    }
+
+    private fun currentSystemBrightness(): Float =
+        android.provider.Settings.System.getInt(
+            context.contentResolver,
+            android.provider.Settings.System.SCREEN_BRIGHTNESS,
+            128,
+        ).coerceIn(1, 255) / 255f
 
     /**
      * delta in [-1,1] as a fraction of full range; positive = louder. Accumulates into a
@@ -477,6 +534,7 @@ class NativePlayerPlugin : Plugin() {
             volFrac = if (max > 0) audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / max else 0f
         }
         volFrac = (volFrac + delta).coerceIn(0f, 1f)
+        prefs.edit().putFloat("volume", volFrac).apply()
         audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(volFrac * max), 0)
         uiState.hudKind = "volume"; uiState.hudValue = volFrac
     }
@@ -619,13 +677,32 @@ class NativePlayerPlugin : Plugin() {
     override fun handleOnPause() {
         // Don't keep audio playing when the app is backgrounded — unless we're in PiP,
         // where playback should keep going in the floating window.
-        if (!inPip) player?.pause()
+        if (!inPip) {
+            player?.pause()
+            restoreSystemDisplayAndVolume()
+        }
         super.handleOnPause()
+    }
+
+    override fun handleOnResume() {
+        super.handleOnResume()
+        if (!inPip && host != null && !playerOverridesActive) {
+            originalSystemVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+            val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(
+                android.media.AudioManager.STREAM_MUSIC,
+                Math.round(prefs.getFloat("volume", 0.7f).coerceIn(0f, 1f) * max),
+                0,
+            )
+            applyPreferredBrightness()
+            playerOverridesActive = true
+        }
     }
 
     override fun handleOnDestroy() {
         ui.removeCallbacks(ticker)
         unregisterPipReceiver()
+        restoreSystemDisplayAndVolume()
         player?.release(); player = null
         super.handleOnDestroy()
     }

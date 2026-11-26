@@ -144,6 +144,12 @@ class MyDownloadManagerWeb extends WebPlugin {
   async openFile({ uri }) {
     if (uri) window.open(uri, '_blank', 'noopener,noreferrer');
   }
+
+  async downloadFileExists({ downloadId }) {
+    return { exists: Boolean(this.downloads.some(
+      (item) => item.downloadId === downloadId && item.canPlay,
+    )) };
+  }
 }
 
 export default MyDownloadManagerWeb;

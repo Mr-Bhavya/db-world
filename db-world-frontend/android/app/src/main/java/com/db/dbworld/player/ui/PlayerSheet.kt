@@ -80,7 +80,7 @@ fun PlayerSheet(title: String, onDismiss: () -> Unit, content: @Composable Colum
                 Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(title, color = PlayerTheme.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
                         Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim,
                             modifier = Modifier.size(20.dp))
                     }
@@ -150,6 +150,12 @@ fun AudioSubtitleSheet(
                 }
                 Text("Audio & Subtitles", color = PlayerTheme.Text, fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                Text(
+                    if (state.subtitleTracks.isEmpty()) "No embedded subtitles detected"
+                    else "${state.subtitleTracks.size} selectable caption track${if (state.subtitleTracks.size == 1) "" else "s"}",
+                    color = PlayerTheme.TextMuted, fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
                 Row(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         SheetSection("Audio")

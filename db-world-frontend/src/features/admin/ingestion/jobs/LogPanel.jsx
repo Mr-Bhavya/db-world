@@ -13,6 +13,7 @@ import {
   Button,
 } from '@mui/material';
 import { Refresh, Notes } from '@mui/icons-material';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 
 export function LogPanel({
   logOpen,
@@ -20,6 +21,7 @@ export function LogPanel({
   logError,
   logHtml,
   onRefresh,
+  onExpand,
   isDark,
   T,
   isSmDown,
@@ -33,7 +35,8 @@ export function LogPanel({
           mt: 0.8,
           borderRadius: 2.5,
           overflow: 'hidden',
-          bgcolor: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(15,23,42,0.02)',
+          borderColor: alpha(T.border, 0.9),
+          bgcolor: isDark ? 'rgba(3,7,18,0.35)' : 'rgba(248,250,252,0.72)',
         }}
       >
         <Stack
@@ -41,39 +44,51 @@ export function LogPanel({
           alignItems="center"
           justifyContent="space-between"
           sx={{
-            px: 1,
-            py: 0.5,
+            px: 1.15,
+            py: 0.7,
             borderBottom: `1px solid ${alpha(T.text, 0.08)}`,
           }}
         >
-          <Stack direction="row" spacing={0.65} alignItems="center">
-            <Notes sx={{ fontSize: 15, color: 'text.secondary' }} />
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontSize: '0.72rem', fontWeight: 700 }}
-            >
-              Job Logs
-            </Typography>
+          <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
+            <Box sx={{
+              width: 26, height: 26, display: 'grid', placeItems: 'center',
+              borderRadius: 1.5, bgcolor: alpha(T.teal, 0.1), color: T.teal,
+            }}>
+              <Notes sx={{ fontSize: 15 }} />
+            </Box>
+            <Box minWidth={0}>
+              <Typography sx={{ fontSize: 12, fontWeight: 800, color: T.text, lineHeight: 1.2 }}>
+                Execution log
+              </Typography>
+              <Typography sx={{ fontSize: 10, color: T.textFaint, lineHeight: 1.3 }}>
+                HTML job report
+              </Typography>
+            </Box>
           </Stack>
 
-          <Tooltip title="Refresh logs">
-            <span>
-              <IconButton
-                size="small"
-                aria-label="Refresh logs"
-                sx={{ p: 0.45 }}
-                disabled={logLoading}
-                onClick={onRefresh}
-              >
-                {logLoading ? (
-                  <CircularProgress size={13} />
-                ) : (
-                  <Refresh sx={{ fontSize: 15 }} />
-                )}
+          <Stack direction="row" spacing={0.25}>
+            <Tooltip title="Open full log viewer">
+              <IconButton size="small" aria-label="Open full log viewer" onClick={onExpand}>
+                <OpenInFullIcon sx={{ fontSize: 15 }} />
               </IconButton>
-            </span>
-          </Tooltip>
+            </Tooltip>
+            <Tooltip title="Refresh logs">
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="Refresh logs"
+                  disabled={logLoading}
+                  onClick={onRefresh}
+                >
+                  {logLoading ? (
+                    <CircularProgress size={13} />
+                  ) : (
+                    <Refresh sx={{ fontSize: 15 }} />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
         </Stack>
 
         {logLoading ? (
@@ -84,10 +99,10 @@ export function LogPanel({
           </Box>
         ) : logError ? (
           <Box sx={{ py: 2.1, textAlign: 'center', px: 2 }}>
-            <Typography variant="caption" color="error" sx={{ display: 'block', mb: 0.65 }}>
+            <Typography variant="caption" color="error" sx={{ display: 'block', mb: 0.65, fontWeight: 700 }}>
               Failed to load logs.
             </Typography>
-            <Button size="small" onClick={onRefresh}>
+            <Button size="small" variant="outlined" onClick={onRefresh}>
               Retry
             </Button>
           </Box>
@@ -98,16 +113,20 @@ export function LogPanel({
             title="Job logs"
             style={{
               width: '100%',
-              height: isSmDown ? 260 : 320,
+              height: isSmDown ? 300 : 360,
               border: 'none',
               display: 'block',
             }}
             sandbox="allow-same-origin"
           />
         ) : (
-          <Box sx={{ py: 2.1, textAlign: 'center' }}>
-            <Typography variant="caption" color="text.secondary">
-              No logs available yet.
+          <Box sx={{ py: 3, px: 2, textAlign: 'center' }}>
+            <Notes sx={{ fontSize: 24, color: T.textFaint, mb: 0.5 }} />
+            <Typography sx={{ fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
+              No log events yet
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: T.textFaint }}>
+              Refresh after the job advances to the next step.
             </Typography>
           </Box>
         )}

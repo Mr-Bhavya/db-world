@@ -431,6 +431,23 @@ public class DbWorldDownloadPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void downloadFileExists(PluginCall call) {
+        final String gid = call.getString("downloadId");
+        if (gid == null) { call.reject("downloadId required"); return; }
+        runIo(() -> {
+            JSONObject meta = store.get(gid);
+            boolean exists = meta != null && publishedFileExists(meta);
+            if (meta != null && "success".equals(meta.optString("status", "")) && !exists) {
+                store.remove(gid);
+                emitRemoved(gid);
+            }
+            JSObject result = new JSObject();
+            result.put("exists", exists);
+            call.resolve(result);
+        });
+    }
+
     // ─── queue actions ──────────────────────────────────────────────────────
 
     @PluginMethod
@@ -517,6 +534,7 @@ public class DbWorldDownloadPlugin extends Plugin {
     @PluginMethod
     public void deleteDownload(PluginCall call) {
         final String gid = call.getString("downloadId");
+        final boolean deleteFile = Boolean.TRUE.equals(call.getBoolean("deleteFile", true));
         if (gid == null) { call.reject("downloadId required"); return; }
         runIo(() -> {
             try {
@@ -524,7 +542,7 @@ public class DbWorldDownloadPlugin extends Plugin {
                 // Stop it if still live, then drop aria2's record.
                 try { daemon.rpc().forceRemove(gid); } catch (Exception ignored) {}
                 try { daemon.rpc().removeDownloadResult(gid); } catch (Exception ignored) {}
-                if (meta != null) {
+                if (deleteFile && meta != null) {
                     String localUri = meta.optString("localUri", "");
                     if (!localUri.isEmpty()) MediaStorePublisher.delete(getContext(), localUri);
                     String path = meta.optString("path", "");
@@ -617,7 +635,11 @@ public class DbWorldDownloadPlugin extends Plugin {
                     String gid    = meta.optString("gid", "");
                     String status = meta.optString("status", "");
                     // Drop completed entries whose published file no longer exists.
-                    if ("success".equals(status) && !publishedFileExists(meta)) continue;
+                    if ("success".equals(status) && !publishedFileExists(meta)) {
+                        store.remove(gid);
+                        DownloadNotifier.cancel(getContext(), gid);
+                        continue;
+                    }
                     list.put(toDto(meta, live.get(gid)));
                 }
                 JSObject r = new JSObject();
@@ -628,7 +650,10 @@ public class DbWorldDownloadPlugin extends Plugin {
                 android.util.Log.w(TAG, "listDownloads live query failed: " + e.getMessage());
                 JSArray list = new JSArray();
                 for (JSONObject meta : store.all()) {
-                    if ("success".equals(meta.optString("status", "")) && !publishedFileExists(meta)) continue;
+                    if ("success".equals(meta.optString("status", "")) && !publishedFileExists(meta)) {
+                        store.remove(meta.optString("gid", ""));
+                        continue;
+                    }
                     list.put(toDto(meta, null));
                 }
                 JSObject r = new JSObject();
@@ -882,6 +907,7 @@ public class DbWorldDownloadPlugin extends Plugin {
                 : "The device transfer failed (code " + code + "). Check connectivity and retry.");
         }
         o.put("connections",      connections);
+        o.put("addedAt",          meta.optLong("addedAt", 0));
         o.put("canPlay",          done && !localUri.isEmpty());
         return o;
     }

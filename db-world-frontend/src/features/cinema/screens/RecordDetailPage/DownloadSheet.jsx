@@ -3,6 +3,7 @@ import {
   Box,
   Chip,
   CircularProgress,
+  Dialog,
   Drawer,
   IconButton,
   MenuItem,
@@ -36,7 +37,6 @@ import { getCodec, getHdrTags, getQuality, qualityRank } from '../../media/helpe
 import { QUALITY_META } from '../../media/constants';
 import { pickAutoQuality } from '../../media/pickAutoQuality';
 import { episodeRefOf } from '../../utils/episodeUtils';
-import SheetDialog from '@shared/components/SheetDialog';
 
 const DbWorldDownload = registerPlugin('DbWorldDownload');
 
@@ -814,7 +814,7 @@ export default function DownloadSheet({
   }
 
   return (
-    <SheetDialog
+    <Dialog
       open={open}
       onClose={onClose}
       maxWidth="sm"
@@ -827,6 +827,6 @@ export default function DownloadSheet({
       slotProps={{ backdrop: { sx: { bgcolor: alpha('#000', 0.7), backdropFilter: 'blur(4px)' } } }}
     >
       {body}
-    </SheetDialog>
+    </Dialog>
   );
 }

@@ -2,17 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Alert, Box, Button, Checkbox, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControlLabel, IconButton, LinearProgress, Stack, Switch, ToggleButton, ToggleButtonGroup,
   Tooltip, Typography,
 } from '@mui/material';
 import {
-  CheckCircleOutline, CloudDownloadOutlined, Download, Downloading, ErrorOutline,
-  Pause, PlayArrow, Refresh, Replay, Schedule, Storage, Wifi,
+  CancelOutlined, CheckCircleOutline, CloudDownloadOutlined, DeleteOutline, Download,
+  Downloading, ErrorOutline, Pause, PlayArrow, Refresh, Replay, Schedule, Storage, Wifi,
 } from '@mui/icons-material';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
-import DbWorldDownload, { openDownloadedFile } from '@platform/android/DbWorldDownload';
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloads } from '@features/cinema/download-queue/useDownloads';
 import { errorMessage, formatBytes, useMediaJobs } from './downloaderApi';
 import { countDownloadTabs, filterDownloads, formatAbsoluteTime, formatRelativeTime, summarizeDownloads } from './downloadCenterModel';
@@ -46,12 +46,12 @@ const TAB_OPTIONS = [
 function SummaryStat({ icon: Icon, label, value, sub, color }) {
   const T = useT();
   return (
-    <Box sx={{ minWidth: 0, p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, border: `1px solid ${T.glassBorder}`, bgcolor: T.glass }}>
-      <Stack direction="row" alignItems="center" gap={1}>
-        <Box sx={{ width: 36, height: 36, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: `${color}20`, color, flexShrink: 0 }}><Icon fontSize="small" /></Box>
+    <Box sx={{ minWidth: 0, p: { xs: 1, sm: 1.35 }, borderRadius: 2.5, border: `1px solid ${T.glassBorder}`, bgcolor: T.glass }}>
+      <Stack direction="row" alignItems="center" gap={0.75}>
+        <Box sx={{ width: 30, height: 30, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: `${color}20`, color, flexShrink: 0 }}><Icon sx={{ fontSize: 18 }} /></Box>
         <Typography sx={{ fontSize: 12, color: T.textMuted, overflowWrap: 'anywhere' }}>{label}</Typography>
       </Stack>
-      <Typography sx={{ mt: 1, fontSize: { xs: 20, sm: 23 }, lineHeight: 1.15, fontWeight: 800, color: T.text, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</Typography>
+      <Typography sx={{ mt: 0.55, fontSize: { xs: 19, sm: 21 }, lineHeight: 1.1, fontWeight: 800, color: T.text, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</Typography>
       {sub && <Typography sx={{ mt: 0.3, fontSize: 11, color: T.textFaint }}>{sub}</Typography>}
     </Box>
   );
@@ -78,6 +78,7 @@ export default function DownloadCenter() {
   const [tab, setTab] = useState('all');
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(null);
+  const [deleteDeviceFile, setDeleteDeviceFile] = useState(true);
   const [busyIds, setBusyIds] = useState(() => new Set());
   const nativeClient = Capacitor.isNativePlatform();
   const jobs = media.data || EMPTY_LIST;
@@ -87,14 +88,37 @@ export default function DownloadCenter() {
   const summary = useMemo(() => summarizeDownloads(jobs, allDevices), [jobs, allDevices]);
   const startNew = () => navigate(Constants.DB_MEDIA_DOWNLOADER_ROUTE);
 
-  const act = async (item, action) => {
+  const act = async (item, action, options) => {
     const id = item.downloadId;
     setBusyIds((previous) => new Set([...previous, id]));
     setError('');
     try {
       if (action === 'finish') await DbWorldDownload.completeBrowserDownload({ downloadId: id });
-      else if (action === 'play') await openDownloadedFile(item);
-      else if (action === 'remove') await device.actions.remove(id);
+      else if (action === 'play') {
+        const fileStatus = await DbWorldDownload.downloadFileExists({ downloadId: id });
+        if (!fileStatus?.exists) {
+          await device.refresh();
+          throw new Error('This file is no longer on the device. The stale download entry was removed.');
+        }
+        const uri = item.localUri || item.playableUri;
+        if (!uri) throw new Error('The saved file location is unavailable. Download the file again.');
+        navigate(Constants.playerPath(item.mediaFileId || item.downloadId), {
+          state: {
+            media: {
+              url: uri,
+              fileId: item.downloadId,
+              mediaFileId: item.mediaFileId || null,
+              title: item.title || item.fileName,
+              fileName: item.fileName,
+              offline: true,
+              episodes: [],
+              variants: [],
+            },
+          },
+        });
+        return;
+      }
+      else if (action === 'remove') await device.actions.remove(id, options);
       else await device.actions[action](id);
       await device.refresh();
     } catch (failure) { setError(errorMessage(failure)); }
@@ -113,11 +137,11 @@ export default function DownloadCenter() {
   return (
     <Box sx={{
       minHeight: '100vh', bgcolor: T.bg, color: T.textPrimary,
-      pt: { xs: '76px', sm: '88px', md: '104px', xl: '120px' }, pb: { xs: 4, md: 6 },
+      pt: { xs: '70px', sm: '82px', md: '92px' }, pb: { xs: 3, md: 4 },
       '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', transition: 'none' } },
     }}>
-      <Container maxWidth="lg" sx={{ minWidth: 0 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1.5} mb={2.25}>
+      <Container maxWidth="xl" sx={{ minWidth: 0 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1} mb={1.75}>
           <Stack direction="row" gap={1.5} alignItems="center" sx={{ minWidth: 0 }}>
             <Box sx={{ width: 48, height: 48, flexShrink: 0, borderRadius: 2, bgcolor: T.tealBg, color: T.teal, display: 'grid', placeItems: 'center' }}><Downloading /></Box>
             <Box sx={{ minWidth: 0 }}>
@@ -131,15 +155,15 @@ export default function DownloadCenter() {
           </Stack>
         </Stack>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: { xs: 1, sm: 1.5 }, mb: 2.25 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1, mb: 1.75 }}>
           <SummaryStat icon={Downloading} label="Active" value={summary.active} sub={summary.liveSpeed > 0 ? `${formatBytes(summary.liveSpeed)}/s combined` : summary.active > 0 ? 'Waiting for data' : null} color={T.teal} />
           <SummaryStat icon={CheckCircleOutline} label="Ready / saved" value={summary.ready} color={T.success} />
           <SummaryStat icon={ErrorOutline} label="Failed" value={summary.failed} color={T.error} />
           <SummaryStat icon={Storage} label="Total ready size" value={summary.readyBytesKnown ? formatBytes(summary.readyBytes) : '—'} sub={summary.readyBytesKnown ? 'Known file sizes' : 'Size not reported'} color={T.info} />
         </Box>
 
-        <Box sx={{ p: { xs: 1.25, sm: 1.75 }, mb: 2.5, borderRadius: 3, border: `1px solid ${T.glassBorder}`, bgcolor: T.glass }}>
-          <Stack gap={1.5}>
+        <Box sx={{ p: { xs: 1, sm: 1.25 }, mb: 1.75, borderRadius: 3, border: `1px solid ${T.glassBorder}`, bgcolor: T.glass }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} gap={{ xs: 1, md: 2 }} justifyContent="space-between">
             <Box>
               <Typography sx={{ mb: 0.75, fontSize: 11, fontWeight: 800, color: T.textFaint, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Source</Typography>
               <ToggleButtonGroup
@@ -183,7 +207,7 @@ export default function DownloadCenter() {
         {(error || media.error) && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error || errorMessage(media.error)}</Alert>}
         {(media.isLoading || device.loading) && <LinearProgress aria-label="Loading downloads" sx={{ mb: 2, '& .MuiLinearProgress-bar': { transitionDuration: '200ms' } }} />}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: { xs: 2, md: 2.5 } }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(2, minmax(0, 1fr))' }, alignItems: 'start', gap: { xs: 1.25, md: 1.5 } }}>
           <Box sx={{ minWidth: 0, p: { xs: 1.25, sm: 1.75 }, border: `1px solid ${T.glassBorder}`, borderRadius: 3, bgcolor: T.glass }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} mb={1.25}>
               <Typography component="h2" sx={{ fontSize: 16, fontWeight: 800, color: T.text }}>Server preparations</Typography>
@@ -234,12 +258,12 @@ export default function DownloadCenter() {
                   if (item.status === 'handed_off') mainAction = <Button startIcon={<CheckCircleOutline />} disabled={busy} onClick={() => act(item, 'finish')} sx={{ minHeight: 44 }}>Close browser transfer</Button>;
                   else if (nativeClient && ['running', 'pending'].includes(item.status)) mainAction = <Button startIcon={<Pause />} disabled={busy} onClick={() => act(item, 'pause')} sx={{ minHeight: 44 }}>Pause</Button>;
                   else if (nativeClient && item.status === 'paused') mainAction = <Button startIcon={<PlayArrow />} disabled={busy} onClick={() => act(item, 'resume')} sx={{ minHeight: 44 }}>Resume</Button>;
-                  else if (item.status === 'success' && item.canPlay) mainAction = <Button startIcon={<PlayArrow />} disabled={busy} onClick={() => act(item, 'play')} sx={{ minHeight: 44 }}>Open file</Button>;
+                  else if (item.status === 'success' && item.canPlay) mainAction = <Button startIcon={<PlayArrow />} disabled={busy} onClick={() => act(item, 'play')} sx={{ minHeight: 40 }}>Play in DB World</Button>;
                   else if (['failed', 'cancelled'].includes(item.status)) mainAction = <Button startIcon={<Replay />} disabled={busy} onClick={() => act(item, 'retry')} sx={{ minHeight: 44 }}>Retry</Button>;
                   const secondary = (
                     <>
-                      {active && item.status !== 'handed_off' && <Button startIcon={<ErrorOutline />} disabled={busy} onClick={() => act(item, 'cancel')} sx={{ minHeight: 44 }}>Cancel</Button>}
-                      <Button startIcon={<Download />} disabled={busy} onClick={() => setConfirm(item)} sx={{ minHeight: 44 }}>Remove entry</Button>
+                      {active && item.status !== 'handed_off' && <Button startIcon={<CancelOutlined />} disabled={busy} onClick={() => act(item, 'cancel')} sx={{ minHeight: 40 }}>Cancel</Button>}
+                      <Button startIcon={<DeleteOutline />} disabled={busy} onClick={() => { setDeleteDeviceFile(item.status === 'success'); setConfirm(item); }} sx={{ minHeight: 40 }}>Remove</Button>
                     </>
                   );
                   return (
@@ -250,6 +274,7 @@ export default function DownloadCenter() {
                       detail={<Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}><Tooltip title={dateTitle}><Typography component="span" sx={{ fontSize: 12, color: T.textMuted, cursor: 'help' }}>{formatRelativeTime(item.addedAt)}</Typography></Tooltip></Stack>}
                       error={item.errorMessage}
                       actions={<>{mainAction}{secondary}</>}
+                      compact
                     >
                       {item.status === 'handed_off' && <Alert severity="info" icon={<Download />} sx={{ mt: 1.25 }}>Your browser is downloading this file. Close this entry when it finishes.</Alert>}
                     </DownloadCard>
@@ -261,11 +286,34 @@ export default function DownloadCenter() {
         </Box>
 
         <Dialog open={!!confirm} onClose={() => !confirm || !busyIds.has(confirm.downloadId) ? setConfirm(null) : null} fullWidth maxWidth="xs">
-          <DialogTitle>{nativeClient && confirm?.status === 'success' ? 'Delete device file?' : 'Remove download entry?'}</DialogTitle>
-          <DialogContent>{confirm?.title}</DialogContent>
+          <DialogTitle>Remove download?</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ color: T.text, overflowWrap: 'anywhere' }}>{confirm?.title}</Typography>
+            {nativeClient ? (
+              <FormControlLabel
+                sx={{ mt: 1.5, alignItems: 'flex-start' }}
+                control={<Checkbox checked={deleteDeviceFile} onChange={(event) => setDeleteDeviceFile(event.target.checked)} />}
+                label={(
+                  <Box>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.text }}>Also delete the file from this device</Typography>
+                    <Typography sx={{ fontSize: 11, color: T.textMuted }}>
+                      Leave unchecked to keep the file in storage and remove only this Download Center entry.
+                    </Typography>
+                  </Box>
+                )}
+              />
+            ) : (
+              <Typography sx={{ mt: 1, fontSize: 12, color: T.textMuted }}>
+                This removes the browser download entry. Files already saved in your browser&apos;s downloads are not deleted.
+              </Typography>
+            )}
+          </DialogContent>
           <DialogActions>
-            <Button disabled={!!confirm && busyIds.has(confirm.downloadId)} onClick={() => setConfirm(null)} sx={{ minHeight: 44 }}>Keep</Button>
-            <Button disabled={!!confirm && busyIds.has(confirm.downloadId)} onClick={() => confirm && act(confirm, 'remove')} sx={{ minHeight: 44 }}>Remove</Button>
+            <Button disabled={!!confirm && busyIds.has(confirm.downloadId)} onClick={() => setConfirm(null)}>Keep</Button>
+            <Button color="error" disabled={!!confirm && busyIds.has(confirm.downloadId)}
+              onClick={() => confirm && act(confirm, 'remove', { deleteFile: deleteDeviceFile })}>
+              {nativeClient && deleteDeviceFile ? 'Remove and delete file' : 'Remove entry'}
+            </Button>
           </DialogActions>
         </Dialog>
       </Container>

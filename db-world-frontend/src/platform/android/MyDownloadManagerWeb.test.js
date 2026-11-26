@@ -35,6 +35,8 @@ describe('shared browser download queue', () => {
     expect(item.progress).toBe(0);
     expect(item.canPlay).toBe(false);
     expect(item.localUri).toBe('');
+    await expect(manager.downloadFileExists({ downloadId: item.downloadId }))
+      .resolves.toEqual({ exists: false });
   });
 
   it('does not pretend to cancel a transfer owned by the browser', async () => {

@@ -124,6 +124,8 @@ export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
     groups.get(key).files.push(f);
   }
 
+
+
   return [...groups.values()]
     .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
     .map(({ ep, files }) => {
@@ -153,4 +155,31 @@ export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
         variants:    ranked.map(variantOf),
       };
     });
+}
+
+/**
+ * Deterministic fallback for a title-level Play action. API and database ordering are not
+ * guarantees, so choose the earliest season/episode rather than whichever file arrived first.
+ * Quality variants of that episode remain in the pool for auto-quality selection.
+ */
+export function firstEpisodeFile(files = []) {
+  return [...files].filter(Boolean).sort((a, b) => {
+    const aRef = episodeRefOf(a);
+    const bRef = episodeRefOf(b);
+    if (!aRef && !bRef) return String(a.mediaFileId ?? a.id ?? '')
+      .localeCompare(String(b.mediaFileId ?? b.id ?? ''));
+    if (!aRef) return 1;
+    if (!bRef) return -1;
+    const aSeason = aRef.season === 0 ? Number.MAX_SAFE_INTEGER : aRef.season;
+    const bSeason = bRef.season === 0 ? Number.MAX_SAFE_INTEGER : bRef.season;
+    return (aSeason - bSeason)
+      || (aRef.episode - bRef.episode)
+      || String(a.mediaFileId ?? a.id ?? '').localeCompare(String(b.mediaFileId ?? b.id ?? ''));
+  })[0] ?? null;
+}
+
+export function fileMatchesId(file, fileId) {
+  if (!file || fileId == null) return false;
+  const wanted = String(fileId);
+  return String(file.id ?? '') === wanted || String(file.mediaFileId ?? '') === wanted;
 }

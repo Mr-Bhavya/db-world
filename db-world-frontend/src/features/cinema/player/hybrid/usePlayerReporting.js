@@ -86,6 +86,20 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
     }
   }, [isNative, flushEvents]);
 
+  const emitPlaybackError = useCallback((error, context = {}) => {
+    const message = [error?.code, error?.message].filter(Boolean).join(': ').slice(0, 500);
+    emitStreamEvent('FAIL', {
+      errorCode: String(error?.code || 'PLAYER_ERROR').slice(0, 64),
+      errorMessage: JSON.stringify({
+        message,
+        codec: context.codec || '',
+        device: context.device || '',
+        platform: isNative ? 'android-app' : 'web',
+      }).slice(0, 900),
+    });
+    flushEvents();
+  }, [emitStreamEvent, flushEvents, isNative]);
+
   // Periodic flush so a long, uneventful watch still reports in.
   useEffect(() => {
     const t = setInterval(() => flushEvents(), 60000);
@@ -99,5 +113,8 @@ export function usePlayerReporting({ isNative, requestId, mediaFileId, recordId,
     streamStoppedRef.current = false;
   }, [requestId]);
 
-  return { progressRef, report, emitStreamEvent, flushEvents, streamStartedRef, streamStoppedRef };
+  return {
+    progressRef, report, emitStreamEvent, emitPlaybackError, flushEvents,
+    streamStartedRef, streamStoppedRef,
+  };
 }
