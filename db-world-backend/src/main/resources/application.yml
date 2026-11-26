@@ -204,8 +204,8 @@ weather:
 
 # =========================================================
 # logo.dev — brand/site search proxy (SECRET key, server-side only).
-# Leave LOGODEV_SECRET_KEY unset to disable online site suggestions;
-# the vault still works, just without public search results.
+# Leave LOGODEV_SECRET_KEY unset to disable the broader online catalogue;
+# common Vault suggestions still work from the bundled offline index.
 # =========================================================
 logodev:
   secret-key: ${LOGODEV_SECRET_KEY:}

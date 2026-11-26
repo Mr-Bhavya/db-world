@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useT } from '@shared/theme';
-import { resolveLogoSrc } from './logoDev';
+import { resolveLogoCandidates } from './logoDev';
 
-export { resolveLogoSrc, logoDevUrl, domainFromUrl } from './logoDev';
+export { resolveLogoCandidates, resolveLogoSrc, logoDevUrl, domainFromUrl } from './logoDev';
 
 /**
  * Circular brand logo with an initials fallback. Shared across the app (IPO
@@ -29,12 +29,13 @@ export { resolveLogoSrc, logoDevUrl, domainFromUrl } from './logoDev';
  */
 export default function BrandLogo({ logoUrl, logoDomain, companyName, size = 34, radius = '50%', sx = {} }) {
   const T = useT();
-  const [errored, setErrored] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
   const numericSize = typeof size === 'number' ? size : Math.max(...Object.values(size));
-  const src = resolveLogoSrc(logoUrl, logoDomain);
+  const candidates = resolveLogoCandidates(logoUrl, logoDomain);
+  const src = candidates[candidateIndex] ?? null;
 
-  useEffect(() => { setErrored(false); }, [src]);
+  useEffect(() => { setCandidateIndex(0); }, [logoUrl, logoDomain]);
 
   const initials =
     (companyName || '')
@@ -45,7 +46,7 @@ export default function BrandLogo({ logoUrl, logoDomain, companyName, size = 34,
       .map((w) => w[0]?.toUpperCase())
       .join('') || '?';
 
-  if (!src || errored) {
+  if (!src) {
     return (
       <Box sx={{
         width: size, height: size, borderRadius: radius, flexShrink: 0,
@@ -64,7 +65,7 @@ export default function BrandLogo({ logoUrl, logoDomain, companyName, size = 34,
       component="img"
       src={src}
       alt={companyName ? `${companyName} logo` : ''}
-      onError={() => setErrored(true)}
+      onError={() => setCandidateIndex((index) => index + 1)}
       sx={{
         width: size, height: size, borderRadius: radius, flexShrink: 0,
         objectFit: 'contain', padding: `${Math.max(2, Math.round(numericSize * 0.08))}px`,

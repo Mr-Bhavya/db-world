@@ -584,7 +584,7 @@ export const findAllHost = async () => {
 
 // Public brand/site search (logo.dev proxy) — for the "add credential" URL field
 // when a site/app isn't already in the vault. Returns [] on any failure so the
-// caller degrades gracefully to no suggestions.
+// caller still receives the backend's bundled brand fallback.
 export const searchBrands = async (q) => {
   try {
     const response = await axiosInstance.get('/api/brand/search', { params: { q } });

@@ -14,6 +14,17 @@ export const LOGODEV_TOKEN = 'pk_HJMOHJjgQpOOileyHqQMug';
 export const logoDevUrl = (domain, { size = 128, format = 'png' } = {}) =>
   `https://img.logo.dev/${domain}?token=${LOGODEV_TOKEN}&size=${size}&format=${format}`;
 
+const faviconUrl = (domain, provider) => {
+  if (!domain) return '';
+  if (provider === 'google') {
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  }
+  if (provider === 'duckduckgo') {
+    return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
+  }
+  return logoDevUrl(domain);
+};
+
 /** Normalise a full URL or bare host down to a lower-case registrable domain. */
 export const domainFromUrl = (value) => {
   if (!value) return '';
@@ -47,9 +58,18 @@ const isClearbitUrl = (url) => {
  *   2. `logoDomain` — a bare domain, built into a logo.dev URL.
  *   3. neither usable → `null` (caller renders the initials fallback).
  */
-export const resolveLogoSrc = (logoUrl, logoDomain) => {
+/** Ordered, keyless-first candidates so a failed provider degrades to the next source. */
+export const resolveLogoCandidates = (logoUrl, logoDomain) => {
   const trimmedUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
   const usableUrl = trimmedUrl && !isClearbitUrl(trimmedUrl) ? trimmedUrl : '';
   const trimmedDomain = typeof logoDomain === 'string' ? logoDomain.trim() : '';
-  return usableUrl || (trimmedDomain ? logoDevUrl(trimmedDomain) : null);
+  return [
+    usableUrl,
+    faviconUrl(trimmedDomain, 'google'),
+    faviconUrl(trimmedDomain, 'duckduckgo'),
+    faviconUrl(trimmedDomain, 'logodev'),
+  ].filter((value, index, all) => Boolean(value) && all.indexOf(value) === index);
 };
+
+export const resolveLogoSrc = (logoUrl, logoDomain) =>
+  resolveLogoCandidates(logoUrl, logoDomain)[0] ?? null;
