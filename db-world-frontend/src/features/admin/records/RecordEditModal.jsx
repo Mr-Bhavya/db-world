@@ -22,12 +22,16 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { updateRecord, addRecordTag, removeRecordTag, searchTmdb } from '../api/adminApi';
+import {
+  updateRecord, addRecordTag, removeRecordTag, searchTmdb, getAdminRecordDetail,
+  generateRecordEditorial,
+} from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 import { useTagDefs } from './useTagDefs';
 import { VISIBILITY_ORDER, visibilityMeta } from './visibilityConstants';
@@ -60,23 +64,32 @@ export default function RecordEditModal({ open, record, onClose }) {
   const [selected,      setSelected]      = useState(null);
   const [visibility,    setVisibility]    = useState('DRAFT');
 
-  const { control, handleSubmit, watch, reset } = useForm({
+  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm({
     resolver: zodResolver(createRecordSchema),
-    defaultValues: { type: 'MOVIE' },
+    defaultValues: { type: 'MOVIE', editorialNote: '' },
   });
   const typeValue = watch('type');
+  const editorialNote = watch('editorialNote') ?? '';
+
+  const { data: recordDetail, isPending: loadingRecordDetail } = useQuery({
+    queryKey: ['admin-record-detail', record?.recordId],
+    queryFn: () => getAdminRecordDetail(record.recordId),
+    enabled: open && !!record?.recordId,
+  });
 
   // Pre-populate search with record name when modal opens
   useEffect(() => {
     if (open && record) {
-      reset({ type: record.type });
+      reset({
+        type: recordDetail?.type ?? record.type,
+        editorialNote: recordDetail?.editorialNote ?? '',
+      });
       setQuery(record.name ?? '');
       setYear('');
       setSelected(null);
       setVisibility(record.visibility ?? 'DRAFT');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, record]);
+  }, [open, record, recordDetail, reset]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced({ q: query.trim(), y: year.trim() }), 500);
@@ -106,6 +119,27 @@ export default function RecordEditModal({ open, record, onClose }) {
 
   const parseTags = (tags) => tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
+  const { mutate: generateEditorial, isPending: generatingEditorial } = useMutation({
+    mutationFn: ({ overwrite }) => generateRecordEditorial(record.recordId, overwrite),
+    onSuccess: (updated) => {
+      reset({
+        type: updated.type,
+        editorialNote: updated.editorialNote ?? '',
+      });
+      qc.setQueryData(['admin-record-detail', record.recordId], updated);
+      qc.invalidateQueries({ queryKey: ['records'] });
+      notify.success('AI editorial generated and saved');
+    },
+    onError: (error) => {
+      if (error?.response?.status === 409
+          && window.confirm('Replace the existing manually written editorial content?')) {
+        generateEditorial({ overwrite: true });
+        return;
+      }
+      notify.error(error?.response?.data?.message ?? 'AI generation failed');
+    },
+  });
+
   const { mutate: doAddTag, isPending: addingTag } = useMutation({
     mutationFn: ({ tagType }) => addRecordTag(record.recordId, { tagType }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Tag added', { duration: 1500 }); },
@@ -123,9 +157,14 @@ export default function RecordEditModal({ open, record, onClose }) {
   const availableTags = manualTagDefs.filter(d => !currentTags.includes(d.tagType));
 
   const onSubmit = (d) => {
-    const tmdbId = selected?.id ?? record?.tmdbId;
+    const tmdbId = selected?.id ?? recordDetail?.tmdb_id ?? record?.tmdbId;
     if (!tmdbId) { notify.warning('Please select a TMDB result'); return; }
-    doUpdate({ type: d.type, tmdbId, visibility });
+    doUpdate({
+      type: d.type,
+      tmdbId,
+      visibility,
+      editorialNote: d.editorialNote.trim(),
+    });
   };
 
   if (!record) return null;
@@ -233,6 +272,64 @@ export default function RecordEditModal({ open, record, onClose }) {
           <Divider sx={{ borderColor: T.border }} />
 
           <Box>
+            <Typography sx={{ fontSize: 12, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .6, mb: 1 }}>
+              Original editorial content
+            </Typography>
+            <Controller name="editorialNote" control={control} render={({ field }) => (
+              <TextField
+                {...field}
+                multiline
+                minRows={7}
+                fullWidth
+                label="DB World take"
+                placeholder="Add original context that is useful to a reader: why it stands out, what kind of viewer it suits, memorable themes, and what to expect without spoilers."
+                error={Boolean(errors.editorialNote)}
+                helperText={errors.editorialNote?.message}
+                sx={inputSx}
+                inputProps={{ maxLength: 5000 }}
+              />
+            )} />
+            <Typography sx={{ fontSize: 11, color: editorialNote.replace(/\s/g, '').length >= 300 ? T.success : T.textFaint, mt: .75 }}>
+              {editorialNote.replace(/\s/g, '').length.toLocaleString()} / 300 meaningful characters for search indexing.
+              {' '}Shorter notes remain visible but keep this record noindex.
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: T.textFaint, mt: .5, lineHeight: 1.5 }}>
+              Do not paste TMDB descriptions, reviews, or other third-party prose. Write useful
+              spoiler-light commentary specific to this title.
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mt: 1.5, flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                size="small"
+                variant="outlined"
+                startIcon={generatingEditorial
+                  ? <CircularProgress size={14} color="inherit" />
+                  : <AutoAwesomeIcon />}
+                disabled={generatingEditorial || loadingRecordDetail}
+                onClick={() => generateEditorial({ overwrite: false })}
+                sx={{
+                  color: T.teal,
+                  borderColor: `${T.teal}66`,
+                  textTransform: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                {recordDetail?.editorialSource === 'AI'
+                  ? 'Regenerate with AI'
+                  : 'Generate with AI'}
+              </Button>
+              {recordDetail?.editorialSource && (
+                <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+                  Current source: {recordDetail.editorialSource}
+                  {recordDetail.editorialModel ? ` · ${recordDetail.editorialModel}` : ''}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          <Divider sx={{ borderColor: T.border }} />
+
+          <Box>
             <Typography sx={{ fontSize: 12, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .6, mb: 1 }}>Tags</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: .75 }}>
               {currentTags.map(tagType => {
@@ -302,9 +399,9 @@ export default function RecordEditModal({ open, record, onClose }) {
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={updating}
+          <Button type="submit" variant="contained" disabled={updating || loadingRecordDetail}
             sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
-            {updating ? <CircularProgress size={18} color="inherit" /> : 'Save'}
+            {updating || loadingRecordDetail ? <CircularProgress size={18} color="inherit" /> : 'Save'}
           </Button>
         </DialogActions>
       </form>

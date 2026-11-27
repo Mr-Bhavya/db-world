@@ -173,11 +173,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      # Only wrangler.jsonc is needed from the repo; the bundle comes from the artifact.
+      # Cloudflare needs the Worker entry point and Wrangler config. The web bundle
+      # itself comes from the artifact.
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-source.outputs.revision }}
-          sparse-checkout: db-world-frontend/wrangler.jsonc
+          sparse-checkout: |
+            db-world-frontend/wrangler.jsonc
+            db-world-frontend/worker.js
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v8
         with:

@@ -200,7 +200,39 @@ class SeoRenderControllerTest {
         assertThat(html)
                 .contains("<h1>Acme Industries IPO</h1>")
                 .contains("Lot size: 75")
-                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-ipo/acme-industries\">");
+                .contains("<link rel=\"canonical\" href=\"https://db-world.in/db-ipo/acme-industries\">")
+                .contains("noindex,follow");
+    }
+
+    @Test
+    void substantialAiAnalysisMakesIpoIndexable() {
+        IpoListingEntity ipo = new IpoListingEntity();
+        ipo.setId("acme-industries");
+        ipo.setCompanyName("Acme Industries");
+        ipo.setAiAnalysis("x".repeat(IpoListingEntity.MIN_AI_ANALYSIS_LENGTH));
+        ipo.setAiView("CONSIDER");
+        ipo.setAiSourceFingerprint(ipo.aiSourceFingerprint());
+        when(ipoListingRepository.findById("acme-industries")).thenReturn(Optional.of(ipo));
+
+        assertThat(controller.ipo("acme-industries").getBody())
+                .contains("<h2>DB World AI analysis</h2>")
+                .doesNotContain("noindex,follow");
+    }
+
+    @Test
+    void changedIpoFactsMakePreviousAiAnalysisStaleAndNoindex() {
+        IpoListingEntity ipo = new IpoListingEntity();
+        ipo.setId("acme-industries");
+        ipo.setCompanyName("Acme Industries");
+        ipo.setGmp(new java.math.BigDecimal("10"));
+        ipo.setAiAnalysis("x".repeat(IpoListingEntity.MIN_AI_ANALYSIS_LENGTH));
+        ipo.setAiSourceFingerprint(ipo.aiSourceFingerprint());
+        ipo.setGmp(new java.math.BigDecimal("25"));
+        when(ipoListingRepository.findById("acme-industries")).thenReturn(Optional.of(ipo));
+
+        assertThat(controller.ipo("acme-industries").getBody())
+                .contains("noindex,follow")
+                .contains("Data update pending");
     }
 
     @Test
@@ -240,6 +272,34 @@ class SeoRenderControllerTest {
         // `follow` matters as much as `noindex`: the links out still have to count.
         assertThat(controller.record("movie", 1L).getBody())
                 .contains("<meta name=\"robots\" content=\"noindex,follow\">");
+    }
+
+    @Test
+    void substantialOriginalEditorialMakesPublishedRecordIndexable() {
+        RecordEntity record = record(
+                1L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED,
+                tmdb("Inception", "A thief who steals corporate secrets."));
+        record.setEditorialNote("x".repeat(RecordEntity.MIN_INDEXABLE_EDITORIAL_LENGTH));
+        record.setEditorialSource("AI");
+        when(recordRepository.findByIdWithTmdb(1L)).thenReturn(Optional.of(record));
+
+        assertThat(controller.record("movie", 1L).getBody())
+                .contains("<h2>DB World AI take</h2>")
+                .contains("AI-assisted synthesis")
+                .doesNotContain("noindex,follow");
+    }
+
+    @Test
+    void shortEditorialKeepsRecordOutOfIndex() {
+        RecordEntity record = record(
+                1L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED,
+                tmdb("Inception", "A thief who steals corporate secrets."));
+        record.setEditorialNote("A useful but short first-party note.");
+        when(recordRepository.findByIdWithTmdb(1L)).thenReturn(Optional.of(record));
+
+        assertThat(controller.record("movie", 1L).getBody())
+                .contains("<h2>DB World take</h2>")
+                .contains("noindex,follow");
     }
 
     @Test
@@ -313,9 +373,8 @@ class SeoRenderControllerTest {
                 .contains("\"name\":\"DB World\"");
 
         // Must equal DashboardIntro's signed-out heading, which reads the same field.
-        // These were "DB World" here and "Everything you use, in one hub" on screen —
-        // two different h1s on one URL.
-        assertThat(html).contains("<h1>Everything you use, in one hub</h1>");
+        assertThat(html)
+                .contains("<h1>DB World - everything you use, in one hub</h1>");
     }
 
     @Test

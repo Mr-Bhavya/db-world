@@ -17,6 +17,8 @@ import com.db.dbworld.app.live.scheduler.LiveHealthScheduler;
 import com.db.dbworld.app.live.scheduler.LivePlaylistScheduler;
 import com.db.dbworld.app.media.sync.MediaSyncService;
 import com.db.dbworld.app.pm.service.impl.TrashPurgeJob;
+import com.db.dbworld.app.cinema.editorial.RecordEditorialAiScheduler;
+import com.db.dbworld.app.ipo.ai.IpoAiAnalysisService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -58,6 +60,8 @@ public class SchedulerAdminService {
     private final UserContext                   userContext;
     private final SchedulerHistoryRetentionService retentionService;
     private final TrashPurgeJob                 trashPurgeJob;
+    private final RecordEditorialAiScheduler    editorialAiScheduler;
+    private final IpoAiAnalysisService          ipoAiAnalysisService;
 
     /** See the note in {@code JobRunRecorder} on why this is a private Jackson 3 mapper. */
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -125,7 +129,13 @@ public class SchedulerAdminService {
             // 04:45 IST, after the history prune and well before anyone is using the vault.
             SchedulerJobConfigEntity.builder().jobId(TrashPurgeJob.JOB_ID)
                     .jobType(JobType.CRON).cronExpression("0 45 4 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(10).build()
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(10).build(),
+            SchedulerJobConfigEntity.builder().jobId(RecordEditorialAiScheduler.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 30 4 * * *")
+                    .timezone("Asia/Kolkata").enabled(false).displayOrder(11).build(),
+            SchedulerJobConfigEntity.builder().jobId(IpoAiAnalysisService.JOB_ID)
+                    .jobType(JobType.CRON).cronExpression("0 0 5 * * *")
+                    .timezone("Asia/Kolkata").enabled(false).displayOrder(12).build()
     );
 
     /**
@@ -309,6 +319,8 @@ public class SchedulerAdminService {
             case LivePlaylistScheduler.JOB_ID -> livePlaylistScheduler.refresh(summary);
             case LiveHealthScheduler.JOB_ID   -> liveHealthScheduler.check(summary);
             case TrashPurgeJob.JOB_ID         -> trashPurgeJob.purgeExpired(summary);
+            case RecordEditorialAiScheduler.JOB_ID -> editorialAiScheduler.run(summary);
+            case IpoAiAnalysisService.JOB_ID -> ipoAiAnalysisService.run(summary);
             default -> throw new IllegalArgumentException("Unknown job: " + jobId);
         }
     }
@@ -626,6 +638,8 @@ public class SchedulerAdminService {
             case LivePlaylistScheduler.JOB_ID -> "Live TV Playlist Refresh";
             case LiveHealthScheduler.JOB_ID   -> "Live TV Stream Health";
             case TrashPurgeJob.JOB_ID         -> "Vault Trash Purge";
+            case RecordEditorialAiScheduler.JOB_ID -> "Cinema Editorial AI";
+            case IpoAiAnalysisService.JOB_ID -> "IPO AI Analysis";
             default -> jobId;
         };
     }
@@ -643,6 +657,8 @@ public class SchedulerAdminService {
             case LivePlaylistScheduler.JOB_ID -> "Re-imports every enabled M3U playlist, merging channels and their stream URLs (every 6 hours)";
             case LiveHealthScheduler.JOB_ID   -> "Probes every live stream URL and hides channels whose sources have all gone dead (every 30 min)";
             case TrashPurgeJob.JOB_ID         -> "Removes vault entries that have been in Trash for more than 30 days (4:45 AM IST)";
+            case RecordEditorialAiScheduler.JOB_ID -> "Generates original cinema editorial copy and AI guidance for published records with no copy, using the local Ollama model";
+            case IpoAiAnalysisService.JOB_ID -> "Generates cautious IPO evidence summaries and application considerations from tracked data, using the local Ollama model";
             default -> "";
         };
     }

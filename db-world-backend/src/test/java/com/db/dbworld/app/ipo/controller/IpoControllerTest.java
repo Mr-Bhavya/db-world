@@ -70,7 +70,8 @@ class IpoControllerTest {
                 LocalDate.of(2026, 7, 29), LocalDate.of(2026, 8, 1),
                 null, null, null, null, List.of(), List.of(),
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, false, false);
         when(queryService.detail("1")).thenReturn(expected);
 
         ApiResponse<IpoDetailDto> response = controller.detail("1");

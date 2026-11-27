@@ -64,5 +64,11 @@ public record IpoDetailDto(
         BigDecimal peRatio,
         Boolean anchorInvestor,
         String allotmentLink,
-        String subscriptionUpdatedLabel
+        String subscriptionUpdatedLabel,
+        String aiAnalysis,
+        String aiView,
+        Integer aiConfidenceScore,
+        String aiModel,
+        boolean aiAnalysisStale,
+        boolean searchIndexEligible
 ) {}

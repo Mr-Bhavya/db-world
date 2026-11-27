@@ -96,6 +96,11 @@ export const setRecordVisibility = (id, visibility) =>
 export const updateRecord = (id, body) =>
   axiosInstance.put(`/api/cinema/admin/catalog/${id}`, body).then(r => r.data.data);
 
+export const generateRecordEditorial = (id, overwrite = false) =>
+  axiosInstance
+    .post(`/api/cinema/admin/catalog/${id}/editorial/generate`, null, { params: { overwrite } })
+    .then(r => r.data.data);
+
 /** Re-fetch this record's data from TMDB and update the DB. */
 export const refreshRecordFromTmdb = (id) =>
   axiosInstance.post(`/api/cinema/admin/catalog/${id}/refresh`).then(r => r.data.data);

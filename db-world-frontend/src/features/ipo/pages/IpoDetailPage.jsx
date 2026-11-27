@@ -90,6 +90,23 @@ export default function IpoDetailPage() {
   const { data: gmpPoints = [], isLoading: gmpLoading } = useGmpHistory(id);
   const { data: subPoints = [], isLoading: subLoading } = useSubscriptionHistory(id);
 
+  useEffect(() => {
+    if (!ipo) return undefined;
+    const previousTitle = document.title;
+    document.title = `${ipo.companyName} IPO — DB World`;
+    let robots = document.querySelector('meta[name="robots"]');
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.name = 'robots';
+      document.head.appendChild(robots);
+    }
+    robots.content = ipo.searchIndexEligible ? 'index,follow' : 'noindex,follow';
+    return () => {
+      document.title = previousTitle;
+      robots.remove();
+    };
+  }, [ipo]);
+
   // Stage-driven tab strip: an upcoming IPO has no bids to show and no application to record, so
   // it doesn't get those tabs at all rather than getting two empty shells. Same rule the list
   // cards follow — never offer a slot whose data doesn't exist. The history lengths are passed in

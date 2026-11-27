@@ -37,12 +37,45 @@ import java.util.List;
 )
 public class RecordEntity implements Serializable {
 
+    /** A record needs substantial first-party prose before it may enter the index. */
+    public static final int MIN_INDEXABLE_EDITORIAL_LENGTH = 300;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, length = 300)
     private String name;
+
+    /**
+     * Original DB World editorial copy, written by an editor rather than imported from TMDB.
+     * Short notes still appear on the record page, but do not make the page indexable.
+     */
+    @Lob
+    @Column(name = "editorial_note", columnDefinition = "TEXT")
+    private String editorialNote;
+
+    @Column(name = "editorial_updated_at")
+    private Instant editorialUpdatedAt;
+
+    /** MANUAL or AI; provenance is shown in admin and never implied to be a verified review. */
+    @Column(name = "editorial_source", length = 16)
+    private String editorialSource;
+
+    @Column(name = "editorial_model", length = 100)
+    private String editorialModel;
+
+    @Column(name = "ai_verdict", length = 30)
+    private String aiVerdict;
+
+    @Column(name = "ai_quality_score")
+    private Integer aiQualityScore;
+
+    @Column(name = "ai_best_for", length = 1200)
+    private String aiBestFor;
+
+    @Column(name = "ai_considerations", length = 1200)
+    private String aiConsiderations;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -133,4 +166,11 @@ public class RecordEntity implements Serializable {
     @Column(name = "new_content_kind", length = 20)
     private String newContentKind;
 
+    public boolean isSearchIndexEligible() {
+        return visibility == RecordVisibility.PUBLISHED
+                && editorialNote != null
+                && editorialNote.codePoints()
+                    .filter(codePoint -> !Character.isWhitespace(codePoint))
+                    .count() >= MIN_INDEXABLE_EDITORIAL_LENGTH;
+    }
 }

@@ -22,6 +22,15 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
         JpaSpecificationExecutor<RecordEntity>,
         RecordRepositoryCustom {
 
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            WHERE r.visibility = com.db.dbworld.app.cinema.enums.RecordVisibility.PUBLISHED
+              AND (r.editorialNote IS NULL OR TRIM(r.editorialNote) = '')
+            ORDER BY r.publishedAt DESC NULLS LAST, r.id DESC
+            """)
+    List<Long> findPublishedIdsWithoutEditorial(Pageable pageable);
+
     Optional<RecordEntity> findByTmdb_Id(Long tmdbId);
 
     List<RecordEntity> findByType(RecordType type);

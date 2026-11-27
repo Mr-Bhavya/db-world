@@ -8,12 +8,17 @@
   // Pins Workers runtime behaviour; leave as-is, bump only on purpose
   "compatibility_date": "2026-11-14",
 
-  // Static-only site: no "main" script, Cloudflare serves the files directly
+  // Worker entry point. It handles crawler rendering, the live sitemap, and redirects
+  // before falling back to the Vite assets. No secrets are required.
+  "main": "./worker.js",
+
   "assets": {
     // Vite build output, relative to this file
     "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
 
-    // Unknown paths (/dashboard, /profile/42) return index.html so the SPA router handles them
+    // Unknown paths still return index.html so React Router handles the client route.
     "not_found_handling": "single-page-application"
   },
 

@@ -158,13 +158,29 @@ public class SitemapController {
         // than assembled from a table.
         url(xml, publicBaseUrl + "/about", null, "monthly", "0.5");
 
-        // RECORD PAGES ARE DELIBERATELY NOT LISTED.
+        // Record pages enter the sitemap only after an editor has added enough original
+        // copy to be useful beyond TMDB's catalogue metadata.
+        for (RecordEntity record : publicRecords.stream()
+                .filter(RecordEntity::isSearchIndexEligible)
+                .toList()) {
+            String title = record.getTmdb() != null && record.getTmdb().getTitle() != null
+                    ? record.getTmdb().getTitle()
+                    : record.getName();
+            String segment = record.getType() == RecordType.TV_SERIES ? "series" : "movie";
+            String slug = slugify(title);
+            String recordPath = "/db-cinema/" + segment + "/" + record.getId()
+                    + (slug.isEmpty() ? "" : "-" + slug);
+            Instant lastModified = record.getEditorialUpdatedAt() != null
+                    ? record.getEditorialUpdatedAt()
+                    : lastModOf(record);
+            url(xml, publicBaseUrl + recordPath, lastModified, "monthly", "0.7");
+        }
+
+        // RECORD PAGES WITHOUT ORIGINAL CONTENT ARE DELIBERATELY NOT LISTED.
         //
-        // There are ~2,300 of them and they were 89% of this file. Every word on one
-        // comes from TMDB — synopsis, genres, cast — so as a body of content they are
-        // scraped metadata at scale, which is what Google's September 2026 AdSense
-        // review meant by "low value content". Submitting them was actively asking to
-        // be judged on them.
+        // TMDB-only records are still scraped metadata at scale, which caused the
+        // September 2026 low-value-content review. Only editorially qualified pages
+        // should ask to be judged as standalone search results.
         //
         // They keep working in every other respect: reachable, shareable, ad-eligible,
         // and still crawlable through the browse and genre pages that link them —
@@ -172,9 +188,11 @@ public class SitemapController {
         // browse and genre pages above are what should carry this section in search,
         // because those have writing of our own on them.
         //
-        // Put them back per record when a page has something to say that TMDB did not.
+        // A record automatically enters the sitemap once its original note passes the
+        // minimum threshold. Keep that note useful and title-specific.
 
         for (IpoListingEntity ipo : ipos) {
+            if (!ipo.isAiSearchIndexEligible()) continue;
             url(xml,
                 publicBaseUrl + "/db-ipo/" + ipo.getId(),
                 ipo.getUpdatedAt(),

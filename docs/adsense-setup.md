@@ -51,8 +51,8 @@ AdSense offers three verification methods. You already satisfy two of them:
 - **ads.txt snippet** — `public/ads.txt`. Already present.
 
 So pick whichever method it offers and click Verify. If verification fails, confirm the
-files are actually reachable at the domain root — this is the one thing that is easy to
-get wrong with a static nginx deploy:
+files are actually reachable at the domain root. They are deployed as static assets
+through the Cloudflare Worker:
 
 ```bash
 curl -s https://db-world.in/ads.txt && curl -sI https://db-world.in/robots.txt | head -1
@@ -60,7 +60,7 @@ curl -s https://db-world.in/ads.txt && curl -sI https://db-world.in/robots.txt |
 
 `ads.txt` must return the publisher line and `robots.txt` must return `200`. Both live
 in `db-world-frontend/public/`, which Vite copies to the **root** of `dist/` — note that
-is the domain root, alongside index.html.
+is the Cloudflare-served domain root, alongside `index.html`.
 
 ---
 
@@ -116,7 +116,8 @@ Three root causes, all now fixed:
   single source of truth and `SeoRenderController` renders it for crawlers too, so the
   two cannot drift.
 - **Google's ad crawlers see the real page.** Keep `mediapartners-google` and
-  `adsbot-google` OUT of `$is_search_bot` in `00-shared.conf`.
+  `adsbot-google` OUT of the Worker search-bot matcher. The legacy nginx matcher in
+  `00-shared.conf` must stay aligned.
 - **Record pages are `noindex,follow` and out of the sitemap.** They are TMDB metadata
   and were 89% of the submitted URLs. They still serve ads — indexing is not required
   for that.
@@ -135,8 +136,8 @@ That must return the **real SPA**, not `/api/seo/...` output. And:
 curl -sS -A "Googlebot/2.1" https://db-world.in/db-weather | grep -c "<h2>"
 ```
 
-That must be greater than zero. Both need the nginx reload and the backend deploy to
-have happened — the fix is in two repos.
+That must be greater than zero. Both need the Cloudflare frontend deploy and backend
+deploy to have happened; production does not use Pi nginx routing.
 
 The `/db-world` prefix was removed in September 2026, so also confirm the ~300 URLs
 Google already holds still resolve rather than 404:

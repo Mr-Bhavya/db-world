@@ -282,6 +282,10 @@ app:
 # db-world feature configs
 # =========================================================
 dbworld:
+  cinema:
+    editorial-ai:
+      # Runtime settings live in app_config and can be changed under Admin → Settings → Cinema.
+
   # ── Account deletion housekeeping ─────────────────────────────────────────
   # Both run daily, offset so they never overlap.
   account:

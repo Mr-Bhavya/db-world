@@ -130,9 +130,11 @@ public class SeoRenderController {
         String kind = isSeries ? "TV series" : "Movie";
 
         String heading = year != null ? title + " (" + year + ")" : title;
-        String description = overview.isBlank()
-                ? "Watch " + title + " on DB World."
-                : truncate(overview, 155);
+        String description = record.isSearchIndexEligible()
+                ? truncate(record.getEditorialNote(), 155)
+                : overview.isBlank()
+                    ? "Watch " + title + " on DB World."
+                    : truncate(overview, 155);
 
         List<String> genres = tmdb == null || tmdb.getGenres() == null ? List.of()
                 : tmdb.getGenres().stream()
@@ -168,6 +170,33 @@ public class SeoRenderController {
         if (!overview.isBlank()) {
             body.append("<h2>Synopsis</h2>\n<p>").append(esc(overview)).append("</p>\n");
         }
+        if (notBlank(record.getEditorialNote())) {
+            body.append("<h2>")
+                    .append("AI".equalsIgnoreCase(record.getEditorialSource())
+                            ? "DB World AI take"
+                            : "DB World take")
+                    .append("</h2>\n");
+            if ("AI".equalsIgnoreCase(record.getEditorialSource())) {
+                body.append("<p><small>AI-assisted synthesis of public catalogue facts and ")
+                        .append("review themes. Verify title-specific details independently.</small></p>\n");
+            }
+            body.append("<p>")
+                    .append(esc(record.getEditorialNote()).replace("\n\n", "</p>\n<p>"))
+                    .append("</p>\n");
+            if (notBlank(record.getAiVerdict())) {
+                body.append("<h2>DB World AI guide</h2>\n<p>AI suggestion: ")
+                        .append(esc(record.getAiVerdict().replace('_', ' ').toLowerCase()))
+                        .append("</p>\n");
+                if (record.getAiBestFor() != null) {
+                    body.append("<p><strong>Best for:</strong> ")
+                            .append(esc(record.getAiBestFor())).append("</p>\n");
+                }
+                if (record.getAiConsiderations() != null) {
+                    body.append("<p><strong>Consider:</strong> ")
+                            .append(esc(record.getAiConsiderations())).append("</p>\n");
+                }
+            }
+        }
         if (!genres.isEmpty()) {
             body.append("<h2>Genres</h2>\n<p>").append(esc(String.join(", ", genres))).append("</p>\n");
         }
@@ -185,12 +214,22 @@ public class SeoRenderController {
                 .formatted(
                         isSeries ? "TVSeries" : "Movie",
                         jsonEsc(title),
-                        jsonEsc(truncate(overview, 300)),
+                        jsonEsc(truncate(
+                                record.isSearchIndexEligible()
+                                        ? record.getEditorialNote()
+                                        : overview,
+                                300)),
                         jsonEsc(canonical),
                         image == null ? "" : ",\"image\":\"" + jsonEsc(image) + "\"",
                         year == null ? "" : ",\"datePublished\":\"" + jsonEsc(year) + "\"");
 
-        return html(page(heading, description, canonical, body.toString(), jsonLd, ROBOTS_NOINDEX));
+        return html(page(
+                heading,
+                description,
+                canonical,
+                body.toString(),
+                jsonLd,
+                record.isSearchIndexEligible() ? null : ROBOTS_NOINDEX));
     }
 
     /* ===============================
@@ -248,6 +287,16 @@ public class SeoRenderController {
             body.append("<h2>About ").append(esc(name)).append("</h2>\n<p>")
                 .append(esc(ipo.getAbout())).append("</p>\n");
         }
+        if (notBlank(ipo.getAiAnalysis())) {
+            body.append("<h2>DB World AI analysis</h2>\n<p>")
+                    .append("<small>AI-assisted general information, not investment advice. ")
+                    .append("GMP is unofficial and does not predict allotment or listing returns.</small></p>\n<p>")
+                    .append(esc(ipo.getAiAnalysis())).append("</p>\n");
+            if (ipo.isAiAnalysisStale()) {
+                body.append("<p><strong>Data update pending:</strong> source data changed ")
+                        .append("after this analysis was generated; it will be refreshed automatically.</p>\n");
+            }
+        }
 
         String description = "%s IPO — dates, price band, lot size, GMP and subscription status."
                 .formatted(name);
@@ -256,7 +305,13 @@ public class SeoRenderController {
                 {"@context":"https://schema.org","@type":"Corporation","name":"%s","url":"%s"}"""
                 .formatted(jsonEsc(name), jsonEsc(canonical));
 
-        return html(page(heading, description, canonical, body.toString(), jsonLd));
+        return html(page(
+                heading,
+                description,
+                canonical,
+                body.toString(),
+                jsonLd,
+                ipo.isAiSearchIndexEligible() ? null : ROBOTS_NOINDEX));
     }
 
     /* ===============================

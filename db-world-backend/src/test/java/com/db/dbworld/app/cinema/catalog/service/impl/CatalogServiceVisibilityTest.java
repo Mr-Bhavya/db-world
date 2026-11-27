@@ -263,6 +263,50 @@ class CatalogServiceVisibilityTest {
     }
 
     @Test
+    void updateRecord_editorialOnlyChangeReusesTmdbAndStampsEditorialDate() {
+        MovieTmdbEntity tmdb = mock(MovieTmdbEntity.class);
+        when(tmdb.getId()).thenReturn(1402L);
+        when(tmdb.getTitle()).thenReturn("Acme");
+        RecordEntity r = RecordEntity.builder()
+                .id(2271L).name("Acme").type(RecordType.MOVIE)
+                .visibility(RecordVisibility.PUBLISHED).tmdb(tmdb).build();
+        when(recordRepository.findByIdWithTmdb(2271L)).thenReturn(Optional.of(r));
+
+        UpdateRecordRequest req = new UpdateRecordRequest();
+        req.setType(RecordType.MOVIE);
+        req.setTmdbId(1402L);
+        req.setEditorialNote("  Original DB World viewing guidance.  ");
+
+        service.updateRecord(2271L, req);
+
+        assertThat(r.getEditorialNote()).isEqualTo("Original DB World viewing guidance.");
+        assertThat(r.getEditorialUpdatedAt()).isNotNull();
+        verify(tmdbIngestionService, never()).ingestMovie(any(Long.class));
+        verify(tmdbIngestionService, never()).ingestTvSeries(any(Long.class));
+    }
+
+    @Test
+    void updateRecord_legacyClientWithoutEditorialFieldPreservesExistingNote() {
+        MovieTmdbEntity tmdb = mock(MovieTmdbEntity.class);
+        when(tmdb.getId()).thenReturn(1402L);
+        when(tmdb.getTitle()).thenReturn("Acme");
+        RecordEntity r = RecordEntity.builder()
+                .id(2271L).name("Acme").type(RecordType.MOVIE)
+                .visibility(RecordVisibility.PUBLISHED).tmdb(tmdb)
+                .editorialNote("Existing original copy").build();
+        when(recordRepository.findByIdWithTmdb(2271L)).thenReturn(Optional.of(r));
+
+        UpdateRecordRequest req = new UpdateRecordRequest();
+        req.setType(RecordType.MOVIE);
+        req.setTmdbId(1402L);
+        req.setVisibility(RecordVisibility.UNLISTED);
+
+        service.updateRecord(2271L, req);
+
+        assertThat(r.getEditorialNote()).isEqualTo("Existing original copy");
+    }
+
+    @Test
     void deleteRecord_clearsManagedTmdbBackReferenceBeforeDelete() {
         MovieTmdbEntity tmdb = new MovieTmdbEntity();
         RecordEntity r = RecordEntity.builder()

@@ -219,7 +219,7 @@ public class CatalogServiceImpl implements CatalogService {
         RecordEntity record = getRecordOrThrow(id);
 
         if (isUnchanged(record, request)) {
-            return recordMapper.toDto(record);
+            return mapRecord(record);
         }
 
         // Only (re-)ingest when the TMDB link actually changes. A visibility-only edit keeps the same
@@ -298,6 +298,7 @@ public class CatalogServiceImpl implements CatalogService {
         // previously had to infer availability from an authenticated endpoint returning
         // nothing, which told signed-out visitors that titles we hold were missing.
         dto.setAvailability(availabilityService.of(record));
+        dto.setSearchIndexEligible(record.isSearchIndexEligible());
 
         return dto;
     }
@@ -548,6 +549,20 @@ public class CatalogServiceImpl implements CatalogService {
         if (request.getVisibility() != null) {
             applyVisibility(record, request.getVisibility());
         }
+        if (request.getEditorialNote() != null
+                && !Objects.equals(record.getEditorialNote(), request.getEditorialNote())) {
+            String note = request.getEditorialNote() == null
+                    ? null
+                    : request.getEditorialNote().trim();
+            record.setEditorialNote(note == null || note.isEmpty() ? null : note);
+            record.setEditorialUpdatedAt(Instant.now());
+            record.setEditorialSource(note == null || note.isEmpty() ? null : "MANUAL");
+            record.setEditorialModel(null);
+            record.setAiVerdict(null);
+            record.setAiQualityScore(null);
+            record.setAiBestFor(null);
+            record.setAiConsiderations(null);
+        }
     }
 
     /**
@@ -563,7 +578,14 @@ public class CatalogServiceImpl implements CatalogService {
     private boolean isUnchanged(RecordEntity record, UpdateRecordRequest request) {
         boolean visibilityUnchanged = request.getVisibility() == null
                 || record.getVisibility() == request.getVisibility();
-        return tmdbLinkUnchanged(record, request) && visibilityUnchanged;
+        boolean editorialUnchanged = request.getEditorialNote() == null
+                || Objects.equals(record.getEditorialNote(), normalizeNote(request.getEditorialNote()));
+        return tmdbLinkUnchanged(record, request) && visibilityUnchanged && editorialUnchanged;
+    }
+
+    private static String normalizeNote(String note) {
+        if (note == null || note.trim().isEmpty()) return null;
+        return note.trim();
     }
 
     private String extractTitle(TmdbEntity tmdb) {
@@ -578,7 +600,13 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     private RecordDto saveAndMap(RecordEntity record) {
-        return recordMapper.toDto(recordRepository.save(record));
+        return mapRecord(recordRepository.save(record));
+    }
+
+    private RecordDto mapRecord(RecordEntity record) {
+        RecordDto dto = recordMapper.toDto(record);
+        dto.setSearchIndexEligible(record.isSearchIndexEligible());
+        return dto;
     }
 
     @Override

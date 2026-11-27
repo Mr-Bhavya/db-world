@@ -173,7 +173,25 @@ public class IpoQueryService {
         IpoListingEntity entity = listingRepository.findById(id)
                 .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
         entity = IpoMergeResolver.resolve(listingRepository, entity);
-        return withDerivedTimelineDates(mapper.toDetail(entity));
+        IpoDetailDto detail = mapper.toDetail(entity);
+        detail = new IpoDetailDto(
+                detail.id(), detail.companyName(), detail.ipoType(), detail.status(),
+                detail.openDate(), detail.closeDate(), detail.allotmentDate(), detail.listingDate(),
+                detail.priceMin(), detail.priceMax(), detail.listingPrice(), detail.listingGainPct(),
+                detail.gmp(), detail.gmpPct(), detail.subTotal(), detail.lotSize(), detail.issueSize(),
+                detail.listingExchange(), detail.allotmentStatus(), detail.registrar(), detail.registrarUrl(),
+                detail.logoUrl(), detail.logoDomain(), detail.about(), detail.refundDate(), detail.dematDate(),
+                detail.faceValue(), detail.freshIssue(), detail.offerForSale(), detail.tickerSymbol(),
+                detail.strengths(), detail.risks(), detail.foundedYear(), detail.managingDirector(),
+                detail.parentCompany(), detail.sector(), detail.headquarters(), detail.website(),
+                detail.kpis(), detail.issueObjects(), detail.leadManagers(), detail.issueDetails(),
+                detail.gmpRating(), detail.gmpMin(), detail.gmpMax(), detail.gmpUpdatedLabel(),
+                detail.estimatedListingPrice(), detail.subjectToSauda(), detail.estProfit(), detail.peRatio(),
+                detail.anchorInvestor(), detail.allotmentLink(), detail.subscriptionUpdatedLabel(),
+                detail.aiAnalysis(), detail.aiView(), detail.aiConfidenceScore(), detail.aiModel(),
+                entity.isAiAnalysisStale(),
+                entity.isAiSearchIndexEligible());
+        return withDerivedTimelineDates(detail);
     }
 
     /**
@@ -240,7 +258,10 @@ public class IpoQueryService {
                 dto.kpis(), dto.issueObjects(), dto.leadManagers(), dto.issueDetails(),
                 dto.gmpRating(), dto.gmpMin(), dto.gmpMax(), dto.gmpUpdatedLabel(),
                 dto.estimatedListingPrice(), dto.subjectToSauda(), dto.estProfit(), dto.peRatio(),
-                dto.anchorInvestor(), dto.allotmentLink(), dto.subscriptionUpdatedLabel());
+                dto.anchorInvestor(), dto.allotmentLink(), dto.subscriptionUpdatedLabel(),
+                dto.aiAnalysis(), dto.aiView(), dto.aiConfidenceScore(), dto.aiModel(),
+                dto.aiAnalysisStale(),
+                dto.searchIndexEligible());
     }
 
     /** The given date, rolled forward to the next trading day — skips weekends AND configured NSE holidays. */

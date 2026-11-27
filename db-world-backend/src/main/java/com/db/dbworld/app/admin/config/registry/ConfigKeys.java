@@ -43,6 +43,10 @@ public final class ConfigKeys {
     // When true, a DRAFT record is auto-published (and its "new title" push fires) the moment its
     // first media file finishes ingesting — otherwise an admin publishes it manually.
     public static final String CINEMA_RECORD_AUTO_PUBLISH           = "cinema.record.auto-publish-on-media";
+    public static final String CINEMA_AI_EDITORIAL_BASE_URL         = "cinema.ai-editorial.base-url";
+    public static final String CINEMA_AI_EDITORIAL_MODEL            = "cinema.ai-editorial.model";
+    public static final String CINEMA_AI_EDITORIAL_TIMEOUT_SECONDS  = "cinema.ai-editorial.timeout-seconds";
+    public static final String CINEMA_AI_EDITORIAL_BATCH_SIZE       = "cinema.ai-editorial.batch-size";
 
     // IPO Tracker (IPO Guru API key is a SECRET — read from env IPO_GURU_API_KEY, not here)
     // Poll cadence is NOT a setting here — it lives in scheduler_job_config (job id "ipo-poll"),

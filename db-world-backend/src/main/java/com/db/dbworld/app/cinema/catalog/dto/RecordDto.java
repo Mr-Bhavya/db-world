@@ -19,6 +19,22 @@ public class RecordDto {
 
     private RecordType type;
 
+    private String editorialNote;
+
+    private Instant editorialUpdatedAt;
+
+    private String editorialSource;
+
+    private String editorialModel;
+
+    private String aiVerdict;
+
+    private Integer aiQualityScore;
+
+    private String aiBestFor;
+
+    private String aiConsiderations;
+
     private Long tmdb_id;
 
     private Instant creationDate;
@@ -44,5 +60,7 @@ public class RecordDto {
      * from a missing answer is the bug this field exists to remove.
      */
     private RecordAvailabilityDto availability;
+
+    private boolean searchIndexEligible;
 
 }

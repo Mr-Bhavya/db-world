@@ -7,6 +7,7 @@ import com.db.dbworld.app.ipo.dto.IpoStatusPreviewDto;
 import com.db.dbworld.app.ipo.dto.SourceHealthDto;
 import com.db.dbworld.app.ipo.service.IpoAdminService;
 import com.db.dbworld.app.ipo.service.IpoDuplicateService;
+import com.db.dbworld.app.ipo.ai.IpoAiAnalysisService;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +32,13 @@ public class IpoAdminController {
 
     private final IpoAdminService adminService;
     private final IpoDuplicateService duplicateService;
+    private final IpoAiAnalysisService aiAnalysisService;
+
+    @PostMapping("/{id}/ai-analysis")
+    public ApiResponse<Void> generateAiAnalysis(@org.springframework.web.bind.annotation.PathVariable String id) {
+        aiAnalysisService.generate(id);
+        return ApiResponse.success("IPO AI analysis generated");
+    }
 
     @GetMapping("/sources")
     public ApiResponse<List<SourceHealthDto>> sources() {

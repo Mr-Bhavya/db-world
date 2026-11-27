@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Chip, Typography } from '@mui/material';
 import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -483,6 +483,12 @@ export default function OverviewTab({ ipo, id }) {
   const kpis = (ipo.kpis ?? []).filter((kpi) => kpi.value != null && kpi.value !== '');
   const lotBreakdown = computeLotBreakdown(ipo.lotSize, ipo.priceMax, ipo.ipoType);
   const sectionIcon = (Icon) => <Icon sx={{ fontSize: 15, color: T.teal }} />;
+  const aiViews = {
+    APPLY: 'Apply',
+    CONSIDER: 'Consider',
+    WAIT: 'Wait / review more data',
+    NOT_ENOUGH_DATA: 'Not enough evidence',
+  };
 
   // The offer: what it is, what it costs, who is selling, what the proceeds are for.
   const offerColumn = [
@@ -531,6 +537,39 @@ export default function OverviewTab({ ipo, id }) {
       <SectionCard title="Timeline" icon={sectionIcon(EventOutlinedIcon)}>
         <IpoTimeline ipo={ipo} />
       </SectionCard>
+
+      {ipo.aiAnalysis && (
+        <SectionCard title="DB World AI analysis" icon={sectionIcon(QueryStatsOutlinedIcon)}>
+          {ipo.aiAnalysisStale && (
+            <Typography sx={{ color: T.warning, fontSize: 11, lineHeight: 1.5, mb: 1 }}>
+              Data changed since this analysis was generated. It is awaiting the next AI
+              refresh and is not currently search-indexable.
+            </Typography>
+          )}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5 }}>
+            <Chip
+              label={aiViews[ipo.aiView] ?? aiViews.NOT_ENOUGH_DATA}
+              size="small"
+              sx={{ color: T.teal, bgcolor: T.tealBg, fontWeight: 800 }}
+            />
+            {Number.isInteger(ipo.aiConfidenceScore) && (
+              <Chip
+                label={`Evidence confidence ${ipo.aiConfidenceScore}/100`}
+                size="small"
+                variant="outlined"
+              />
+            )}
+          </Box>
+          <Typography sx={{ color: T.textMuted, lineHeight: 1.75, whiteSpace: 'pre-line' }}>
+            {ipo.aiAnalysis}
+          </Typography>
+          <Typography sx={{ color: T.textFaint, fontSize: 11, lineHeight: 1.55, mt: 1.25 }}>
+            AI-assisted general information, not investment advice. GMP is unofficial and
+            does not predict allotment or listing returns. Verify the RHP/DRHP and your
+            own risk profile before applying.
+          </Typography>
+        </SectionCard>
+      )}
 
       {/* Below `lg` this collapses to one column and the two arrays simply concatenate, which is
           why the offer column is ordered to read sensibly straight on into the company one. */}

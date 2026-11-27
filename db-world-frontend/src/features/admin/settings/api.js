@@ -4,6 +4,9 @@ const settingsApi = {
   list:   ()            => axiosInstance.get('/api/admin/config').then(r => r.data?.data ?? []),
   update: (key, value)  => axiosInstance.put(`/api/admin/config/${encodeURIComponent(key)}`, { value: String(value) }),
   reset:  (key)         => axiosInstance.post(`/api/admin/config/${encodeURIComponent(key)}/reset`),
+  ollamaStatus:         () => axiosInstance
+    .get('/api/cinema/admin/catalog/editorial/ai-status')
+    .then(r => r.data?.data),
 };
 
 export default settingsApi;

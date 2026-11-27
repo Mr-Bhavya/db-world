@@ -5,8 +5,13 @@ import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HexFormat;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * One IPO, normalised/merged across sources. {@code matchKey} is the dedup key
@@ -23,6 +28,7 @@ import java.time.LocalDate;
         })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class IpoListingEntity {
+    public static final int MIN_AI_ANALYSIS_LENGTH = 300;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -239,6 +245,60 @@ public class IpoListingEntity {
     /** Investorgain's "as of" label for the subscription figures, verbatim (e.g. {@code "27th Aug 2026 17:11"}). */
     @Column(name = "subscription_updated_label", length = 60)
     private String subscriptionUpdatedLabel;
+
+    @Column(name = "ai_analysis", columnDefinition = "TEXT")
+    private String aiAnalysis;
+
+    @Column(name = "ai_view", length = 30)
+    private String aiView;
+
+    @Column(name = "ai_confidence_score")
+    private Integer aiConfidenceScore;
+
+    @Column(name = "ai_updated_at")
+    private Instant aiUpdatedAt;
+
+    @Column(name = "ai_model", length = 100)
+    private String aiModel;
+
+    @Column(name = "ai_source_fingerprint", length = 64)
+    private String aiSourceFingerprint;
+
+    public boolean isAiSearchIndexEligible() {
+        return mergedIntoId == null
+                && aiAnalysis != null
+                && Objects.equals(aiSourceFingerprint, aiSourceFingerprint())
+                && aiAnalysis.codePoints()
+                    .filter(codePoint -> !Character.isWhitespace(codePoint))
+                    .count() >= MIN_AI_ANALYSIS_LENGTH;
+    }
+
+    public boolean isAiAnalysisStale() {
+        return aiAnalysis != null
+                && !Objects.equals(aiSourceFingerprint, aiSourceFingerprint());
+    }
+
+    /**
+     * Stable digest of facts that can materially change the AI interpretation.
+     * Purely incidental timestamps are deliberately excluded so the live poll does
+     * not force continuous regeneration when values did not actually change.
+     */
+    public String aiSourceFingerprint() {
+        String source = Stream.of(
+                        companyName, ipoType, status, sector, about,
+                        openDate, closeDate, listingDate, priceMin, priceMax,
+                        freshIssue, offerForSale, peRatio, gmp, gmpPct, subTotal,
+                        listingPrice, listingGainPct, strengths, risks,
+                        issueSize, kpisJson, issueObjectsJson)
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining("\u0000"));
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception error) {
+            throw new IllegalStateException("SHA-256 unavailable", error);
+        }
+    }
 
     /**
      * When a per-IPO investorgain GMP fetch last succeeded for this row. This is the rotation

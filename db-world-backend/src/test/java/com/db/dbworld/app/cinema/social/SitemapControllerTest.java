@@ -94,6 +94,23 @@ class SitemapControllerTest {
     }
 
     @Test
+    void listsPublishedRecordOnlyAfterSubstantialOriginalEditorial() {
+        RecordEntity eligible = record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED);
+        eligible.setEditorialNote("x".repeat(RecordEntity.MIN_INDEXABLE_EDITORIAL_LENGTH));
+        eligible.setEditorialUpdatedAt(Instant.parse("2026-11-20T08:00:00Z"));
+        RecordEntity shortNote = record(456L, "Breaking Bad", RecordType.TV_SERIES, RecordVisibility.PUBLISHED);
+        shortNote.setEditorialNote("Too short.");
+
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(eligible, shortNote));
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of());
+
+        assertThat(xml())
+                .contains("/db-cinema/movie/123-inception")
+                .contains("<lastmod>2026-11-20</lastmod>")
+                .doesNotContain("/db-cinema/series/456");
+    }
+
+    @Test
     void listsLandingAndEditorialPages() {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of(
                 record(123L, "Inception", RecordType.MOVIE, RecordVisibility.PUBLISHED),
@@ -133,9 +150,21 @@ class SitemapControllerTest {
         when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of());
         IpoListingEntity ipo = new IpoListingEntity();
         ipo.setId("acme-industries");
+        ipo.setAiAnalysis("x".repeat(IpoListingEntity.MIN_AI_ANALYSIS_LENGTH));
+        ipo.setAiSourceFingerprint(ipo.aiSourceFingerprint());
         when(ipoListingRepository.findAllLive()).thenReturn(List.of(ipo));
 
         assertThat(xml()).contains("<loc>https://db-world.in/db-ipo/acme-industries</loc>");
+    }
+
+    @Test
+    void ipoWithoutAiAnalysisStaysOutOfSitemap() {
+        when(recordRepository.findAllWithTmdbAndTags()).thenReturn(List.of());
+        IpoListingEntity ipo = new IpoListingEntity();
+        ipo.setId("bare-facts");
+        when(ipoListingRepository.findAllLive()).thenReturn(List.of(ipo));
+
+        assertThat(xml()).doesNotContain("/db-ipo/bare-facts");
     }
 
     /* ===============================

@@ -46,6 +46,8 @@ public abstract class IpoMapperBase {
     @Mapping(target = "kpis", source = "kpisJson", qualifiedByName = "kpisFromJson")
     @Mapping(target = "issueObjects", source = "issueObjectsJson", qualifiedByName = "issueObjectsFromJson")
     @Mapping(target = "issueDetails", source = "issueDetailsJson", qualifiedByName = "issueDetailsFromJson")
+    @org.mapstruct.Mapping(target = "searchIndexEligible", expression = "java(e.isAiSearchIndexEligible())")
+    @org.mapstruct.Mapping(target = "aiAnalysisStale", expression = "java(e.isAiAnalysisStale())")
     public abstract IpoDetailDto toDetail(IpoListingEntity e);
 
     public abstract IpoFinancialDto toFinancial(IpoFinancialEntity e);

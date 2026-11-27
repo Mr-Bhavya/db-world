@@ -10,6 +10,7 @@ import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.catalog.service.SearchService;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.enums.RecordVisibility;
+import com.db.dbworld.app.cinema.editorial.RecordEditorialAiService;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
@@ -27,10 +28,27 @@ public class CatalogAdminController {
 
     private final CatalogService catalogService;
     private final SearchService searchService;
+    private final RecordEditorialAiService editorialAiService;
 
     /* =========================
        GET RECORD (admin)
        ========================= */
+
+    @AdminAccess
+    @GetMapping("/editorial/ai-status")
+    public ApiResponse<RecordEditorialAiService.OllamaStatus> editorialAiStatus() {
+        return ApiResponse.success(editorialAiService.status());
+    }
+
+    @AdminAccess
+    @PostMapping("/{id}/editorial/generate")
+    public ApiResponse<RecordDto> generateEditorial(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean overwrite) {
+        return ApiResponse.success(
+                "AI editorial generated and saved.",
+                editorialAiService.generate(id, overwrite));
+    }
 
     @AdminAccess
     @GetMapping("/{id}")

@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import {
   TuneRounded, SearchRounded, CloseRounded, FilterAltRounded, FilterAltOffRounded,
+  SmartToyRounded, CheckCircleRounded, ErrorRounded,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
@@ -44,6 +45,7 @@ const SettingsPanel = () => {
   const [selected, setSelected] = useState(ALL);
   /** key → draft value. Only committed when the save bar is used. */
   const [drafts, setDrafts] = useState({});
+  const [ollamaStatus, setOllamaStatus] = useState(null);
 
   const { data: categories = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'config'],
@@ -121,6 +123,17 @@ const SettingsPanel = () => {
     onError: (e) => notify.error(e?.response?.data?.message ?? 'Reset failed'),
   });
 
+  const ollamaTest = useMutation({
+    mutationFn: settingsApi.ollamaStatus,
+    onSuccess: (status) => {
+      setOllamaStatus(status);
+      notify[status?.ready ? 'success' : 'warning'](
+        status?.message ?? 'Ollama status unavailable');
+    },
+    onError: (error) => notify.error(
+      error?.response?.data?.message ?? 'Unable to reach the backend AI service'),
+  });
+
   const busy = saveMut.isPending || resetMut.isPending;
 
   const onSearch = (v) => {
@@ -170,6 +183,23 @@ const SettingsPanel = () => {
               <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>
                 {cat.settings.length} setting{cat.settings.length === 1 ? '' : 's'}
               </Typography>
+              {cat.category === 'Cinema' && (
+                <Button
+                  size="small"
+                  startIcon={ollamaTest.isPending
+                    ? <CircularProgress size={13} />
+                    : ollamaStatus?.ready
+                      ? <CheckCircleRounded />
+                      : ollamaStatus
+                        ? <ErrorRounded />
+                        : <SmartToyRounded />}
+                  disabled={ollamaTest.isPending}
+                  onClick={() => ollamaTest.mutate()}
+                  sx={{ ml: 'auto', textTransform: 'none', fontWeight: 700 }}
+                >
+                  Test Ollama
+                </Button>
+              )}
             </Box>
             {cat.settings.map((s, i) => (
               <SettingRow

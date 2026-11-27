@@ -51,6 +51,13 @@ export default function OverviewSection({ record }) {
   // collapse gradient fades into the page rather than a visible band.
   const surface = T.bg === '#000000' ? '#141414' : T.bg;
   const canCollapse = (tmdb.overview?.length ?? 0) > 320;
+  const verdicts = {
+    WORTH_WATCHING: { label: 'Worth watching', color: T.success },
+    MAY_ENJOY: { label: 'You may enjoy this', color: T.teal },
+    SKIP_FOR_NOW: { label: 'Consider later', color: T.warning },
+    NOT_ENOUGH_DATA: { label: 'Limited evidence', color: T.textMuted },
+  };
+  const aiVerdict = verdicts[record?.aiVerdict] ?? null;
 
   const chipSx = {
     bgcolor: alpha(T.teal, 0.12), color: T.teal,
@@ -124,6 +131,87 @@ export default function OverviewSection({ record }) {
               {overviewOpen ? 'Show less' : 'Show more'}
             </Button>
           )}
+        </Box>
+      )}
+
+      {record?.editorialNote?.trim() && (
+        <Box sx={{ mb: 4, maxWidth: { xs: '100%', md: 760, xl: 900 } }}>
+          <SectionHeading>
+            {record.editorialSource === 'AI' ? 'DB World AI take' : 'DB World take'}
+          </SectionHeading>
+          {record.editorialSource === 'AI' && (
+            <Typography sx={{ color: T.textFaint, fontSize: '0.72rem', mb: 1.25, lineHeight: 1.5 }}>
+              AI-assisted synthesis of public catalogue facts and review themes. Verify
+              title-specific details independently.
+            </Typography>
+          )}
+
+          {record?.editorialSource === 'AI' && aiVerdict && (
+            <SectionCard sx={{ mb: 4 }}>
+              <SectionHeading action={(
+                <Chip
+                  label={aiVerdict.label}
+                  size="small"
+                  sx={{
+                    color: aiVerdict.color,
+                    bgcolor: `${aiVerdict.color}18`,
+                    border: `1px solid ${aiVerdict.color}44`,
+                    fontWeight: 800,
+                  }}
+                />
+              )}>
+                DB World AI guide
+              </SectionHeading>
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                gap: 2,
+              }}>
+                <Box>
+                  <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                    Best for
+                  </Typography>
+                  <Typography sx={{ color: T.textMuted, mt: .75, lineHeight: 1.65 }}>
+                    {record.aiBestFor || 'Not enough title-specific evidence yet.'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                    Consider
+                  </Typography>
+                  <Typography sx={{ color: T.textMuted, mt: .75, lineHeight: 1.65 }}>
+                    {record.aiConsiderations || 'No important limitation was identified.'}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                {Number.isInteger(record.aiQualityScore) && (
+                  <Chip
+                    label={`AI evidence confidence ${record.aiQualityScore}/100`}
+                    size="small"
+                    sx={{ bgcolor: alpha(T.text, 0.05), color: T.textMuted }}
+                  />
+                )}
+                <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', lineHeight: 1.5 }}>
+                  This is an AI-assisted guide, not a user review score or guarantee of enjoyment.
+                </Typography>
+              </Box>
+            </SectionCard>
+          )}
+          {record.editorialNote.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => (
+            <Typography
+              key={index}
+              sx={{
+                color: T.textMuted,
+                lineHeight: 1.85,
+                fontSize: { xs: '0.95rem', md: '1rem' },
+                mt: index ? 1.5 : 0,
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {paragraph}
+            </Typography>
+          ))}
         </Box>
       )}
 

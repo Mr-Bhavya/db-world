@@ -117,6 +117,17 @@ public final class SettingsCatalog {
              "When on, a draft record is automatically published — and its one-time \"new title\" push "
              + "sent — as soon as its first media file finishes ingesting. When off, an admin publishes "
              + "each record manually.", false, 0),
+        str(CINEMA_AI_EDITORIAL_BASE_URL, C_CINEMA, "Ollama base URL",
+            "Local Ollama server used for DB World editorial and recommendation generation.",
+            "http://127.0.0.1:11434", false, 10),
+        str(CINEMA_AI_EDITORIAL_MODEL, C_CINEMA, "Ollama model",
+            "Installed Ollama model used for cinema editorial generation.",
+            "qwen2.5:3b", false, 11),
+        intg(CINEMA_AI_EDITORIAL_TIMEOUT_SECONDS, C_CINEMA, "AI request timeout (seconds)",
+            "Maximum time allowed for a single local model response.", 180, 30L, 900L, 12),
+        intg(CINEMA_AI_EDITORIAL_BATCH_SIZE, C_CINEMA, "Automatic batch size",
+            "Maximum missing records generated in one nightly pass. Keep low on the Pi.",
+            5, 1L, 20L, 13),
 
         // ── IPO Tracker ──────────────────────────────────────────────────
         str(IPO_SOURCES_ENABLED, C_IPO, "Enabled sources",

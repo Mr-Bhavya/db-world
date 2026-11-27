@@ -484,7 +484,9 @@ export default function RecordDetailContent({
     const isMovie = record.type === 'MOVIE';
     const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
     const titleStr = [tmdb.title, year].filter(Boolean).join(' (') + (year ? ')' : '');
-    const description = tmdb.overview || `Watch ${tmdb.title} on DB Cinema`;
+    const description = record.searchIndexEligible
+      ? record.editorialNote.slice(0, 155)
+      : tmdb.overview || `Watch ${tmdb.title} on DB Cinema`;
     const image = tmdb.backdropPath
       ? `https://image.tmdb.org/t/p/w1280${tmdb.backdropPath}`
       : tmdb.posterPath
@@ -510,19 +512,15 @@ export default function RecordDetailContent({
       setMeta('name', 'twitter:description', description);
       setMeta('name', 'twitter:image', image);
 
-      // Keep this page out of the search index — the same directive
-      // SeoRenderController puts on the crawler-rendered copy.
+      // Keep TMDB-only detail pages out of the search index. Once the admin adds
+      // enough original editorial copy, the crawler and SPA both allow indexing.
       //
-      // Belt and braces, and the belt is the important half: nginx routes known
-      // search-engine user agents to the server-rendered version, so in theory only
-      // that copy needs the tag. But dynamic rendering is a UA-matching trick that
-      // Google has been steering people away from for years, and if a crawler ever
-      // arrives with a UA the map does not recognise it lands here instead — on a page
-      // with no directive at all, which is indexable by default. That would quietly
-      // undo the single biggest fix for the "low value content" rejection.
+      // Belt and braces: Cloudflare routes known search-engine user agents to the
+      // server-rendered version, but an unrecognised crawler can still reach the SPA.
+      // The browser directive must therefore agree with the crawler-rendered copy.
       //
       // `follow` is deliberate: the links out to collection and genre pages still count.
-      setMeta('name', 'robots', 'noindex,follow');
+      setMeta('name', 'robots', record.searchIndexEligible ? 'index,follow' : 'noindex,follow');
     }
 
     return () => {
