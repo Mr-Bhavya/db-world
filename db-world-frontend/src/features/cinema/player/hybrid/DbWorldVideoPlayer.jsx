@@ -1736,14 +1736,12 @@ export default function DbWorldVideoPlayer({
 
       {/* Speed — Netflix-style slider. */}
       <Sheet open={speedOpen} hasHover={hasHover} pos={speedPos} title="Playback speed" onClose={() => setSpeedOpen(false)}
-        desktopCentered desktopWidth="min(640px, 92vw)"
         desktopHeader desktopPad={0} panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <SpeedSlider rateIdx={rateIdx} showLabel={!hasHover} onPick={chooseSpeed} />
       </Sheet>
 
       {/* Audio & Subtitles — two columns. */}
       <Sheet open={audioSubsOpen} hasHover={hasHover} pos={audioSubsPos} title="Audio & Subtitles" onClose={() => setAudioSubsOpen(false)}
-        desktopCentered
         desktopPad="8px 0 12px"
         desktopHeader
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
@@ -2109,8 +2107,7 @@ function useMountTransition(open, duration) {
 // dim backdrop. Enter/exit are CSS transitions gated by useMountTransition (guaranteed unmount).
 function Sheet({
   open, hasHover, pos, title, onClose,
-  mobileFull = false, desktopHeader = false, desktopCentered = false,
-  desktopWidth = 'min(760px, 92vw)',
+  mobileFull = false, desktopHeader = false,
   desktopPad = '8px 0', desktopMaxH = '60vh',
   panelHandlers = {}, children,
 }) {
@@ -2120,21 +2117,19 @@ function Sheet({
 
   if (hasHover) {
     if (!mounted || !pos) return null;
-    const center = desktopCentered ? 'translate(-50%, -50%)' : '';
-    const anim = reduce ? { opacity: shown ? 1 : 0, ...(desktopCentered ? { transform: center } : {}) }
+    const anim = reduce ? { opacity: shown ? 1 : 0 }
       : {
           opacity: shown ? 1 : 0,
           transform: shown
-            ? `${center} translateY(0) scale(1)`.trim()
-            : `${center} translateY(8px) scale(0.97)`.trim(),
+            ? 'translateY(0) scale(1)'
+            : 'translateY(8px) scale(0.97)',
         };
     return (
       <div className="dbw-scroll" {...panelHandlers} onClick={(e) => e.stopPropagation()}
         style={{ position: 'absolute',
-          ...(desktopCentered
-            ? { left: '50%', top: '50%', width: desktopWidth }
-            : { left: pos.left, width: pos.width, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }) }),
-          transformOrigin: desktopCentered ? 'center' : (pos.top != null ? 'top center' : 'bottom center'),
+          left: pos.left, width: pos.width,
+          ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }),
+          transformOrigin: pos.top != null ? 'top center' : 'bottom center',
           transition: reduce ? 'opacity 0.12s ease' : 'opacity 0.16s ease, transform 0.16s ease', ...anim,
           maxWidth: 'min(92vw, 760px)', maxHeight: desktopMaxH, overflowX: 'hidden',
           overflowY: 'auto', padding: desktopPad, zIndex: 31, ...PANEL_LOOK }}>
