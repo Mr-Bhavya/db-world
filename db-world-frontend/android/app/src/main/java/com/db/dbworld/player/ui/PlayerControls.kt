@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -169,7 +171,7 @@ fun PlayerControls(
             enter = fadeIn() + slideInVertically { -it }, exit = fadeOut() + slideOutVertically { -it },
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().displayCutoutPadding().padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -229,7 +231,10 @@ fun PlayerControls(
             vis, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it },
         ) {
-            Column(Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 16.dp)) {
+            Column(
+                Modifier.fillMaxWidth().displayCutoutPadding().navigationBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+            ) {
                 Seekbar(state, onSeek)
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(fmt(state.positionMs), color = PlayerTheme.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium)

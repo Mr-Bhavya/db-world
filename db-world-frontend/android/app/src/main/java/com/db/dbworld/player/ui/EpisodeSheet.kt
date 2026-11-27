@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -65,16 +68,17 @@ fun EpisodeSheet(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
             Column(
-                Modifier.fillMaxWidth().heightIn(max = 460.dp)
+                Modifier.fillMaxWidth(0.68f).widthIn(max = 820.dp).heightIn(max = 430.dp)
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                     .background(PlayerTheme.SheetBg)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding()
                     .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             ) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Episodes", color = PlayerTheme.Text, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
                         Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim)
                     }
                 }
@@ -98,9 +102,10 @@ fun EpisodeSheet(
 private fun EpisodeRow(ep: PlayerEpisode, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp, horizontal = 8.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(if (selected) PlayerTheme.Teal.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(onClick = onClick).padding(8.dp),
+            .then(if (selected) Modifier.border(1.dp, PlayerTheme.Teal.copy(alpha = 0.52f), RoundedCornerShape(12.dp)) else Modifier)
+            .clickable(onClick = onClick).padding(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(

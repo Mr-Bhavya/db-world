@@ -3,7 +3,11 @@ package com.db.dbworld.player
 import java.util.Locale
 
 /** A selectable track for the Compose menus. */
-data class PlayerTrack(val id: Int, val label: String)
+data class PlayerTrack(
+    val id: Int,
+    val label: String,
+    val detail: String = "",
+)
 
 /** Human language name from an ISO code (ported from HybridPlayerPlugin.langName). */
 fun langName(code: String?): String {
@@ -62,6 +66,34 @@ fun audioLabel(language: String?, codec: String?, channels: Int, title: String?)
 /** Builds the subtitle-track label. */
 fun subtitleLabel(language: String?, title: String?): String =
     if (!language.isNullOrEmpty()) langName(language) else (title ?: "Subtitle")
+
+fun audioTrackDetail(
+    mime: String?,
+    channels: Int,
+    sampleRate: Int,
+    bitRate: Int,
+): String = buildList {
+    codecName(mime)?.takeIf { it.isNotBlank() }?.let(::add)
+    if (channels > 0) add(
+        when {
+            channels >= 8 -> "7.1"
+            channels >= 6 -> "5.1"
+            channels == 2 -> "Stereo"
+            channels == 1 -> "Mono"
+            else -> "$channels ch"
+        },
+    )
+    if (sampleRate > 0) add(
+        if (sampleRate % 1000 == 0) "${sampleRate / 1000} kHz"
+        else "${sampleRate / 1000f} kHz",
+    )
+    if (bitRate > 0) add("${(bitRate + 500) / 1000} kbps")
+}.joinToString(" · ")
+
+fun subtitleTrackDetail(mime: String?, title: String?): String = buildList {
+    codecName(mime)?.takeIf { it.isNotBlank() && !it.equals("Subtitle", true) }?.let(::add)
+    title?.takeIf { it.isNotBlank() }?.let(::add)
+}.distinct().joinToString(" · ")
 
 /** Short video-codec display name from a sampleMimeType ("video/av01" -> "AV1"). */
 fun videoCodecName(mime: String?): String {

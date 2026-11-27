@@ -277,9 +277,12 @@ const PLAYER_CSS = `
 .dbw-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
 .dbw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
 .dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }
-.dbw-ep { background: transparent; transition: background 0.12s ease; }
-.dbw-ep:hover { background: rgba(255,255,255,0.08); }
+.dbw-ep { background: transparent; transition: background 0.16s ease, box-shadow 0.16s ease; }
+.dbw-ep:hover { background: rgba(255,255,255,0.09); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+.dbw-ep img { transition: transform 0.22s ease, filter 0.22s ease; }
+.dbw-ep:hover img { transform: scale(1.035); filter: brightness(1.08); }
 .dbw-ep.cur { background: rgba(13,148,136,0.14); }
+.dbw-ep.cur:hover { background: rgba(13,148,136,0.22); }
 /* Menu rows (audio / subtitles / quality / decoder) — pointer hover highlight + press feedback.
    Background lives here (NOT inline) so the :hover rule isn't overridden by an inline style. */
 .dbw-row { background: transparent; transition: background 0.12s ease; }
@@ -1584,7 +1587,8 @@ export default function DbWorldVideoPlayer({
                   )}
                   <span ref={audioBtnRef} style={{ display: 'inline-flex' }}
                     onMouseEnter={() => hoverOpen(() => openAudioSubs(audioBtnRef))} onMouseLeave={hoverLeaveBtn}>
-                    <CtrlBtn icon={<AudiotrackIcon />} label={textTracks.length ? `CC ${textTracks.length}` : ''}
+                    <CtrlBtn icon={<AudiotrackIcon />}
+                      label={`Tracks ${audioTracks.length + textTracks.length}`}
                       tip={textTracks.length ? `${textTracks.length} embedded subtitle track(s)` : 'Audio & subtitles'} active={audioSubsOpen}
                       ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                   </span>
@@ -1637,7 +1641,7 @@ export default function DbWorldVideoPlayer({
                 </span>
                 )}
                 <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
-                  <CtrlBtn icon={<AudiotrackIcon />} label={textTracks.length ? `Audio · CC ${textTracks.length}` : 'Audio & Subtitles'} active={audioSubsOpen}
+                  <CtrlBtn icon={<AudiotrackIcon />} label={`Audio / CC ${audioTracks.length + textTracks.length}`} active={audioSubsOpen}
                     ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                 </span>
                 {!live && episodes.length > 1 && (
@@ -1721,6 +1725,7 @@ export default function DbWorldVideoPlayer({
 
       {/* Audio & Subtitles — two columns. */}
       <Sheet open={audioSubsOpen} hasHover={hasHover} pos={audioSubsPos} title="Audio & Subtitles" onClose={() => setAudioSubsOpen(false)}
+        desktopPad="8px 0 12px"
         desktopHeader
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <AudioSubsColumns audioTracks={audioTracks} textTracks={textTracks}
@@ -1772,13 +1777,14 @@ function SheetRow({ label, detail, selected, disabled = false, onClick }) {
     <button onClick={disabled ? undefined : onClick} disabled={disabled} className="dbw-row"
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10,
         minHeight: Math.round(44 * scale), opacity: disabled ? 0.52 : 1,
-        padding: `${Math.round(10 * scale)}px 16px`, border: 'none', cursor: 'pointer',
+        padding: `${Math.round(10 * scale)}px 16px`, border: 'none',
+        cursor: disabled ? 'default' : 'pointer',
         color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left' }}>
       <span style={{ minWidth: 0 }}>
         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         {detail && (
           <span style={{ display: 'block', color: '#9aa0a6', fontWeight: 500, fontSize: Math.round(11.5 * scale),
-            marginTop: Math.round(2 * scale), whiteSpace: 'nowrap' }}>{detail}</span>
+            marginTop: Math.round(3 * scale), whiteSpace: 'normal', lineHeight: 1.45 }}>{detail}</span>
         )}
       </span>
       {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0 }} />}
@@ -1819,13 +1825,13 @@ function ScrubPreview({ leftPx, time, duration, fmt, thumb }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
       {thumb || (
         <span style={{
-          width: 148, height: 72, borderRadius: 7, border: '1px solid rgba(255,255,255,0.16)',
+          width: 136, height: 58, borderRadius: 7, border: '1px solid rgba(255,255,255,0.16)',
           background: 'linear-gradient(145deg, rgba(31,41,55,0.96), rgba(3,7,18,0.98))',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 3, color: '#f8fafc', boxShadow: '0 8px 24px rgba(0,0,0,0.48)',
         }}>
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '.08em' }}>SEEK TO</span>
-          <span style={{ fontSize: 17, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmt(time)}</span>
+          <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '.08em' }}>SEEK TO</span>
+          <span style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmt(time)}</span>
         </span>
       )}
       <span style={{ background: 'rgba(0,0,0,0.88)', padding: '4px 9px', borderRadius: 6, fontSize: 12,
@@ -1910,7 +1916,7 @@ function VolumeControl({ volume, hasHover, label, labelLeft, onToggleMute, onSet
   const scale = useContext(ScaleCtx);
   const [open, setOpen] = useState(false);
   const muted = volume === 0;
-  const w = Math.round(90 * scale);
+  const w = Math.round(88 * scale);
   const onBtn = (e) => {
     e.stopPropagation();
     if (hasHover) onToggleMute();
@@ -1922,7 +1928,7 @@ function VolumeControl({ volume, hasHover, label, labelLeft, onToggleMute, onSet
   </span>;
   return (
     <div
-      style={{ display: 'inline-flex', alignItems: 'center' }}
+      style={{ display: 'inline-flex', alignItems: 'center', minWidth: Math.round(44 * scale) }}
       onMouseEnter={hasHover ? () => setOpen(true) : undefined}
       onMouseLeave={hasHover ? () => setOpen(false) : undefined}
     >
@@ -1938,12 +1944,26 @@ function VolumeControl({ volume, hasHover, label, labelLeft, onToggleMute, onSet
         }}>
         {labelLeft ? <>{text}{icon}</> : <>{icon}{text}</>}
       </motion.button>
-      <div style={{ width: open ? w : 0, overflow: 'hidden', transition: 'width 0.2s ease',
-        display: 'flex', alignItems: 'center' }}>
+      <div style={{
+        width: open ? w : 0,
+        opacity: open ? 1 : 0,
+        overflow: 'hidden',
+        transition: 'width 0.18s ease, opacity 0.12s ease',
+        display: 'flex', alignItems: 'center', gap: Math.round(6 * scale),
+      }}>
         <input className="dbw-range" type="range" min={0} max={1} step={0.02} value={volume} aria-label="Volume"
           onChange={(e) => onSetVol(Number(e.target.value))}
           onClick={(e) => e.stopPropagation()}
-          style={{ width: w, background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)` }} />
+          style={{
+            width: Math.round(62 * scale),
+            background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)`,
+          }} />
+        <span style={{
+          width: Math.round(26 * scale), color: muted ? '#94a3b8' : '#e5e7eb',
+          fontSize: Math.round(10.5 * scale), fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+        }}>
+          {Math.round(volume * 100)}
+        </span>
       </div>
     </div>
   );
@@ -2181,8 +2201,15 @@ function SpeedSlider({ rateIdx, onPick, showLabel }) {
 }
 
 function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio, onSub }) {
+  const isNarrow = typeof window !== 'undefined' && window.innerWidth < 680;
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch' }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 0.8fr) 1px minmax(0, 1.2fr)',
+      alignItems: 'stretch',
+      minWidth: 0,
+      overflow: 'hidden',
+    }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <SheetSection>Audio</SheetSection>
         {audioTracks.length
@@ -2198,7 +2225,7 @@ function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio,
             ))
           : <SheetEmpty>No alternate audio</SheetEmpty>}
       </div>
-      <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+      <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', display: isNarrow ? 'none' : 'block' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <SheetSection>Subtitles</SheetSection>
         <SheetRow selected={curText < 0} label="Off" onClick={() => onSub(null)} />

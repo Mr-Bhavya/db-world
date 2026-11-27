@@ -1,12 +1,64 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import fs from 'node:fs'
+import os from 'node:os'
+
+const localMediaPlugin = (files) => ({
+  name: 'dbworld-local-player-media',
+  configureServer(server) {
+    Object.entries(files).forEach(([route, value]) => server.middlewares.use(route, (req, res) => {
+      const { filePath, contentType } = value
+      if (!fs.existsSync(filePath)) {
+        res.statusCode = 404
+        res.end('Local player sample not found')
+        return
+      }
+
+      const size = fs.statSync(filePath).size
+      const range = req.headers.range
+      const match = typeof range === 'string' && /^bytes=(\d*)-(\d*)$/.exec(range)
+      if (match) {
+        const start = match[1] ? Number(match[1]) : 0
+        const end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1
+        if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {
+          res.statusCode = 416
+          res.setHeader('Content-Range', `bytes */${size}`)
+          res.end()
+          return
+        }
+        res.statusCode = 206
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`)
+        res.setHeader('Content-Length', end - start + 1)
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Accept-Ranges', 'bytes')
+        if (req.method === 'HEAD') res.end()
+        else fs.createReadStream(filePath, { start, end }).pipe(res)
+        return
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Length', size)
+      res.setHeader('Accept-Ranges', 'bytes')
+      if (req.method === 'HEAD') res.end()
+      else fs.createReadStream(filePath).pipe(res)
+    }))
+  },
+})
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const localPlayerMedia = env.VITE_LOCAL_PLAYER_MEDIA
+    || path.join(os.homedir(), 'Downloads', 'db', 'sample.mkv')
+  const localWebMedia = env.VITE_LOCAL_PLAYER_WEB_MEDIA
+    || path.join(os.homedir(), 'Downloads', 'db', 'sample-web.mp4')
 
   return {
-    plugins: [react()],
+    plugins: [react(), localMediaPlugin({
+      '/__local-player-media/sample.mkv': { filePath: localPlayerMedia, contentType: 'video/x-matroska' },
+      '/__local-player-media/sample.mp4': { filePath: localWebMedia, contentType: 'video/mp4' },
+    })],
 
     // Vitest — code coverage via V8. The lcov report (db-world-frontend/coverage/lcov.info)
     // feeds SonarCloud; `text` prints a summary locally. Run with `npm run test:coverage`.

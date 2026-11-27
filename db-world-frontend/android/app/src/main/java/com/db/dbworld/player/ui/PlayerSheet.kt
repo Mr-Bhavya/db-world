@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,11 +63,12 @@ fun PlayerSheet(title: String, onDismiss: () -> Unit, content: @Composable Colum
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
             Column(
-                Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                Modifier.fillMaxWidth(0.62f).widthIn(max = 720.dp).heightIn(max = 400.dp)
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                     .background(PlayerTheme.SheetBg)
                     // Swallow taps so tapping inside the card doesn't reach the scrim's dismiss.
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -104,8 +107,11 @@ fun SheetSection(label: String) {
 @Composable
 fun SheetRow(label: String, selected: Boolean, subtitle: String? = null, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(if (selected) PlayerTheme.CurrentEp else Color.Transparent)
+            .then(if (selected) Modifier.border(1.dp, PlayerTheme.Teal.copy(alpha = 0.55f), RoundedCornerShape(12.dp)) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -134,10 +140,11 @@ fun AudioSubtitleSheet(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
             Column(
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth(0.64f).widthIn(max = 760.dp)
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                     .background(PlayerTheme.SheetBg)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -148,28 +155,33 @@ fun AudioSubtitleSheet(
                 ) {
                     Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x59FFFFFF)))
                 }
-                Text("Audio & Subtitles", color = PlayerTheme.Text, fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Audio & Subtitles", color = PlayerTheme.Text, fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim)
+                    }
+                }
                 Text(
                     if (state.subtitleTracks.isEmpty()) "No embedded subtitles detected"
                     else "${state.subtitleTracks.size} selectable caption track${if (state.subtitleTracks.size == 1) "" else "s"}",
                     color = PlayerTheme.TextMuted, fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
-                Row(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                Row(Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         SheetSection("Audio")
                         if (state.audioTracks.isEmpty()) {
                             Text("None", color = PlayerTheme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                         }
-                        state.audioTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedAudioId) { onSelectAudio(t.id) } }
+                        state.audioTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedAudioId, t.detail.ifEmpty { null }) { onSelectAudio(t.id) } }
                     }
                     Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 4.dp).background(Color(0x1FFFFFFF)))
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         SheetSection("Subtitles")
                         SheetRow("Off", state.selectedSubtitleId < 0) { onSelectSubtitle(-1) }
-                        state.subtitleTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedSubtitleId) { onSelectSubtitle(t.id) } }
+                        state.subtitleTracks.forEach { t -> SheetRow(t.label, t.id == state.selectedSubtitleId, t.detail.ifEmpty { null }) { onSelectSubtitle(t.id) } }
                     }
                 }
             }
@@ -223,10 +235,11 @@ fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
             Column(
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth(0.66f).widthIn(max = 820.dp)
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                     .background(PlayerTheme.SheetBg)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -240,7 +253,7 @@ fun InfoSheet(state: PlayerUiState, onDismiss: () -> Unit) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Media info", color = PlayerTheme.Text, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
                         Icon(Icons.Filled.Close, contentDescription = "Close", tint = PlayerTheme.TextDim,
                             modifier = Modifier.size(20.dp))
                     }

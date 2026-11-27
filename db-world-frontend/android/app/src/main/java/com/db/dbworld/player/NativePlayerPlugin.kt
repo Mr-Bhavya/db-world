@@ -435,7 +435,11 @@ class NativePlayerPlugin : Plugin() {
                     val id = audioGroups.size
                     val tg = g.mediaTrackGroup
                     val f = tg.getFormat(0)
-                    audio.add(PlayerTrack(id, audioLabel(f.language, codecName(f.sampleMimeType), f.channelCount, f.label)))
+                    audio.add(PlayerTrack(
+                        id = id,
+                        label = audioLabel(f.language, codecName(f.sampleMimeType), f.channelCount, f.label),
+                        detail = audioTrackDetail(f.sampleMimeType, f.channelCount, f.sampleRate, f.bitrate),
+                    ))
                     if (g.isSelected) selAudio = id
                     audioGroups.add(tg)
                 }
@@ -443,7 +447,11 @@ class NativePlayerPlugin : Plugin() {
                     val id = textGroups.size
                     val tg = g.mediaTrackGroup
                     val f = tg.getFormat(0)
-                    text.add(PlayerTrack(id, subtitleLabel(f.language, f.label)))
+                    text.add(PlayerTrack(
+                        id = id,
+                        label = subtitleLabel(f.language, f.label),
+                        detail = subtitleTrackDetail(f.sampleMimeType, f.label),
+                    ))
                     if (g.isSelected) selText = id
                     textGroups.add(tg)
                 }
