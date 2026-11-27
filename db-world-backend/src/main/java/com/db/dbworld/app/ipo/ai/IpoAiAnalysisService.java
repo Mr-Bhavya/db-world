@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Comparator;
 
 @Service
-@RequiredArgsConstructor
 public class IpoAiAnalysisService {
 
     public static final String JOB_ID = "IpoAiAnalysis";
@@ -38,8 +37,16 @@ public class IpoAiAnalysisService {
 
     private final IpoListingRepository repository;
     private final SettingsService settings;
-    @Qualifier("recordEditorialAiWebClient")
     private final WebClient webClient;
+
+    public IpoAiAnalysisService(
+            IpoListingRepository repository,
+            SettingsService settings,
+            @Qualifier("recordEditorialAiWebClient") WebClient webClient) {
+        this.repository = repository;
+        this.settings = settings;
+        this.webClient = webClient;
+    }
 
     @Transactional
     public IpoListingEntity generate(String id) {

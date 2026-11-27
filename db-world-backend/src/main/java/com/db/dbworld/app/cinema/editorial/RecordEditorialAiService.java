@@ -31,7 +31,6 @@ import java.util.Map;
 
 @Log4j2
 @Service
-@RequiredArgsConstructor
 public class RecordEditorialAiService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -49,8 +48,22 @@ public class RecordEditorialAiService {
     private final UserReviewService reviewService;
     private final ApplicationEventPublisher publisher;
     private final SettingsService settingsService;
-    @Qualifier("recordEditorialAiWebClient")
     private final WebClient webClient;
+
+    public RecordEditorialAiService(
+            CatalogService catalogService,
+            RecordRepository recordRepository,
+            UserReviewService reviewService,
+            ApplicationEventPublisher publisher,
+            SettingsService settingsService,
+            @Qualifier("recordEditorialAiWebClient") WebClient webClient) {
+        this.catalogService = catalogService;
+        this.recordRepository = recordRepository;
+        this.reviewService = reviewService;
+        this.publisher = publisher;
+        this.settingsService = settingsService;
+        this.webClient = webClient;
+    }
 
     public String model() {
         return settingsService.getString(ConfigKeys.CINEMA_AI_EDITORIAL_MODEL);
