@@ -191,13 +191,14 @@ function enrichTextTracks(nativeTracks, meta) {
 }
 
 /** The audio menu's rows, built from a file's own MediaInfo (the web seed). */
-const webAudioTracks = (meta) => (meta || []).map((a, i) => ({
+export const webAudioTracks = (meta) => (meta || []).map((a, i) => ({
   id: i, language: a.language, title: a.title,
   channels: a.channels, channelLayout: a.channelLayout,
   format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
   bitRate: a.bitRate, sampleRate: a.sampleRate, samplingRate: a.samplingRate,
+  unavailableOnWeb: true,
 }));
-const webTextTracks = (meta) => (meta || []).map((t, i) => ({
+export const webTextTracks = (meta) => (meta || []).map((t, i) => ({
   id: i, language: t.language, title: t.title, format: t.format || t.codecId,
   codecId: t.codecId || t.codecID, forced: t.forced, defaultFlag: t.defaultFlag,
   unavailableOnWeb: true,
@@ -296,7 +297,7 @@ const PLAYER_CSS = `
 /* TV / keyboard focus ring on every player control (D-pad + Tab friendly). */
 .dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }
 .dbw-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: #fff; font-size: 12px; white-space: nowrap; padding: 4px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.12s ease; z-index: 50; }
-.dbw-tip:hover::after { opacity: 1; }`;
+.dbw-tip:hover::after, .dbw-tip:focus-visible::after { opacity: 1; }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -602,10 +603,25 @@ export default function DbWorldVideoPlayer({
       adapter.on('tracks', d => {
         // `audio` (the file-metadata prop) enriches native tracks so the menu shows clean
         // labels instead of ExoPlayer's raw channel-position dump.
-        const audioTr = enrichAudioTracks(d.audio || [], trackMetaRef.current.audio);
-        const text = enrichTextTracks(d.text || [], trackMetaRef.current.subtitle);
+        const runtimeAudio = Array.isArray(d.audio) ? d.audio : [];
+        const runtimeText = Array.isArray(d.text) ? d.text : [];
+        // Most desktop browsers do not expose audioTracks. A loadedmetadata event
+        // arrives with an empty browser track list, which used to overwrite the
+        // MediaInfo rows already seeded below. Preserve file metadata as a read-only
+        // browser fallback; native ExoPlayer tracks remain switchable as before.
+        const audioTr = runtimeAudio.length
+          ? enrichAudioTracks(runtimeAudio, trackMetaRef.current.audio)
+          : (!isNative ? webAudioTracks(trackMetaRef.current.audio) : []);
+        const text = runtimeText.length
+          ? enrichTextTracks(runtimeText, trackMetaRef.current.subtitle)
+          : (!isNative ? webTextTracks(trackMetaRef.current.subtitle) : []);
         setAudioTracks(audioTr); setTextTracks(text);
-        setCurAudio(d.selectedAudio); setCurText(d.selectedText);
+        setCurAudio((current) => d.selectedAudio >= 0
+          ? d.selectedAudio
+          : (current >= 0 ? current : (audioTr.length ? 0 : -1)));
+        setCurText((current) => d.selectedText >= 0
+          ? d.selectedText
+          : (current >= -1 ? current : -1));
         if (!appliedRef.current && (audioTr.length || text.length)) {
           appliedRef.current = true;
           applyPreferredTracks(audioTr, text);
@@ -636,10 +652,8 @@ export default function DbWorldVideoPlayer({
     }).catch(() => {});
     adapter.setDecoderMode?.('auto'); // always auto — the player already falls back HW→SW on a decode error
 
-    // Web: the adapter never emits a 'tracks' event, so seed the audio menu from
-    // the file metadata and reflect which track is active up front (preferred
-    // language if present, else the first). Native (ExoPlayer) emits 'tracks' and
-    // applies prefs via applyPreferredTracks instead.
+    // Web initially seeds the menu from file metadata. Browsers that later emit an
+    // empty loadedmetadata track list must not erase these diagnostic rows.
     if (!isNative && trackMetaRef.current.audio.length) {
       const meta = trackMetaRef.current.audio;
       setAudioTracks(webAudioTracks(meta));
@@ -937,7 +951,12 @@ export default function DbWorldVideoPlayer({
   }, [isNative, hasHover, lockLandscape]);
 
   // ── track / speed / quality selection ───────────────────────────────────────
-  const chooseAudio = (t) => { adapterRef.current?.selectAudioTrack(t.id); setCurAudio(t.id); lsSet(PREF_AUDIO, t.language); };
+  const chooseAudio = (t) => {
+    if (!t || t.unavailableOnWeb) return;
+    adapterRef.current?.selectAudioTrack(t.id);
+    setCurAudio(t.id);
+    lsSet(PREF_AUDIO, t.language);
+  };
   const chooseSub   = (t) => {
     if (!t) { adapterRef.current?.selectTextTrack(-1); setCurText(-1); lsSet(PREF_SUB, DEFAULT_SUB); }
     else if (!t.unavailableOnWeb) {
@@ -949,9 +968,9 @@ export default function DbWorldVideoPlayer({
   /**
    * Re-seed the audio menu when the quality changes.
    *
-   * On web the adapter emits no 'tracks' event, so the menu is seeded from MediaInfo
-   * once per source — and a quality switch reloads the video WITHOUT changing the
-   * source. The rows therefore went on describing the master the player opened with,
+   * On web, MediaInfo is the authoritative readable fallback because HTMLMediaElement
+   * audioTracks is unsupported in most browsers. A quality switch reloads the video
+   * WITHOUT changing the source, so the rows otherwise describe the master opened with,
    * down to its bitrate and sample rate. Guarded so the source's own seed isn't
    * immediately redone.
    */
@@ -1165,7 +1184,10 @@ export default function DbWorldVideoPlayer({
     setPreview({ leftPx: Math.max(PREVIEW_HALF, Math.min(w - PREVIEW_HALF, f * w)), time: f * duration });
   }, [duration]);
 
-  const onBarHover = (e) => { if (scrub == null) previewAt((e.clientX - barRef.current.getBoundingClientRect().left) / barRef.current.clientWidth); };
+  const onBarHover = (e) => {
+    if (scrub != null || !barRef.current || (e.pointerType && e.pointerType !== 'mouse')) return;
+    previewAt((e.clientX - barRef.current.getBoundingClientRect().left) / barRef.current.clientWidth);
+  };
   const onBarLeave = () => { if (scrub == null) setPreview(null); };
 
   const onScrubChange = (e) => {
@@ -1493,10 +1515,19 @@ export default function DbWorldVideoPlayer({
             {!live && !anyMenuOpen && (<>
             {/* full-width progress bar — wrapper carries hover→time math + the preview bubble.
                 Fill is a 3-stop gradient: teal (played) → light (buffered) → dark (unloaded). */}
-            <div ref={barRef} style={{ position: 'relative', height: 16 }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
+            <div ref={barRef}
+              style={{ position: 'relative', height: 24, cursor: 'ew-resize', touchAction: 'none' }}
+              onPointerMove={onBarHover} onPointerLeave={onBarLeave}>
               {preview && (
-                <ScrubPreview leftPx={preview.leftPx} time={preview.time} fmt={fmt}
+                <ScrubPreview leftPx={preview.leftPx} time={preview.time} duration={duration} fmt={fmt}
                   thumb={storyboardTile(storyboard, preview.time)} />
+              )}
+              {preview && (
+                <div style={{
+                  position: 'absolute', left: preview.leftPx, top: 3, bottom: 3,
+                  width: 2, transform: 'translateX(-1px)', background: 'rgba(255,255,255,0.8)',
+                  pointerEvents: 'none', zIndex: 5,
+                }} />
               )}
               {/* One 5px strip (track → loaded segments → played fill), centered in the row,
                   so every layer shares the same 0–100% coordinate system and stays aligned.
@@ -1781,16 +1812,27 @@ function storyboardTile(sb, timeMs) {
 // Hover/scrub preview bubble above the progress bar: an optional thumbnail frame
 // (Part B — storyboard) stacked over the timestamp. Centered on leftPx; the
 // caller has already clamped leftPx so it never overflows the player edges.
-function ScrubPreview({ leftPx, time, fmt, thumb }) {
+function ScrubPreview({ leftPx, time, duration, fmt, thumb }) {
   return (
     <div style={{ position: 'absolute', bottom: '100%', left: leftPx, transform: 'translateX(-50%)',
       marginBottom: 12, pointerEvents: 'none', zIndex: 20,
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      {thumb}
-      <span style={{ background: 'rgba(0,0,0,0.85)', padding: '3px 9px', borderRadius: 6, fontSize: 12,
+      {thumb || (
+        <span style={{
+          width: 148, height: 72, borderRadius: 7, border: '1px solid rgba(255,255,255,0.16)',
+          background: 'linear-gradient(145deg, rgba(31,41,55,0.96), rgba(3,7,18,0.98))',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 3, color: '#f8fafc', boxShadow: '0 8px 24px rgba(0,0,0,0.48)',
+        }}>
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '.08em' }}>SEEK TO</span>
+          <span style={{ fontSize: 17, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmt(time)}</span>
+        </span>
+      )}
+      <span style={{ background: 'rgba(0,0,0,0.88)', padding: '4px 9px', borderRadius: 6, fontSize: 12,
         fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
         boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-        {fmt(time)}
+        {fmt(time)} / {fmt(duration)}
+        {duration > time && <span style={{ color: '#94a3b8', marginLeft: 6 }}>-{fmt(duration - time)}</span>}
       </span>
     </div>
   );
@@ -2144,7 +2186,16 @@ function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio,
       <div style={{ flex: 1, minWidth: 0 }}>
         <SheetSection>Audio</SheetSection>
         {audioTracks.length
-          ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => onAudio(t)} />)
+          ? audioTracks.map(t => (
+              <SheetRow
+                key={t.id}
+                selected={t.id === curAudio}
+                disabled={t.unavailableOnWeb}
+                label={audioLabel(t)}
+                detail={t.unavailableOnWeb ? 'Embedded track · browser selects default automatically' : undefined}
+                onClick={() => onAudio(t)}
+              />
+            ))
           : <SheetEmpty>No alternate audio</SheetEmpty>}
       </div>
       <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />

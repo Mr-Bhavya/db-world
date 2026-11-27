@@ -47,7 +47,7 @@ class SettingsServiceTest {
         // cooldown-hours, max-per-day, digest-threshold, investorgain-fetch-budget)
         // + 2 scheduler run-history retention knobs + the MediaSync max-removal guard
         // + 2 host health alert switches.
-        assertThat(after1).isEqualTo(68);
+        assertThat(after1).isEqualTo(72);
     }
 
     @Test

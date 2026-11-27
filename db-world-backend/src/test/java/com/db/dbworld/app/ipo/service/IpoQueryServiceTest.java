@@ -299,7 +299,7 @@ class IpoQueryServiceTest {
     }
 
     @Test
-    void list_hideListedNeverAffectsNonListedStatuses() {
+    void list_hidesOldClosedWithUnconfirmedListing() {
         when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
         // A very old *closed* IPO isn't subject to the listed-age filter (only status "listed" is).
         IpoListingEntity oldClosed = IpoListingEntity.builder()
@@ -310,7 +310,23 @@ class IpoQueryServiceTest {
 
         IpoListResponse response = service.list(null, null, null);
 
-        assertThat(response.ipos()).extracting(IpoSummaryDto::id).containsExactly("closed");
+        assertThat(response.ipos()).isEmpty();
+    }
+
+    @Test
+    void list_keepsRecentClosedWaitingForListing() {
+        when(settings.getLong(ConfigKeys.IPO_LIST_HIDE_LISTED_AFTER_DAYS)).thenReturn(30L);
+        IpoListingEntity recent = IpoListingEntity.builder()
+                .id("closed").matchKey("closed-key").companyName("Company closed")
+                .ipoType("mainboard").status("closed")
+                .closeDate(LocalDate.of(2026, 7, 10))
+                .build();
+        when(listingRepository.findAll()).thenReturn(List.of(recent));
+        when(pollService.lastSuccessAcrossSources()).thenReturn(Optional.empty());
+
+        assertThat(service.list(null, null, null).ipos())
+                .extracting(IpoSummaryDto::id)
+                .containsExactly("closed");
     }
 
     @Test

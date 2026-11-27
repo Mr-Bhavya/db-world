@@ -327,6 +327,17 @@ public class IpoDuplicateService {
         fill(survivor, loser, IpoListingEntity::getHeadquarters, IpoListingEntity::setHeadquarters);
         fill(survivor, loser, IpoListingEntity::getWebsite, IpoListingEntity::setWebsite);
 
+        // AI-generated guidance belongs to the IPO facts and source fingerprint; preserve
+        // it when the duplicate survivor is the row missing analysis.
+        fill(survivor, loser, IpoListingEntity::getAiAnalysis, IpoListingEntity::setAiAnalysis);
+        fill(survivor, loser, IpoListingEntity::getAiView, IpoListingEntity::setAiView);
+        fill(survivor, loser, IpoListingEntity::getAiConfidenceScore,
+                IpoListingEntity::setAiConfidenceScore);
+        fill(survivor, loser, IpoListingEntity::getAiUpdatedAt, IpoListingEntity::setAiUpdatedAt);
+        fill(survivor, loser, IpoListingEntity::getAiModel, IpoListingEntity::setAiModel);
+        fill(survivor, loser, IpoListingEntity::getAiSourceFingerprint,
+                IpoListingEntity::setAiSourceFingerprint);
+
         // Carried so the survivor inherits "the closing-soon push already went out for this
         // company" — the two rows were one IPO, so re-sending it would be a duplicate alert.
         fill(survivor, loser, IpoListingEntity::getClosingSoonNotifiedAt,

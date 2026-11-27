@@ -194,6 +194,21 @@ class IpoStatusSweepServiceTest {
     }
 
     @Test
+    void sweep_tickerOrListingGainConfirmsListingWithoutListingPrice() {
+        IpoListingEntity ticker = ipo("1", "closed", OPEN_DAY, CLOSE_DAY);
+        ticker.setListingDate(OPEN_DAY);
+        ticker.setTickerSymbol("ACME");
+        IpoListingEntity gain = ipo("2", "closed", OPEN_DAY, CLOSE_DAY);
+        gain.setListingDate(OPEN_DAY);
+        gain.setListingGainPct(new BigDecimal("4.5"));
+        when(listingRepo.findAllLive()).thenReturn(List.of(ticker, gain));
+
+        assertThat(serviceAt(EVENING_CLOSE_DAY).sweep()).isEqualTo(2);
+        assertThat(ticker.getStatus()).isEqualTo("listed");
+        assertThat(gain.getStatus()).isEqualTo("listed");
+    }
+
+    @Test
     void sweep_todayConfirmedListing_queuesNotification() {
         IpoListingEntity ipo = ipo("1", "closed", OPEN_DAY, CLOSE_DAY);
         ipo.setListingDate(CLOSE_DAY);

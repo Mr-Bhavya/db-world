@@ -211,9 +211,9 @@ public final class SettingsCatalog {
                 + "as ONE summary push (\"5 IPOs opened today\") instead of one push each. 2 bundles "
                 + "aggressively; a high value effectively disables bundling.",
             2L, 2L, 50L, 24),
-        lng(IPO_LIST_HIDE_LISTED_AFTER_DAYS, C_IPO, "Hide listed after (days)",
-            "Hide an IPO from the list once it listed more than this many days ago, so the list stays "
-                + "current. 0 = never hide. Only affects already-listed IPOs with a known listing date.",
+        lng(IPO_LIST_HIDE_LISTED_AFTER_DAYS, C_IPO, "Hide completed IPOs after (days)",
+            "Hide listed IPOs, and stale closed IPOs with no confirmed listing result, after this many "
+                + "days. 0 = never hide. Direct detail links still work.",
             30L, 0L, 3650L, 25),
         lng(IPO_NOTIFY_WINDOW_START_HOUR, C_IPO, "Notify window start (IST hour)",
             "Earliest IST hour (0–23) an IPO push may be sent. IPO bidding + listing trading both open "

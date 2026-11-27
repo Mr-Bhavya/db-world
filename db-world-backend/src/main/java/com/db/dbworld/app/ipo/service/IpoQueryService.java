@@ -130,7 +130,7 @@ public class IpoQueryService {
                 // always the emptier of the two, so it shows as a card with no GMP.
                 .filter(e -> e.getMergedIntoId() == null)
                 .filter(e -> matchesType(e, type))
-                .filter(e -> !isStaleListed(e, staleListedCutoff))
+                .filter(e -> !isStaleCompleted(e, staleListedCutoff))
                 .sorted(sortComparator(sort))
                 .map(mapper::toSummary)
                 .toList();
@@ -152,11 +152,20 @@ public class IpoQueryService {
      * listing date before {@code cutoff}. A null cutoff (feature off) or a listed IPO with no
      * listing date is never hidden.
      */
-    private static boolean isStaleListed(IpoListingEntity entity, LocalDate cutoff) {
-        return cutoff != null
-                && STATUS_LISTED.equalsIgnoreCase(entity.getStatus())
-                && entity.getListingDate() != null
-                && entity.getListingDate().isBefore(cutoff);
+    private static boolean isStaleCompleted(IpoListingEntity entity, LocalDate cutoff) {
+        if (cutoff == null) return false;
+        if (STATUS_LISTED.equalsIgnoreCase(entity.getStatus())) {
+            return entity.getListingDate() != null && entity.getListingDate().isBefore(cutoff);
+        }
+        if ("closed".equalsIgnoreCase(entity.getStatus())) {
+            LocalDate completionDate = entity.getListingDate() != null
+                    ? entity.getListingDate()
+                    : entity.getCloseDate();
+            return completionDate != null
+                    && completionDate.isBefore(cutoff)
+                    && !IpoStatusSweepService.hasConfirmedListing(entity, cutoff);
+        }
+        return false;
     }
 
     /**

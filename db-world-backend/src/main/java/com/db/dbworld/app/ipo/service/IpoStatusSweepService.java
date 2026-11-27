@@ -190,7 +190,11 @@ public class IpoStatusSweepService {
     }
 
     static boolean hasConfirmedListing(IpoListingEntity ipo, LocalDate today) {
-        return ipo.getListingPrice() != null && ipo.getListingPrice().signum() > 0
-                && ipo.getListingDate() != null && !ipo.getListingDate().isAfter(today);
+        boolean evidence = (ipo.getListingPrice() != null && ipo.getListingPrice().signum() > 0)
+                || (ipo.getListingGainPct() != null)
+                || (ipo.getTickerSymbol() != null && !ipo.getTickerSymbol().isBlank());
+        return evidence
+                && ipo.getListingDate() != null
+                && !ipo.getListingDate().isAfter(today);
     }
 }
