@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -74,6 +75,12 @@ public class IpoAiAnalysisService {
         List<IpoListingEntity> candidates = repository.findAll().stream()
                 .filter(ipo -> ipo.getMergedIntoId() == null
                         && (ipo.getAiAnalysis() == null || ipo.isAiAnalysisStale()))
+                .sorted(Comparator.comparing(
+                                (IpoListingEntity ipo) -> ipo.getAiAnalysis() != null)
+                        .thenComparing(
+                                IpoListingEntity::getFirstSeenAt,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(IpoListingEntity::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(Math.max(1, batch))
                 .toList();
         summary.count("selected", candidates.size())
@@ -81,7 +88,8 @@ public class IpoAiAnalysisService {
                 .count("stale", (int) candidates.stream()
                         .filter(IpoListingEntity::isAiAnalysisStale)
                         .count())
-                .note("Ollama model: " + settings.getString(ConfigKeys.CINEMA_AI_EDITORIAL_MODEL));
+                .note("Ollama model: " + settings.getString(ConfigKeys.CINEMA_AI_EDITORIAL_MODEL)
+                        + "; newest IPOs without analysis first, then stale analysis");
         int generated = 0;
         for (IpoListingEntity ipo : candidates) {
             generate(ipo.getId());

@@ -29,7 +29,8 @@ public class RecordEditorialAiScheduler {
         summary.count("selected", ids.size())
                 .count("generated", 0)
                 .count("failed", 0)
-                .note("Ollama model: " + editorialAiService.model());
+                .note("Ollama model: " + editorialAiService.model()
+                        + "; newest published records first");
 
         if (ids.isEmpty()) {
             summary.note("No published records are missing editorial content");

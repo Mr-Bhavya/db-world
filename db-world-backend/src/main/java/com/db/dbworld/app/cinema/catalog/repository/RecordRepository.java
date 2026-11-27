@@ -27,7 +27,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             FROM RecordEntity r
             WHERE r.visibility = com.db.dbworld.app.cinema.enums.RecordVisibility.PUBLISHED
               AND (r.editorialNote IS NULL OR TRIM(r.editorialNote) = '')
-            ORDER BY r.publishedAt DESC NULLS LAST, r.id DESC
+            ORDER BY r.publishedAt DESC NULLS LAST, r.createdAt DESC NULLS LAST, r.id DESC
             """)
     List<Long> findPublishedIdsWithoutEditorial(Pageable pageable);
 
