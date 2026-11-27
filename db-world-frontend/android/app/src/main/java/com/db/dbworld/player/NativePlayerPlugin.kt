@@ -437,8 +437,15 @@ class NativePlayerPlugin : Plugin() {
                     val f = tg.getFormat(0)
                     audio.add(PlayerTrack(
                         id = id,
-                        label = audioLabel(f.language, codecName(f.sampleMimeType), f.channelCount, f.label),
-                        detail = audioTrackDetail(f.sampleMimeType, f.channelCount, f.sampleRate, f.bitrate),
+                        label = audioLabel(f.language, f.label),
+                        detail = audioTrackDetail(
+                            f.sampleMimeType,
+                            f.channelCount,
+                            f.sampleRate,
+                            f.bitrate,
+                            f.selectionFlags and androidx.media3.common.C.SELECTION_FLAG_DEFAULT != 0,
+                            f.selectionFlags and androidx.media3.common.C.SELECTION_FLAG_FORCED != 0,
+                        ),
                     ))
                     if (g.isSelected) selAudio = id
                     audioGroups.add(tg)
@@ -450,7 +457,13 @@ class NativePlayerPlugin : Plugin() {
                     text.add(PlayerTrack(
                         id = id,
                         label = subtitleLabel(f.language, f.label),
-                        detail = subtitleTrackDetail(f.sampleMimeType, f.label),
+                        detail = subtitleTrackDetail(
+                            f.sampleMimeType,
+                            f.label,
+                            f.language,
+                            f.selectionFlags and androidx.media3.common.C.SELECTION_FLAG_DEFAULT != 0,
+                            f.selectionFlags and androidx.media3.common.C.SELECTION_FLAG_FORCED != 0,
+                        ),
                     ))
                     if (g.isSelected) selText = id
                     textGroups.add(tg)

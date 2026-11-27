@@ -4,6 +4,7 @@ import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.core.exception.DbWorldException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;
@@ -38,14 +39,17 @@ public class RecordEditorialAiScheduler {
         }
 
         int generated = 0;
+        int failed = 0;
         for (Long id : ids) {
             try {
                 editorialAiService.generate(id, false);
                 generated++;
                 summary.count("generated", generated);
+            } catch (DbWorldException error) {
+                if (error.getHttpStatus().value() != 422) throw error;
+                summary.count("failed", ++failed)
+                        .note("Record " + id + " skipped: " + error.getMessage());
             } catch (Exception error) {
-                summary.count("failed", 1)
-                        .note("Stopped after record " + id + ": " + error.getMessage());
                 throw error;
             }
             if (Thread.currentThread().isInterrupted()) {

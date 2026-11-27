@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -107,19 +106,28 @@ fun SheetSection(label: String) {
 @Composable
 fun SheetRow(label: String, selected: Boolean, subtitle: String? = null, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .background(if (selected) PlayerTheme.CurrentEp else Color.Transparent)
-            .then(if (selected) Modifier.border(1.dp, PlayerTheme.Teal.copy(alpha = 0.55f), RoundedCornerShape(12.dp)) else Modifier)
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Color(0x0D14B8A6) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            Modifier.width(3.dp).height(30.dp).clip(RoundedCornerShape(2.dp))
+                .background(if (selected) PlayerTheme.Teal else Color.Transparent),
+        )
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(label, color = if (selected) PlayerTheme.Teal else PlayerTheme.Text, fontSize = 15.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-            if (subtitle != null) Text(subtitle, color = PlayerTheme.TextMuted, fontSize = 12.sp)
+            if (subtitle != null) Text(
+                subtitle, color = PlayerTheme.TextMuted, fontSize = 11.5.sp,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
-        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = PlayerTheme.Teal)
+        if (selected) Icon(Icons.Filled.Check, contentDescription = "Selected", tint = PlayerTheme.Teal,
+            modifier = Modifier.size(18.dp))
     }
 }
 
@@ -193,19 +201,28 @@ fun AudioSubtitleSheet(
 @Composable
 fun SpeedSheet(speeds: List<Float>, current: Float, onSelect: (Float) -> Unit, onDismiss: () -> Unit) {
     PlayerSheet("Playback speed", onDismiss) {
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp)
+                .clip(RoundedCornerShape(14.dp)).background(Color(0x0FFFFFFF)).padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             speeds.forEach { s ->
                 val sel = s == current
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                        .background(if (sel) PlayerTheme.Teal else Color(0x1FFFFFFF))
-                        .clickable { onSelect(s) }.padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center,
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
+                        .background(if (sel) Color(0x2414B8A6) else Color.Transparent)
+                        .clickable { onSelect(s) }.padding(vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         if (s == 1f) "1×" else "${if (s % 1f == 0f) s.toInt().toString() else s.toString()}×",
-                        color = if (sel) Color(0xFF06201D) else PlayerTheme.Text,
-                        fontSize = 14.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                        color = if (sel) PlayerTheme.Teal else PlayerTheme.TextDim,
+                        fontSize = 15.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                    )
+                    Box(
+                        Modifier.padding(top = 5.dp).width(18.dp).height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(if (sel) PlayerTheme.Teal else Color.Transparent),
                     )
                 }
             }

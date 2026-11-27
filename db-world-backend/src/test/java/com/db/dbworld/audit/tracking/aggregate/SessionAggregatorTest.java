@@ -68,6 +68,17 @@ class SessionAggregatorTest {
         assertThat(s.getAttemptCount()).isEqualTo(2);   // START + RETRY
     }
 
+    @Test void failureTextIsBoundedToDatabaseColumns() {
+        ActivitySessionEntity s = agg.initFromResolve(base(TrackEventType.RESOLVE).build());
+        agg.applyClientEvent(s, base(TrackEventType.FAIL)
+                .errorCode("X".repeat(80))
+                .errorMessage("E".repeat(800))
+                .build());
+
+        assertThat(s.getLastErrorCode()).hasSize(40);
+        assertThat(s.getLastErrorMessage()).hasSize(512);
+    }
+
     @Test void complete_setsCompletedAndTimestamp() {
         ActivitySessionEntity s = agg.initFromResolve(base(TrackEventType.RESOLVE).build());
         agg.applyClientEvent(s, base(TrackEventType.START).build());

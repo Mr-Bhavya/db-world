@@ -11,7 +11,6 @@ import com.db.dbworld.app.admin.config.registry.ConfigKeys;
 import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.core.exception.DbWorldException;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
@@ -106,6 +105,16 @@ public class RecordEditorialAiService {
         List<UserReviewDto> reviews = reviewService.getByRecord(recordId, null);
         String prompt = buildPrompt(record, reviews);
         GeneratedEditorial generated = requestEditorial(prompt);
+        if (!hasMinimumEditorialLength(generated.editorialNote())) {
+            generated = requestEditorial("""
+                    The previous editorialNote was too short. Expand ONLY editorialNote into
+                    500-900 non-whitespace characters, preserving the same evidence boundaries.
+                    Return the complete JSON object again; do not add commentary.
+
+                    ORIGINAL TASK:
+                    %s
+                    """.formatted(prompt));
+        }
         validate(generated.editorialNote());
 
         entity.setEditorialNote(generated.editorialNote());
@@ -134,7 +143,7 @@ public class RecordEditorialAiService {
                         List.of(
                                 new Message("system", SYSTEM_PROMPT),
                                 new Message("user", prompt)),
-                        new Options(0.25, 500)))
+                        new Options(0.25, 1400)))
                 .retrieve()
                 .onStatus(status -> status.isError(), result -> result.bodyToMono(String.class)
                         .flatMap(body -> Mono.error(new DbWorldException(
@@ -234,10 +243,7 @@ public class RecordEditorialAiService {
     }
 
     void validate(String editorial) {
-        long meaningful = editorial.codePoints()
-                .filter(codePoint -> !Character.isWhitespace(codePoint))
-                .count();
-        if (meaningful < RecordEntity.MIN_INDEXABLE_EDITORIAL_LENGTH) {
+        if (!hasMinimumEditorialLength(editorial)) {
             throw new DbWorldException(
                     HttpStatus.UNPROCESSABLE_CONTENT,
                     "Generated editorial content was too short and was not saved.");
@@ -248,6 +254,12 @@ public class RecordEditorialAiService {
                     HttpStatus.UNPROCESSABLE_CONTENT,
                     "Generated editorial content exceeded 5,000 characters and was not saved.");
         }
+    }
+
+    private static boolean hasMinimumEditorialLength(String editorial) {
+        return editorial != null && editorial.codePoints()
+                .filter(codePoint -> !Character.isWhitespace(codePoint))
+                .count() >= RecordEntity.MIN_INDEXABLE_EDITORIAL_LENGTH;
     }
 
     private static void validateSignals(GeneratedEditorial generated) {

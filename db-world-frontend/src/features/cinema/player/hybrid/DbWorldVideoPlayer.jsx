@@ -1682,25 +1682,42 @@ export default function DbWorldVideoPlayer({
       {/* Next-episode card — autoplay countdown at the very end, or a manual
           "Up next" prompt during the last 60s (credits) of the episode. */}
       {((countdown != null && nextEpisode) || showUpNext) && (
-        <div style={{ position: 'absolute', bottom: 110, right: 20, zIndex: 25, width: 320, maxWidth: '82%',
-          background: 'rgba(0,0,0,0.9)', borderRadius: 12, padding: 16, border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ fontSize: 12, color: '#bbb', marginBottom: 4 }}>
-            {countdown != null ? `Next episode in ${countdown}s` : 'Up next'}
+        <div style={{
+          position: 'absolute', bottom: 110, right: 20, zIndex: 25, width: 360, maxWidth: '82%',
+          background: 'linear-gradient(145deg, rgba(18,20,23,0.97), rgba(6,8,10,0.96))',
+          borderRadius: 18, padding: 18, border: '1px solid rgba(255,255,255,0.11)',
+          boxShadow: '0 18px 60px rgba(0,0,0,0.52)', backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, color: TEAL, fontWeight: 800, letterSpacing: '.12em' }}>UP NEXT</div>
+              <div style={{ fontSize: 12, color: '#aab0b7', marginTop: 3 }}>
+                {countdown != null ? `Starting in ${countdown}s` : 'Your next episode is ready'}
+              </div>
+            </div>
+            <button onClick={countdown != null ? cancelAutoplay : () => setUpNextDismissed(true)}
+              aria-label="Dismiss next episode"
+              style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.06)', color: '#cfd3d7', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+              <CloseIcon sx={{ fontSize: 17 }} />
+            </button>
           </div>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12,
+          <div style={{ fontWeight: 700, fontSize: 16, margin: '14px 0 12px', lineHeight: 1.35,
             overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {epTitle(nextEpisode)}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          {countdown != null && (
+            <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.13)', overflow: 'hidden', marginBottom: 14 }}>
+              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, countdown * 10))}%`,
+                background: TEAL, borderRadius: 99, transition: 'width 0.35s linear' }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button onClick={goNext}
-              style={{ flex: 1, padding: 10, background: TEAL, color: '#fff', border: 'none', borderRadius: 8,
-                fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              style={{ padding: '10px 16px', background: TEAL, color: '#06211c', border: 'none', borderRadius: 11,
+                fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <SkipNextIcon sx={{ fontSize: 18 }} /> {countdown != null ? 'Play now' : 'Play next'}
-            </button>
-            <button onClick={countdown != null ? cancelAutoplay : () => setUpNextDismissed(true)}
-              style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none',
-                borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
-              {countdown != null ? 'Cancel' : 'Dismiss'}
             </button>
           </div>
         </div>
@@ -1719,12 +1736,14 @@ export default function DbWorldVideoPlayer({
 
       {/* Speed — Netflix-style slider. */}
       <Sheet open={speedOpen} hasHover={hasHover} pos={speedPos} title="Playback speed" onClose={() => setSpeedOpen(false)}
+        desktopCentered desktopWidth="min(640px, 92vw)"
         desktopHeader desktopPad={0} panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
         <SpeedSlider rateIdx={rateIdx} showLabel={!hasHover} onPick={chooseSpeed} />
       </Sheet>
 
       {/* Audio & Subtitles — two columns. */}
       <Sheet open={audioSubsOpen} hasHover={hasHover} pos={audioSubsPos} title="Audio & Subtitles" onClose={() => setAudioSubsOpen(false)}
+        desktopCentered
         desktopPad="8px 0 12px"
         desktopHeader
         panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
@@ -1779,12 +1798,18 @@ function SheetRow({ label, detail, selected, disabled = false, onClick }) {
         minHeight: Math.round(44 * scale), opacity: disabled ? 0.52 : 1,
         padding: `${Math.round(10 * scale)}px 16px`, border: 'none',
         cursor: disabled ? 'default' : 'pointer',
-        color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left' }}>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left',
+        boxShadow: selected ? `inset 3px 0 0 ${TEAL}` : 'none',
+        background: selected ? 'rgba(20,184,166,0.06)' : undefined }}>
+      <span style={{ minWidth: 0, flex: 1, paddingLeft: selected ? 4 : 0 }}>
+        <span style={{
+          display: 'block', overflowWrap: 'anywhere', wordBreak: 'break-word',
+          whiteSpace: 'normal', lineHeight: 1.35,
+        }}>{label}</span>
         {detail && (
           <span style={{ display: 'block', color: '#9aa0a6', fontWeight: 500, fontSize: Math.round(11.5 * scale),
-            marginTop: Math.round(3 * scale), whiteSpace: 'normal', lineHeight: 1.45 }}>{detail}</span>
+            marginTop: Math.round(4 * scale), whiteSpace: 'normal', lineHeight: 1.5,
+            overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{detail}</span>
         )}
       </span>
       {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0 }} />}
@@ -2084,7 +2109,9 @@ function useMountTransition(open, duration) {
 // dim backdrop. Enter/exit are CSS transitions gated by useMountTransition (guaranteed unmount).
 function Sheet({
   open, hasHover, pos, title, onClose,
-  mobileFull = false, desktopHeader = false, desktopPad = '8px 0', desktopMaxH = '60vh',
+  mobileFull = false, desktopHeader = false, desktopCentered = false,
+  desktopWidth = 'min(760px, 92vw)',
+  desktopPad = '8px 0', desktopMaxH = '60vh',
   panelHandlers = {}, children,
 }) {
   const scale = useContext(ScaleCtx);
@@ -2093,15 +2120,24 @@ function Sheet({
 
   if (hasHover) {
     if (!mounted || !pos) return null;
-    const anim = reduce ? { opacity: shown ? 1 : 0 }
-      : { opacity: shown ? 1 : 0, transform: shown ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.97)' };
+    const center = desktopCentered ? 'translate(-50%, -50%)' : '';
+    const anim = reduce ? { opacity: shown ? 1 : 0, ...(desktopCentered ? { transform: center } : {}) }
+      : {
+          opacity: shown ? 1 : 0,
+          transform: shown
+            ? `${center} translateY(0) scale(1)`.trim()
+            : `${center} translateY(8px) scale(0.97)`.trim(),
+        };
     return (
       <div className="dbw-scroll" {...panelHandlers} onClick={(e) => e.stopPropagation()}
-        style={{ position: 'absolute', left: pos.left, width: pos.width,
-          ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }),
-          transformOrigin: pos.top != null ? 'top center' : 'bottom center',
+        style={{ position: 'absolute',
+          ...(desktopCentered
+            ? { left: '50%', top: '50%', width: desktopWidth }
+            : { left: pos.left, width: pos.width, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }) }),
+          transformOrigin: desktopCentered ? 'center' : (pos.top != null ? 'top center' : 'bottom center'),
           transition: reduce ? 'opacity 0.12s ease' : 'opacity 0.16s ease, transform 0.16s ease', ...anim,
-          maxWidth: '92vw', maxHeight: desktopMaxH, overflowY: 'auto', padding: desktopPad, zIndex: 31, ...PANEL_LOOK }}>
+          maxWidth: 'min(92vw, 760px)', maxHeight: desktopMaxH, overflowX: 'hidden',
+          overflowY: 'auto', padding: desktopPad, zIndex: 31, ...PANEL_LOOK }}>
         {desktopHeader && title && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: `0 ${Math.round(18 * scale)}px 12px` }}>
@@ -2159,43 +2195,34 @@ function Sheet({
 // selects that speed. No progress fill — the highlighted knob marks the current speed.
 function SpeedSlider({ rateIdx, onPick, showLabel }) {
   const scale = useContext(ScaleCtx);
-  const n = SPEEDS.length;
-  const DOTBOX = Math.round(22 * scale);
-  const lineTop = Math.round(DOTBOX / 2 - 1.5);
   return (
-    <div style={{ padding: `${Math.round(showLabel ? 12 : 8 * scale)}px ${Math.round(16 * scale)}px ${Math.round(6 * scale)}px` }}>
+    <div style={{ padding: `${Math.round(showLabel ? 12 : 8 * scale)}px ${Math.round(16 * scale)}px ${Math.round(8 * scale)}px` }}>
       {showLabel && (
         <div style={{ fontSize: Math.round(15 * scale), fontWeight: 700, marginBottom: Math.round(14 * scale) }}>Playback Speed</div>
       )}
-      <div style={{ position: 'relative' }}>
-        {/* base track, spanning the first→last dot centres. pointerEvents:none so the whole
-            tick column (dot included) stays clickable — the line never eats the click. */}
-        <div style={{ position: 'absolute', left: `${50 / n}%`, right: `${50 / n}%`, top: lineTop, height: 3,
-          background: 'rgba(255,255,255,0.22)', borderRadius: 999, pointerEvents: 'none' }} />
-        <div style={{ display: 'flex' }}>
-          {SPEEDS.map((s, i) => {
-            const cur = i === rateIdx;
-            const dot = cur ? Math.round(16 * scale) : Math.round(11 * scale);
-            return (
-              <button key={s} onClick={() => onPick(i)} aria-label={`${s}x`}
-                className="dbw-speedtick"
-                style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                <span style={{ height: DOTBOX, display: 'grid', placeItems: 'center' }}>
-                  <span style={{ width: dot, height: dot, borderRadius: '50%',
-                    background: cur ? TEAL : 'rgba(255,255,255,0.55)',
-                    boxShadow: cur ? `0 0 0 ${Math.round(4 * scale)}px rgba(13,148,136,0.25)` : 'none',
-                    transition: 'width 0.12s ease, height 0.12s ease, background 0.12s ease' }} />
-                </span>
-                <span style={{ marginTop: Math.round(4 * scale), fontSize: Math.round(12 * scale), whiteSpace: 'nowrap',
-                  color: cur ? '#fff' : '#9aa0a6', fontWeight: cur ? 700 : 500 }}>
-                  {s === 1 ? '1x (Normal)' : `${s}x`}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <div style={{
+        display: 'flex', gap: 2, padding: 4, borderRadius: 14,
+        background: 'rgba(255,255,255,0.055)', border: '1px solid rgba(255,255,255,0.07)',
+      }}>
+        {SPEEDS.map((s, i) => {
+          const cur = i === rateIdx;
+          return (
+            <button key={s} onClick={() => onPick(i)} aria-label={`${s}x`}
+              className="dbw-speedtick"
+              style={{
+                flex: 1, minWidth: 0, border: 'none', borderRadius: 10, cursor: 'pointer',
+                padding: `${Math.round(9 * scale)}px ${Math.round(4 * scale)}px`,
+                background: cur ? 'rgba(20,184,166,0.16)' : 'transparent',
+                color: cur ? TEAL : '#c4c7cc', fontSize: Math.round(13 * scale),
+                fontWeight: cur ? 800 : 600, transition: 'background 0.15s ease, color 0.15s ease',
+                boxShadow: cur ? `inset 0 -2px 0 ${TEAL}` : 'none',
+              }}>
+              {s === 1 ? '1×' : `${s}×`}
+            </button>
+          );
+        })}
       </div>
+      <div style={{ marginTop: 8, color: '#777e87', fontSize: Math.round(11.5 * scale) }}>1× is normal playback speed</div>
     </div>
   );
 }
@@ -2205,7 +2232,7 @@ function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio,
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 0.8fr) 1px minmax(0, 1.2fr)',
+      gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 1fr) 1px minmax(0, 1fr)',
       alignItems: 'stretch',
       minWidth: 0,
       overflow: 'hidden',
@@ -2317,7 +2344,7 @@ function InfoCard({ name, playing, rows }) {
           padding: `${Math.round(8 * scale)}px ${Math.round(14 * scale)}px`,
           borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <span style={{ fontWeight: 700, fontSize: Math.round(14 * scale), color: playing ? TEAL : '#fff',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+            minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.35 }}>{name}</span>
           {playing && (
             <span style={{ flexShrink: 0, fontSize: Math.round(9.5 * scale), fontWeight: 800, letterSpacing: 0.6, color: TEAL,
               border: `1px solid ${TEAL}`, borderRadius: 999, padding: `${Math.round(2 * scale)}px ${Math.round(7 * scale)}px` }}>PLAYING</span>

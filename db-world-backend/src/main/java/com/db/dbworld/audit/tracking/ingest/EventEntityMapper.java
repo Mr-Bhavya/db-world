@@ -33,12 +33,18 @@ final class EventEntityMapper {
                 .positionMs(e.positionMs())
                 .durationMs(e.durationMs())
                 .completionPercent(e.completionPercent())
-                .errorCode(e.errorCode())
-                .errorMessage(e.errorMessage())
-                .searchQuery(e.searchQuery())
+                .errorCode(truncate(e.errorCode(), 40))
+                .errorMessage(truncate(e.errorMessage(), 512))
+                .searchQuery(truncate(e.searchQuery(), 256))
                 .resultCount(e.resultCount())
                 .remoteAddr(e.remoteAddr())
                 .userAgent(e.userAgent())
                 .build();
+    }
+
+    private static String truncate(String value, int maxLength) {
+        return value == null || value.length() <= maxLength
+                ? value
+                : value.substring(0, maxLength);
     }
 }

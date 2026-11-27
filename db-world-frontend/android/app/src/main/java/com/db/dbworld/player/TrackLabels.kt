@@ -54,13 +54,13 @@ fun codecName(mime: String?): String? {
     }
 }
 
-/** Builds the audio-track label: "Hindi · E-AC3 · 5.1" style, skipping unknown parts. */
-fun audioLabel(language: String?, codec: String?, channels: Int, title: String?): String {
-    val parts = ArrayList<String>()
-    (if (!language.isNullOrEmpty()) langName(language) else title)?.let { parts.add(it) }
-    codec?.let { parts.add(it) }
-    if (channels >= 6) parts.add("5.1") else if (channels == 2) parts.add("Stereo")
-    return if (parts.isEmpty()) "Audio" else parts.joinToString(" · ")
+/** Primary title only; technical values belong to the detail line. */
+fun audioLabel(language: String?, title: String?): String {
+    return when {
+        !language.isNullOrBlank() -> langName(language)
+        !title.isNullOrBlank() -> title
+        else -> "Audio"
+    }
 }
 
 /** Builds the subtitle-track label. */
@@ -72,6 +72,8 @@ fun audioTrackDetail(
     channels: Int,
     sampleRate: Int,
     bitRate: Int,
+    isDefault: Boolean = false,
+    isForced: Boolean = false,
 ): String = buildList {
     codecName(mime)?.takeIf { it.isNotBlank() }?.let(::add)
     if (channels > 0) add(
@@ -88,11 +90,30 @@ fun audioTrackDetail(
         else "${sampleRate / 1000f} kHz",
     )
     if (bitRate > 0) add("${(bitRate + 500) / 1000} kbps")
+    if (isDefault) add("Default")
+    if (isForced) add("Forced")
 }.joinToString(" · ")
 
-fun subtitleTrackDetail(mime: String?, title: String?): String = buildList {
-    codecName(mime)?.takeIf { it.isNotBlank() && !it.equals("Subtitle", true) }?.let(::add)
-    title?.takeIf { it.isNotBlank() }?.let(::add)
+fun subtitleTrackDetail(
+    mime: String?,
+    title: String?,
+    language: String?,
+    isDefault: Boolean = false,
+    isForced: Boolean = false,
+): String = buildList {
+    codecName(mime)?.takeIf {
+        it.isNotBlank()
+                && !it.equals("Subtitle", true)
+                && !it.equals("X-MEDIA3-CUES", true)
+                && !it.equals("TEXT", true)
+    }?.let(::add)
+    title?.takeIf {
+        it.isNotBlank()
+                && !it.equals(language, true)
+                && !it.equals(langName(language), true)
+    }?.let(::add)
+    if (isDefault) add("Default")
+    if (isForced) add("Forced")
 }.distinct().joinToString(" · ")
 
 /** Short video-codec display name from a sampleMimeType ("video/av01" -> "AV1"). */

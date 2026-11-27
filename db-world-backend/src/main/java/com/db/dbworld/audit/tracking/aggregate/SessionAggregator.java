@@ -63,7 +63,8 @@ public class SessionAggregator {
             case PAUSE, STREAM_PAUSE -> { s.setPauseCount(nz(s.getPauseCount()) + 1); s.setState(SessionState.PAUSED); }
             case FAIL -> {
                 s.setFailCount(nz(s.getFailCount()) + 1);
-                s.setLastErrorCode(e.errorCode()); s.setLastErrorMessage(e.errorMessage());
+                s.setLastErrorCode(truncate(e.errorCode(), 40));
+                s.setLastErrorMessage(truncate(e.errorMessage(), 512));
                 s.setState(SessionState.FAILED);
             }
             // COMPLETE forces 100% by design, even if reported bytes are partial.
@@ -137,4 +138,9 @@ public class SessionAggregator {
     }
     private static int  nz(Integer v)  { return v == null ? 0 : v; }
     private static long nzL(Long v)     { return v == null ? 0L : v; }
+    private static String truncate(String value, int maxLength) {
+        return value == null || value.length() <= maxLength
+                ? value
+                : value.substring(0, maxLength);
+    }
 }

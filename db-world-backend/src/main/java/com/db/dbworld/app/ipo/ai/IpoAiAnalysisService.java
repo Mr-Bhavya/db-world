@@ -6,7 +6,6 @@ import com.db.dbworld.app.admin.scheduler.dto.JobRunSummary;
 import com.db.dbworld.app.ipo.entity.IpoListingEntity;
 import com.db.dbworld.app.ipo.repository.IpoListingRepository;
 import com.db.dbworld.core.exception.DbWorldException;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -57,9 +56,19 @@ public class IpoAiAnalysisService {
                 : repository.findById(ipo.getMergedIntoId())
                     .orElseThrow(() -> new DbWorldException(HttpStatus.NOT_FOUND, "IPO not found"));
 
-        Generated result = request(prompt(survivor));
-        if (result.analysis().codePoints().filter(c -> !Character.isWhitespace(c)).count()
-                < IpoListingEntity.MIN_AI_ANALYSIS_LENGTH) {
+        String prompt = prompt(survivor);
+        Generated result = request(prompt);
+        if (!hasMinimumAnalysisLength(result.analysis())) {
+            result = request("""
+                    The previous analysis was too short. Expand ONLY analysis into
+                    500-900 non-whitespace characters, retain all uncertainty, and
+                    return the complete JSON object again without commentary.
+
+                    ORIGINAL TASK:
+                    %s
+                    """.formatted(prompt));
+        }
+        if (!hasMinimumAnalysisLength(result.analysis())) {
             throw new DbWorldException(HttpStatus.UNPROCESSABLE_CONTENT,
                     "Generated IPO analysis was too short and was not saved.");
         }
@@ -98,9 +107,16 @@ public class IpoAiAnalysisService {
                 .note("Ollama model: " + settings.getString(ConfigKeys.CINEMA_AI_EDITORIAL_MODEL)
                         + "; newest IPOs without analysis first, then stale analysis");
         int generated = 0;
+        int failed = 0;
         for (IpoListingEntity ipo : candidates) {
-            generate(ipo.getId());
-            summary.count("generated", ++generated);
+            try {
+                generate(ipo.getId());
+                summary.count("generated", ++generated);
+            } catch (DbWorldException error) {
+                if (error.getHttpStatus().value() != 422) throw error;
+                summary.count("failed", ++failed)
+                        .note("IPO " + ipo.getId() + " skipped: " + error.getMessage());
+            }
         }
     }
 
@@ -112,7 +128,7 @@ public class IpoAiAnalysisService {
                         "json",
                         false,
                         List.of(new Message("system", SYSTEM), new Message("user", prompt)),
-                        new Options(0.2, 650)))
+                        new Options(0.2, 1400)))
                 .retrieve()
                 .bodyToMono(ChatResponse.class)
                 .block(Duration.ofSeconds(
@@ -169,6 +185,12 @@ public class IpoAiAnalysisService {
             case "APPLY", "CONSIDER", "WAIT" -> view.trim().toUpperCase();
             default -> "NOT_ENOUGH_DATA";
         };
+    }
+
+    private static boolean hasMinimumAnalysisLength(String analysis) {
+        return analysis != null && analysis.codePoints()
+                .filter(codePoint -> !Character.isWhitespace(codePoint))
+                .count() >= IpoListingEntity.MIN_AI_ANALYSIS_LENGTH;
     }
 
     private record ChatRequest(
