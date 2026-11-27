@@ -1,4 +1,4 @@
--- V5: optional, first-party editorial copy for public cinema record pages.
+-- V7: optional, first-party editorial copy and IPO AI fields.
 -- A published record becomes sitemap-eligible only after its note contains at least
 -- 300 non-whitespace characters; existing records remain noindex.
 
