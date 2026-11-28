@@ -18,3 +18,4 @@ export { useAdminMuiTheme, adminSurface } from './theme';
 export { useAdminHeader, useAdminHeaderValue } from './adminHeader';
 export { useSwipeNav } from './useSwipeNav';
 export { default as usePagedListTop } from './usePagedListTop';
+export { default as AdminConfirmDialog } from './AdminConfirmDialog';

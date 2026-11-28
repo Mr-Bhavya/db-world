@@ -4,6 +4,8 @@ import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
+import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { tmdbImg } from '../../api/cinemaApi';
 import { HERO_ACCENT, ctaPrimary, ctaShape } from './shared/ctaShape';
@@ -15,7 +17,14 @@ const SHOW_AFTER_PX = 380;
  * bar so it's never more than one tap off. Reads whichever element actually
  * scrolls — the page on a cold load, the dialog/sheet scroller inside an overlay.
  */
-export default function StickyWatchBar({ record, progress, onWatchClick, scrollRoot }) {
+export default function StickyWatchBar({
+  record,
+  progress,
+  onWatchClick,
+  onRequestClick,
+  requested = false,
+  scrollRoot,
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -43,7 +52,7 @@ export default function StickyWatchBar({ record, progress, onWatchClick, scrollR
     };
   }, [scrollRoot]);
 
-  if (!onWatchClick) return null;
+  if (!onWatchClick && !onRequestClick) return null;
 
   const tmdb = record?.tmdb ?? {};
   const poster = tmdbImg(tmdb.posterPath, 'w154');
@@ -103,17 +112,29 @@ export default function StickyWatchBar({ record, progress, onWatchClick, scrollR
             component={motion.button}
             whileTap={{ scale: 0.97 }}
             variant="contained"
-            startIcon={resumable
-              ? <PlayArrowIcon sx={{ fontSize: '1.1rem !important' }} />
-              : <OndemandVideoIcon sx={{ fontSize: '1.1rem !important' }} />}
-            onClick={onWatchClick}
+            startIcon={onWatchClick
+              ? resumable
+                ? <PlayArrowIcon sx={{ fontSize: '1.1rem !important' }} />
+                : <OndemandVideoIcon sx={{ fontSize: '1.1rem !important' }} />
+              : requested
+                ? <CheckCircleIcon sx={{ fontSize: '1.1rem !important' }} />
+                : <AddIcon sx={{ fontSize: '1.1rem !important' }} />}
+            onClick={onWatchClick ?? onRequestClick}
             // Same shape and teal as the hero's Watch button, from the same source —
             // this bar stands in for that button, so a drift in either was visible on
             // the way back up the page. `compact` keeps it small enough to share the
             // row with the poster and title.
-            sx={{ ...ctaShape({ compact: true }), ...ctaPrimary(HERO_ACCENT) }}
+            sx={{
+              ...ctaShape({ compact: true }),
+              ...ctaPrimary(HERO_ACCENT),
+              ...(!onWatchClick && requested && {
+                bgcolor: 'rgba(255,255,255,0.14)',
+                color: '#fff',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+              }),
+            }}
           >
-            {resumable ? 'Resume' : 'Watch'}
+            {onWatchClick ? (resumable ? 'Resume' : 'Watch') : (requested ? 'Requested' : 'Request')}
           </Button>
         </Box>
       )}

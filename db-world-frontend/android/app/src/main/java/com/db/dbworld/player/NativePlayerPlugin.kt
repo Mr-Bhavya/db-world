@@ -401,6 +401,10 @@ class NativePlayerPlugin : Plugin() {
         val dur = player?.duration?.coerceAtLeast(0) ?: 0L
         player?.release(); player = null
         host?.detach()
+        // The host object becomes invalid after detach. Keeping it alive made
+        // handleOnResume() treat a later, unrelated app screen as an active player
+        // and reapply the remembered player brightness and volume.
+        host = null
         // Only a genuine user close (native X / error dialog) navigates the route back.
         if (userInitiated) notifyListeners("playerClosed", JSObject().put("positionMs", pos).put("durationMs", dur))
     }
@@ -707,7 +711,7 @@ class NativePlayerPlugin : Plugin() {
 
     override fun handleOnResume() {
         super.handleOnResume()
-        if (!inPip && host != null && !playerOverridesActive) {
+        if (!inPip && host != null && player != null && !playerOverridesActive) {
             originalSystemVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
             val max = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
             audioManager.setStreamVolume(

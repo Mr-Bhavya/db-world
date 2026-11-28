@@ -8,6 +8,7 @@ import { bulkCreateUsers, deleteUser, updateUserRole } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
 import { getInputSx, getDialogSx, getTabSx } from './constants';
 import SheetDialog from '@shared/components/SheetDialog';
+import { AdminConfirmDialog } from '@features/admin/adminUi';
 
 function ImportTab({ onClose }) {
   const T = useT();
@@ -60,6 +61,7 @@ function BulkDeleteTab({ onClose }) {
   const { selectedRows, clearSelection } = useUserStore();
   const qc = useQueryClient();
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { mutate, isPending } = useMutation({
     mutationFn: () => Promise.all(selectedRows.map(id => deleteUser(id))),
@@ -76,6 +78,7 @@ function BulkDeleteTab({ onClose }) {
   });
 
   return (
+    <>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Alert severity="warning" sx={{ bgcolor: T.warningBg, color: T.warning, border: `1px solid ${T.warning}44`, '& .MuiAlert-icon': { color: T.warning } }}>
         You are about to permanently delete {selectedRows.length} user(s). This cannot be undone.
@@ -88,12 +91,22 @@ function BulkDeleteTab({ onClose }) {
         <label htmlFor="confirm-del" style={{ fontSize: 13, color: T.textMuted }}>I understand this is irreversible</label>
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button onClick={() => mutate()} disabled={!confirmed || isPending || !selectedRows.length} variant="contained"
+        <Button onClick={() => setConfirmOpen(true)} disabled={!confirmed || isPending || !selectedRows.length} variant="contained"
           sx={{ bgcolor: T.error, '&:hover': { bgcolor: '#dc2626' }, fontWeight: 600 }}>
           {isPending ? <CircularProgress size={18} color="inherit" /> : `Delete ${selectedRows.length} Users`}
         </Button>
       </Box>
     </Box>
+    <AdminConfirmDialog
+      open={confirmOpen}
+      title={`Delete ${selectedRows.length} users?`}
+      message="The selected accounts and their associated data will be permanently removed. This cannot be undone."
+      confirmLabel={`Delete ${selectedRows.length} users`}
+      loading={isPending}
+      onConfirm={() => mutate()}
+      onClose={() => setConfirmOpen(false)}
+    />
+    </>
   );
 }
 

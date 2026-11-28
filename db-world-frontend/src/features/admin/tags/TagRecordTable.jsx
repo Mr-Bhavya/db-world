@@ -11,7 +11,7 @@ import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { SectionCard, AdminActionButton, adminSurface, usePagedListTop } from '@features/admin/adminUi';
+import { SectionCard, AdminActionButton, AdminConfirmDialog, adminSurface, usePagedListTop } from '@features/admin/adminUi';
 import { getRecordsByTag, bulkRemoveTag } from '../api/adminApi';
 import { useTagDefs } from '../records/useTagDefs';
 import PaginationBar from './PaginationBar';
@@ -32,6 +32,7 @@ export default function TagRecordTable({ tagType }) {
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [removeTargets, setRemoveTargets] = useState([]);
   const qc                      = useQueryClient();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -67,7 +68,7 @@ export default function TagRecordTable({ tagType }) {
         </AdminActionButton>
       )}
       {selected.length > 0 && !isAuto && (
-        <AdminActionButton variant="danger" icon={DeleteIcon} loading={removing} onClick={() => doRemove(selected)}>
+        <AdminActionButton variant="danger" icon={DeleteIcon} loading={removing} onClick={() => setRemoveTargets(selected)}>
           Remove {selected.length}
         </AdminActionButton>
       )}
@@ -108,7 +109,7 @@ export default function TagRecordTable({ tagType }) {
                   </Box>
                 </Box>
                 {!isAuto && (
-                  <IconButton size="small" onClick={() => doRemove([r.recordId])}
+                  <IconButton size="small" onClick={() => setRemoveTargets([r.recordId])}
                     sx={{ color: T.textFaint, '&:hover': { color: T.error, bgcolor: T.errorBg }, ml: 1 }}>
                     <DeleteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
@@ -171,6 +172,15 @@ export default function TagRecordTable({ tagType }) {
 
       <BulkAddDialog tagType={tagType} open={bulkAddOpen}
         onClose={() => setBulkAddOpen(false)} onDone={() => setBulkAddOpen(false)} />
+      <AdminConfirmDialog
+        open={removeTargets.length > 0}
+        title={`Remove tag from ${removeTargets.length} record${removeTargets.length === 1 ? '' : 's'}?`}
+        message={`The "${tagLabel(tagType)}" tag will be removed. The records and their media remain unchanged.`}
+        confirmLabel="Remove tag"
+        loading={removing}
+        onConfirm={() => doRemove(removeTargets, { onSuccess: () => setRemoveTargets([]) })}
+        onClose={() => setRemoveTargets([])}
+      />
     </SectionCard>
     </Box>
   );

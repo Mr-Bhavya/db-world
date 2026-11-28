@@ -108,6 +108,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
       fullScreen={full}
       fullWidth
       maxWidth="xl"
+      asSheet={false}
       TransitionComponent={Transition}
       PaperProps={{
         sx: {
@@ -261,7 +262,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
               style={{
                 width: '100%',
                 height: '100%',
-                minHeight: isMobile ? 420 : 560,
+                minHeight: 0,
                 border: 'none',
                 display: 'block',
                 backgroundColor: 'transparent',

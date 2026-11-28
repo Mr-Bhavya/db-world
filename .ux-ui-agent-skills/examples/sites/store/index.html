@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pellwood: shop all furniture</title>
+<meta name="description" content="Store example: the collection page of a fictional joinery workshop, with a working filter, sort, quick add and cart drawer." />
+<link rel="stylesheet" href="theme.css" />
+<link rel="stylesheet" href="store.css" />
+<style>
+  /* Hero. Phone: headline, the room, then the copy. Wide: headline across, copy and room split 5/7. */
+  .hero { padding-block: var(--space-6) var(--space-10); }
+  .hero-grid { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "media" "copy"; }
+  .hero-head { grid-area: head; }
+  .hero-media { grid-area: media; display: grid; gap: var(--space-2); min-inline-size: 0; }
+  .hero-copy { grid-area: copy; }
+  .hero h1 {
+    margin-block-start: var(--space-3); max-inline-size: var(--measure-display);
+    font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display);
+    font-weight: var(--weight-regular);
+  }
+  .hero h1 span { display: block; }
+  .hero .lede { max-inline-size: 46ch; font-size: var(--text-lg); color: var(--color-text-secondary); }
+  .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-6); margin-block-start: var(--space-6); }
+  .facts {
+    list-style: none; display: grid; gap: var(--space-2); margin-block-start: var(--space-8);
+    padding-block-start: var(--space-5); border-block-start: var(--border-width-thin) solid var(--color-border-default);
+  }
+  .facts li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+  .hero-tile { aspect-ratio: 2 / 1; max-block-size: var(--size-hero-media-max); inline-size: 100%; border-radius: var(--radius-tile); overflow: hidden; }
+  .hero-media figcaption { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-text-secondary); }
+  @media (min-width: 56rem) {
+    .hero { padding-block: var(--space-10) var(--space-16); }
+    .hero-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-areas: "head head" "copy media"; gap: var(--space-8) var(--space-12); align-items: start; }
+    .hero h1 { max-inline-size: none; }
+    .hero-copy { padding-block-start: var(--space-2); }
+    .facts { grid-template-columns: repeat(3, auto); justify-content: start; gap: var(--space-6); }
+  }
+
+  /* Collection head: no eyebrow here, the count sits on the heading's baseline */
+  .col-head h2:focus { outline: none; }
+  .col-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-8); }
+  .col-head h2, .how h2 {
+    font-size: var(--text-3xl); line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight); font-weight: var(--weight-regular); max-inline-size: 24ch;
+  }
+  .result-count { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .toolbar {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-items: end;
+    margin-block-start: var(--space-5); padding-block: var(--space-4);
+    border-block: var(--border-width-thin) solid var(--color-border-default);
+  }
+  .toolbar .switch { grid-column: 1 / -1; justify-self: start; }
+  @media (min-width: 48rem) {
+    .col-head h2, .how h2 { font-size: var(--text-5xl); }
+    .toolbar { grid-template-columns: minmax(0, 15rem) minmax(0, 15rem) minmax(0, 1fr); gap: var(--space-4); }
+    .toolbar .switch { grid-column: auto; justify-self: end; }
+  }
+
+  .grid { list-style: none; display: grid; grid-auto-flow: dense; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-8) var(--space-3); margin-block-start: var(--space-6); }
+  @media (min-width: 48rem) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-10) var(--space-5); margin-block-start: var(--space-8); } }
+  @media (min-width: 80rem) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+  .card {
+    position: relative; display: grid; grid-template-rows: auto 1fr; gap: var(--space-3); min-inline-size: 0;
+    animation: rise var(--duration-base) var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger));
+  }
+  .card-media { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius-tile); overflow: hidden; transition: box-shadow var(--transition-micro), background-color var(--transition-micro); }
+  .card-media .render { transition: transform var(--duration-slow) var(--ease-out); }
+  .card:hover .card-media { box-shadow: var(--shadow-lift); background: var(--color-surface-product-hover); }
+  .card:hover .card-media .render { transform: scale(1.03); }
+  .card-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .card-body { display: flex; flex-direction: column; gap: var(--space-1); min-inline-size: 0; }
+  .card-name { font-size: var(--text-lg); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); line-height: var(--leading-snug); }
+  .card-name a { color: inherit; text-decoration: none; border-radius: var(--radius-chip); }
+  .card-name a::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-tile); }
+  .card-name a:hover, .card:hover .card-name a { text-decoration: underline; text-decoration-thickness: var(--border-width-thin); }
+  .card-name a:active { color: var(--color-text-secondary); }
+  .card-name a:focus-visible { outline: none; }
+  .card-name a:focus-visible::after { box-shadow: var(--shadow-focus-ring); }
+  .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .card-note { font-size: var(--text-sm); color: var(--color-text-secondary); }
+  /* One footer at every width: the price on its own line, the action under it on one
+     line. Every label fits its column, so footers in a row end and start together.
+     Under 30rem the two longer labels have a short form. */
+  .card-foot { display: grid; justify-items: stretch; gap: var(--space-2); margin-block-start: auto; padding-block-start: var(--space-2); }
+  .card-foot .btn { inline-size: 100%; }
+  .lbl-long { display: none; }
+  @media (min-width: 30rem) {
+    .lbl-short { display: none; }
+    .lbl-long { display: inline; }
+  }
+  @media (min-width: 48rem) {
+    .card-foot { justify-items: start; }
+    .card-foot .btn { inline-size: auto; }
+  }
+  .price { font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .card .btn { position: relative; z-index: 1; }
+  .btn-add { min-block-size: var(--size-control-sm); padding-inline: var(--space-3); }
+  .btn .ico-idle { display: block; }
+  .btn[aria-busy="true"] .ico-idle { display: none; }
+
+  /* The lead card: one piece gets the room, and says why it leads */
+  .card.lead { grid-column: 1 / -1; }
+  .card.lead .card-name { font-size: var(--text-3xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-display); font-weight: var(--weight-regular); }
+  .card.lead .blurb { max-inline-size: 52ch; color: var(--color-text-secondary); margin-block-start: var(--space-1); }
+  .card.lead .card-foot { margin-block-start: var(--space-4); }
+  .card.lead .price { font-size: var(--text-lg); }
+  .lead-reason { display: inline-flex; align-items: center; gap: var(--space-2); }
+  .lead-reason::before { content: ""; inline-size: var(--space-2); block-size: var(--space-2); border-radius: var(--radius-round); background: var(--color-accent); }
+  @media (min-width: 48rem) {
+    .card.lead { grid-column: span 2; grid-row: span 2; grid-template-rows: minmax(0, 1fr) auto; }
+    .card.lead .card-media { aspect-ratio: auto; min-block-size: 18rem; }
+    .card.lead .card-name { font-size: var(--text-4xl); }
+    .card.lead .card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-6); }
+  }
+
+  /* Two columns and an odd count: the last piece takes the full row, picture beside its
+     text on the same two columns as the grid, so no cell is left empty. */
+  .card.solo { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; column-gap: var(--space-3); align-items: start; }
+
+  /* The repairs tile ends where its row ends, with its link on the bottom edge. */
+  .card-end {
+    display: grid; min-inline-size: 0; container-type: inline-size;
+    padding: var(--space-5); border-radius: var(--radius-tile);
+    border: var(--border-width-thin) solid var(--color-border-default); background: var(--color-surface-card);
+  }
+  .end-in { display: grid; grid-template-areas: "head" "parts" "link"; grid-template-rows: auto auto minmax(0, 1fr); gap: var(--space-4); min-inline-size: 0; }
+  .end-in > div { grid-area: head; }
+  .end-in .parts { grid-area: parts; align-self: start; }
+  .end-in .link-arrow { grid-area: link; }
+  .end-note { display: none; margin-block-start: var(--space-3); font-size: var(--text-sm); color: var(--color-text-secondary); max-inline-size: 44ch; }
+  /* Wide enough: the heading and its link on the left, the price list on the right */
+  @container (min-width: 32rem) {
+    .end-in { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "head parts" "link parts"; grid-template-rows: auto minmax(0, 1fr); column-gap: var(--space-8); }
+    .end-note { display: block; }
+  }
+  .card-end h3 { font-size: var(--text-xl); font-weight: var(--weight-regular); letter-spacing: var(--tracking-tight); line-height: var(--leading-snug); max-inline-size: 34ch; margin-block-start: var(--space-2); }
+  .card-end.wide h3 { font-size: var(--text-2xl); }
+  .card-end .link-arrow { align-self: end; justify-self: start; }
+  .parts { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--space-6); }
+  .parts li:last-child { border-block-end: var(--border-width-thin) solid var(--color-border-default); }
+  .parts li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); padding-block: var(--space-2); border-block-start: var(--border-width-thin) solid var(--color-border-default); font-size: var(--text-sm); }
+
+  .empty {
+    display: grid; gap: var(--space-4); justify-items: start; margin-block-start: var(--space-6);
+    padding: var(--space-12) var(--space-6); border-radius: var(--radius-tile); background: var(--color-surface-chip);
+  }
+  .empty h3 { font-size: var(--text-3xl); font-weight: var(--weight-regular); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); max-inline-size: 22ch; }
+  .empty p { color: var(--color-text-secondary); max-inline-size: var(--measure); }
+
+  /* How it is made: a big numbered index opens this section instead of an eyebrow */
+  .how { margin-block-start: var(--section-gap); }
+  .how-grid { display: grid; gap: var(--space-10); grid-template-columns: minmax(0, 1fr); }
+  .how-intro p { margin-block-start: var(--space-4); color: var(--color-text-secondary); max-inline-size: 44ch; }
+  .how-count { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-secondary); margin-block-end: var(--space-3); }
+  .grow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3); border-radius: var(--radius-tile); }
+  .grow figure { display: grid; gap: var(--space-2); min-inline-size: 0; }
+  .grow .render { aspect-ratio: 4 / 3; block-size: auto; }
+  .grow figcaption { display: grid; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); }
+  .grow figcaption span:last-child { color: var(--color-text-on-product-secondary); }
+  .steps { list-style: none; margin-block-start: var(--space-8); }
+  .steps li {
+    display: grid; grid-template-columns: var(--space-10) minmax(0, 1fr); gap: var(--space-4);
+    padding-block: var(--space-6); border-block-start: var(--border-width-thin) solid var(--color-border-default);
+  }
+  .steps li:last-child { border-block-end: var(--border-width-thin) solid var(--color-border-default); }
+  .steps .num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-secondary); padding-block-start: var(--space-1); }
+  .steps h3 { font-size: var(--text-2xl); font-weight: var(--weight-regular); letter-spacing: var(--tracking-tight); line-height: var(--leading-snug); }
+  .steps p { margin-block-start: var(--space-2); color: var(--color-text-secondary); max-inline-size: var(--measure); }
+  @media (min-width: 56rem) {
+    .how-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-16); }
+    .how-intro { position: sticky; inset-block-start: calc(var(--size-control-lg) + var(--space-10)); align-self: start; }
+  }
+
+  /* Band: one statement leads, the facts sit quiet beside it */
+  .band { margin-block-start: var(--section-gap); padding-block: var(--space-16); background: var(--color-band-bg); color: var(--color-band-text); }
+  .band-grid { display: grid; gap: var(--space-10); grid-template-columns: minmax(0, 1fr); }
+  .band .eyebrow { color: var(--color-band-text-secondary); }
+  .band h2 { margin-block-start: var(--space-3); font-size: var(--text-5xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-display); font-weight: var(--weight-regular); max-inline-size: 14ch; }
+  .band .band-copy p { margin-block-start: var(--space-5); color: var(--color-band-text-secondary); max-inline-size: 44ch; }
+  .band dl { display: grid; gap: var(--space-6); }
+  .band dl div { display: grid; gap: var(--space-1); padding-block-start: var(--space-4); border-block-start: var(--border-width-thin) solid var(--color-band-border); }
+  .band dt { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-band-text-secondary); }
+  .band dd { font-size: var(--text-base); }
+  .band + .site-footer { margin-block-start: 0; }
+  @media (min-width: 56rem) {
+    .band { padding-block: var(--space-24); }
+    .band h2 { font-size: var(--text-6xl); }
+    .band-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; gap: var(--space-16); }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#grid">Skip to the collection</a>
+<div class="site">
+  <p class="announce">Fictional shop, a design example built with ux-ui-agent-skills. <a href="#about">About this example</a></p>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="logo" href="index.html" aria-label="Pellwood, home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="3" height="20" fill="currentColor"/><rect x="18" y="2" width="3" height="20" fill="currentColor"/><rect x="2" y="7" width="20" height="2.5" fill="currentColor"/><rect x="2" y="15" width="20" height="2.5" fill="currentColor"/><circle class="dot" cx="4.5" cy="8.25" r="1.2"/></svg>
+        <span>Pellwood</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="index.html" aria-current="page">Shop all</a></li>
+          <li><a href="product.html">Rook Bookcase</a></li>
+          <li><a href="#how">How it is made</a></li>
+          <li><a href="#care">Care</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-pressed="false" aria-label="Dark theme">
+          <svg class="ico ico-md i-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+          <svg class="ico ico-md i-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+        </button>
+        <button class="cart-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cart-drawer" aria-label="Cart, 0 items">
+          <svg class="ico ico-md" aria-hidden="true"><use href="#i-bag"/></svg>
+          <span class="cart-label">Cart</span>
+          <span class="cart-count">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div class="hero-head">
+          <p class="eyebrow">A joinery workshop, making to order</p>
+          <h1 id="hero-title"><span>Pegged, not screwed.</span> <span>Mended, not replaced.</span></h1>
+        </div>
+        <figure class="hero-media">
+          <div class="hero-tile product-surface" id="hero-render"></div>
+          <figcaption>Drawn to one scale: Rook Bookcase, 120 cm in oiled oak. Pedestal Side Table in walnut. Settle Sofa in moss wool. Turned Floor Lamp in ash.</figcaption>
+        </figure>
+        <div class="hero-copy">
+          <p class="lede">Ten pieces in solid oak, walnut and ash. Every frame is held by wooden joints, mortise and tenon, dovetails or wedges, and finished with oil. We cut each one after you order it, and repair it when it needs it.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="product.html">See the Rook Bookcase</a>
+            <a class="link-arrow" href="#grid" data-ready>Show what ships this week <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+          </div>
+          <ul class="facts">
+            <li><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>Made to order in 6 to 8 weeks</li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-truck"/></svg>Pieces marked Ready ship this week</li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-wrench"/></svg>Repairs at the workshop</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="collection" id="grid" aria-labelledby="col-title">
+      <div class="wrap">
+        <div class="col-head">
+          <h2 id="col-title">The collection</h2>
+          <p class="result-count" id="result-count" role="status" aria-live="polite">Showing 10 pieces</p>
+        </div>
+
+        <div class="toolbar">
+          <div class="lb" id="lb-cat">
+            <span class="lb-label" id="cat-lab">Category</span>
+            <button class="lb-trigger" id="cat-trig" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="cat-list" aria-labelledby="cat-lab cat-trig">
+              <span class="lb-value">All furniture</span>
+              <svg class="ico chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </button>
+            <ul class="lb-list" id="cat-list" role="listbox" aria-labelledby="cat-lab" hidden></ul>
+          </div>
+          <div class="lb end" id="lb-sort">
+            <span class="lb-label" id="sort-lab">Sort by</span>
+            <button class="lb-trigger" id="sort-trig" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="sort-list" aria-labelledby="sort-lab sort-trig">
+              <span class="lb-value">Featured</span>
+              <svg class="ico chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </button>
+            <ul class="lb-list" id="sort-list" role="listbox" aria-labelledby="sort-lab" hidden>
+              <li class="lb-opt" role="option" id="sort-featured" data-value="featured" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Featured</span><span></span></li>
+              <li class="lb-opt" role="option" id="sort-asc" data-value="asc" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Price, low to high</span><span></span></li>
+              <li class="lb-opt" role="option" id="sort-desc" data-value="desc" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Price, high to low</span><span></span></li>
+              <li class="lb-opt" role="option" id="sort-new" data-value="new" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span>Newest</span><span></span></li>
+            </ul>
+          </div>
+          <button class="switch" id="ready-switch" type="button" role="switch" aria-checked="false">
+            <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+            <span>Ships this week</span>
+          </button>
+        </div>
+
+        <ul class="grid" id="product-grid"></ul>
+        <div class="empty" id="empty" hidden>
+          <h3 id="empty-title">Nothing in this category ships this week.</h3>
+          <p id="empty-copy">Everything here can still be made to order in 6 to 8 weeks.</p>
+          <button class="btn btn-secondary" type="button" id="empty-reset">Show made-to-order pieces</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="how" id="how" aria-labelledby="how-title">
+      <div class="wrap how-grid">
+        <div class="how-intro">
+          <p class="how-count" aria-hidden="true">01 / 02 / 03</p>
+          <h2 id="how-title">Cut after you order. Joined so it can be taken apart and mended.</h2>
+          <p>The Rook Bookcase comes in three widths, all built the same way: solid posts, through tenons and oak pegs.</p>
+        </div>
+        <div>
+          <div class="grow product-surface" id="grow" aria-label="Rook Bookcase at 80, 120 and 160 cm" role="group"></div>
+          <ol class="steps">
+            <li><span class="num" aria-hidden="true">01</span><div><h3>You order, we choose the boards</h3><p>Boards for your piece are picked and cut after you order, so the grain on a tabletop can be matched across its width.</p></div></li>
+            <li><span class="num" aria-hidden="true">02</span><div><h3>Joined with wood</h3><p>Mortise and tenon for frames, dovetails for drawers, wedged tenons for legs. Joints are glued with hide glue, which softens with heat and moisture, so a joint can be opened and glued again during a repair.</p></div></li>
+            <li><span class="num" aria-hidden="true">03</span><div><h3>Oiled, then looked after</h3><p>Bring a piece back to the workshop and we re-glue, re-oil or re-weave it, and tell you the price before we start.</p></div></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="care" aria-labelledby="band-title">
+      <div class="wrap band-grid">
+        <div class="band-copy">
+          <p class="eyebrow">Caring for it</p>
+          <h2 id="band-title">Oiled wood can be sanded and oiled again.</h2>
+          <p>An oil finish soaks into the wood instead of sitting on top as a film, so a scratch or a ring from a glass can be sanded out in one spot and re-oiled. A lacquered surface has to be stripped first.</p>
+        </div>
+        <dl>
+          <div><dt>Wood</dt><dd>Wipe with a damp cloth and dry it straight away. Re-oil when water stops beading on the surface.</dd></div>
+          <div><dt>Wool</dt><dd>Check the care label before washing a cover. Most wool wants a cool, gentle wash or dry cleaning.</dd></div>
+          <div><dt>Delivery and returns</dt><dd>Made to order in 6 to 8 weeks, Ready pieces this week. Free over &#3647;20,000, &#3647;900 below that. Returns within 30 days of delivery.</dd></div>
+        </dl>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <p class="big">Pellwood</p>
+          <p>Solid-wood furniture made to order in one small workshop, and repaired there too.</p>
+        </div>
+        <div class="footer-cols">
+          <div>
+            <h2 class="eyebrow">Shop</h2>
+            <ul>
+              <li><a href="index.html?cat=Shelving#grid">Shelving</a></li>
+              <li><a href="index.html?cat=Seating#grid">Seating</a></li>
+              <li><a href="index.html?cat=Tables#grid">Tables</a></li>
+              <li><a href="index.html?cat=Lighting#grid">Lighting</a></li>
+              <li><a href="index.html?cat=Beds#grid">Beds</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="eyebrow">Help</h2>
+            <ul>
+              <li><a href="#how">How it is made</a></li>
+              <li><a href="#care">Care, delivery and returns</a></li>
+              <li><a href="product.html">Rook Bookcase sizes</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="eyebrow">Visit</h2>
+            <address>Pellwood Yard, Sawdust Row<br />(a fictional address)<br />Thu to Sun, 11:00 to 19:00</address>
+          </div>
+        </div>
+      </div>
+      <p class="about" id="about"><strong>About this example.</strong> Design example built with <span class="nowrap">ux-ui-agent-skills</span>. The shop, products and prices are fictional. Visual language adapted from the floyd spec in the kit's library. Contrast, keyboard use and layout were tested with the kit's automated checks.</p>
+      <div class="credit">
+        <span>Store example. Companies and figures are fictional.</span>
+        <span>Built with <a href="https://github.com/plugin87/ux-ui-agent-skills">ux-ui-agent-skills</a> by Thientan Soparat. <a href="../../index.html">All examples</a></span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script src="../../component-states/icons.js"></script>
+<script src="store.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.Pellwood;
+  const CATS = ['All furniture', 'Shelving', 'Seating', 'Tables', 'Lighting', 'Beds'];
+  const REASON = { featured: 'Featured', new: 'Newest' };
+  /* Repairs the workshop prices up front, by the kind of piece they apply to. The
+     tile shows the ones for the category on screen; All furniture shows one of each kind. */
+  const REPAIRS = [
+    { t: 'Re-oil a tabletop', price: 1500, cats: ['Tables'], all: true },
+    { t: 'Re-glue a loose joint', price: 900, cats: ['Shelving', 'Seating', 'Tables', 'Beds'], all: true },
+    { t: 'Re-weave a cord seat', price: 1800, cats: ['Seating'], all: true },
+    { t: 'Re-wire a lamp', price: 1200, cats: ['Lighting'], all: true },
+    { t: 'Re-oil a bookcase', price: 2400, cats: ['Shelving'] },
+    { t: 'Cut a new shelf to match', price: 1600, cats: ['Shelving'] },
+    { t: 'Mend a wool cover', price: 1200, cats: ['Seating'] },
+    { t: 'Re-set a wedged joint', price: 700, cats: ['Tables'] },
+    { t: 'Re-paper a shade', price: 1600, cats: ['Lighting'] },
+    { t: 'Re-oil a turned stem', price: 600, cats: ['Lighting'] },
+    { t: 'Replace a cracked slat', price: 700, cats: ['Beds'] },
+    { t: 'Re-oil a bed frame', price: 2800, cats: ['Beds'] }
+  ];
+  const repairsFor = c => REPAIRS.filter(r => (c === 'All furniture' ? r.all : r.cats.includes(c)));
+  const state = { cat: 'All furniture', sort: 'featured', ready: false };
+
+  document.getElementById('hero-render').innerHTML = P.renderHero('A room with a Rook Bookcase, a Pedestal Side Table, a moss green Settle Sofa and a Turned Floor Lamp, drawn to one scale');
+
+  const rook = P.byId('rook-bookcase');
+  document.getElementById('grow').innerHTML = rook.sizes.map(s => `<figure>${P.renderSVG(rook, { finish: 'oak', size: s.id, fit: false })}<figcaption><span>${s.label}</span><span>${P.money(s.price)}</span></figcaption></figure>`).join('');
+
+  const catList = document.getElementById('cat-list');
+  catList.innerHTML = CATS.map((c, i) => {
+    const n = c === 'All furniture' ? P.PRODUCTS.length : P.PRODUCTS.filter(p => p.cat === c).length;
+    return `<li class="lb-opt" role="option" id="cat-${i}" data-value="${c}" data-label="${c}" aria-selected="${i === 0}">${P.icon('check')}<span>${c}</span><span class="n">${n}</span></li>`;
+  }).join('');
+
+  const isNew = p => p.added >= '2026-08-01';
+  const woods = n => `${n} ${n === 1 ? 'finish' : 'finishes'}`;
+
+  const cardHTML = (p, i, lead) => {
+    const avail = P.available(p);
+    const v = P.showVariant(p);
+    const shownReady = P.readyOf(p, v.finish, v.size) > 0;
+    const pausedUntil = !avail ? P.pausedOf(p, v.finish, v.size) : '';
+    const badges = [];
+    if (!avail) badges.push(`<span class="badge muted">Back ${pausedUntil}</span>`);
+    else if (shownReady) badges.push('<span class="badge">Ready</span>');
+    if (avail && isNew(p)) badges.push('<span class="badge accent">New</span>');
+    /* Only a quiet note when some other variant is ready, never a scarcity badge */
+    const shownSize = p.sizes.length > 1 ? `, ${p.sizes.find(s => s.id === v.size).label}` : '';
+    const note = !avail ? '' : !shownReady ? `Made to order, ${P.LEAD}` : (P.single(p) ? 'Ships this week' : `Ready in ${P.FINISHES[v.finish].name.toLowerCase()}${shownSize}. Others made to order.`);
+    const chips = p.finishes.map(x => `<span class="chip-sw" data-finish="${x}" data-kind="${P.FINISHES[x].kind}"></span>`).join('');
+    const from = p.sizes.length > 1 ? 'From ' : '';
+    let action;
+    if (P.single(p) && avail) {
+      action = `<button class="btn btn-secondary btn-add" type="button" data-add="${p.id}" data-finish="${v.finish}" data-size="${v.size}">
+          <svg class="ico spinner" aria-hidden="true"><use href="#i-loader"/></svg><svg class="ico ico-idle" aria-hidden="true"><use href="#i-plus"/></svg>
+          <span class="label">Add</span><span class="sr-only"> ${p.name} to cart</span></button>`;
+    } else if (!avail) {
+      action = `<a class="btn btn-secondary btn-add" href="product.html?p=${p.id}"><span class="lbl-long">See when it is back</span><span class="lbl-short">See details</span><span class="sr-only">: ${p.name}</span></a>`;
+    } else if (lead) {
+      action = `<a class="btn btn-primary btn-lg" href="product.html?p=${p.id}">Choose options<span class="sr-only"> for ${p.name}</span></a>`;
+    } else {
+      action = `<a class="btn btn-secondary btn-add" href="product.html?p=${p.id}"><span class="lbl-long">Choose options</span><span class="lbl-short">See options</span><span class="sr-only"> for ${p.name}</span></a>`;
+    }
+    return `<li class="card${lead ? ' lead' : ''}" style="--i:${i}">
+      <div class="card-media product-surface">${P.renderSVG(p, { finish: v.finish, size: v.size })}</div>
+      <div class="card-body">
+        ${badges.length ? `<div class="card-badges">${badges.join('')}</div>` : ''}
+        ${lead ? `<p class="eyebrow lead-reason">${REASON[state.sort]}</p>` : `<p class="eyebrow">${p.cat}</p>`}
+        <h3 class="card-name"><a href="product.html?p=${p.id}">${p.name}</a></h3>
+        ${lead ? `<p class="blurb">${p.blurb}</p>` : ''}
+        <p class="card-meta"><span class="chips" aria-hidden="true">${chips}</span><span>${woods(p.finishes.length)}${p.sizes.length > 1 ? `, ${p.sizes.length} sizes` : ''}</span></p>
+        ${note ? `<p class="card-note">${note}</p>` : ''}
+        <div class="card-foot"><p class="price">${from}${P.money(P.minPrice(p))}</p>${action}</div>
+      </div>
+    </li>`;
+  };
+
+  const grid = document.getElementById('product-grid');
+  const empty = document.getElementById('empty');
+  const countEl = document.getElementById('result-count');
+  let lastCount = 0, lastLead = false;
+  const render = () => {
+    let list = P.PRODUCTS.filter(p => state.cat === 'All furniture' || p.cat === state.cat);
+    if (state.ready) list = list.filter(P.anyReady);
+    const by = {
+      featured: (a, b) => a.rank - b.rank,
+      asc: (a, b) => P.minPrice(a) - P.minPrice(b),
+      desc: (a, b) => P.minPrice(b) - P.minPrice(a),
+      new: (a, b) => (a.added < b.added ? 1 : -1)
+    }[state.sort];
+    list.sort(by);
+    /* A lead only for Featured and Newest, and never a paused piece. Price sorts stay a plain ordered grid. */
+    let leadIdx = -1;
+    if (REASON[state.sort] && list.length > 2) leadIdx = list.findIndex(P.available);
+    if (leadIdx > 0) list.unshift(list.splice(leadIdx, 1)[0]);
+    const hasLead = leadIdx >= 0;
+    /* The repairs tile closes every grid, so a short category never ends on a hole. */
+    const repairs = repairsFor(state.cat);
+    grid.innerHTML = list.map((p, i) => cardHTML(p, i, hasLead && i === 0)).join('') + (list.length && repairs.length ? `
+      <li class="card-end" id="card-end"><div class="end-in">
+        <div><p class="eyebrow">Repairs at the workshop</p>
+        <h3>Bring it back and we mend it, priced before we start.</h3>
+        <p class="end-note">Hide glue lets a joint be opened and glued again, and an oil finish can be sanded and renewed in one spot. Most repairs take one to two weeks.</p></div>
+        <ul class="parts">
+          ${repairs.map(r => `<li><span>${r.t}</span><span class="price">${P.money(r.price)}</span></li>`).join('')}
+        </ul>
+        <a class="link-arrow" href="#how">How repairs work <svg class="ico" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+      </div></li>` : '');
+    empty.hidden = list.length > 0;
+    if (!list.length) document.getElementById('empty-title').textContent = `Nothing in ${state.cat === 'All furniture' ? 'the collection' : state.cat} ships this week.`;
+    const scope = state.cat === 'All furniture' ? '' : ` in ${state.cat}`;
+    countEl.textContent = `Showing ${list.length} ${list.length === 1 ? 'piece' : 'pieces'}${scope}${state.ready ? ' that ship this week' : ''}`;
+    lastCount = list.length; lastLead = hasLead; fitEnd();
+  };
+
+  /* The grid ends on a full row. At three or four columns the repairs tile takes
+     whatever cells the last row leaves, including the hole beside a lead card in a
+     short category. At two columns a single cell is too narrow for it, so the tile
+     takes the full row, and an odd last piece takes the row above it as a wide card. */
+  function fitEnd() {
+    grid.querySelectorAll('.card.solo').forEach(c => c.classList.remove('solo'));
+    const end = document.getElementById('card-end'); if (!end) return;
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
+    const leadCells = lastLead ? (cols >= 3 ? 4 : cols) : 1;
+    const cells = leadCells + (lastCount - 1);
+    const rem = cells % cols;
+    let span = rem ? cols - rem : cols;
+    if (cols <= 2) {
+      span = cols;
+      const cards = grid.querySelectorAll('.card');
+      if (rem && cards.length) cards[cards.length - 1].classList.add('solo');
+    }
+    end.style.gridColumn = `span ${span}`;
+    end.classList.toggle('wide', span >= 2);
+  }
+  addEventListener('resize', fitEnd);
+
+  const catLB = P.makeListbox(document.getElementById('lb-cat'), v => { state.cat = v; render(); });
+  P.makeListbox(document.getElementById('lb-sort'), v => { state.sort = v; render(); });
+
+  const sw = document.getElementById('ready-switch');
+  const setReady = v => { state.ready = v; sw.setAttribute('aria-checked', String(v)); render(); };
+  sw.addEventListener('click', () => setReady(sw.getAttribute('aria-checked') !== 'true'));
+  document.getElementById('empty-reset').addEventListener('click', () => { setReady(false); sw.focus(); });
+  document.querySelector('[data-ready]').addEventListener('click', () => setReady(true));
+
+  grid.addEventListener('click', e => {
+    const b = e.target.closest('[data-add]'); if (!b) return;
+    P.busy(b, 'Adding', () => P.addToCart(b.dataset.add, b.dataset.finish, b.dataset.size, 1, b));
+  });
+
+  let initial = null;
+  try { initial = new URLSearchParams(location.search).get('cat'); } catch (e) { initial = null; }
+  const hit = initial && catLB.opts().find(o => o.dataset.value === initial);
+  if (hit) catLB.pick(hit, true); else render();
+})();
+</script>
+</body>
+</html>

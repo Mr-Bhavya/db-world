@@ -8,7 +8,7 @@ import {
 } from '@mui/icons-material';
 
 import {
-  AdminActionButton, AdminDataTable, AdminPage, SectionCard, StatCard, StatGrid,
+  AdminActionButton, AdminConfirmDialog, AdminDataTable, AdminPage, SectionCard, StatCard, StatGrid,
 } from '@features/admin/adminUi';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
@@ -44,6 +44,7 @@ export default function LiveTvAdmin() {
   const [playlistDialog, setPlaylistDialog] = useState(null);   // { playlist } | null
   const [channelDialog, setChannelDialog]   = useState(false);
   const [sourcesFor, setSourcesFor]         = useState(null);   // channel | null
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
   const playlists = useLivePlaylists();
   const channels  = useAdminLiveChannels(search);
@@ -79,6 +80,8 @@ export default function LiveTvAdmin() {
   const runCheckAll = () => checkAll.mutateAsync()
     .then((r) => notify.success(`Probed ${r.probed} URL${r.probed === 1 ? '' : 's'} — ${r.up} up, ${r.down} down`))
     .catch((e) => notify.error(e?.response?.data?.message ?? 'Health check failed'));
+
+  const confirmDelete = (config) => setDeleteConfirmation(config);
 
   const playlistColumns = [
     {
@@ -142,12 +145,14 @@ export default function LiveTvAdmin() {
           <Tooltip title="Remove playlist and its channels">
             <span>
               <IconButton size="small" disabled={deletePlay.isPending} sx={{ color: T.error }}
-                onClick={() => {
-                  if (!window.confirm(`Remove "${row.name}"? Its stream URLs go with it, and any channel left with nothing to play is deleted.`)) return;
-                  deletePlay.mutateAsync(row.id)
+                onClick={() => confirmDelete({
+                  title: 'Remove playlist?',
+                  message: `"${row.name}" and its stream URLs will be removed. Any channel left without a stream is also deleted.`,
+                  confirmLabel: 'Remove playlist',
+                  run: () => deletePlay.mutateAsync(row.id)
                     .then(() => notify.success('Playlist removed'))
-                    .catch((e) => notify.error(e?.response?.data?.message ?? 'Could not remove it'));
-                }}>
+                    .catch((e) => notify.error(e?.response?.data?.message ?? 'Could not remove it')),
+                })}>
                 <DeleteOutlineRounded sx={{ fontSize: 18 }} />
               </IconButton>
             </span>
@@ -252,12 +257,14 @@ export default function LiveTvAdmin() {
           <Tooltip title="Delete channel">
             <span>
               <IconButton size="small" disabled={deleteChan.isPending} sx={{ color: T.error }}
-                onClick={() => {
-                  if (!window.confirm(`Delete "${row.name}" and all of its stream URLs?`)) return;
-                  deleteChan.mutateAsync(row.id)
+                onClick={() => confirmDelete({
+                  title: 'Delete channel?',
+                  message: `"${row.name}" and all of its stream URLs will be permanently removed.`,
+                  confirmLabel: 'Delete channel',
+                  run: () => deleteChan.mutateAsync(row.id)
                     .then(() => notify.success('Channel deleted'))
-                    .catch((e) => notify.error(e?.response?.data?.message ?? 'Could not delete it'));
-                }}>
+                    .catch((e) => notify.error(e?.response?.data?.message ?? 'Could not delete it')),
+                })}>
                 <DeleteOutlineRounded sx={{ fontSize: 18 }} />
               </IconButton>
             </span>
@@ -376,6 +383,19 @@ export default function LiveTvAdmin() {
         open={Boolean(openSourcesChannel)}
         channel={openSourcesChannel}
         onClose={() => setSourcesFor(null)}
+      />
+      <AdminConfirmDialog
+        open={Boolean(deleteConfirmation)}
+        title={deleteConfirmation?.title}
+        message={deleteConfirmation?.message}
+        confirmLabel={deleteConfirmation?.confirmLabel}
+        loading={deletePlay.isPending || deleteChan.isPending}
+        onConfirm={() => {
+          const run = deleteConfirmation?.run;
+          setDeleteConfirmation(null);
+          run?.();
+        }}
+        onClose={() => setDeleteConfirmation(null)}
       />
     </AdminPage>
   );

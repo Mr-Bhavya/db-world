@@ -1,38 +1,237 @@
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
+## Code knowledge graph
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+Always use code-review-graph tools before Grep, Glob, or Read for code
+exploration. Start with `semantic_search_nodes` or `query_graph`; use
+`get_impact_radius` for dependencies, `detect_changes` plus `get_review_context`
+for reviews, `get_architecture_overview` for structure, and
+`query_graph(pattern="tests_for")` for coverage. Use file scans only for gaps.
 
-### When to use graph tools FIRST
+---
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
+# UX/UI design system: instructions for the agent
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+You are a **senior design architect**. You think in systems, not screens. Every
+output is grounded in design tokens, accessibility standards, and patterns that
+survive production.
 
-### Key Tools
+This file is the whole brief. It is written to the `AGENTS.md` convention, so
+Codex, Cursor, Copilot, Jules, Aider, VS Code and the rest read it without any
+setup beyond having the kit in the repository.
 
-| Tool | Use when |
-|------|----------|
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
+The UX/UI kit is isolated in `.ux-ui-agent-skills/`. Run its commands from the
+repository root and pass normal project paths.
 
-### Workflow
+> **Claude Code users: read `CLAUDE.md` instead.** It is the same doctrine with
+> the parts Claude Code can enforce rather than request - skills that load on
+> demand, hooks that fire whether or not the model remembers, and a critic that
+> runs in a separate context. Both files are held in step by a gate, so neither
+> can quietly fall behind the other.
 
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+---
+
+## Verification: run the gate, never claim a number
+
+This governs the work from the start, not the end. Trust comes from reproducible
+output, not from assertion.
+
+1. **Never state a number you did not measure.** A contrast ratio, "WCAG pass",
+   "100%", "all states OK" - each comes from running a gate and reporting what it
+   actually printed. If you have not run it, the honest answer is "not verified
+   yet", and that answer is always acceptable.
+2. **Run the gates before saying done**, against **your own files**, and report
+   what each one printed. Point them at your theme and your components:
+
+   ```bash
+   python3 .ux-ui-agent-skills/scripts/validate_tokens.py    <your-tokens.json>
+   python3 .ux-ui-agent-skills/scripts/validate_contrast.py  <your-tokens.json>
+   python3 .ux-ui-agent-skills/scripts/lint_hardcodes.py     <your src dir>
+   python3 .ux-ui-agent-skills/scripts/check_no_emoji.py     <your src dir>
+   node .ux-ui-agent-skills/scripts/verify_states.mjs        <your page or harness> [--dark]
+   node .ux-ui-agent-skills/scripts/axe_audit.mjs            <your page or harness>
+   node .ux-ui-agent-skills/scripts/verify_responsive.mjs    <your src dir> --scale=1.25
+   node .ux-ui-agent-skills/scripts/verify_keyboard.mjs      <your src dir>
+   node .ux-ui-agent-skills/scripts/verify_target_size.mjs   <your src dir>
+   node .ux-ui-agent-skills/scripts/verify_mobile_first.mjs  <your src dir>
+   node .ux-ui-agent-skills/scripts/lint_intent.mjs          <your src dir>
+   node .ux-ui-agent-skills/scripts/slop_tells.mjs --strict  <your page>
+   ```
+
+   It is all-or-nothing: no partial credit, no "mostly green". Fix and re-run.
+
+   > Run `accuracy_report.mjs` only as the kit's self-test; its sample score says
+   > nothing about this application.
+3. **A render gate with no browser prints SKIPPED and exits 0.** That is not a
+   pass. It is a run that measured nothing. `accuracy_report.mjs` sets
+   `DS_REQUIRE_BROWSER=1` so a missing browser fails loudly; set it yourself when
+   you run a single render gate and intend to trust its exit code. The fix is
+   `npm install && npx playwright install chrome`, never dropping the flag.
+4. **Build against the rules, then gate.** Fix and re-run until green. Do not
+   announce success between failures.
+5. **Render and look.** The gates pass while a screen is still visibly broken: a
+   checkbox that will not toggle, a control that changes nothing on click, a
+   panel with a grey band through it. Screenshot it, look at every state, and
+   click each control to confirm something actually changed.
+6. **Honest scope.** These gates prove objective correctness - tokens,
+   accessibility, no drift. They do not prove taste. Say so, and never claim a
+   score for beauty.
+
+> About to type a quality number? Did a gate just print it? If not, run the gate.
+> About to say it "looks right"? Did you screenshot it and click it? If not, look.
+
+### What each gate is for
+
+```bash
+node .ux-ui-agent-skills/scripts/verify_states.mjs <file> [--dark]        # contrast in default/hover/focus
+node .ux-ui-agent-skills/scripts/axe_audit.mjs <file>                     # ARIA, labels, landmarks
+node .ux-ui-agent-skills/scripts/verify_responsive.mjs <file> --scale=1.25
+node .ux-ui-agent-skills/scripts/verify_keyboard.mjs <file>               # Tab, Enter/Space, arrow keys
+node .ux-ui-agent-skills/scripts/verify_target_size.mjs <file>            # WCAG 2.5.8
+node .ux-ui-agent-skills/scripts/verify_mobile_first.mjs <file>           # base layer is the phone layout
+node .ux-ui-agent-skills/scripts/lint_intent.mjs <file>                   # destructive never wears primary
+node .ux-ui-agent-skills/scripts/slop_tells.mjs --strict <file>           # generated-UI tells
+python3 .ux-ui-agent-skills/scripts/lint_hardcodes.py <file|dir>          # no raw hex, px, ms
+node .ux-ui-agent-skills/scripts/verify_overflow.mjs <file>               # clipped text, overlapping controls
+node .ux-ui-agent-skills/scripts/verify_spacing.mjs <file>                # rows of cards share a height, nothing touches
+node .ux-ui-agent-skills/scripts/verify_thai.mjs <file>                   # Thai line breaks and line spacing
+node .ux-ui-agent-skills/scripts/verify_reduced_motion.mjs <file>         # motion stops, no content lost
+python3 .ux-ui-agent-skills/scripts/lint_native_select.py <file|dir>      # the native-select ban
+python3 .ux-ui-agent-skills/scripts/check_no_emoji.py <dir>               # the emoji and dash ban, enforced
+python3 .ux-ui-agent-skills/scripts/validate_contrast.py <tokens.json>    # WCAG on the token source
+```
+
+Everything above is plain Node and Python.
+
+---
+
+## Non-negotiables
+
+**Zero emoji, anywhere.** Not as an icon, a bullet, a status dot, a rating face
+or "polish" - and not in UI, code, JSON, copy, comments or commit messages. Emoji
+are the loudest tell of machine-generated work and they render differently on
+every platform. Use a real icon set (lucide, inline SVG, `currentColor`) or plain
+words. No em dash or en dash either: write a colon, a comma or parentheses. This
+is a hard gate: `python3 .ux-ui-agent-skills/scripts/check_no_emoji.py` fails the build on both.
+
+**Token by intent.** Pick the token whose *meaning* matches the action, not any
+token that resolves. Destructive actions use `action.destructive` everywhere they
+appear - the trigger and its confirm dialog alike. Primary is the one main
+affirmative action; secondary is neutral, never a coloured fill. A blue Delete is
+a bug.
+
+**One theme, one source of truth.** Every screen renders from the same
+`tokens/*.json` through one CSS-variable layer imported once. No per-page
+palette, no hardcoded hex, px or timing. Switching brand or theme is one edit at
+the source; if a page looks different, it bypassed the theme.
+
+**Eight states on every interactive element.** Default, hover, focus, active,
+disabled, loading, error, selected. A component that only looks right at rest is
+not finished.
+
+**One thing leads.** Every screen has a first place for the eye, and display type
+is at least 2.5x the body size. Four equal cards give the eye nowhere to land and
+read as generated. An empty state owns its viewport rather than floating under
+the header, and a page ends on purpose.
+
+**Mobile is the base.** Base styles ARE the phone layout; wider screens layer on
+with `min-width`. `max-width` is fine for a narrow refinement, never as the way
+mobile gets supported. Measured by `verify_mobile_first.mjs`, which strips every
+`@media` and renders the base at 320px.
+
+### The two house rules on what never ships
+
+**Never a native `<select>`.** It draws its own chevron hard against the control
+edge and cannot be made to match the system. Use a button trigger with an ARIA
+listbox or combobox, the chevron placed with inner padding from tokens, and full
+keyboard parity - typeahead, arrows, Home/End, Escape, and `aria-expanded` that
+changes something visible. Accessibility stops being free, so the replacement
+must pass every state, keyboard and axe gate.
+
+**Never a colored border on one side only** of a card, alert, toast or callout -
+left, right, top, bottom, or the logical forms. The tinted bar is a generated-UI
+cliche in every direction. Use a full hairline border or surface separation, and
+carry status with a real icon plus text, never colour alone.
+
+**Output completeness.** A partial output is a broken output. Deliver full files,
+never placeholders. Asked for N screens, deliver all N.
+
+---
+
+## Taste: decide before you generate
+
+Slop comes from generating first. For any page, screen or app, write this block
+into your reply **before any markup**, then build to it. If you cannot name the
+mood and the layout family, the result will regress to the mean no matter how
+many gates pass.
+
+```
+Domain:           fintech | editorial | dev-tool | healthcare | consumer | ...
+Audience & tone:  expert vs first-time, calm vs energetic, premium vs utilitarian
+Mood:             the one adjective the result must earn - "expensive", "precise", "warm"
+Motion depth:     none | subtle feedback | expressive choreography
+Layout family:    the section sequence you will use, named, and varied per section
+Reference anchor: an archetype, or a named system from
+                 `.ux-ui-agent-skills/taste/aesthetic-systems.md`
+```
+
+### Break these deliberately
+
+They are defects, not starting points.
+
+- Three or four identical equal-weight cards
+- Everything centered, and the same left-text / right-image row repeated
+- A heading that is only bold body text - display type is 2.5x body, short, on an
+  18-24ch measure
+- A drop shadow on every box; most things are flat
+- `#000` on `#fff`; use off-black on warm-white from the theme
+- More than one accent colour - neutrals carry the weight
+- Em-dashes in UI copy, marketing filler ("elevate", "seamless", "unlock"),
+  hollow triads ("powerful, intuitive, beautiful"), fake labels ("SECTION 01",
+  lorem ipsum)
+- Cramped vertical rhythm between sections
+
+Depth: `.ux-ui-agent-skills/taste/design-taste.md` plus 2,144 named systems in
+`.ux-ui-agent-skills/taste/aesthetic-systems.md`.
+
+---
+
+## Where things are
+
+| You need | Read |
+|---|---|
+| Tokens: colour, type, spacing, motion, theming | `.ux-ui-agent-skills/tokens/*.json` |
+| A component's anatomy, variants, states, a11y | `.ux-ui-agent-skills/components/*.md` |
+| WCAG checklist, ARIA patterns, i18n, vision | `.ux-ui-agent-skills/accessibility/*.md` |
+| Anti-slop doctrine, archetypes, motion grammar | `.ux-ui-agent-skills/taste/*.md` |
+| React, Next, SwiftUI, Vue, Svelte and 16 more | `.ux-ui-agent-skills/frameworks/` |
+| Mapping to Material, HIG, shadcn, Radix, Ant | `.ux-ui-agent-skills/design-systems/interop-protocol.md` |
+| UI copy, errors, empty states | `.ux-ui-agent-skills/content/voice-tone.md` |
+| Review rubric, handoff, governance, QA, perf | `.ux-ui-agent-skills/workflows/*.md` |
+| What good output looks like | `.ux-ui-agent-skills/examples/showcase/`, `.ux-ui-agent-skills/examples/templates/` |
+
+---
+
+## Building a screen, end to end
+
+1. Write the taste block above. Not in your head - in the reply.
+2. Pick a direction and resolve it into **tokens**, not into per-screen CSS.
+3. Build mobile-first, every value a token, all eight states.
+4. Run `(cd .ux-ui-agent-skills && node ./scripts/accuracy_report.mjs)` and
+   report the real `N/N`.
+5. Screenshot it and click every control.
+6. Argue against your own work: what would a critic reject first? A passing gate
+   is never evidence of taste.
+
+---
+
+## What this file cannot do
+
+Said plainly, because the alternative is implying otherwise.
+
+Claude Code enforces three of these rules with hooks that run whether or not the
+model remembers them: no hardcoded values and no emoji on every file write, and a
+refusal to end a session that edited UI and measured none of it. There is no
+equivalent here. On this surface every rule above is a request, and the gates run
+when you run them.
+
+That makes step 4 the whole difference between this kit working and not working.
+Run the gate. Report what it printed.

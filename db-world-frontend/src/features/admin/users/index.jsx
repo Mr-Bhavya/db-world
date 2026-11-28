@@ -8,7 +8,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { AdminPage, SectionCard, StatCard, StatGrid, ErrorState, AdminActionButton, StickyBar } from '@features/admin/adminUi';
+import { AdminPage, SectionCard, StatCard, StatGrid, ErrorState, AdminActionButton, AdminConfirmDialog, StickyBar } from '@features/admin/adminUi';
 import { getAllUsers, deleteUser, setUserStatus } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
 import UserTable from './UserTable';
@@ -29,6 +29,7 @@ export default function UserManagementV2() {
   const [params, setParams] = useState({
     page: 0, size: 25, search: '', role: 'ALL', sortBy: 'userId', sortDir: 'desc',
   });
+  const [confirmation, setConfirmation] = useState(null);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['users', params],
@@ -57,7 +58,12 @@ export default function UserManagementV2() {
   });
 
   const handleDelete = useCallback((userId) => {
-    if (window.confirm('Delete this user?')) doDelete(userId);
+    setConfirmation({
+      title: 'Delete user?',
+      message: 'The user account will be deleted. This action cannot be undone.',
+      confirmLabel: 'Delete user',
+      run: () => doDelete(userId),
+    });
   }, [doDelete]);
 
   const { mutate: doToggleStatus } = useMutation({
@@ -70,7 +76,16 @@ export default function UserManagementV2() {
   });
 
   const handleToggleStatus = useCallback((userId, enabled) => {
-    if (!enabled && !window.confirm('Disable this user? They will be logged out and unable to sign in.')) return;
+    if (!enabled) {
+      setConfirmation({
+        title: 'Disable user?',
+        message: 'They will be logged out and unable to sign in until the account is enabled again.',
+        confirmLabel: 'Disable user',
+        danger: false,
+        run: () => doToggleStatus({ userId, enabled }),
+      });
+      return;
+    }
     doToggleStatus({ userId, enabled });
   }, [doToggleStatus]);
 
@@ -143,6 +158,19 @@ export default function UserManagementV2() {
       <UserCreateModal open={modalState === 'create'} onClose={closeModal} />
       <UserEditModal   open={modalState === 'edit'}   userId={editUserId} onClose={closeModal} />
       <UserBulkModal   open={modalState === 'bulk'}   onClose={closeModal} />
+      <AdminConfirmDialog
+        open={Boolean(confirmation)}
+        title={confirmation?.title}
+        message={confirmation?.message}
+        confirmLabel={confirmation?.confirmLabel}
+        danger={confirmation?.danger ?? true}
+        onConfirm={() => {
+          const run = confirmation?.run;
+          setConfirmation(null);
+          run?.();
+        }}
+        onClose={() => setConfirmation(null)}
+      />
     </AdminPage>
   );
 }

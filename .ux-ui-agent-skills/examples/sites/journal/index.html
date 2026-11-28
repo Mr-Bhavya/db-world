@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บ้านที่ยอมให้น้ำผ่าน | แผ่นดินต่ำ</title>
+<meta name="description" content="15 ปีหลังน้ำท่วมใหญ่ ชุมชนริมคลองพลับพลึงเงินเลิกก่อกำแพงกั้นน้ำ แล้วหันมายกบ้าน จดระดับน้ำด้วยมือ และจัดเวรเรือกันเอง (ตัวอย่างการออกแบบ เรื่องและตัวเลขสมมติ)">
+<link rel="stylesheet" href="theme.css">
+<script>
+  /* Theme before first paint: a saved choice, else the system preference. */
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('journal-theme'); } catch (e) {}
+    if (t !== 'dark' && t !== 'light') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+  /* Every value below is a token from theme.css. Mobile is the base; wider
+     layouts are layered on with min-width only. */
+  *, *::before, *::after { box-sizing: border-box; }
+  html {
+    scroll-padding-block-start: var(--readbar-offset);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-surface-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--text-base);
+    line-height: var(--leading-ui);
+    letter-spacing: normal;
+    overflow-wrap: anywhere;
+  }
+  ::selection { background: var(--color-selection); color: var(--color-text-heading); }
+  img, svg { max-inline-size: 100%; }
+  h1, h2, h3, p, ol, ul, figure, blockquote { margin: 0; }
+  a { color: var(--color-text-link); }
+  .ico {
+    inline-size: var(--size-icon);
+    block-size: var(--size-icon);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+  }
+  .sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .keep { white-space: nowrap; }
+  [lang="en"].label-latin {
+    letter-spacing: var(--tracking-label-latin);
+    text-transform: uppercase;
+  }
+  .wrap {
+    inline-size: 100%;
+    max-inline-size: var(--container-max);
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+  }
+
+  /* Skip link */
+  .skip {
+    position: absolute;
+    inset-inline-start: var(--space-2);
+    inset-block-start: var(--space-2);
+    z-index: var(--z-panel);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-skip-bg);
+    color: var(--color-skip-text);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transform: translateY(-200%);
+  }
+  .skip:focus-visible { transform: none; outline: none; box-shadow: var(--shadow-focus-ring); }
+  .skip:hover { text-decoration: underline; }
+
+  /* Links in running text: underline always, so colour is never the only cue */
+  .story-body a, .standfirst a, .notes a, .chart a, .site-footer a {
+    color: var(--color-text-link);
+    text-decoration-line: underline;
+    text-decoration-thickness: var(--border-width-thin);
+    text-underline-offset: 0.2em;
+    border-radius: var(--radius-button);
+    transition: color var(--duration-fast) var(--ease-out), text-decoration-thickness var(--duration-fast) var(--ease-out);
+  }
+  .story-body a:hover, .standfirst a:hover, .notes a:hover, .chart a:hover {
+    color: var(--color-text-link-hover);
+    text-decoration-thickness: var(--border-width-medium);
+  }
+  .story-body a:active, .notes a:active, .chart a:active { color: var(--color-text-heading); }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus-ring);
+  }
+
+  /* Buttons: the shared primitive */
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-block-size: var(--size-control-md);
+    padding-block: 0;
+    padding-inline: var(--space-3);
+    border: var(--border-width-thin) solid var(--color-border-strong);
+    border-radius: var(--radius-button);
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-ui);
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+  }
+  .btn:hover { background: var(--color-surface-hover); border-color: var(--color-text-primary); }
+  .btn:active { background: var(--color-surface-active); }
+  .btn[aria-pressed="true"], .btn[aria-expanded="true"] {
+    background: var(--color-action-primary);
+    border-color: var(--color-action-primary);
+    color: var(--color-text-on-action);
+  }
+  .btn[aria-pressed="true"]:hover, .btn[aria-expanded="true"]:hover {
+    background: var(--color-action-primary-hover);
+    border-color: var(--color-action-primary-hover);
+  }
+  .btn[aria-pressed="true"]:active, .btn[aria-expanded="true"]:active {
+    background: var(--color-action-primary-active);
+  }
+  .btn:disabled { opacity: 0.5; pointer-events: none; }
+  .btn-icon { inline-size: var(--size-control-md); padding-inline: 0; }
+
+  /* Masthead */
+  .masthead { padding-block: var(--space-3) var(--space-5); }
+  .masthead-util {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .issue {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-3);
+    min-inline-size: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+  }
+  .issue strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+  .masthead-brand {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-1);
+    padding-block-start: var(--space-2);
+    text-align: center;
+  }
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-display);
+    color: var(--color-text-heading);
+  }
+  .mark { inline-size: 1.05em; block-size: 1.05em; flex: none; overflow: visible; }
+  .mark-frame { fill: none; stroke: currentColor; stroke-width: 3; }
+  .mark-land { stroke: var(--color-text-kicker); stroke-width: 5; }
+  .mark-water { fill: none; stroke: var(--color-text-link); stroke-width: 2.5; stroke-linecap: round; }
+  .wordmark-text { letter-spacing: normal; }
+  .tagline {
+    display: grid;
+    gap: var(--space-0-5);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+  }
+  .tagline [lang="en"] { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+  .masthead-rule {
+    block-size: var(--border-width-heavy);
+    margin-block-start: var(--space-4);
+    border-block: var(--border-width-thin) solid var(--color-rule);
+  }
+
+  /* Sticky reading bar: TOC on phones, size control, progress */
+  .readbar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-readbar);
+    background: var(--color-surface-page);
+  }
+  .readbar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
+    padding-block: var(--space-2);
+  }
+  .toc-menu { position: relative; }
+  .toc-panel {
+    position: absolute;
+    inset-block-start: calc(100% + var(--space-2));
+    inset-inline-start: 0;
+    z-index: var(--z-panel);
+    inline-size: min(var(--toc-panel-max), calc(100vw - var(--gutter) - var(--gutter)));
+    padding: var(--space-3);
+    background: var(--color-surface-raised);
+    border: var(--border-width-thin) solid var(--color-border-subtle);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-raised);
+  }
+  .toc-panel[hidden] { display: none; }
+  .readbar-title { display: none; }
+  .toggle-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .toc-toggle { min-inline-size: var(--size-control-md); padding-inline: var(--space-2); }
+  .fiction-badge {
+    margin-inline-start: auto;
+    padding: var(--space-0-5) var(--space-2);
+    border: var(--border-width-thin) solid var(--color-border-strong);
+    border-radius: var(--radius-button);
+    color: var(--color-text-primary);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-ui);
+    white-space: nowrap;
+  }
+  .size-group { display: flex; align-items: center; gap: var(--space-2); }
+  .size-label {
+    display: none;
+    margin-inline-end: var(--space-1);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+  }
+  .size-btn {
+    min-inline-size: var(--size-control-sm);
+    min-block-size: var(--size-control-sm);
+    padding-inline: var(--space-1);
+    font-family: var(--font-display);
+    line-height: 1;
+  }
+  .size-btn[data-size="sm"] { font-size: var(--text-sm); }
+  .size-btn[data-size="md"] { font-size: var(--text-lg); }
+  .size-btn[data-size="lg"] { font-size: var(--text-2xl); }
+  .progress {
+    block-size: var(--progress-height);
+    background: var(--color-progress-track);
+  }
+  .progress-fill {
+    display: block;
+    block-size: 100%;
+    background: var(--color-progress);
+    transform-origin: 0 50%;
+    transform: scaleX(0);
+  }
+
+  /* Table of contents (shared by the phone panel and the desktop rail) */
+  .toc-heading {
+    margin-block-end: var(--space-2);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+  .toc ol { list-style: none; padding: 0; display: grid; gap: var(--space-0-5); }
+  .toc a {
+    display: grid;
+    grid-template-columns: var(--space-6) minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--space-1);
+    min-block-size: var(--size-control-md);
+    padding-block: var(--space-2);
+    padding-inline: var(--space-2);
+    border-radius: var(--radius-button);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-heading);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  .toc a:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
+  .toc a:active { background: var(--color-surface-active); }
+  .toc-num { color: var(--color-text-secondary); font-family: var(--font-display); }
+  .toc a[aria-current="location"] {
+    color: var(--color-text-link);
+    font-weight: var(--weight-semibold);
+  }
+  .toc a[aria-current="location"] .toc-text {
+    text-decoration-line: underline;
+    text-decoration-thickness: var(--border-width-medium);
+    text-underline-offset: 0.35em;
+  }
+  .toc a[aria-current="location"] .toc-num { color: var(--color-text-link); }
+  .toc-rail { display: none; }
+
+  /* Lead */
+  .lead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+    padding-block: var(--space-6) var(--space-10);
+  }
+  .lead-text { display: grid; gap: var(--space-4); align-content: start; }
+  .kicker {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-kicker);
+  }
+  .kicker a {
+    color: var(--color-text-kicker);
+    text-decoration: none;
+    border-radius: var(--radius-button);
+  }
+  .kicker a:hover { text-decoration: underline; text-underline-offset: 0.25em; }
+  .kicker a:active { color: var(--color-text-heading); }
+  .headline {
+    max-inline-size: var(--measure-display);
+    font-family: var(--font-display);
+    font-size: var(--text-5xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-display);
+    color: var(--color-text-heading);
+    text-wrap: balance;
+  }
+  .standfirst {
+    max-inline-size: var(--measure-standfirst);
+    color: var(--color-text-secondary);
+    font-size: var(--text-lg);
+    line-height: var(--leading-reading);
+    text-wrap: pretty;
+  }
+  .byline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding-block-start: var(--space-4);
+    border-block-start: var(--border-width-thin) solid var(--color-border-subtle);
+    font-size: var(--text-sm);
+  }
+  .avatar {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--size-avatar);
+    block-size: var(--size-avatar);
+    border-radius: var(--radius-full);
+    background: var(--color-avatar-bg);
+    color: var(--color-text-heading);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+  }
+  .byline-name { color: var(--color-text-primary); }
+  .byline-name strong { font-weight: var(--weight-semibold); color: var(--color-text-heading); }
+  .byline-meta { color: var(--color-text-secondary); }
+  .byline p { text-wrap: balance; }
+  .lead-art { display: grid; gap: var(--space-3); align-content: end; }
+  .lead-art svg { display: block; inline-size: 100%; block-size: auto; max-inline-size: var(--lead-art-max); }
+  .lead-art figcaption, .chart figcaption {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-ui);
+    text-wrap: pretty;
+  }
+
+  /* Illustration strokes and fills */
+  .il-line { stroke: var(--color-illus-line); fill: none; stroke-width: 1.5; }
+  .il-solid { fill: var(--color-illus-line); }
+  .il-ground { fill: var(--color-illus-ground); }
+  .il-flood { fill: var(--color-illus-flood); }
+  .il-water { fill: var(--color-illus-water); }
+  .il-house { fill: var(--color-illus-house); stroke: var(--color-illus-line); stroke-width: 1.5; }
+  .il-roof { fill: var(--color-illus-roof); stroke: var(--color-illus-line); stroke-width: 1.5; stroke-linejoin: round; }
+  .il-flood-line { stroke: var(--color-illus-flood-line); stroke-width: 2; stroke-dasharray: 6 5; fill: none; }
+  .il-level { stroke: var(--color-illus-line); stroke-width: 1; stroke-dasharray: 3 4; fill: none; }
+  .il-flow { stroke: var(--color-illus-flow); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .il-label { fill: var(--color-chart-text); font-family: var(--font-ui); font-size: var(--text-sm); }
+  .il-label-flood { fill: var(--color-illus-flood-line); font-weight: var(--weight-semibold); }
+
+  /* Story body */
+  .story-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding-block-start: var(--space-4);
+  }
+  .story-body {
+    min-inline-size: 0;
+    font-family: var(--font-reading);
+    font-size: var(--reading-md);
+    line-height: var(--leading-reading);
+    color: var(--color-text-primary);
+  }
+  .story-body[data-size="sm"] { font-size: var(--reading-sm); }
+  .story-body[data-size="lg"] { font-size: var(--reading-lg); }
+  .story-body section { display: grid; gap: 1em; padding-block-end: var(--space-10); }
+  .story-body section > p, .story-body .author-note { max-inline-size: var(--measure-reading); }
+  /* pretty keeps a last line from being one short word; it never stretches the rag. */
+  .story-body section > p { text-wrap: pretty; }
+  .story-body h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    font-family: var(--font-display);
+    font-size: 1.45em;
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-heading);
+    color: var(--color-text-heading);
+    text-wrap: balance;
+  }
+  /* Section rules are drawn elements, sized to the measure, never a border on
+     one side of a box. */
+  .story-body section[id^="s"]::before, .story-body .notes::before {
+    content: "";
+    display: block;
+    block-size: var(--border-width-heavy);
+    max-inline-size: var(--measure-reading);
+    background: var(--color-rule);
+  }
+  .sec-num { color: var(--color-text-kicker); font-weight: var(--weight-medium); }
+  .story-body .opening::first-line { font-weight: var(--weight-semibold); color: var(--color-text-heading); }
+  .fnref { font-size: 0.7em; line-height: 0; vertical-align: super; font-family: var(--font-ui); }
+  .fnref a { text-decoration-line: none; padding-inline: var(--space-0-5); font-weight: var(--weight-semibold); }
+  .fnref a:hover { text-decoration-line: underline; }
+
+  /* Pull quote: hairline rules on both edges, never a one-sided bar */
+  .pullquote {
+    display: grid;
+    gap: var(--space-3);
+    max-inline-size: var(--measure-reading);
+    margin-block: var(--space-4) 0;
+  }
+  .pullquote::before {
+    content: "";
+    display: block;
+    block-size: var(--border-width-thin);
+    margin-block-end: var(--space-3);
+    background: var(--color-rule);
+  }
+  .pullquote-mark {
+    block-size: 0.55em;
+    color: var(--color-quote-mark);
+    font-family: var(--font-quote-mark);
+    font-size: var(--text-quote-mark);
+    line-height: 1;
+  }
+  .pullquote blockquote p {
+    max-inline-size: 16em;
+    font-family: var(--font-display);
+    font-size: 1.6em;
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-heading);
+    color: var(--color-text-heading);
+    text-wrap: balance;
+  }
+  /* When the two clauses do not fit on one line, the second starts its own. */
+  .pullquote .clause { display: inline-block; }
+  .pullquote figcaption {
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .pullquote figcaption strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+
+  /* Data figure */
+  .chart {
+    display: grid;
+    gap: var(--space-3);
+    margin-block: var(--space-4);
+    padding-block: var(--space-5);
+    border-block-start: var(--border-width-thin) solid var(--color-rule);
+    font-family: var(--font-ui);
+    font-size: var(--text-base);
+    line-height: var(--leading-ui);
+  }
+  .chart-label { color: var(--color-text-kicker); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+  .chart-title {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-heading);
+    color: var(--color-text-heading);
+  }
+  .chart-sub { color: var(--color-text-secondary); font-size: var(--text-sm); text-wrap: pretty; }
+  .chart > p, .kicker, .part-date, .chart figcaption, .legend { max-inline-size: var(--measure-standfirst); }
+  .table-scroll { max-inline-size: var(--measure-table); }
+  .legend {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+  }
+  .legend li { display: flex; align-items: center; gap: var(--space-2); }
+  .swatch { flex: none; inline-size: var(--size-swatch); block-size: var(--size-swatch); }
+  .swatch-canal { background: repeating-linear-gradient(45deg, var(--color-chart-canal) 0 0.2em, var(--color-chart-canal-hatch) 0.2em 0.3em); outline: var(--border-width-thin) solid var(--color-chart-canal); }
+  .swatch-floor { background: var(--color-chart-floor); }
+  .chart-svg { display: block; inline-size: 100%; overflow: visible; }
+  .chart-plotwrap { display: grid; grid-template-columns: var(--chart-label-col) minmax(0, 1fr); }
+  .chart-years { display: block; inline-size: 100%; overflow: visible; }
+  .chart-grid { stroke: var(--color-chart-grid); stroke-width: 1; }
+  .chart-tick, .chart-year, .chart-val {
+    fill: var(--color-chart-text);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-year { font-weight: var(--weight-semibold); }
+  .chart-val-floor { font-weight: var(--weight-semibold); }
+  .bar-canal { fill: url(#hatch); stroke: var(--color-chart-canal); stroke-width: 1; }
+  .hatch-bg { fill: var(--color-chart-canal-hatch); }
+  .hatch-line { stroke: var(--color-chart-canal); stroke-width: 3; }
+  .bar-floor { fill: var(--color-chart-floor); }
+  .chart-data summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-block-size: var(--size-control-md);
+    padding-inline: var(--space-3);
+    border: var(--border-width-thin) solid var(--color-border-strong);
+    border-radius: var(--radius-button);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    list-style: none;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+  .chart-data summary::-webkit-details-marker { display: none; }
+  .chart-data summary:hover { background: var(--color-surface-hover); border-color: var(--color-text-primary); }
+  .chart-data summary:active { background: var(--color-surface-active); }
+  .chart-data summary .ico { transition: transform var(--duration-base) var(--ease-out); }
+  .chart-data[open] summary .ico { transform: rotate(180deg); }
+  .table-scroll { overflow-x: auto; margin-block-start: var(--space-3); }
+  .chart-data table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-data caption { text-align: start; color: var(--color-text-secondary); padding-block-end: var(--space-2); }
+  .chart-data th, .chart-data td {
+    padding: var(--space-2) var(--space-3);
+    border-block-end: var(--border-width-thin) solid var(--color-border-subtle);
+    text-align: end;
+  }
+  .chart-data th:first-child, .chart-data td:first-child { text-align: start; }
+  .chart-data thead th { color: var(--color-text-secondary); font-weight: var(--weight-semibold); }
+
+  /* The note's box keeps the body size, so its hairline runs to the same
+     measure as the section rules; only the text inside is set small. */
+  .author-note {
+    padding-block-start: var(--space-4);
+    border-block-start: var(--border-width-thin) solid var(--color-border-subtle);
+  }
+  .author-note p {
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .author-note strong { color: var(--color-text-primary); }
+
+  /* Notes and sources */
+  .notes {
+    display: grid;
+    gap: var(--space-4);
+    margin-block-start: var(--space-10);
+    font-family: var(--font-ui);
+    line-height: var(--leading-reading);
+  }
+  .notes ol { font-size: var(--text-sm); }
+  .story-body .notes h2 {
+    display: block;
+    padding-block-start: 0;
+    border-block-start: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-heading);
+  }
+  .notes ol { list-style-type: thai; max-inline-size: var(--measure-notes); padding-inline-start: var(--space-8); display: grid; gap: var(--space-3); }
+  .notes li { padding: var(--space-1) var(--space-2); }
+  .notes li::marker { color: var(--color-text-kicker); font-weight: var(--weight-semibold); }
+  .notes li:target { background: var(--color-surface-panel); }
+  .backref {
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--size-control-sm);
+    block-size: var(--size-control-sm);
+    margin-inline-start: var(--space-1);
+    vertical-align: middle;
+    border-radius: var(--radius-full);
+    color: var(--color-text-link);
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+  .notes a.backref { text-decoration: none; border-radius: var(--radius-full); }
+  .backref:hover { background: var(--color-surface-hover); color: var(--color-text-link-hover); }
+  .backref:active { background: var(--color-surface-active); }
+  .backref .ico { inline-size: var(--space-4); block-size: var(--space-4); }
+
+  /* Series end section */
+  .series {
+    display: grid;
+    gap: var(--space-6);
+    padding-block: var(--space-12) var(--space-16);
+  }
+  .series-head {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .series-head::before {
+    content: "";
+    display: block;
+    block-size: var(--border-width-heavy);
+    margin-block-end: var(--space-2);
+    background: var(--color-rule);
+  }
+  .series-head h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-heading);
+    color: var(--color-text-heading);
+  }
+  .series-head p { color: var(--color-text-secondary); font-size: var(--text-sm); max-inline-size: var(--measure-standfirst); text-wrap: balance; }
+  .series-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+  .next-part {
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+    padding: var(--space-5);
+    background: var(--color-surface-panel);
+  }
+  .next-part svg { display: block; inline-size: 100%; block-size: auto; max-inline-size: var(--lead-art-max); }
+  .part-kicker { color: var(--color-text-kicker); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+  .next-part h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-display);
+    color: var(--color-text-heading);
+    text-wrap: balance;
+  }
+  .next-part p { font-family: var(--font-reading); font-size: var(--text-lg); line-height: var(--leading-reading); }
+  .part-date { color: var(--color-text-secondary); font-size: var(--text-sm); font-family: var(--font-ui); }
+  .next-part .part-date { font-family: var(--font-ui); font-size: var(--text-sm); }
+  .parts { list-style: none; padding: 0; display: grid; align-content: start; }
+  .parts li {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    padding-block: var(--space-4);
+    border-block-end: var(--border-width-thin) solid var(--color-border-subtle);
+  }
+  .parts li:first-child { padding-block-start: 0; }
+  .parts h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-heading);
+    color: var(--color-text-heading);
+    text-wrap: balance;
+  }
+  .next-part .part-kicker { font-family: var(--font-ui); font-size: var(--text-sm); line-height: var(--leading-ui); }
+  .parts .now { color: var(--color-text-kicker); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+  .il-road { fill: var(--color-illus-ground); }
+  .il-culvert { fill: var(--color-illus-water); stroke: var(--color-illus-line); stroke-width: 1.5; }
+
+  /* Footer */
+  .site-footer {
+    background: var(--color-surface-inverse);
+    color: var(--color-text-inverse);
+    padding-block: var(--space-10) var(--space-12);
+  }
+  .footer-grid { display: grid; gap: var(--space-6); }
+  .footer-grid .footer-mark {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-display);
+  }
+  .footer-grid p { font-size: var(--text-sm); color: var(--color-text-inverse-muted); max-inline-size: var(--measure-standfirst); }
+  .footer-grid .footer-lede { color: var(--color-text-inverse); }
+  .site-footer a {
+    color: var(--color-text-inverse);
+    text-decoration-line: underline;
+    text-underline-offset: 0.2em;
+  }
+  .site-footer a:hover { color: var(--color-text-inverse-link-hover); text-decoration-thickness: var(--border-width-medium); }
+  .site-footer a:active { color: var(--color-text-inverse-muted); }
+  .site-footer a:focus-visible { box-shadow: var(--shadow-focus-ring-inverse); }
+  .footer-copy, .footer-brand { display: grid; gap: var(--space-3); align-content: start; }
+  .footer-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); font-size: var(--text-sm); }
+  .footer-links a { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: var(--size-control-md); }
+
+  /* Wider screens */
+  @media (min-width: 24rem) {
+    .toggle-label { position: static; inline-size: auto; block-size: auto; margin: 0; overflow: visible; clip: auto; }
+    .toc-toggle { padding-inline: var(--space-3); }
+  }
+  @media (min-width: 40rem) {
+    .wrap { padding-inline: var(--gutter-wide); }
+    .size-label { display: inline; }
+    .wordmark { font-size: var(--text-5xl); }
+    .tagline { display: flex; gap: var(--space-3); font-size: var(--text-sm); }
+    .issue { font-size: var(--text-sm); }
+    .headline { font-size: var(--text-6xl); }
+    .story-body { margin-inline: auto; max-inline-size: calc(var(--measure-reading) + var(--space-16)); }
+    .legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+  }
+  @media (min-width: 48rem) {
+    .lead { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-10); padding-block: var(--space-10) var(--space-12); }
+    .series-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-10); }
+    /* Equal rows: the list's last hairline lands on the panel's bottom edge. */
+    .parts { grid-auto-rows: 1fr; }
+    /* The footer splits on the same column line as the lead and the series. */
+    .footer-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: var(--space-10); }
+  }
+  @media (min-width: 64rem) {
+    .headline { font-size: var(--text-7xl); }
+    .readbar-title {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      min-inline-size: 0;
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+    .readbar-title strong { font-family: var(--font-display); font-weight: var(--weight-bold); color: var(--color-text-heading); font-size: var(--text-base); }
+    .toc-menu { display: none; }
+    .story-grid {
+      grid-template-columns: var(--rail-width) minmax(0, 1fr);
+      column-gap: var(--space-12);
+    }
+    .toc-rail {
+      display: block;
+      position: sticky;
+      inset-block-start: var(--readbar-offset);
+      align-self: start;
+      padding-block-end: var(--space-6);
+    }
+    .story-body { margin-inline: 0; max-inline-size: none; }
+    .pullquote { margin-block: var(--space-8); }
+    .pullquote blockquote p { font-size: 1.9em; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none !important;
+      animation: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#article-body">ข้ามไปยังเนื้อเรื่อง</a>
+
+<header class="masthead">
+  <div class="masthead-util wrap">
+    <p class="issue"><strong><span class="keep">ฉบับที่ 214</span></strong> <time datetime="2026-10-26"><span class="keep">วันจันทร์ที่ 26 ตุลาคม 2569</span></time></p>
+    <button class="btn btn-icon theme-toggle" type="button" aria-pressed="false" aria-label="โหมดมืด" title="โหมดมืด">
+      <svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
+  </div>
+  <div class="masthead-brand wrap">
+    <p class="wordmark">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <rect class="mark-frame" x="1.5" y="1.5" width="37" height="37"/>
+        <line class="mark-land" x1="1.5" y1="25" x2="38.5" y2="25"/>
+        <path class="mark-water" d="M6 32 q 3.5 -3 7 0 t 7 0 t 7 0 t 7 0"/>
+      </svg>
+      <span class="wordmark-text"><span class="keep">แผ่นดินต่ำ</span></span>
+    </p>
+    <p class="tagline"><span lang="en" class="label-latin">The Lowland Review</span> <span>นิตยสาร<span class="keep">รายสัปดาห์</span>ว่าด้วยเมือง น้ำ และคนที่อยู่ระหว่างนั้น</span></p>
+  </div>
+  <div class="wrap"><div class="masthead-rule" role="presentation"></div></div>
+</header>
+
+<div class="readbar">
+  <div class="readbar-inner wrap">
+    <div class="toc-menu">
+      <button class="btn toc-toggle" type="button" aria-expanded="false" aria-controls="toc-panel">
+        <svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg>
+        <span class="toggle-label">สารบัญ</span>
+      </button>
+      <nav id="toc-panel" class="toc toc-panel" aria-label="สารบัญ" hidden>
+        <ol>
+          <li><a href="#s1"><span class="toc-num">๑</span><span class="toc-text">คืนที่น้ำมาก่อนประกาศ</span></a></li>
+          <li><a href="#s2"><span class="toc-num">๒</span><span class="toc-text">ยกบ้านขึ้น<span class="keep">ทีละหลัง</span></span></a></li>
+          <li><a href="#s3"><span class="toc-num">๓</span><span class="toc-text">สมุดระดับน้ำของ<span class="keep">ครูประเสริฐ</span></span></a></li>
+          <li><a href="#s4"><span class="toc-num">๔</span><span class="toc-text"><span class="keep">เวรเรือ</span></span></a></li>
+          <li><a href="#s5"><span class="toc-num">๕</span><span class="toc-text">สิ่งที่บ้านสูงแก้ไม่ได้</span></a></li>
+          <li><a href="#s6"><span class="toc-num">๖</span><span class="toc-text"><span class="keep">ความรู้</span>ที่ไม่มีใครเขียนไว้</span></a></li>
+        </ol>
+      </nav>
+    </div>
+    <p class="readbar-title"><strong><span class="keep">แผ่นดินต่ำ</span></strong> <span>บ้านที่ยอมให้น้ำผ่าน</span></p>
+    <p class="fiction-badge">เรื่องสมมติ</p>
+    <div class="size-group" role="group" aria-labelledby="size-label">
+      <span id="size-label" class="size-label">ขนาดตัวอักษร</span>
+      <button class="btn size-btn" type="button" data-size="sm" aria-pressed="false">ก<span class="sr-only"> เล็ก</span></button>
+      <button class="btn size-btn" type="button" data-size="md" aria-pressed="true">ก<span class="sr-only"> กลาง</span></button>
+      <button class="btn size-btn" type="button" data-size="lg" aria-pressed="false">ก<span class="sr-only"> ใหญ่</span></button>
+    </div>
+  </div>
+  <div class="progress" role="progressbar" aria-label="อ่านไปแล้ว" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="อ่านไปแล้วร้อยละ 0"><span class="progress-fill"></span></div>
+</div>
+
+<main id="main">
+  <article class="story">
+    <header class="lead wrap">
+      <div class="lead-text">
+        <p class="kicker"><a href="#series">เมืองกับน้ำ <span class="keep">ตอนที่ ๑ ใน ๔ ตอน</span></a></p>
+        <h1 class="headline">บ้านที่ยอมให้น้ำผ่าน</h1>
+        <p class="standfirst"><span class="keep">15 ปี</span>หลัง<span class="keep">น้ำท่วม</span>ใหญ่ <span class="keep">ชาวชุมชน</span>ริมคลอง<span class="keep">พลับพลึงเงิน</span>เลิกก่อกำแพงกั้นน้ำ แล้วหันมายกบ้าน จดระดับน้ำ<span class="keep">ด้วยมือ</span> และจัด<span class="keep">เวรเรือ</span>กันเอง น้ำในคลองไม่ได้ลดลงเลย แต่จำนวนวันที่น้ำขึ้นถึง<span class="keep">ห้องนอน</span>ของพวกเขาเหลือ<span class="keep">ไม่ถึง</span> <span class="keep">1 ใน 6</span> ของเมื่อก่อน</p>
+        <div class="byline">
+          <span class="avatar" aria-hidden="true">ป</span>
+          <div>
+            <p class="byline-name">เรื่อง <strong><span class="keep">ปริยา</span> <span class="keep">จันทร์หอม</span></strong> <span class="keep">ภาพประกอบ</span> <span class="keep">ฝ่ายกราฟิก</span><span class="keep">แผ่นดินต่ำ</span></p>
+            <p class="byline-meta"><time datetime="2026-10-26"><span class="keep">26 ตุลาคม 2569</span></time> <span aria-hidden="true">·</span> อ่านราว <span class="keep">12 นาที</span></p>
+            <p class="byline-meta">ตัวอย่าง<span class="keep">การออกแบบ</span> เรื่องและตัวเลขสมมติ</p>
+          </div>
+        </div>
+      </div>
+      <figure class="lead-art">
+        <svg viewBox="0 0 400 300" role="img" aria-labelledby="art-title art-desc">
+          <title id="art-title">ภาพตัดบ้านไม้หลังยกสูง</title>
+          <desc id="art-desc">บ้านไม้ 2 ชั้นตั้งบนเสาสูง พื้นใหม่อยู่สูงกว่าพื้นเดิม 1.40 เมตร และอยู่เหนือเส้นระดับน้ำท่วมใหญ่ ใต้ถุนเปิดโล่ง มีลูกศรแสดงน้ำไหลผ่านใต้บ้านลงคลองทางขวา</desc>
+          <rect class="il-flood" x="0" y="150" width="400" height="150"/>
+          <polygon class="il-ground" points="0,232 300,232 318,300 0,300"/>
+          <polygon class="il-water" points="306,252 400,252 400,300 318,300"/>
+          <line class="il-line" x1="0" y1="232" x2="300" y2="232"/>
+          <polyline class="il-line" points="300,232 318,300"/>
+          <line class="il-flood-line" x1="0" y1="150" x2="400" y2="150"/>
+          <line class="il-level" x1="62" y1="224" x2="262" y2="224"/>
+          <rect class="il-solid" x="112" y="134" width="6" height="98"/>
+          <rect class="il-solid" x="150" y="134" width="6" height="98"/>
+          <rect class="il-solid" x="188" y="134" width="6" height="98"/>
+          <rect class="il-solid" x="226" y="134" width="6" height="98"/>
+          <rect class="il-solid" x="100" y="126" width="150" height="9"/>
+          <rect class="il-house" x="108" y="66" width="134" height="60"/>
+          <rect class="il-line" x="126" y="82" width="28" height="24"/>
+          <line class="il-line" x1="140" y1="82" x2="140" y2="106"/>
+          <rect class="il-line" x="196" y="86" width="26" height="40"/>
+          <polygon class="il-roof" points="96,68 175,24 254,68"/>
+          <polyline class="il-line" points="250,134 292,232"/>
+          <line class="il-line" x1="258" y1="152" x2="270" y2="152"/>
+          <line class="il-line" x1="266" y1="172" x2="278" y2="172"/>
+          <line class="il-line" x1="275" y1="192" x2="287" y2="192"/>
+          <line class="il-line" x1="283" y1="212" x2="295" y2="212"/>
+          <polyline class="il-flow" points="128,182 136,188 128,194"/>
+          <polyline class="il-flow" points="168,182 176,188 168,194"/>
+          <polyline class="il-flow" points="206,182 214,188 206,194"/>
+          <polyline class="il-flow" points="330,200 338,206 330,212"/>
+          <line class="il-line" x1="88" y1="134" x2="88" y2="224"/>
+          <line class="il-line" x1="82" y1="134" x2="94" y2="134"/>
+          <line class="il-line" x1="82" y1="224" x2="94" y2="224"/>
+          <path class="il-solid" d="M322 244 h62 l-8 8 h-46 z"/>
+          <text class="il-label" x="8" y="122">พื้นใหม่</text>
+          <text class="il-label il-label-flood" x="8" y="144">น้ำท่วมใหญ่</text>
+          <text class="il-label" x="8" y="184">+1.40 ม.</text>
+          <text class="il-label" x="8" y="218">พื้นเดิม</text>
+          <text class="il-label" x="20" y="266">ซอย</text>
+          <text class="il-label" x="346" y="284">คลอง</text>
+        </svg>
+        <figcaption>ภาพตัดบ้านของ<span class="keep">ลุงเชิด</span> <span class="keep">ทองดี</span> หลังยกขึ้น <span class="keep">1.40 เมตร</span>ใน<span class="keep">ปี 2557</span> พื้นใหม่อยู่เหนือระดับ<span class="keep">น้ำท่วม</span>ใหญ่ และใต้ถุน<span class="keep">เปิดโล่ง</span>ให้น้ำไหลผ่านลงคลอง</figcaption>
+      </figure>
+    </header>
+
+    <div class="wrap"><div class="story-grid">
+      <nav class="toc toc-rail" aria-label="สารบัญข้างเรื่อง">
+        <p class="toc-heading">ในเรื่องนี้</p>
+        <ol>
+          <li><a href="#s1"><span class="toc-num">๑</span><span class="toc-text">คืนที่น้ำมาก่อนประกาศ</span></a></li>
+          <li><a href="#s2"><span class="toc-num">๒</span><span class="toc-text">ยกบ้านขึ้น<span class="keep">ทีละหลัง</span></span></a></li>
+          <li><a href="#s3"><span class="toc-num">๓</span><span class="toc-text">สมุดระดับน้ำของ<span class="keep">ครูประเสริฐ</span></span></a></li>
+          <li><a href="#s4"><span class="toc-num">๔</span><span class="toc-text"><span class="keep">เวรเรือ</span></span></a></li>
+          <li><a href="#s5"><span class="toc-num">๕</span><span class="toc-text">สิ่งที่บ้านสูงแก้ไม่ได้</span></a></li>
+          <li><a href="#s6"><span class="toc-num">๖</span><span class="toc-text"><span class="keep">ความรู้</span>ที่ไม่มีใครเขียนไว้</span></a></li>
+        </ol>
+      </nav>
+
+      <div class="story-body" id="article-body" data-size="md" tabindex="-1">
+        <section id="s1" aria-labelledby="s1-h">
+          <h2 id="s1-h"><span class="sec-num">๑</span><span>คืนที่น้ำมาก่อนประกาศ</span></h2>
+          <p class="opening"><span class="keep">ป้าสายหยุด</span> <span class="keep">ศรีเมือง</span> วัย <span class="keep">72 ปี</span> จำได้ว่าคืนนั้นเสียงแรกที่ได้ยินไม่ใช่เสียงฝน แต่เป็นเสียงกะละมังสังกะสีลอยไปกระทบเสาบ้าน ตอนนั้นราว<span class="keep">ตี 2</span> ป้าเปิดไฟฉายส่องลงไปที่บันได น้ำคลองที่เมื่อหัวค่ำยังอยู่ต่ำกว่าตลิ่ง<span class="keep">ไม่ถึง</span>คืบ ขึ้นมาถึง<span class="keep">ขั้นที่ 3</span> แล้ว ข้อความเตือน<span class="keep">น้ำท่วม</span>มาถึงโทรศัพท์ของลูกชายตอน <span class="keep">6 โมงเช้า</span> หลังจากที่ตู้เย็น เตาแก๊ส และโฉนดที่ดินทั้งแฟ้มจมอยู่ใต้น้ำไปแล้ว <span class="keep">4 ชั่วโมง</span><sup class="fnref"><a id="fnref1" href="#fn1" aria-label="เชิงอรรถ ๑">๑</a></sup></p>
+          <p>“ตอนนั้นเราคิดว่าต้องสู้” ป้าเล่าขณะนั่งบนแคร่ไม้ใต้ชายคาบ้านที่ยกสูงขึ้นแล้ว “<span class="keep">ทุกบ้าน</span>ซื้อ<span class="keep">กระสอบทราย</span> <span class="keep">ก่ออิฐ</span>กั้นหน้าประตู บางบ้านเทปูนยก<span class="keep">ธรณีประตู</span>ขึ้นไปอีก ปี<span class="keep">ต่อมา</span>น้ำมาอีก มันก็ข้ามกำแพงเข้ามาเหมือนเดิม แต่คราวนี้มันออกไปไม่ได้ เพราะเราสร้างอ่างให้มันเอง”</p>
+          <p>ชุมชนริมคลอง<span class="keep">พลับพลึงเงิน</span>มี<span class="keep">บ้านเรือน</span>ราว <span class="keep">140 หลังคาเรือน</span> เรียงยาวเกือบ <span class="keep">2 กิโลเมตร</span>ตามคลองสายเล็กที่ไหลลงแม่น้ำสายใหญ่ของเมือง คนที่นี่อยู่กับน้ำมาหลาย<span class="keep">ชั่วอายุคน</span> บ้าน<span class="keep">รุ่นปู่ย่า</span>ยกใต้ถุนสูงเพราะรู้ว่า<span class="keep">น้ำหลาก</span>ทุกปลายฝน แต่ในช่วง <span class="keep">30 ปี</span>ก่อน<span class="keep">น้ำท่วม</span>ใหญ่ ใต้ถุนเหล่านั้นถูก<span class="keep">ก่ออิฐ</span>ปิด<span class="keep">ทีละหลัง</span>เพื่อทำ<span class="keep">ห้องเช่า</span> ร้านขายของชำ และที่จอดมอเตอร์ไซค์ บ้านทั้งซอยจึงค่อยๆ ลงมาอยู่บนพื้นดินโดยไม่มีใครตั้งใจ</p>
+          <p><span class="keep">น้ำท่วม</span>ใหญ่เมื่อ <span class="keep">15 ปี</span>ก่อนทำให้ทุกคนเห็นพร้อมกันว่าการเปลี่ยนแปลงเล็กๆ ที่สะสมมา<span class="keep">หลายสิบปี</span>นั้นมีราคาเท่าไร บ้านที่ปิดใต้ถุนเสียหายหนักกว่าบ้านที่ยัง<span class="keep">เปิดโล่ง</span>เกือบ<span class="keep">ทุกหลัง</span> และกำแพงกั้นน้ำที่สร้างกันในปีต่อๆ มาก็ทำให้น้ำขังนานขึ้นแทนที่จะสั้นลง</p>
+        </section>
+
+        <section id="s2" aria-labelledby="s2-h">
+          <h2 id="s2-h"><span class="sec-num">๒</span><span>ยกบ้านขึ้น<span class="keep">ทีละหลัง</span></span></h2>
+          <p><span class="keep">การเปลี่ยนแปลง</span>เริ่มจากช่างไม้<span class="keep">คนหนึ่ง</span> <span class="keep">ลุงเชิด</span> <span class="keep">ทองดี</span> ยกบ้านของ<span class="keep">ตัวเอง</span>ขึ้นใน<span class="keep">ปี 2557</span> ด้วย<span class="keep">แม่แรง</span><span class="keep">ไฮดรอลิก</span>ที่เช่ามา <span class="keep">8 ตัว</span> กับ<span class="keep">เพื่อนบ้าน</span>อีก <span class="keep">5 คน</span>ที่มาช่วยแลก<span class="keep">ข้าวกลางวัน</span> บ้านไม้ <span class="keep">2 ชั้น</span>ทั้งหลังถูกดันขึ้น<span class="keep">วันละ</span><span class="keep">ไม่เกิน</span> <span class="keep">10 เซนติเมตร</span> เพื่อไม่ให้<span class="keep">ข้อต่อ</span>ไม้ร้าว ใช้เวลา <span class="keep">19 วัน</span>กว่าจะสูงขึ้น <span class="keep">1.40 เมตร</span> แล้วจึงหล่อตอม่อใหม่รองรับ</p>
+          <p>“คนมายืนดูทุกวัน บางคนก็หัวเราะ” <span class="keep">ลุงเชิด</span>ว่า “ไม่มีใครเชื่อว่าบ้านทั้งหลังจะขึ้นไปได้โดยไม่ต้องรื้อ จนน้ำมาปีถัดไป บ้านผมเป็นหลังเดียวในซอยที่ยังหุงข้าวได้”</p>
+          <p>ถึงวันนี้ <span class="keep">ลุงเชิด</span>กับทีมช่างที่ฝึกกันขึ้นในชุมชนยกบ้านไปแล้ว <span class="keep">41 หลัง</span> <span class="keep">ค่าใช้จ่าย</span>เฉลี่ย<span class="keep">หลังละ</span>ราว <span class="keep">180,000 บาท</span> <span class="keep">ชาวบ้าน</span>จ่ายผ่านกองทุน<span class="keep">ออมทรัพย์</span>ที่ตั้งกันเองใน<span class="keep">ปี 2558</span> สมาชิกฝาก<span class="keep">เดือนละ</span> <span class="keep">300 บาท</span> และกู้ได้โดยไม่ต้องมี<span class="keep">หลักทรัพย์</span>ค้ำ ใช้<span class="keep">เพื่อนบ้าน</span> <span class="keep">2 คน</span>รับรองแทน<sup class="fnref"><a id="fnref2" href="#fn2" aria-label="เชิงอรรถ ๒">๒</a></sup> ตลอด <span class="keep">11 ปี</span>ที่ผ่านมามี<span class="keep">หนี้เสีย</span>เพียง <span class="keep">2 ราย</span></p>
+          <p>ที่สำคัญกว่าตัวบ้านคือสิ่งที่<span class="keep">ชาวบ้าน</span>ตกลงร่วมกันว่าจะไม่ทำ ใต้ถุนที่ได้มาใหม่ต้อง<span class="keep">เปิดโล่ง</span> ห้ามก่อผนังทึบ ห้ามเทพื้นสูงกว่าถนน และของที่วางไว้ใต้ถุนต้องยกขึ้นได้ภายใน <span class="keep">2 ชั่วโมง</span> กติกาข้อนี้ไม่มีกฎหมายรองรับ แต่บังคับใช้ได้จริง เพราะ<span class="keep">ทุกบ้าน</span>รู้ว่าผนังทึบหลังเดียวจะดันน้ำไปท่วมบ้านข้างๆ</p>
+          <figure class="pullquote">
+            <span class="pullquote-mark" aria-hidden="true">“</span>
+            <blockquote><p><span class="clause">เราไม่ได้ชนะน้ำ</span> <span class="clause">เราแค่เลิก<span class="keep">ทำตัวเป็นกำแพง</span></span></p></blockquote>
+            <figcaption><strong><span class="keep">ป้าสายหยุด</span> <span class="keep">ศรีเมือง</span></strong> อายุ <span class="keep">72 ปี</span> <span class="keep">ชาวชุมชน</span><span class="keep">พลับพลึงเงิน</span></figcaption>
+          </figure>
+        </section>
+
+        <section id="s3" aria-labelledby="s3-h">
+          <h2 id="s3-h"><span class="sec-num">๓</span><span>สมุดระดับน้ำของ<span class="keep">ครูประเสริฐ</span></span></h2>
+          <p>ทุกเช้าเวลา <span class="keep">6 โมงครึ่ง</span> <span class="keep">ครูประเสริฐ</span> <span class="keep">พรหมมา</span> <span class="keep">ครูวิทยาศาสตร์</span>เกษียณวัย <span class="keep">69 ปี</span> เดินไปที่ท่าน้ำหน้าศาลาวัด อ่านตัวเลขบนไม้วัดระดับที่ทาสีขาว<span class="keep">สลับแดง</span>ทุก <span class="keep">10 เซนติเมตร</span> แล้วจดลงสมุด<span class="keep">ปกแข็ง</span>สีน้ำเงิน เขาทำแบบนี้มาตั้งแต่<span class="keep">ปี 2555</span> สมุด<span class="keep">เล่มที่ 15</span> วางอยู่บนโต๊ะในบ้านของเขาขณะที่เราคุยกัน</p>
+          <p>ข้อมูลในสมุดเหล่านี้คือ<span class="keep">หลักฐาน</span><span class="keep">ชิ้นเดียว</span>ที่ชุมชนมี เพราะไม่มีจุดวัดระดับน้ำอยู่ที่คลองสายนี้โดยตรง <span class="keep">ครูประเสริฐ</span>นับตัวเลขชุดเดิม<span class="keep">ทุกปี</span> คือจำนวนวันที่น้ำในคลองสูงเกินตลิ่ง กับจำนวนวันที่น้ำขึ้นถึงพื้น<span class="keep">ห้องนอน</span>ของบ้าน<span class="keep">หลังกลางๆ</span> ในชุมชน ซึ่งเขาหาจาก<span class="keep">การสำรวจ</span>บ้าน<span class="keep">ทุกหลัง</span><span class="keep">ทุกปี</span>ร่วมกับนักเรียนอาสา<sup class="fnref"><a id="fnref3" href="#fn3" aria-label="เชิงอรรถ ๓">๓</a></sup></p>
+
+          <figure class="chart" aria-labelledby="chart-title">
+            <p class="chart-label"><span class="keep">แผนภาพ ๑</span></p>
+            <h3 class="chart-title" id="chart-title">น้ำไม่ได้ลด แต่บ้านพ้นทางน้ำ</h3>
+            <p class="chart-sub">จำนวนวันต่อปี ปีเว้นปี ตั้งแต่ 2555 ถึง 2567 <span class="keep">(ข้อมูลสมมติ)</span></p>
+            <ul class="legend">
+              <li><span class="swatch swatch-canal" aria-hidden="true"></span><span>แท่งลายเส้น วันที่น้ำในคลองสูงเกินตลิ่ง</span></li>
+              <li><span class="swatch swatch-floor" aria-hidden="true"></span><span>แท่งทึบ วันที่น้ำขึ้นถึงพื้น<span class="keep">ห้องนอน</span>ของบ้าน<span class="keep">หลังกลางๆ</span></span></li>
+            </ul>
+            <!-- The year labels sit in their own fixed column (--chart-label-col), so
+                 they keep the same distance from their bars at every width. -->
+            <div class="chart-plotwrap" role="img" aria-labelledby="chart-title chart-desc">
+              <svg class="chart-years" height="384" aria-hidden="true" focusable="false">
+                <text class="chart-year" x="0" y="55">2555</text>
+                <text class="chart-year" x="0" y="105">2557</text>
+                <text class="chart-year" x="0" y="155">2559</text>
+                <text class="chart-year" x="0" y="205">2561</text>
+                <text class="chart-year" x="0" y="255">2563</text>
+                <text class="chart-year" x="0" y="305">2565</text>
+                <text class="chart-year" x="0" y="355">2567</text>
+              </svg>
+              <svg class="chart-svg" width="100%" height="384" aria-hidden="true" focusable="false">
+                <desc id="chart-desc">ข้อมูลสมมติเพื่อสาธิตการออกแบบ แผนภูมิแท่งแนวนอน 7 ปี วันที่น้ำล้นตลิ่งอยู่ระหว่าง 29 ถึง 44 วันต่อปีโดยไม่ลดลง สูงสุด 44 วันในปี 2565 ส่วนวันที่น้ำขึ้นถึงพื้นห้องนอนลดลงทุกช่วงจาก 31 วันในปี 2555 เหลือ 5 วันในปี 2567</desc>
+                <defs>
+                  <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect class="hatch-bg" width="6" height="6"/>
+                    <line class="hatch-line" x1="0" y1="0" x2="0" y2="6"/>
+                  </pattern>
+                </defs>
+                <line class="chart-grid" x1="0.00%" x2="0.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="0.00%" y="16" text-anchor="middle">0</text>
+                <line class="chart-grid" x1="18.00%" x2="18.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="18.00%" y="16" text-anchor="middle">10</text>
+                <line class="chart-grid" x1="36.00%" x2="36.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="36.00%" y="16" text-anchor="middle">20</text>
+                <line class="chart-grid" x1="54.00%" x2="54.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="54.00%" y="16" text-anchor="middle">30</text>
+                <line class="chart-grid" x1="72.00%" x2="72.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="72.00%" y="16" text-anchor="middle">40</text>
+                <line class="chart-grid" x1="90.00%" x2="90.00%" y1="26" y2="376"/>
+                <text class="chart-tick" x="90.00%" y="16" text-anchor="middle">50</text>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="34" width="61.20%" height="14"/>
+                  <text class="chart-val" x="61.20%" dx="6" y="46">34</text>
+                  <rect class="bar-floor" x="0" y="52" width="55.80%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="55.80%" dx="6" y="64">31</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="84" width="52.20%" height="14"/>
+                  <text class="chart-val" x="52.20%" dx="6" y="96">29</text>
+                  <rect class="bar-floor" x="0" y="102" width="43.20%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="43.20%" dx="6" y="114">24</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="134" width="66.60%" height="14"/>
+                  <text class="chart-val" x="66.60%" dx="6" y="146">37</text>
+                  <rect class="bar-floor" x="0" y="152" width="39.60%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="39.60%" dx="6" y="164">22</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="184" width="73.80%" height="14"/>
+                  <text class="chart-val" x="73.80%" dx="6" y="196">41</text>
+                  <rect class="bar-floor" x="0" y="202" width="27.00%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="27.00%" dx="6" y="214">15</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="234" width="64.80%" height="14"/>
+                  <text class="chart-val" x="64.80%" dx="6" y="246">36</text>
+                  <rect class="bar-floor" x="0" y="252" width="16.20%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="16.20%" dx="6" y="264">9</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="284" width="79.20%" height="14"/>
+                  <text class="chart-val" x="79.20%" dx="6" y="296">44</text>
+                  <rect class="bar-floor" x="0" y="302" width="12.60%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="12.60%" dx="6" y="314">7</text>
+                </g>
+                <g class="chart-row">
+                  <rect class="bar-canal" x="0" y="334" width="70.20%" height="14"/>
+                  <text class="chart-val" x="70.20%" dx="6" y="346">39</text>
+                  <rect class="bar-floor" x="0" y="352" width="9.00%" height="14"/>
+                  <text class="chart-val chart-val-floor" x="9.00%" dx="6" y="364">5</text>
+                </g>
+              </svg>
+            </div>
+            <details class="chart-data">
+              <summary><svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg>ดูตัวเลขเป็นตาราง</summary>
+              <div class="table-scroll">
+                <table>
+                  <caption>จำนวนวันต่อปี</caption>
+                  <thead><tr><th scope="col">ปี พ.ศ.</th><th scope="col">น้ำสูงเกินตลิ่ง (วัน)</th><th scope="col">น้ำถึงพื้น<span class="keep">ห้องนอน</span> (วัน)</th></tr></thead>
+                  <tbody>
+                    <tr><th scope="row">2555</th><td>34</td><td>31</td></tr>
+                    <tr><th scope="row">2557</th><td>29</td><td>24</td></tr>
+                    <tr><th scope="row">2559</th><td>37</td><td>22</td></tr>
+                    <tr><th scope="row">2561</th><td>41</td><td>15</td></tr>
+                    <tr><th scope="row">2563</th><td>36</td><td>9</td></tr>
+                    <tr><th scope="row">2565</th><td>44</td><td>7</td></tr>
+                    <tr><th scope="row">2567</th><td>39</td><td>5</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <figcaption>ที่มา: สมุดบันทึกระดับน้ำของ<span class="keep">ครูประเสริฐ</span> <span class="keep">พรหมมา</span> <span class="keep">ดู<a href="#fn3">เชิงอรรถ ๓</a></span></figcaption>
+          </figure>
+
+          <p>ตัวเลขชุดแรกไม่ได้ดีขึ้นเลย <span class="keep">ปี 2565</span> น้ำล้นตลิ่ง <span class="keep">44 วัน</span> มากที่สุดเท่าที่เคยจด แต่ตัวเลขชุดหลังลดลงจาก <span class="keep">31 วัน</span>ใน<span class="keep">ปี 2555</span> เหลือ <span class="keep">5 วัน</span>ใน<span class="keep">ปี 2567</span> “คนชอบถามผมว่าน้ำลดหรือยัง” <span class="keep">ครูประเสริฐ</span>พูด “น้ำไม่ได้ลด เราต่างหากที่ย้ายออกมาจากทางของมัน”</p>
+        </section>
+
+        <section id="s4" aria-labelledby="s4-h">
+          <h2 id="s4-h"><span class="sec-num">๔</span><span><span class="keep">เวรเรือ</span></span></h2>
+          <p>บ้านที่ยกสูงแก้ปัญหา<span class="keep">ข้าวของ</span><span class="keep">จมน้ำ</span>ได้ แต่ก็สร้างปัญหาใหม่ขึ้นมา <span class="keep">ผู้สูงอายุ</span>ที่อยู่บนบ้านสูงลงมาไม่ได้เมื่อซอยกลายเป็นคลอง ในชุมชนมี<span class="keep">ผู้สูงอายุ</span>ที่อยู่ลำพังหรืออยู่กับหลานเล็กๆ <span class="keep">23 คน</span> และในจำนวนนี้มี <span class="keep">7 คน</span>ที่ต้องไป<span class="keep">ฟอกไต</span><span class="keep">สัปดาห์ละ</span> <span class="keep">2 ครั้ง</span></p>
+          <p><span class="keep">คำตอบ</span>คือ “<span class="keep">เวรเรือ</span>” ระบบที่<span class="keep">นวลจันทร์</span> <span class="keep">สุขเจริญ</span> พยาบาลวัย <span class="keep">34 ปี</span>ซึ่งเติบโตในชุมชนนี้ ริเริ่มไว้ใน<span class="keep">กลุ่มแชต</span>ของชุมชนเมื่อ<span class="keep">ปี 2561</span> เจ้าของเรือ <span class="keep">17 ลำ</span>ลงชื่อรับเวรเป็น<span class="keep">ช่วงละ</span> <span class="keep">6 ชั่วโมง</span>ตลอดฤดู<span class="keep">น้ำหลาก</span> <span class="keep">ผู้ป่วย</span>แต่ละคนมีเรือประจำ <span class="keep">2 ลำ</span> คือ<span class="keep">ลำหลัก</span>กับ<span class="keep">ลำสำรอง</span> และมีป้ายพลาสติก<span class="keep">สีเหลือง</span>แขวนไว้หน้าบ้าน เมื่อต้องการ<span class="keep">ความช่วยเหลือ</span>ก็พลิกป้ายเป็นด้าน<span class="keep">สีแดง</span> คนพายเรือผ่านเห็นได้แม้โทรศัพท์จะแบตหมดหรือไฟดับ</p>
+          <p>ปีที่แล้ว<span class="keep">เวรเรือ</span>รับส่ง<span class="keep">ผู้ป่วย</span>ไป<span class="keep">โรงพยาบาล</span> <span class="keep">212 เที่ยว</span> ไม่มีนัด<span class="keep">ฟอกไต</span>ครั้งไหนพลาด <span class="keep">นวลจันทร์</span>บอกว่าส่วนที่ยากที่สุดไม่ใช่<span class="keep">การพายเรือ</span> แต่คือ<span class="keep">การทำให้</span><span class="keep">ผู้สูงอายุ</span>ยอมพลิกป้ายแดง “<span class="keep">ผู้เฒ่า</span><span class="keep">ผู้แก่</span>บ้านเราไม่ชอบเป็นภาระใคร <span class="keep">หลายคน</span>นั่งรอจนอาการหนัก เราเลยต้องพายผ่าน<span class="keep">ทุกบ้าน</span><span class="keep">วันละ</span> <span class="keep">2 รอบ</span> ไม่ว่าป้ายจะเป็นสีอะไร”</p>
+          <p>ป้ายเหลืองแดงนั้นเรียบง่ายจนดูไม่เหมือนเทคโนโลยี แต่ป้ายนี้มีที่มาจาก<span class="keep">ความล้มเหลว</span>ครั้งหนึ่ง <span class="keep">ปี 2560</span> สัญญาณโทรศัพท์ในซอยหายไป <span class="keep">2 วันเต็ม</span> และ<span class="keep">ผู้ป่วย</span><span class="keep">เบาหวาน</span><span class="keep">คนหนึ่ง</span>ต้องรอจน<span class="keep">เพื่อนบ้าน</span>ได้ยินเสียงเคาะ<span class="keep">ฝาบ้าน</span> ตั้งแต่นั้นมา ทุกระบบใน<span class="keep">เวรเรือ</span>ต้องทำงานได้แม้ไม่มีไฟฟ้า</p>
+        </section>
+
+        <section id="s5" aria-labelledby="s5-h">
+          <h2 id="s5-h"><span class="sec-num">๕</span><span>สิ่งที่บ้านสูงแก้ไม่ได้</span></h2>
+          <p><span class="keep">ความสำเร็จ</span>ของ<span class="keep">พลับพลึงเงิน</span>มีขอบเขตชัดเจน และคนในชุมชนเองก็พูดถึงขอบเขตนั้นอย่างตรงไปตรงมา บ้าน <span class="keep">41 หลัง</span>ที่ยกแล้วคิดเป็น<span class="keep">ไม่ถึง</span> <span class="keep">1 ใน 3</span> ของทั้งชุมชน บ้านที่เหลือ<span class="keep">ส่วนใหญ่</span>เป็นบ้านเช่าซึ่งเจ้าของไม่ได้อยู่เอง และไม่มีเหตุผลที่จะลงทุน <span class="keep">ผู้เช่า</span>ที่จ่าย<span class="keep">ค่าเช่า</span><span class="keep">เดือนละ</span> <span class="keep">3,000 บาท</span>คือกลุ่มที่ยังต้องลุยน้ำ<span class="keep">ทุกปี</span></p>
+          <p><span class="keep">ดร.วรเชษฐ์</span> <span class="keep">อินทร์แก้ว</span> นักอุทกวิทยาที่อาสามาช่วยตรวจสมุดของ<span class="keep">ครูประเสริฐ</span> ชี้ว่าจำนวนวันน้ำล้นตลิ่งที่ไม่ลดลงสอดคล้องกับ <span class="keep">2 เรื่อง</span>ที่ชุมชนควบคุมไม่ได้ และเป็นที่รู้กันมานานในเมืองนี้ คือ<span class="keep">แผ่นดิน</span>ที่ทรุดตัวในหลายพื้นที่ และน้ำทะเลหนุนในช่วงปลายปีซึ่งทำให้น้ำในคลองระบายลงทะเลได้ช้า<sup class="fnref"><a id="fnref4" href="#fn4" aria-label="เชิงอรรถ ๔">๔</a></sup> “<span class="keep">การยก</span>บ้านซื้อเวลาได้ แต่ไม่ได้ซื้ออนาคต” เขาบอก “ถ้าระดับน้ำสูงขึ้นอีก <span class="keep">50 เซนติเมตร</span> <span class="keep">น้ำท่วม</span>ขนาดเดียวกับเมื่อ <span class="keep">15 ปี</span>ก่อน จะขึ้นมาถึงพื้นใหม่ที่วันนี้ยังอยู่เหนือเส้นน้ำปีนั้น บ้านที่ยกแล้วก็จะกลับไป<span class="keep">จมน้ำ</span>เหมือนก่อนยก”</p>
+          <p>อีกเรื่องที่ยังตกลงกันไม่ได้คือข้อเสนอของ<span class="keep">หน่วยงาน</span><span class="keep">ท้องถิ่น</span>ที่จะสร้างแนวเขื่อนคอนกรีตทึบตลอดริมคลอง ซึ่งจะทำให้น้ำไหลเข้าออกใต้ถุนบ้านไม่ได้อีกต่อไป <span class="keep">คณะกรรมการ</span>ชุมชนจึงทำหนังสือขอให้ออกแบบใหม่เป็นคันดินที่เว้นช่องระบายทุก <span class="keep">20 เมตร</span> ถึงวันที่เราเขียนเรื่องนี้ยังไม่มี<span class="keep">คำตอบ</span><sup class="fnref"><a id="fnref5" href="#fn5" aria-label="เชิงอรรถ ๕">๕</a></sup></p>
+        </section>
+
+        <section id="s6" aria-labelledby="s6-h">
+          <h2 id="s6-h"><span class="sec-num">๖</span><span><span class="keep">ความรู้</span>ที่ไม่มีใครเขียนไว้</span></h2>
+          <p>ตอนเย็นวันสุดท้ายที่เราอยู่ในชุมชน <span class="keep">ลุงเชิด</span>กำลังสอนเด็กหนุ่ม <span class="keep">2 คน</span>จากชุมชน<span class="keep">ข้างเคียง</span>วิธีวาง<span class="keep">แม่แรง</span>ให้<span class="keep">แรงกด</span>กระจายเท่ากันทุกเสา เขาไม่มี<span class="keep">แบบแปลน</span> ไม่มีคู่มือ มีแต่เชือกขึงระดับกับ<span class="keep">สายยาง</span>ใสใส่น้ำที่ใช้เทียบ<span class="keep">ความสูง</span>ทั้ง <span class="keep">4 มุม</span>บ้าน ซึ่งเป็นวิธีที่ช่างรุ่นก่อนใช้ปรับระดับ<span class="keep">เรือนไม้</span>มานานกว่าที่ใครในซอยจะจำได้</p>
+          <p>สิ่งที่<span class="keep">พลับพลึงเงิน</span>ทำไม่ใช่นวัตกรรมใน<span class="keep">ความหมาย</span>ที่โครงการพัฒนาเมืองชอบใช้ แต่เป็นการรื้อฟื้น<span class="keep">ความรู้</span>เก่าที่เคยมีอยู่แล้ว แล้วเติมสิ่งที่คนรุ่นก่อนไม่เคยมี คือสมุดจดตัวเลขที่พิสูจน์ได้ว่าวิธีนี้ได้ผล กองทุนที่ทำให้คนรายได้น้อยก็ยกบ้านได้ และ<span class="keep">กลุ่มแชต</span>ที่ทำให้ไม่มีใครถูกลืมไว้บนบ้านสูง</p>
+          <p>ก่อนเรากลับ <span class="keep">ป้าสายหยุด</span>พาเดินไปดูคราบน้ำบนผนังศาลาวัด เส้นบนสุดคือปี<span class="keep">น้ำท่วม</span>ใหญ่ สูงกว่าศีรษะของป้า เส้นที่ต่ำลงมาเป็นของปีอื่นๆ ซึ่งใครสักคนเอาปากกาเมจิกเขียนตัวเลขกำกับไว้ “เด็กรุ่นหลานจะไม่รู้จักบ้านที่ไม่มีใต้ถุน” ป้าพูด “ซึ่งก็ดีแล้ว เพราะ<span class="keep">รุ่นปู่</span>ของป้าก็ไม่รู้จักเหมือนกัน”</p>
+          <div class="author-note"><p><strong><span class="keep">ปริยา</span> <span class="keep">จันทร์หอม</span></strong> เป็น<span class="keep">ผู้สื่อข่าว</span>โต๊ะเมืองของ<span class="keep">แผ่นดินต่ำ</span> เธอลงพื้นที่<span class="keep">พลับพลึงเงิน</span> <span class="keep">4 ครั้ง</span>ระหว่างเดือนมิถุนายนถึงกันยายน 2569 และสัมภาษณ์<span class="keep">ชาวบ้าน</span> <span class="keep">26 คน</span>เพื่อทำเรื่องนี้</p></div>
+        </section>
+
+        <section class="notes" aria-labelledby="notes-h">
+          <h2 id="notes-h">เชิงอรรถและที่มา</h2>
+          <ol>
+            <li id="fn1">เวลาจากประวัติข้อความในโทรศัพท์ของครอบครัว<span class="keep">ศรีเมือง</span> และ<span class="keep">การสัมภาษณ์</span><span class="keep">เพื่อนบ้าน</span>อีก <span class="keep">4 ครัวเรือน <a class="backref" href="#fnref1" aria-label="กลับไปยังเชิงอรรถ ๑ ในเนื้อเรื่อง"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></a></span></li>
+            <li id="fn2">ข้อมูลกองทุน<span class="keep">ออมทรัพย์</span>ชุมชน<span class="keep">พลับพลึงเงิน</span> ณ เดือนกันยายน 2569 มีสมาชิก <span class="keep">118 ครัวเรือน</span> เงินหมุนเวียน <span class="keep">2.6 ล้านบาท <a class="backref" href="#fnref2" aria-label="กลับไปยังเชิงอรรถ ๒ ในเนื้อเรื่อง"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></a></span></li>
+            <li id="fn3">สมุดบันทึกระดับน้ำของ<span class="keep">ครูประเสริฐ</span> <span class="keep">พรหมมา</span> <span class="keep">เล่ม 1</span> ถึง 15 (<span class="keep">พ.ศ. 2555</span> ถึง 2569) <span class="keep">แผนภาพ ๑</span> แสดงปีเว้นปีตั้งแต่ 2555 ถึง <span class="keep">2567 <a class="backref" href="#fnref3" aria-label="กลับไปยังเชิงอรรถ ๓ ในเนื้อเรื่อง"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></a></span></li>
+            <li id="fn4">บันทึก<span class="keep">การตรวจ</span>สมุดระดับน้ำโดย <span class="keep">ดร.วรเชษฐ์</span> <span class="keep">อินทร์แก้ว <a class="backref" href="#fnref4" aria-label="กลับไปยังเชิงอรรถ ๔ ในเนื้อเรื่อง"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></a></span></li>
+            <li id="fn5">หนังสือของ<span class="keep">คณะกรรมการ</span>ชุมชน<span class="keep">พลับพลึงเงิน</span>ถึง<span class="keep">หน่วยงาน</span><span class="keep">ท้องถิ่น</span> และ<span class="keep">การติดตาม</span>ทางโทรศัพท์ครั้งล่าสุดก่อน<span class="keep">เผยแพร่ <a class="backref" href="#fnref5" aria-label="กลับไปยังเชิงอรรถ ๕ ในเนื้อเรื่อง"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></a></span></li>
+          </ol>
+        </section>
+      </div>
+    </div></div>
+  </article>
+
+  <section class="series wrap" id="series" aria-labelledby="series-h">
+    <div class="series-head">
+      <h2 id="series-h">เมืองกับน้ำ</h2>
+      <p>ชุดงานเขียน <span class="keep">4 ตอน</span>ว่าด้วยคนในเมืองที่อยู่ต่ำกว่าระดับที่น้ำ<span class="keep">อยากไป</span> <span class="keep">ตอนใหม่</span>ออกทุก <span class="keep">2 สัปดาห์</span><span class="keep">ในวันจันทร์</span></p>
+    </div>
+    <div class="series-grid">
+      <article class="next-part" aria-labelledby="part2-h">
+        <svg viewBox="0 0 320 110" aria-hidden="true" focusable="false">
+          <rect class="il-road" x="0" y="20" width="320" height="34"/>
+          <line class="il-line" x1="0" y1="20" x2="320" y2="20"/>
+          <line class="il-level" x1="0" y1="37" x2="320" y2="37"/>
+          <rect class="il-culvert" x="96" y="62" width="128" height="40"/>
+          <polyline class="il-flow" points="140,76 148,82 140,88"/>
+          <polyline class="il-flow" points="172,76 180,82 172,88"/>
+          <path class="il-level" d="M40 108 Q 70 56 96 62 M224 62 Q 250 56 280 108"/>
+        </svg>
+        <p class="part-kicker">ตอนต่อไป <span class="keep">ตอนที่ ๒</span></p>
+        <h3 id="part2-h">ใต้ถนนมี<span class="keep">คลองอีกสาย</span></h3>
+        <p>เมืองนี้ถมคลองหลายสายเป็นถนนตลอดศตวรรษที่ผ่านมา บางสายยังไหลอยู่ในท่อใต้<span class="keep">ผิวถนน</span> ตอนต่อไปถามว่าน้ำที่เคยมีทางไป <span class="keep">ทุกวันนี้</span>ไปอยู่ที่ไหน</p>
+        <p class="part-date"><span class="keep">เผยแพร่</span> <time datetime="2026-11-09"><span class="keep">วันจันทร์ที่ 9</span> <span class="keep">พฤศจิกายน 2569</span></time></p>
+      </article>
+      <ol class="parts" aria-label="ตอนทั้งหมดในชุด">
+        <li>
+          <p class="now"><span class="keep">ตอนที่ ๑</span> คุณกำลังอ่านตอนนี้</p>
+          <h3>บ้านที่ยอมให้น้ำผ่าน</h3>
+          <p class="part-date"><time datetime="2026-10-26"><span class="keep">26 ตุลาคม 2569</span></time></p>
+        </li>
+        <li>
+          <p class="part-kicker"><span class="keep">ตอนที่ ๓</span></p>
+          <h3><span class="keep">ค่าเช่า</span>ของคนที่ยังลุยน้ำ</h3>
+          <p class="part-date"><span class="keep">ผู้เช่า</span>ริมคลองจ่าย<span class="keep">ค่าเช่า</span>เท่าเดิม แต่รับ<span class="keep">ความเสี่ยง</span>ไว้ทั้งหมด <span class="keep">เผยแพร่</span> <time datetime="2026-11-23"><span class="keep">23 พฤศจิกายน 2569</span></time></p>
+        </li>
+        <li>
+          <p class="part-kicker"><span class="keep">ตอนที่ ๔</span></p>
+          <h3>แผนที่<span class="keep">น้ำท่วม</span>ที่<span class="keep">ชาวบ้าน</span>วาดเอง</h3>
+          <p class="part-date">ชุมชนริมน้ำทำแผนที่<span class="keep">ความเสี่ยง</span>ของ<span class="keep">ตัวเอง</span>อย่างไร <span class="keep">เผยแพร่</span> <time datetime="2026-12-07"><span class="keep">7 ธันวาคม 2569</span></time></p>
+        </li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <p class="footer-mark footer-lede"><span class="keep">แผ่นดินต่ำ</span></p>
+      <p class="footer-lede">นิตยสาร<span class="keep">รายสัปดาห์</span>ว่าด้วยเมือง น้ำ และคนที่อยู่ระหว่างนั้น</p>
+    </div>
+    <div class="footer-copy">
+      <p>ตัวอย่างงานออกแบบที่สร้างด้วย <span lang="en" class="keep">ux-ui-agent-skills</span> สิ่งพิมพ์ ชุมชน บุคคล และตัวเลขในหน้านี้แต่งขึ้นทั้งหมด ภาษาภาพดัดแปลงจาก spec ชื่อ <span lang="en" class="keep">financial-times</span> ในคลังของ<span class="keep">ชุดเครื่องมือ</span> ส่วน<span class="keep">ความคมชัด</span>ของสี การใช้<span class="keep">คีย์บอร์ด</span> และ<span class="keep">การจัดวาง</span> ผ่าน<span class="keep">การทดสอบ</span><span class="keep">อัตโนมัติ</span>ของ<span class="keep">ชุดเครื่องมือ</span></p>
+      <p lang="en">Built with <a class="keep" href="https://github.com/plugin87/ux-ui-agent-skills">ux-ui-agent-skills</a> by Thientan Soparat.</p>
+      <div class="footer-links">
+        <a href="../../index.html" lang="en"><svg class="ico" aria-hidden="true"><use href="#i-chevron-left"/></svg>All examples</a>
+        <a href="#main"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg>กลับขึ้นด้านบน</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="../../component-states/icons.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
+
+  /* Theme toggle: aria-pressed means "dark is on". The icon swaps too, so the
+     state is visible as well as announced. A gate or another script may set
+     data-theme directly, so the button follows the attribute, not the click. */
+  var themeBtn = document.querySelector('.theme-toggle');
+  function syncTheme() {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    themeBtn.setAttribute('aria-pressed', String(dark));
+    themeBtn.querySelector('use').setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    store.set('journal-theme', next);
+  });
+  new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  syncTheme();
+
+  /* Font size: changes the article body, and keeps the paragraph the reader is
+     on in the same place on screen, so a resize never loses their line. */
+  var body = document.getElementById('article-body');
+  var sizeBtns = Array.prototype.slice.call(document.querySelectorAll('.size-btn'));
+  var readbar = document.querySelector('.readbar');
+  function anchorEl() {
+    /* The first paragraph or figure whose top edge is visible below the bar:
+       the line the reader is on keeps its place on screen. */
+    var limit = readbar.getBoundingClientRect().bottom;
+    var els = body.querySelectorAll('section > p, figure');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].getBoundingClientRect().top >= limit) return els[i];
+    }
+    return null;
+  }
+  function applySize(size, keepPlace) {
+    var a = keepPlace ? anchorEl() : null;
+    var before = a ? a.getBoundingClientRect().top : 0;
+    body.setAttribute('data-size', size);
+    sizeBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-size') === size)); });
+    requestAnimationFrame(function () {
+      if (a) {
+        var delta = a.getBoundingClientRect().top - before;
+        if (delta && window.scrollY > 0) window.scrollBy({ top: delta, behavior: 'instant' });
+      }
+      update();
+    });
+  }
+  sizeBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var s = b.getAttribute('data-size');
+      applySize(s, true);
+      store.set('journal-size', s);
+    });
+  });
+
+  /* Table of contents on phones: a disclosure under the reading bar. */
+  var toggle = document.querySelector('.toc-toggle');
+  var panel = document.getElementById('toc-panel');
+  function setOpen(open, returnFocus) {
+    toggle.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+    if (!open && returnFocus) toggle.focus();
+  }
+  toggle.addEventListener('click', function () { setOpen(toggle.getAttribute('aria-expanded') !== 'true'); });
+  panel.addEventListener('click', function (e) { if (e.target.closest('a')) setOpen(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') setOpen(false, true);
+  });
+  document.addEventListener('click', function (e) {
+    if (toggle.getAttribute('aria-expanded') === 'true' && !e.target.closest('.toc-menu')) setOpen(false);
+  });
+
+  /* Jump links: move focus to the section heading so keyboard and screen
+     reader users land where the eye does. Smooth only when motion is allowed. */
+  document.querySelectorAll('.toc a').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var target = document.querySelector(a.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var heading = target.querySelector('h2') || target;
+      heading.setAttribute('tabindex', '-1');
+      target.scrollIntoView({ behavior: reduceMotion && reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+      heading.focus({ preventScroll: true });
+      history.replaceState(null, '', a.getAttribute('href'));
+      setCurrent(target.id);
+    });
+  });
+
+  /* Reading progress and the current section. */
+  var sections = Array.prototype.slice.call(body.querySelectorAll('section[id^="s"]'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var bar = document.querySelector('.progress');
+  var fill = bar.querySelector('.progress-fill');
+  var current = null;
+  function setCurrent(id) {
+    if (id === current) return;
+    current = id;
+    links.forEach(function (l) {
+      if (id && l.getAttribute('href') === '#' + id) l.setAttribute('aria-current', 'location');
+      else l.removeAttribute('aria-current');
+    });
+  }
+  function update() {
+    var vh = window.innerHeight;
+    var first = sections[0].getBoundingClientRect();
+    var last = sections[sections.length - 1].getBoundingClientRect();
+    var span = last.bottom - first.top;
+    var p = span > 0 ? Math.min(1, Math.max(0, (vh * 0.4 - first.top) / span)) : 0;
+    fill.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+    var pct = Math.round(p * 100);
+    bar.setAttribute('aria-valuenow', String(pct));
+    bar.setAttribute('aria-valuetext', 'อ่านไปแล้วร้อยละ ' + pct);
+    var line = vh * 0.3, id = null;
+    sections.forEach(function (s) { if (s.getBoundingClientRect().top <= line) id = s.id; });
+    if (last.bottom < line) id = sections[sections.length - 1].id;
+    setCurrent(id);
+  }
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () { ticking = false; update(); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+
+  /* The sticky bar can wrap on a very narrow screen or with a large root font,
+     so jump targets are offset by its measured height, not a constant. */
+  function setOffset() {
+    var h = readbar.getBoundingClientRect().height;
+    var pad = parseFloat(getComputedStyle(root).fontSize) / 2;
+    root.style.setProperty('--readbar-offset', Math.ceil(h + pad) + 'px');
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(setOffset).observe(readbar);
+  setOffset();
+
+  var savedSize = store.get('journal-size');
+  applySize(savedSize === 'sm' || savedSize === 'lg' ? savedSize : 'md', false);
+})();
+</script>
+</body>
+</html>

@@ -3,6 +3,8 @@ import { Box, Button, Chip, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import CollectionsRounded from '@mui/icons-material/CollectionsRounded';
+import PlayCircleOutlineRounded from '@mui/icons-material/PlayCircleOutlineRounded';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
@@ -46,7 +48,7 @@ export default function GallerySection({ record }) {
     if (!list.length) return null;
     return (
       <Box sx={{ mb: 4 }}>
-        <SectionHeading>{label}</SectionHeading>
+        <SectionHeading icon={PlayCircleOutlineRounded} eyebrow="Watch previews">{label}</SectionHeading>
         <Box sx={{
           display: 'flex', gap: 2, overflowX: 'auto', pb: 1,
           scrollbarWidth: 'thin', scrollbarColor: `${alpha(T.text, 0.2)} transparent`,
@@ -63,6 +65,15 @@ export default function GallerySection({ record }) {
                 whileHover={{ y: -4 }}
                 transition={{ duration: 0.15 }}
                 onClick={() => setActiveVideo(v)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveVideo(v);
+                  }
+                }}
+                aria-label={`Play ${v.name}`}
                 sx={{
                   flexShrink: 0,
                   width: { xs: 220, md: 260, xl: 310 },
@@ -70,6 +81,10 @@ export default function GallerySection({ record }) {
                   bgcolor: T.glass, borderRadius: 2, overflow: 'hidden',
                   border: `1px solid ${alpha(T.text, 0.07)}`,
                   cursor: 'pointer',
+                  '&:focus-visible': {
+                    outline: `3px solid ${T.teal}`,
+                    outlineOffset: 3,
+                  },
                   transition: 'box-shadow 0.15s, border-color .15s',
                   '&:hover': { boxShadow: '0 12px 32px rgba(0,0,0,0.4)', borderColor: alpha(T.teal, 0.4) },
                 }}
@@ -135,7 +150,7 @@ export default function GallerySection({ record }) {
         const isPortrait = type === 'Poster';
         return (
           <Box key={type} sx={{ mb: 4 }}>
-            <SectionHeading action={`${visible.length} of ${imgs.length}`}>
+            <SectionHeading icon={CollectionsRounded} eyebrow="Visual gallery" action={`${visible.length} of ${imgs.length}`}>
               {type}s
             </SectionHeading>
             <Box sx={{

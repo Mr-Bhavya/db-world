@@ -1,0 +1,267 @@
+/* examples/sites/local theme.css
+   Design system: "Savor" (design-systems/library/savor/DESIGN.md, Food & Beverage,
+   measured spec). Borrowed: the cream canvas #fff9eb and maroon ink #370808 pair,
+   the deeper cream #f0e7d7 surface and its #e6dac4 hover, the inverse maroon
+   button, the 5px button radius, a condensed display serif set very large over a
+   plain sans body near 17.7px, and flat surfaces with almost no shadow.
+   Adapted (and why):
+   - Roslindale Display Condensed and Suisse Intl are licensed web fonts; the page
+     loads nothing from a network, so the display face is a system book serif
+     (Iowan Old Style / Palatino) with tight tracking, and the UI face is system-ui
+     with Thai fallbacks.
+   - Savor measured no accent. A restaurant needs one for the map route and the
+     dish illustration, so a single tamarind/saffron accent was added, tuned to
+     pass 3:1 as a graphic and 4.5:1 where it carries text.
+   - Spacing snapped from Savor's fractional px values to the 4px scale.
+   - Savor measured one radius (5px). Inputs and buttons keep it; cards and the
+     map frame get a larger radius so radius scales with component size.
+   - Dark mode is designed, not inverted: charred maroon-brown surfaces, cream type,
+     and the cream button becomes the primary action.
+   The restaurant is fictional; only the visual language is borrowed. */
+
+:root{
+  color-scheme: light;
+
+  /* surfaces */
+  --color-surface-page:#fff9eb;
+  --color-surface-card:#fffcf4;
+  --color-surface-raised:#f0e7d7;
+  --color-surface-raised-hover:#e6dac4;
+  --color-surface-inverse:#370808;
+  --color-surface-inverse-raised:#4a100c;
+  --color-surface-page-clear:rgba(255,249,235,0);
+  --color-surface-card-clear:rgba(255,252,244,0);
+
+  /* text */
+  --color-text-primary:#370808;
+  --color-text-secondary:#6b4a40;
+  --color-text-accent:#8a4510;
+  --color-text-on-action:#fff9eb;
+  --color-text-inverse:#fff9eb;
+  --color-text-inverse-secondary:#e3d2c6;
+  --color-text-inverse-accent:#f2b35b;
+  --color-text-link:#370808;
+
+  /* actions */
+  --color-action-primary:#370808;
+  --color-action-primary-hover:#5a1712;
+  --color-action-primary-active:#250404;
+  --color-action-secondary-hover:#f0e7d7;
+  --color-action-secondary-active:#e6dac4;
+  --color-action-destructive:#a3261b;
+  --color-action-inverse:#fff9eb;
+  --color-action-inverse-hover:#f0e7d7;
+  --color-text-on-inverse-action:#370808;
+
+  /* lines */
+  --color-border-default:#e2d5bf;
+  --color-border-strong:#8a6d62;
+  --color-focus:#a14a0e;
+
+  /* accent (graphics) */
+  --color-accent:#d08a2e;
+  --color-accent-strong:#8a4510;
+  --color-accent-soft:#f3dcb4;
+
+  /* the khao soi drawing on the inverse band */
+  --color-bowl-chicken:#b86a2c;
+  --color-bowl-nest:#f2b35b;
+  --color-bowl-nest-line:#7a3a0c;
+  --color-bowl-lime:#b3c45e;
+
+  /* feedback */
+  --color-feedback-success-text:#2a6a33;
+  --color-feedback-success-bg:#e6efdc;
+  --color-feedback-error-text:#a3261b;
+  --color-feedback-error-bg:#fbe7df;
+  --color-feedback-error-border:#a3261b;
+
+  /* map */
+  --color-map-paper:#f6eedc;
+  --color-map-block:#ebdfc8;
+  --color-map-water:#d8e2da;
+  --color-map-water-line:#8fa59a;
+  --color-map-road:#fffcf4;
+  --color-map-casing:#8a6d62;
+  --color-map-ink:#370808;
+
+  --color-scrim:rgba(55,8,8,0.35);
+
+  /* type */
+  --font-display:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Noto Serif Thai",Ayuthaya,serif;
+  --font-sans:system-ui,-apple-system,"Segoe UI","Helvetica Neue",Arial,"Sukhumvit Set",Thonburi,"Noto Sans Thai","Leelawadee UI",sans-serif;
+  --font-thai:"Sukhumvit Set",Thonburi,"Noto Sans Thai","Leelawadee UI",system-ui,sans-serif;
+
+  --text-xs:.75rem;
+  --text-sm:.875rem;
+  --text-base:1.0625rem;
+  --text-lg:1.25rem;
+  --text-xl:1.5rem;
+  --text-2xl:1.875rem;
+  --text-3xl:2.375rem;
+  --text-4xl:3rem;
+  --text-section:clamp(2.25rem, 1.35rem + 3.4vw, 4.25rem);
+  --text-section-sm:clamp(2rem, 1.3rem + 2.2vw, 3.25rem);
+  --text-feature:clamp(2.25rem, 1.5rem + 4.6vw, 5.25rem);
+  --text-display:clamp(2.75rem, 1.4rem + 6vw, 6.5rem);
+  /* map labels are in the drawing's own units (450 across), so they scale with it:
+     18 on a phone, where the map runs edge to edge, 14 from 30rem, 12 once the map
+     sits in its frame. On screen that keeps them between about 11 and 20px. */
+  --text-map-label:18px;
+  --text-map-label-md:14px;
+  --text-map-label-wide:12px;
+
+  --leading-display:1.02;
+  --leading-tight:1.12;
+  --leading-snug:1.3;
+  --leading-normal:1.55;
+  /* Thai stacks a tone mark over an above vowel and keeps below vowels under the
+     line, so it needs more room between lines than Latin display type */
+  --leading-thai:1.5;
+
+  --tracking-display:-0.025em;
+  --tracking-tight:-0.01em;
+  --tracking-label:.09em;
+
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+
+  --measure-body:62ch;
+  --measure-display:15ch;
+  --measure-lede:46ch;
+
+  /* spacing, 4px base */
+  --space-0-5:.125rem;
+  --space-1:.25rem;
+  --space-1-5:.375rem;
+  --space-2:.5rem;
+  --space-3:.75rem;
+  --space-4:1rem;
+  --space-5:1.25rem;
+  --space-6:1.5rem;
+  --space-8:2rem;
+  --space-10:2.5rem;
+  --space-12:3rem;
+  --space-16:4rem;
+  --space-20:5rem;
+  --space-24:6rem;
+  --space-32:8rem;
+  --space-section:clamp(4rem, 2.5rem + 6vw, 8rem);
+
+  --container-max:76rem;
+  --gutter:1rem;
+
+  /* radius */
+  --radius-xs:.1875rem;
+  --radius-button:.3125rem;
+  --radius-card:.875rem;
+  --radius-lg:1.5rem;
+  --radius-full:9999px;
+
+  /* borders */
+  --border-width-thin:1px;
+  --border-width-medium:2px;
+
+  /* sizing */
+  --size-touch-min:1.5rem;
+  --size-control-sm:2.25rem;
+  --size-control-md:2.75rem;
+  --size-control-lg:3.25rem;
+  --size-icon-sm:1rem;
+  --size-icon-md:1.25rem;
+  --size-icon-lg:1.5rem;
+  --size-mark:2.25rem;
+  --size-illustration:min(100%, 22rem);
+  --size-map-max:60vh;
+  --size-popover-max:20rem;
+  --size-map-min:20rem;
+  --size-day-min:4.25rem;
+
+  /* depth (tinted, never pure black) */
+  --shadow-sm:0 1px 2px rgba(55,8,8,0.06);
+  --shadow-md:0 18px 40px -18px rgba(55,8,8,0.28);
+  --shadow-lg:0 24px 56px -16px rgba(55,8,8,0.32);
+  --shadow-focus-ring:0 0 0 2px var(--color-surface-page),0 0 0 4px var(--color-focus);
+  --shadow-focus-ring-inverse:0 0 0 2px var(--color-surface-inverse),0 0 0 4px var(--color-text-inverse-accent);
+
+  /* opacity */
+  --opacity-disabled:.5;
+
+  /* motion */
+  --duration-fast:120ms;
+  --duration-base:220ms;
+  --duration-slow:320ms;
+  --duration-draw:1600ms;
+  --duration-spin:900ms;
+  --ease-out:cubic-bezier(.22,.61,.36,1);
+  --ease-in:cubic-bezier(.55,.06,.68,.19);
+  --ease-in-out:cubic-bezier(.45,.05,.55,.95);
+  --transition-micro:var(--duration-fast) var(--ease-out);
+
+  --z-raised:2;
+  --z-popover:30;
+}
+
+:root[data-theme="dark"]{
+  color-scheme: dark;
+
+  --color-surface-page:#1b1110;
+  --color-surface-card:#261917;
+  --color-surface-raised:#2c1d1a;
+  --color-surface-raised-hover:#3f2b27;
+  --color-surface-inverse:#2e0c0a;
+  --color-surface-inverse-raised:#3e1411;
+  --color-surface-page-clear:rgba(27,17,16,0);
+  --color-surface-card-clear:rgba(38,25,23,0);
+
+  --color-text-primary:#f7ecd9;
+  --color-text-secondary:#cfb8a7;
+  --color-text-accent:#f0a65a;
+  --color-text-on-action:#370808;
+  --color-text-inverse:#fff9eb;
+  --color-text-inverse-secondary:#e3d2c6;
+  --color-text-inverse-accent:#f2b35b;
+  --color-text-link:#f7ecd9;
+
+  --color-action-primary:#f0e7d7;
+  --color-action-primary-hover:#fff9eb;
+  --color-action-primary-active:#e6dac4;
+  --color-action-secondary-hover:#33221f;
+  --color-action-secondary-active:#3f2b27;
+  --color-action-destructive:#ff9e8f;
+  --color-action-inverse:#f0e7d7;
+  --color-action-inverse-hover:#fff9eb;
+  --color-text-on-inverse-action:#370808;
+
+  --color-border-default:#3f2b27;
+  --color-border-strong:#94796c;
+  --color-focus:#f0a65a;
+
+  --color-accent:#e0913a;
+  --color-accent-strong:#f0a65a;
+  --color-accent-soft:#4a3020;
+
+  --color-feedback-success-text:#8fd19b;
+  --color-feedback-success-bg:#1d2b1c;
+  --color-feedback-error-text:#ff9e8f;
+  --color-feedback-error-bg:#3a1714;
+  --color-feedback-error-border:#ff9e8f;
+
+  --color-map-paper:#201513;
+  --color-map-block:#2f201c;
+  --color-map-water:#1d2a28;
+  --color-map-water-line:#5f7d72;
+  --color-map-road:#3a2925;
+  --color-map-casing:#94796c;
+  --color-map-ink:#f7ecd9;
+
+  --color-bowl-lime:#a2b552;
+
+  --color-scrim:rgba(8,2,2,0.6);
+
+  --shadow-sm:0 1px 2px rgba(8,2,2,0.4);
+  --shadow-md:0 18px 40px -18px rgba(8,2,2,0.7);
+  --shadow-lg:0 24px 56px -16px rgba(8,2,2,0.75);
+}

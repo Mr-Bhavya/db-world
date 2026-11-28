@@ -24,7 +24,7 @@ const STAGE_MESSAGE = {
   CONVERTING: () => 'Merging and converting on the server…',
 };
 
-export default function MediaJobList({ jobs = [], selectionJobs = jobs, admin = false, emptyMessage = 'No jobs match these filters.' }) {
+export default function MediaJobList({ jobs = [], selectionJobs = jobs, admin = false, compact = false, emptyMessage = 'No jobs match these filters.' }) {
   const T = useT();
   const client = useQueryClient();
   const [error, setError] = useState('');
@@ -160,6 +160,7 @@ export default function MediaJobList({ jobs = [], selectionJobs = jobs, admin = 
               detail={detail}
               error={job.error}
               actions={actions}
+              compact={compact}
             />
           );
         })}

@@ -7,10 +7,6 @@ import {
   Alert,
   Chip,
   Tooltip,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   Button,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -25,7 +21,7 @@ import Constants from '@shared/constants';
 import { getMediaFiles, deleteMediaFileById, rescanMediaFile } from '../api/adminApi';
 import useIngestionStore from '../ingestion/store/ingestionStore';
 import { useRecordStore } from '../stores/useRecordStore';
-import SheetDialog from '@shared/components/SheetDialog';
+import { AdminConfirmDialog } from '@features/admin/adminUi';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '—';
@@ -194,38 +190,21 @@ export function MediaFilesBody({ recordId, record }) {
         );
       })}
 
-      {/* Confirm — this now permanently erases the file from disk, not just the DB row. */}
-      <SheetDialog
+      <AdminConfirmDialog
         open={Boolean(confirmFile)}
+        title="Permanently delete file?"
+        message="This deletes the file from storage and removes its library entry, symlink, and preview thumbnails. This cannot be undone."
+        confirmLabel="Delete permanently"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate(confirmFile.id)}
         onClose={() => setConfirmFile(null)}
-        PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.textPrimary, borderRadius: 2, border: `1px solid ${T.glassBorder}`, maxWidth: 420 } }}
       >
-        <DialogTitle sx={{ fontWeight: 700, color: T.textPrimary, pb: 1 }}>Delete file?</DialogTitle>
-        <DialogContent>
-          {confirmFile && (
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: T.textPrimary, mb: 1, wordBreak: 'break-all' }}>
-              {confirmFile.fileName}
-            </Typography>
-          )}
-          <DialogContentText sx={{ color: T.textMuted, fontSize: 13 }}>
-            This permanently deletes the file from disk and removes its library entry,
-            symlink and preview thumbnails. This cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setConfirmFile(null)} sx={{ color: T.textMuted, textTransform: 'none' }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate(confirmFile.id)}
-            sx={{ bgcolor: T.error, '&:hover': { bgcolor: T.error, filter: 'brightness(0.9)' }, fontWeight: 700, textTransform: 'none' }}
-          >
-            Delete permanently
-          </Button>
-        </DialogActions>
-      </SheetDialog>
+        {confirmFile && (
+          <Typography sx={{ mt: 1.25, color: T.text, fontSize: 13, fontWeight: 700, wordBreak: 'break-all' }}>
+            {confirmFile.fileName}
+          </Typography>
+        )}
+      </AdminConfirmDialog>
     </Box>
   );
 }

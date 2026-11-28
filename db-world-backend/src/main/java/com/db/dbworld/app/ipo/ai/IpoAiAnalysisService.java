@@ -138,7 +138,7 @@ public class IpoAiAnalysisService {
             return new Generated(
                     json.path("analysis").asString(""),
                     json.path("view").asString("NOT_ENOUGH_DATA"),
-                    json.path("confidenceScore").intValue());
+                    parseConfidenceScore(json));
         } catch (Exception error) {
             throw new DbWorldException(HttpStatus.BAD_GATEWAY,
                     "Ollama returned invalid IPO JSON; no analysis was saved.", error);
@@ -168,8 +168,9 @@ public class IpoAiAnalysisService {
                     Write 3 short sections: demand/market signals, business and valuation
                     considerations, and what a reader should verify before deciding.
                     Use 400-900 non-whitespace characters.
-                    Return only JSON with: analysis, view
-                    (APPLY, CONSIDER, WAIT, NOT_ENOUGH_DATA), confidenceScore (0-100 evidence confidence).
+                    Return only JSON with exactly these keys: analysis, view
+                    (APPLY, CONSIDER, WAIT, NOT_ENOUGH_DATA), confidenceScore
+                    (an integer from 0 to 100; 0 when evidence is insufficient).
                     Never promise profit or allotment. Treat current GMP as unofficial.
 
                     FACTS:
@@ -191,6 +192,26 @@ public class IpoAiAnalysisService {
         return analysis != null && analysis.codePoints()
                 .filter(codePoint -> !Character.isWhitespace(codePoint))
                 .count() >= IpoListingEntity.MIN_AI_ANALYSIS_LENGTH;
+    }
+
+    private static int parseConfidenceScore(JsonNode json) {
+        JsonNode score = json.get("confidenceScore");
+        if (score == null || score.isNull() || score.isMissingNode()) {
+            return 0;
+        }
+        if (score.isIntegralNumber()) {
+            return score.intValue();
+        }
+        if (score.isFloatingPointNumber()) {
+            return (int) Math.round(score.doubleValue());
+        }
+        if (score.isString()) {
+            String value = score.stringValue().trim();
+            if (value.matches("\\d+")) {
+                return Integer.parseInt(value);
+            }
+        }
+        return 0;
     }
 
     private record ChatRequest(

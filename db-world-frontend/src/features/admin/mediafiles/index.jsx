@@ -56,7 +56,7 @@ import { useT } from '@shared/theme';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 import {
   AdminPage, SectionCard, StatCard, StatGrid, StickyBar, AdminActionButton,
-  EmptyState, ErrorState, TableSkeleton, adminSurface, useSwipeNav,
+  AdminConfirmDialog, EmptyState, ErrorState, TableSkeleton, adminSurface, useSwipeNav,
 } from '@features/admin/adminUi';
 import RecordSearch from '../ingestion/form/RecordSearch';
 import { EpisodePicker, SeasonPicker, useTmdbSeasons } from '../ingestion/form/EpisodePickers';
@@ -884,17 +884,22 @@ function DeleteDialog({ open, count, onClose, onConfirm }) {
   const [purge, setPurge] = useState(false);
   const handleClose = () => { setPurge(false); onClose(); };
   const optionSx = (activeCol, on) => ({
-    p: 1.5, borderRadius: 2, cursor: 'pointer',
+    p: 1.5, borderRadius: 2, cursor: 'pointer', minHeight: 64,
     bgcolor: on ? alpha(activeCol, 0.1) : S.card,
     border: `1px solid ${on ? activeCol : S.border}`,
     transition: 'border-color .15s, background .15s',
   });
   return (
-    <SheetDialog open={open} onClose={handleClose} maxWidth="xs" fullWidth
-      slotProps={{ paper: { sx: { bgcolor: S.card, backgroundImage: 'none', border: `1px solid ${S.border}`, borderRadius: 3 } } }}>
-      <DialogTitle sx={{ color: T.text, fontWeight: 700 }}>Delete {count > 1 ? `${count} files` : 'file'}?</DialogTitle>
-      <DialogContent>
-        <Stack spacing={1.5}>
+    <AdminConfirmDialog
+      open={open}
+      title={`Delete ${count > 1 ? `${count} files` : 'file'}?`}
+      message="Choose whether to keep the storage file or permanently erase it."
+      confirmLabel={purge ? 'Delete permanently' : 'Remove from library'}
+      danger={purge}
+      onConfirm={() => { onConfirm(purge); handleClose(); }}
+      onClose={handleClose}
+    >
+      <Stack spacing={1.5} sx={{ mt: 1.75 }}>
           <Box onClick={() => setPurge(false)} sx={optionSx(T.teal, !purge)}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <LibraryAddCheckRounded sx={{ color: !purge ? T.teal : T.textFaint }} />
@@ -918,16 +923,8 @@ function DeleteDialog({ open, count, onClose, onConfirm }) {
               <Typography variant="caption">File{count > 1 ? 's' : ''} will be permanently erased from storage.</Typography>
             </Alert>
           )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} sx={{ color: T.textMuted }}>Cancel</Button>
-        <Button variant="contained" onClick={() => { onConfirm(purge); handleClose(); }}
-          sx={{ bgcolor: purge ? T.error : T.teal, '&:hover': { bgcolor: purge ? T.error : T.tealHover, filter: purge ? 'brightness(0.92)' : 'none' } }}>
-          {purge ? 'Delete permanently' : 'Remove from library'}
-        </Button>
-      </DialogActions>
-    </SheetDialog>
+      </Stack>
+    </AdminConfirmDialog>
   );
 }
 

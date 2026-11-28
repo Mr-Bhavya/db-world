@@ -20,7 +20,7 @@ const REVEAL_FALLBACK_MS = 4000;
    by a different component in a different coordinate space. Keeping the size and
    the top offset here as named constants is what lets those two line up — see
    HERO_CONTROL_TOP's use in RecordDetailSheet and RecordDetailModal. */
-export const HERO_CONTROL_SIZE = 34;
+export const HERO_CONTROL_SIZE = 44;
 export const HERO_CONTROL_TOP = { xs: 10, md: 18 };
 
 const readMutePref = () => {

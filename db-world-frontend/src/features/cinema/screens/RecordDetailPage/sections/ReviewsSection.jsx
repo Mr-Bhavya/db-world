@@ -7,6 +7,8 @@ import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import RateReviewRounded from '@mui/icons-material/RateReviewRounded';
+import PublicRounded from '@mui/icons-material/PublicRounded';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme/ThemeContext';
@@ -38,8 +40,10 @@ function UserReviewCard({ review, T }) {
       </Box>
       {review.content && (
         <Typography variant="body2" sx={{
-          color: T.textMuted, lineHeight: 1.72, fontStyle: 'italic',
-          borderLeft: `2px solid ${alpha(T.teal, 0.5)}`, pl: 1.5,
+          color: T.textMuted, lineHeight: 1.72,
+          p: 1.5, borderRadius: 1.5,
+          bgcolor: alpha(T.text, 0.025),
+          border: `1px solid ${alpha(T.text, 0.07)}`,
         }}>
           {review.content}
         </Typography>
@@ -75,8 +79,10 @@ function TmdbReviewCard({ review, T }) {
       <Typography
         variant="body2"
         sx={{
-          color: T.textMuted, lineHeight: 1.72, fontStyle: 'italic',
-          borderLeft: `2px solid ${alpha(T.teal, 0.5)}`, pl: 1.5,
+          color: T.textMuted, lineHeight: 1.72,
+          p: 1.5, borderRadius: 1.5,
+          bgcolor: alpha(T.text, 0.025),
+          border: `1px solid ${alpha(T.text, 0.07)}`,
           ...(!expanded && isLong ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
         }}
       >
@@ -93,7 +99,7 @@ function TmdbReviewCard({ review, T }) {
 
 export default function ReviewsSection({ record, recordId }) {
   const T = useT();
-  const { isAuthenticated } = useRequireAuth();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const qc = useQueryClient();
 
   const [reviewRating, setReviewRating] = useState(0);
@@ -172,7 +178,9 @@ export default function ReviewsSection({ record, recordId }) {
       transition={{ duration: 0.4 }}
       sx={{ py: 3 }}
     >
-      <SectionHeading>Your Review</SectionHeading>
+      <SectionHeading icon={RateReviewRounded} eyebrow={isAuthenticated ? 'Your perspective' : 'Sign in to participate'}>
+        Your Review
+      </SectionHeading>
 
       {myReview && !editMode ? (
         <Paper sx={{ bgcolor: T.glass, border: `1px solid ${alpha(T.teal, 0.3)}`, borderRadius: 2, p: 2, mb: 3 }}>
@@ -209,13 +217,20 @@ export default function ReviewsSection({ record, recordId }) {
             onChange={(e) => setReviewContent(e.target.value)}
             sx={{ mb: 2, ...fieldSx }}
           />
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
             <Button
               variant="contained"
-              onClick={handleSubmit}
+              onClick={requireAuth(handleSubmit, 'Sign in to write a review')}
               disabled={upsertMutation.isPending}
               startIcon={upsertMutation.isPending ? <CircularProgress size={16} color="inherit" /> : null}
-              sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover ?? '#0f766e' }, textTransform: 'none', fontWeight: 600 }}
+              sx={{
+                minHeight: 44,
+                width: { xs: '100%', sm: 'auto' },
+                bgcolor: T.teal,
+                '&:hover': { bgcolor: T.tealHover ?? T.teal },
+                textTransform: 'none',
+                fontWeight: 700,
+              }}
             >
               {editMode ? 'Update' : 'Submit'}
             </Button>
@@ -232,7 +247,7 @@ export default function ReviewsSection({ record, recordId }) {
         <CircularProgress size={24} sx={{ color: T.teal, display: 'block', mb: 3 }} />
       ) : otherReviews.length > 0 ? (
         <>
-          <SectionHeading>All Reviews ({otherReviews.length})</SectionHeading>
+          <SectionHeading icon={RateReviewRounded} eyebrow="Community">All Reviews ({otherReviews.length})</SectionHeading>
           {/*
             Two columns from xl, where the page measure reaches 1560 and a single column of
             review cards runs a line of italic body text to roughly 205 characters. A grid
@@ -260,7 +275,7 @@ export default function ReviewsSection({ record, recordId }) {
       {tmdbReviews.length > 0 && (
         <>
           <Divider sx={{ borderColor: alpha(T.text, 0.08), my: 3 }} />
-          <SectionHeading>TMDB Reviews ({tmdbReviews.length})</SectionHeading>
+          <SectionHeading icon={PublicRounded} eyebrow="External perspectives">TMDB Reviews ({tmdbReviews.length})</SectionHeading>
           <Box sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', xl: 'repeat(2, minmax(0, 1fr))' },
@@ -270,6 +285,22 @@ export default function ReviewsSection({ record, recordId }) {
             {tmdbReviews.map((r) => <TmdbReviewCard key={r.id} review={r} T={T} />)}
           </Box>
         </>
+      )}
+
+      {!reviewsLoading && otherReviews.length === 0 && tmdbReviews.length === 0 && !myReview && (
+        <Paper sx={{
+          p: 2.5,
+          textAlign: 'center',
+          bgcolor: alpha(T.text, 0.025),
+          border: `1px dashed ${alpha(T.text, 0.14)}`,
+          borderRadius: 2,
+          backgroundImage: 'none',
+        }}>
+          <Typography sx={{ color: T.text, fontWeight: 750 }}>No reviews yet</Typography>
+          <Typography sx={{ color: T.textMuted, fontSize: '0.84rem', mt: 0.5 }}>
+            Share a thoughtful rating to help the next viewer decide.
+          </Typography>
+        </Paper>
       )}
     </Box>
   );

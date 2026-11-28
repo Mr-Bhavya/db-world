@@ -3,10 +3,9 @@ import { Box, Button, Chip } from '@mui/material';
 import { AddRounded } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useConfirm } from 'material-ui-confirm';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { SectionCard, AdminActionButton, adminSurface } from '@features/admin/adminUi';
+import { SectionCard, AdminActionButton, AdminConfirmDialog, adminSurface } from '@features/admin/adminUi';
 import { fetchTypes, deleteType } from './adminWalletApi';
 import TypeUpsertDialog from './TypeUpsertDialog';
 
@@ -14,9 +13,9 @@ export default function DocumentTypesTab() {
   const T = useT();
   const S = adminSurface(T);
   const qc = useQueryClient();
-  const confirm = useConfirm();
   const { data: types = [], isLoading } = useQuery({ queryKey: ['wallet-admin', 'types'], queryFn: fetchTypes });
   const [dialog, setDialog] = useState({ open: false, item: null });
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const del = useMutation({
     mutationFn: (id) => deleteType(id),
     onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['wallet-admin', 'types'] }); notify.success(res?.message ?? 'Done'); },
@@ -32,9 +31,7 @@ export default function DocumentTypesTab() {
     { field: 'actions', headerName: '', width: 160, sortable: false, renderCell: (p) => (
       <>
         <Button size="small" onClick={() => setDialog({ open: true, item: p.row })}>Edit</Button>
-        <Button size="small" color="error" onClick={() =>
-          confirm({ title: 'Delete type?', description: 'In-use types are deactivated instead.' })
-            .then(() => del.mutate(p.row.id)).catch(() => {})}>Delete</Button>
+        <Button size="small" color="error" onClick={() => setDeleteTarget(p.row)}>Delete</Button>
       </>) },
   ];
 
@@ -55,6 +52,15 @@ export default function DocumentTypesTab() {
         </Box>
       </SectionCard>
       <TypeUpsertDialog open={dialog.open} editItem={dialog.item} onClose={() => setDialog({ open: false, item: null })} />
+      <AdminConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete document type?"
+        message={`"${deleteTarget?.displayName ?? ''}" will be removed. Types that are still in use are deactivated instead.`}
+        confirmLabel="Delete type"
+        loading={del.isPending}
+        onConfirm={() => del.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
+        onClose={() => setDeleteTarget(null)}
+      />
     </Box>
   );
 }

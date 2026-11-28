@@ -59,13 +59,13 @@ export default function SheetDialog({
   // Swallowed, not forwarded. Callers wrote it as "is this a phone", which is the question this
   // component now answers for itself -- and letting it through would put a dialog back to
   // covering the whole screen, which is the thing being fixed.
-  fullScreen: _phoneSignal,
+  fullScreen = false,
   ...rest
 }) {
   const theme = useTheme();
   // The hook runs either way -- it cannot be conditional -- and `asSheet` gates the result.
   const narrow = useMediaQuery(theme.breakpoints.down(sheetBreakpoint));
-  const sheet = asSheet && narrow;
+  const sheet = asSheet && narrow && !fullScreen;
 
   useOverlayBack(open && !disableBack, onClose);
 
@@ -175,6 +175,7 @@ export default function SheetDialog({
     <Dialog
       open={open}
       onClose={onClose}
+      fullScreen={fullScreen}
       TransitionComponent={sheet ? SlideUp : undefined}
       // Styled through the container class rather than a `container` slot, which has moved
       // between MUI majors; the class has not.
@@ -242,7 +243,13 @@ export default function SheetDialog({
           rule built from a value that changes every measurement did not reliably regenerate its
           class. The paper has no height of its own -- it grows to fit this -- so a floor here is
           a floor on the dialog, with nothing in between to drop it. */}
-      <Box ref={setContentNode} style={sizing} sx={{ flex: '0 0 auto' }}>
+      <Box
+        ref={setContentNode}
+        style={sizing}
+        sx={fullScreen
+          ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+          : { flex: '0 0 auto' }}
+      >
         {children}
       </Box>
     </Dialog>

@@ -484,7 +484,7 @@ export default function RecordDetailContent({
     const isMovie = record.type === 'MOVIE';
     const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
     const titleStr = [tmdb.title, year].filter(Boolean).join(' (') + (year ? ')' : '');
-    const description = record.searchIndexEligible
+    const description = record.searchIndexEligible && record.editorialNote
       ? record.editorialNote.slice(0, 155)
       : tmdb.overview || `Watch ${tmdb.title} on DB Cinema`;
     const image = tmdb.backdropPath
@@ -690,6 +690,14 @@ export default function RecordDetailContent({
         trailerKey={firstTrailer?.site === 'YOUTUBE' ? firstTrailer.key : null}
       />
 
+      <Box aria-hidden sx={{
+        height: { xs: 20, md: 28 },
+        mx: 0,
+        mt: -1,
+        background: `linear-gradient(180deg, #141414 0%, ${surface} 100%)`,
+        pointerEvents: 'none',
+      }} />
+
       {/* onDismiss surfaces a back control inside the bar once it sticks, so the
           hero's own close can scroll away instead of sitting on top of the tabs. */}
       <PillNav
@@ -796,11 +804,13 @@ export default function RecordDetailContent({
         </Container>
       )}
 
-      {fullLoaded && hasFiles && (
+      {fullLoaded && (hasFiles || (availability && !isAvailable) || isAvailable) && (
         <StickyWatchBar
           record={record}
           progress={progress}
-          onWatchClick={handlePlay}
+          onWatchClick={isAvailable ? handlePlay : null}
+          onRequestClick={availability && !isAvailable ? handleRequest : null}
+          requested={!!recordRequest?.hasMyVote}
           scrollRoot={scrollRoot}
         />
       )}

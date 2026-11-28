@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Button, Chip, Paper, Typography } from '@mui/material';
+import {
+  AutoAwesomeRounded,
+  BusinessRounded,
+  InfoOutlined,
+  PublicRounded,
+  RecommendRounded,
+  VerifiedOutlined,
+} from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +27,7 @@ export default function OverviewSection({ record }) {
   const [overviewOpen, setOverviewOpen] = useState(false);
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
-  const providers = tmdb.providers ?? [];
+  const providers = useMemo(() => tmdb.providers ?? [], [tmdb.providers]);
 
   // Region choice lives in utils/providers so the hero's "Streaming on" strip and this
   // panel can never disagree about which country the viewer is being shown. Locked to
@@ -58,7 +66,13 @@ export default function OverviewSection({ record }) {
     NOT_ENOUGH_DATA: { label: 'Limited evidence', color: T.textMuted },
   };
   const aiVerdict = verdicts[record?.aiVerdict] ?? null;
-
+  const hasProductionInfo = [
+    tmdb.productionCompanies,
+    tmdb.productionCountries,
+    tmdb.spokenLanguages,
+    !isMovie ? tmdb.createdBy : null,
+  ].some((items) => Array.isArray(items) && items.some((item) => item?.name || item?.englishName))
+    || (!isMovie && Boolean(tmdb.lastEpisodeToAir || tmdb.nextEpisodeToAir));
   const chipSx = {
     bgcolor: alpha(T.teal, 0.12), color: T.teal,
     fontSize: { xs: '0.7rem', xl: '0.78rem' },
@@ -136,82 +150,183 @@ export default function OverviewSection({ record }) {
 
       {record?.editorialNote?.trim() && (
         <Box sx={{ mb: 4, maxWidth: { xs: '100%', md: 760, xl: 900 } }}>
-          <SectionHeading>
-            {record.editorialSource === 'AI' ? 'DB World AI take' : 'DB World take'}
-          </SectionHeading>
-          {record.editorialSource === 'AI' && (
-            <Typography sx={{ color: T.textFaint, fontSize: '0.72rem', mb: 1.25, lineHeight: 1.5 }}>
-              AI-assisted synthesis of public catalogue facts and review themes. Verify
-              title-specific details independently.
-            </Typography>
-          )}
+          {record.editorialSource === 'AI' ? (
+            <SectionCard sx={{
+              overflow: 'hidden',
+              position: 'relative',
+              borderColor: alpha(aiVerdict?.color ?? T.teal, 0.25),
+              background: `linear-gradient(145deg, ${alpha(T.teal, 0.11)} 0%, ${alpha(T.text, 0.025)} 46%, ${alpha(aiVerdict?.color ?? T.teal, 0.07)} 100%)`,
+            }}>
+              <Box sx={{
+                display: 'flex',
+                alignItems: { xs: 'flex-start', sm: 'center' },
+                justifyContent: 'space-between',
+                gap: 1.5,
+                flexWrap: 'wrap',
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                  <Box sx={{
+                    width: 42,
+                    height: 42,
+                    flexShrink: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 2,
+                    color: T.teal,
+                    bgcolor: alpha(T.teal, 0.13),
+                    border: `1px solid ${alpha(T.teal, 0.22)}`,
+                  }}>
+                    <AutoAwesomeRounded aria-hidden="true" fontSize="small" />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography component="h2" sx={{
+                      color: T.text,
+                      fontWeight: 850,
+                      fontSize: { xs: '1.08rem', md: '1.2rem' },
+                      letterSpacing: -0.35,
+                      lineHeight: 1.25,
+                    }}>
+                      DB World AI take
+                    </Typography>
+                    <Typography sx={{ color: T.textFaint, fontSize: '0.72rem', mt: 0.25 }}>
+                      A quick, evidence-based viewing guide
+                    </Typography>
+                  </Box>
+                </Box>
+                {aiVerdict && (
+                  <Chip
+                    label={aiVerdict.label}
+                    icon={<VerifiedOutlined />}
+                    size="small"
+                    sx={{
+                      color: aiVerdict.color,
+                      bgcolor: alpha(aiVerdict.color, 0.12),
+                      border: `1px solid ${alpha(aiVerdict.color, 0.3)}`,
+                      fontWeight: 800,
+                      '& .MuiChip-icon': { color: aiVerdict.color },
+                    }}
+                  />
+                )}
+              </Box>
 
-          {record?.editorialSource === 'AI' && aiVerdict && (
-            <SectionCard sx={{ mb: 4 }}>
-              <SectionHeading action={(
-                <Chip
-                  label={aiVerdict.label}
-                  size="small"
-                  sx={{
-                    color: aiVerdict.color,
-                    bgcolor: `${aiVerdict.color}18`,
-                    border: `1px solid ${aiVerdict.color}44`,
-                    fontWeight: 800,
-                  }}
-                />
-              )}>
-                DB World AI guide
-              </SectionHeading>
               <Box sx={{
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                gap: 2,
+                gap: { xs: 1.25, sm: 1.5 },
+                mt: 2,
               }}>
-                <Box>
-                  <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                    Best for
-                  </Typography>
-                  <Typography sx={{ color: T.textMuted, mt: .75, lineHeight: 1.65 }}>
+                <Box sx={{
+                  p: { xs: 1.5, md: 1.75 },
+                  borderRadius: 2,
+                  bgcolor: alpha(T.success, 0.075),
+                  border: `1px solid ${alpha(T.success, 0.16)}`,
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: T.success }}>
+                    <RecommendRounded aria-hidden="true" sx={{ fontSize: 17 }} />
+                    <Typography sx={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 800 }}>
+                      Best for
+                    </Typography>
+                  </Box>
+                  <Typography sx={{
+                    color: T.textMuted,
+                    mt: 0.75,
+                    lineHeight: 1.6,
+                    fontSize: { xs: '0.88rem', md: '0.9rem' },
+                  }}>
                     {record.aiBestFor || 'Not enough title-specific evidence yet.'}
                   </Typography>
                 </Box>
-                <Box>
-                  <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                    Consider
-                  </Typography>
-                  <Typography sx={{ color: T.textMuted, mt: .75, lineHeight: 1.65 }}>
+                <Box sx={{
+                  p: { xs: 1.5, md: 1.75 },
+                  borderRadius: 2,
+                  bgcolor: alpha(T.warning, 0.065),
+                  border: `1px solid ${alpha(T.warning, 0.16)}`,
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: T.warning }}>
+                    <InfoOutlined aria-hidden="true" sx={{ fontSize: 17 }} />
+                    <Typography sx={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 800 }}>
+                      Consider
+                    </Typography>
+                  </Box>
+                  <Typography sx={{
+                    color: T.textMuted,
+                    mt: 0.75,
+                    lineHeight: 1.6,
+                    fontSize: { xs: '0.88rem', md: '0.9rem' },
+                  }}>
                     {record.aiConsiderations || 'No important limitation was identified.'}
                   </Typography>
                 </Box>
               </Box>
-              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+
+              <Box sx={{
+                mt: 2,
+                p: { xs: 1.5, md: 1.75 },
+                borderRadius: 2,
+                border: `1px solid ${alpha(T.teal, 0.16)}`,
+                bgcolor: alpha(T.text, 0.025),
+              }}>
+                {record.editorialNote.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => (
+                  <Typography
+                    key={index}
+                    sx={{
+                      color: T.textMuted,
+                      lineHeight: { xs: 1.72, md: 1.8 },
+                      fontSize: { xs: '0.91rem', md: '0.97rem' },
+                      mt: index ? 1.25 : 0,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {paragraph}
+                  </Typography>
+                ))}
+              </Box>
+
+              <Box sx={{
+                mt: 2,
+                pt: 1.5,
+                borderTop: `1px solid ${alpha(T.text, 0.08)}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                flexWrap: 'wrap',
+              }}>
                 {Number.isInteger(record.aiQualityScore) && (
                   <Chip
-                    label={`AI evidence confidence ${record.aiQualityScore}/100`}
+                    label={`Evidence confidence: ${record.aiQualityScore}/100`}
                     size="small"
-                    sx={{ bgcolor: alpha(T.text, 0.05), color: T.textMuted }}
+                    sx={{
+                      bgcolor: alpha(T.text, 0.06),
+                      color: T.textMuted,
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                    }}
                   />
                 )}
-                <Typography sx={{ color: T.textFaint, fontSize: '0.7rem', lineHeight: 1.5 }}>
-                  This is an AI-assisted guide, not a user review score or guarantee of enjoyment.
+                <Typography sx={{ color: T.textFaint, fontSize: '0.68rem', lineHeight: 1.5 }}>
+                  AI-assisted from public catalogue facts and review themes — not a user score or enjoyment guarantee.
                 </Typography>
               </Box>
             </SectionCard>
+          ) : (
+            <>
+              <SectionHeading>DB World take</SectionHeading>
+              {record.editorialNote.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => (
+                <Typography
+                  key={index}
+                  sx={{
+                    color: T.textMuted,
+                    lineHeight: 1.85,
+                    fontSize: { xs: '0.95rem', md: '1rem' },
+                    mt: index ? 1.5 : 0,
+                    whiteSpace: 'pre-line',
+                  }}
+                >
+                  {paragraph}
+                </Typography>
+              ))}
+            </>
           )}
-          {record.editorialNote.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => (
-            <Typography
-              key={index}
-              sx={{
-                color: T.textMuted,
-                lineHeight: 1.85,
-                fontSize: { xs: '0.95rem', md: '1rem' },
-                mt: index ? 1.5 : 0,
-                whiteSpace: 'pre-line',
-              }}
-            >
-              {paragraph}
-            </Typography>
-          ))}
         </Box>
       )}
 
@@ -224,11 +339,7 @@ export default function OverviewSection({ record }) {
         alignItems: 'start',
       }}>
         <SectionCard>
-          <SectionHeading>Details</SectionHeading>
-          {/* The audience score, which the panel never actually showed — the hero's star
-              pill is a glance, this is the number with its sample size. Theme colours are
-              passed in: the ring's defaults are white-on-black and would vanish here in
-              the light theme. */}
+          <SectionHeading icon={InfoOutlined}>Details</SectionHeading>
           {tmdb.voteAverage > 0 && (
             <Box sx={{
               display: 'flex', alignItems: 'center', gap: 1.75,
@@ -242,7 +353,7 @@ export default function OverviewSection({ record }) {
               />
               <Box sx={{ minWidth: 0 }}>
                 <Typography sx={{ color: T.text, fontWeight: 700, fontSize: '0.86rem' }}>
-                  TMDB score
+                  Audience evidence
                 </Typography>
                 <Typography sx={{ color: T.textFaint, fontSize: '0.76rem', fontWeight: 600 }}>
                   {tmdb.voteCount > 0
@@ -254,10 +365,6 @@ export default function OverviewSection({ record }) {
           )}
           {isMovie ? (
             <>
-              <StatRow label="Release Date" value={formatDate(tmdb.releaseDate)} />
-              <StatRow label="Runtime" value={formatRuntime(tmdb.runtime)} />
-              <StatRow label="Status" value={tmdb.status} />
-              <StatRow label="Language" value={tmdb.originalLanguage?.toUpperCase()} />
               <StatRow label="Budget" value={formatCurrency(tmdb.budget)} />
               <StatRow label="Revenue" value={formatCurrency(tmdb.revenue)} />
               {tmdb.imdbId && <StatRow label="IMDb" value={tmdb.imdbId} link={`https://www.imdb.com/title/${tmdb.imdbId}`} />}
@@ -274,23 +381,20 @@ export default function OverviewSection({ record }) {
             </>
           ) : (
             <>
-              <StatRow label="First Air Date" value={formatDate(tmdb.firstAirDate)} />
               <StatRow label="Last Air Date" value={formatDate(tmdb.lastAirDate)} />
               <StatRow label="In Production" value={tmdb.inProduction != null ? (tmdb.inProduction ? 'Yes' : 'No') : null} />
-              <StatRow label="Seasons" value={tmdb.numberOfSeasons} />
-              <StatRow label="Episodes" value={tmdb.numberOfEpisodes} />
               <StatRow label="Episode Runtime" value={tmdb.episodeRunTimes?.length > 0 ? tmdb.episodeRunTimes.map(formatRuntime).join(', ') : null} />
-              <StatRow label="Status" value={tmdb.status} />
               <StatRow label="Type" value={tmdb.type} />
-              <StatRow label="Language" value={tmdb.originalLanguage?.toUpperCase()} />
+              <StatRow label="Original Language" value={tmdb.originalLanguage?.toUpperCase()} />
               {tmdb.homepage && <StatRow label="Homepage" value="Visit website" link={tmdb.homepage} />}
             </>
           )}
 
         </SectionCard>
 
+        {hasProductionInfo && (
         <SectionCard>
-          <SectionHeading>Production</SectionHeading>
+          <SectionHeading icon={BusinessRounded}>Production</SectionHeading>
 
           {(() => {
             const companies = (tmdb.productionCompanies ?? []).filter((c) => c?.name);
@@ -390,10 +494,11 @@ export default function OverviewSection({ record }) {
           )}
 
         </SectionCard>
+        )}
 
         {selectedRegion && (
           <SectionCard>
-            <SectionHeading action={selectedRegion || null}>
+            <SectionHeading icon={PublicRounded} action={selectedRegion || null}>
               Where to Watch
             </SectionHeading>
 

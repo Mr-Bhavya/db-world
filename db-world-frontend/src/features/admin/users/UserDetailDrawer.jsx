@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Drawer, Box, Typography, Chip, IconButton, Skeleton, Avatar, Button, CircularProgress, Tooltip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EmailIcon from '@mui/icons-material/Email';
@@ -41,6 +42,7 @@ import { useT } from '@shared/theme';
 import { ROLE_COLORS } from './constants';
 import { canonicalGender } from './formFields';
 import { format, formatDistanceToNow } from 'date-fns';
+import { AdminConfirmDialog } from '@features/admin/adminUi';
 
 function parseAgent(ua) {
   if (!ua) return { browser: 'Unknown', device: 'Unknown' };
@@ -83,6 +85,7 @@ export default function UserDetailDrawer() {
   const qc = useQueryClient();
   const { drawerUserId, closeDrawer, openModal } = useUserStore();
   const open = Boolean(drawerUserId);
+  const [confirmation, setConfirmation] = useState(null);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', drawerUserId],
@@ -162,11 +165,24 @@ export default function UserDetailDrawer() {
     : { label: 'Active', color: '#10b981' };
 
   const handleRevoke = () => {
-    if (window.confirm('Revoke all sessions? The user will be logged out on every device.')) revoke();
+    setConfirmation({
+      title: 'Revoke all sessions?',
+      message: 'The user will be signed out on every device and will need to sign in again.',
+      confirmLabel: 'Revoke sessions',
+      run: revoke,
+    });
   };
 
   const handleToggleStatus = () => {
-    if (isEnabled && !window.confirm('Disable this user? They will be logged out and cannot sign in.')) return;
+    if (isEnabled) {
+      setConfirmation({
+        title: 'Disable user?',
+        message: 'They will be signed out and cannot sign in until the account is enabled again.',
+        confirmLabel: 'Disable user',
+        run: () => toggleStatus(false),
+      });
+      return;
+    }
     toggleStatus(!isEnabled);
   };
 
@@ -174,20 +190,34 @@ export default function UserDetailDrawer() {
   const pendingDeletion = Boolean(user?.deletedAt);
 
   const handleToggleLock = () => {
-    if (!isLocked && !window.confirm('Lock this account? Every session ends immediately.')) return;
+    if (!isLocked) {
+      setConfirmation({
+        title: 'Lock account?',
+        message: 'Every active session ends immediately and the account cannot be used until it is unlocked.',
+        confirmLabel: 'Lock account',
+        run: () => toggleLock(true),
+      });
+      return;
+    }
     toggleLock(!isLocked);
   };
 
   const handleUnlinkGoogle = () => {
-    if (window.confirm('Unlink Google from this account? Their Google sessions will end.')) doUnlinkGoogle();
+    setConfirmation({
+      title: 'Unlink Google?',
+      message: 'Google sign-in will be removed and the active Google sessions will end.',
+      confirmLabel: 'Unlink Google',
+      run: doUnlinkGoogle,
+    });
   };
 
   const handlePurge = () => {
-    // Two prompts on purpose. This is the only irreversible action in the drawer, and it wipes
-    // a document wallet and a password vault with no grace window to undo it.
-    if (!window.confirm('PERMANENTLY erase this account and all its data? This cannot be undone.')) return;
-    if (!window.confirm(`Really purge ${user?.email}? There is no recovery.`)) return;
-    doPurge();
+    setConfirmation({
+      title: 'Permanently erase this account?',
+      message: `${user?.email ?? 'This user'} and all associated wallet, password, and account data will be permanently erased. There is no recovery.`,
+      confirmLabel: 'Permanently erase',
+      run: doPurge,
+    });
   };
 
   return (
@@ -449,6 +479,18 @@ export default function UserDetailDrawer() {
           </>
         )}
       </Box>
+      <AdminConfirmDialog
+        open={Boolean(confirmation)}
+        title={confirmation?.title}
+        message={confirmation?.message}
+        confirmLabel={confirmation?.confirmLabel}
+        onConfirm={() => {
+          const run = confirmation?.run;
+          setConfirmation(null);
+          run?.();
+        }}
+        onClose={() => setConfirmation(null)}
+      />
     </Drawer>
   );
 }

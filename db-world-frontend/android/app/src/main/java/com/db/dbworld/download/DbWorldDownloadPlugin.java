@@ -766,7 +766,13 @@ public class DbWorldDownloadPlugin extends Plugin {
         // aria2 wrote straight into the public Download/DB-World folder — NO copy. Mark complete now
         // (file:// is playable via all-files-access), then index it into MediaStore and upgrade
         // localUri to the content:// URI so it shows in the Files app / other players.
-        store.patch(gid, map("status", "success", "localUri", "file://" + path, "bytesTotal", total));
+        long completedAt = System.currentTimeMillis();
+        store.patch(gid, map(
+                "status", "success",
+                "localUri", "file://" + path,
+                "bytesTotal", total,
+                "completedAt", completedAt,
+                "durationMs", Math.max(0, completedAt - meta.optLong("addedAt", completedAt))));
         try { daemon.rpc().removeDownloadResult(gid); } catch (Exception ignored) {}
 
         JSONObject fresh = store.get(gid);
@@ -908,6 +914,8 @@ public class DbWorldDownloadPlugin extends Plugin {
         }
         o.put("connections",      connections);
         o.put("addedAt",          meta.optLong("addedAt", 0));
+        o.put("completedAt",      meta.optLong("completedAt", 0));
+        o.put("durationMs",       meta.optLong("durationMs", 0));
         o.put("canPlay",          done && !localUri.isEmpty());
         return o;
     }

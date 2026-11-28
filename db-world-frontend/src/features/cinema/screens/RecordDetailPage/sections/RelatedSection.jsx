@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import StarIcon from '@mui/icons-material/Star';
+import ExploreRounded from '@mui/icons-material/ExploreRounded';
 import { useT } from '@shared/theme/ThemeContext';
 import Constants from '@shared/constants';
 import { fetchSimilarRecords, tmdbImg } from '../../../api/cinemaApi';
@@ -48,6 +49,15 @@ function RelatedCard({ record, isMobile }) {
       whileHover={{ y: -4 }}
       transition={{ duration: 0.15 }}
       onClick={onClick}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      aria-label={`Open ${record.title}`}
       sx={{
         flexShrink: 0,
         // Steps up through the breakpoints so a rail of posters stays legible
@@ -55,6 +65,11 @@ function RelatedCard({ record, isMobile }) {
         width: { xs: 130, sm: 150, md: 170, xl: 200 },
         '@media (min-width:1920px)': { width: 240 },
         cursor: 'pointer',
+        '&:focus-visible': {
+          outline: `3px solid ${T.teal}`,
+          outlineOffset: 3,
+          borderRadius: 2,
+        },
         position: 'relative',
         '&:hover .related-meta': { opacity: 1 },
       }}
@@ -160,7 +175,7 @@ export default function RelatedSection({ recordId, isMobile }) {
       transition={{ duration: 0.4 }}
       sx={{ py: 3 }}
     >
-      <SectionHeading>More Like This</SectionHeading>
+      <SectionHeading icon={ExploreRounded} eyebrow="Continue exploring">More Like This</SectionHeading>
 
       <Box sx={{
         display: 'flex', gap: { xs: 1.25, sm: 1.5 },

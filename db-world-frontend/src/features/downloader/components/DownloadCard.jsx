@@ -29,25 +29,25 @@ function Stat({ label, value, inset, T }) {
   );
 }
 
-function TransferPanel({ progress, title, tone, inset, T }) {
+function TransferPanel({ progress, title, tone, inset, T, compact = false }) {
   const stats = transferStats(progress);
   const hasNumbers = stats.downloaded > 0 || stats.total != null || stats.speed != null;
   const determinate = !progress.indeterminate && stats.percent != null;
   return (
-    <Box sx={{ mt: 1.5 }}>
-      <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={1} sx={{ mb: 0.75 }}>
+    <Box sx={{ mt: compact ? 0.75 : 1.5 }}>
+      <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={1} sx={{ mb: compact ? 0.45 : 0.75 }}>
         <Box sx={{ minWidth: 0 }} aria-live="polite">
           {determinate ? (
-            <Typography component="span" sx={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: tone, fontVariantNumeric: 'tabular-nums' }}>{stats.percent}%</Typography>
+            <Typography component="span" sx={{ fontSize: compact ? 17 : 26, fontWeight: 800, lineHeight: 1, color: tone, fontVariantNumeric: 'tabular-nums' }}>{stats.percent}%</Typography>
           ) : (
             <Typography component="span" sx={{ fontSize: 14, fontWeight: 700, color: tone }}>{progress.message || 'Preparing…'}</Typography>
           )}
           {determinate && stats.remaining != null && (
-            <Typography component="span" sx={{ ml: 1, fontSize: 13, color: T.textMuted, fontVariantNumeric: 'tabular-nums' }}>{formatBytes(stats.remaining) === '--' ? 'Finishing…' : `${formatBytes(stats.remaining)} left`}</Typography>
+            <Typography component="span" sx={{ ml: 1, fontSize: compact ? 11 : 13, color: T.textMuted, fontVariantNumeric: 'tabular-nums' }}>{formatBytes(stats.remaining) === '--' ? 'Finishing…' : `${formatBytes(stats.remaining)} left`}</Typography>
           )}
         </Box>
         {determinate && stats.eta != null && (
-          <Typography sx={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{formatEta(stats.eta)} left</Typography>
+          <Typography sx={{ flexShrink: 0, fontSize: compact ? 11 : 13, fontWeight: 700, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{formatEta(stats.eta)} left</Typography>
         )}
       </Stack>
       <LinearProgress
@@ -55,10 +55,16 @@ function TransferPanel({ progress, title, tone, inset, T }) {
         value={stats.percent ?? 0}
         aria-label={`${title || 'Download'} progress`}
         aria-valuetext={determinate ? `${stats.percent}%` : progress.message || 'In progress'}
-        sx={{ height: 8, borderRadius: 5, bgcolor: inset, '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: tone } }}
+        sx={{ height: compact ? 5 : 8, borderRadius: 5, bgcolor: inset, '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: tone } }}
       />
-      {determinate && !!progress.message && <Typography sx={{ mt: 0.75, fontSize: 12, color: T.textMuted }}>{progress.message}</Typography>}
-      {hasNumbers && (
+      {compact && hasNumbers && determinate && (
+        <Typography sx={{ mt: 0.4, color: T.textFaint, fontSize: 10.5, fontVariantNumeric: 'tabular-nums' }}>
+          {stats.downloaded != null ? `${formatBytes(stats.downloaded)} / ${stats.total ? formatBytes(stats.total) : 'Unknown'}` : ''}
+          {stats.speed != null ? ` · ${formatBytes(stats.speed)}/s` : progress.paused ? ' · Paused' : ''}
+        </Typography>
+      )}
+      {!compact && determinate && !!progress.message && <Typography sx={{ mt: 0.75, fontSize: 12, color: T.textMuted }}>{progress.message}</Typography>}
+      {hasNumbers && !compact && (
         <Box component="dl" sx={{ m: 0, mt: 1.25, display: 'grid', gap: 0.75, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${determinate ? 4 : 2}, minmax(0, 1fr))` } }}>
           <Stat T={T} inset={inset} label="Downloaded" value={stats.downloaded != null ? formatBytes(stats.downloaded) : '--'} />
           <Stat T={T} inset={inset} label="Total size" value={stats.total != null ? formatBytes(stats.total) : 'Calculating…'} />
@@ -119,14 +125,26 @@ export default function DownloadCard({
           />
         </Box>
       </Stack>
-      {progress && <TransferPanel progress={progress} title={title} tone={toneColor} inset={look.inset} T={T} />}
+      {progress && <TransferPanel progress={progress} title={title} tone={toneColor} inset={look.inset} T={T} compact={compact} />}
       {detail}
       {error && <Alert severity="error" sx={{ mt: 1.25, overflowWrap: 'anywhere' }}>{error}</Alert>}
       {children}
-      {!!actions && (
+      {actions && (
         <Stack
-          direction="row" gap={0.75} flexWrap="wrap" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
-          sx={{ mt: compact ? 0.85 : 1.25, '& .MuiButton-root, & .MuiIconButton-root': { minHeight: compact ? 38 : 44 }, '& .MuiIconButton-root': { minWidth: compact ? 38 : 44 }, '& .MuiButton-root:focus-visible, & .MuiIconButton-root:focus-visible': { outline: `3px solid ${T.teal}`, outlineOffset: 2 } }}
+          direction="row"
+          gap={0.25}
+          flexWrap="nowrap"
+          justifyContent="flex-end"
+          sx={{
+            mt: compact ? 0.65 : 1.25,
+            width: '100%',
+            minWidth: 0,
+            '& .MuiButton-root, & .MuiIconButton-root': { minHeight: 44 },
+            '& .MuiIconButton-root': { minWidth: 44 },
+            '& .MuiButton-root:focus-visible, & .MuiIconButton-root:focus-visible': {
+              outline: `3px solid ${T.teal}`, outlineOffset: 2,
+            },
+          }}
         >
           {actions}
         </Stack>

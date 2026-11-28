@@ -18,6 +18,8 @@ export function normalizeDownload(item = {}) {
     canPlay:          Boolean(item.canPlay),
     speedBytesPerSec: item.speedBytesPerSec || 0,
     etaSeconds:       item.etaSeconds ?? -1,
+    startedAt:        item.startedAt || 0,
+    completedAt:      item.completedAt || 0,
   };
 }
 

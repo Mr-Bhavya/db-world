@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pellwood: Rook Bookcase</title>
+<meta name="description" content="Store example: a product page for a fictional solid-wood bookcase, with a view switcher, finish and size pickers, stock states, quantity and a cart drawer." />
+<link rel="stylesheet" href="theme.css" />
+<link rel="stylesheet" href="store.css" />
+<style>
+  .crumbs ol { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding-block: var(--space-3); font-size: var(--text-sm); }
+  .crumbs li { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-secondary); }
+  .crumbs li + li::before { content: "/"; color: var(--color-text-secondary); }
+  .crumbs a { display: inline-flex; align-items: center; min-block-size: var(--size-control-sm); color: var(--color-text-primary); text-decoration: none; border-radius: var(--radius-chip); }
+  .crumbs a:hover { text-decoration: underline; }
+  .crumbs a:active { color: var(--color-text-secondary); }
+  .crumbs a:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
+
+  .pdp { display: grid; gap: var(--space-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
+
+  /* Gallery */
+  .gallery { display: grid; gap: var(--space-3); min-inline-size: 0; }
+  .stage {
+    position: relative; inline-size: 100%; aspect-ratio: 4 / 3; max-block-size: var(--size-media-max);
+    border-radius: var(--radius-tile); overflow: hidden;
+  }
+  .stage .render { position: absolute; inset: 0; animation: fade var(--duration-base) var(--ease-out) both; }
+  .stage:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .stage-cap { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-text-secondary); }
+  .thumbs { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: var(--space-2); }
+  .thumb {
+    display: grid; gap: var(--space-1); padding: 0 0 var(--space-1); border: 0; background: transparent; cursor: pointer;
+    border-radius: var(--radius-button); text-align: start; min-inline-size: 0;
+  }
+  .thumb .tile {
+    aspect-ratio: 4 / 3; border-radius: var(--radius-button); overflow: hidden;
+    box-shadow: inset 0 0 0 var(--border-width-thin) var(--color-border-default);
+    transition: box-shadow var(--transition-micro), background-color var(--transition-micro);
+  }
+  .thumb .tl { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-secondary); overflow-wrap: anywhere; line-height: var(--leading-snug); }
+  .thumb:hover .tile { background: var(--color-surface-product-hover); }
+  .thumb:active .tile { background: var(--color-surface-product-hover); box-shadow: inset 0 0 0 var(--border-width-medium) var(--color-border-strong); }
+  .thumb:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
+  .thumb[aria-selected="true"] .tile { box-shadow: inset 0 0 0 var(--border-width-medium) var(--color-text-primary); }
+  .thumb[aria-selected="true"] .tl { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+
+  /* Buy box */
+  .buy { display: grid; gap: var(--space-6); min-inline-size: 0; }
+  .buy h1 { margin-block-start: var(--space-2); font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); font-weight: var(--weight-regular); }
+  .price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-4); }
+  .price-big { font-size: var(--text-2xl); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-tight); }
+  .price-note { font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .blurb { color: var(--color-text-secondary); max-inline-size: 52ch; }
+
+  .opt-group { display: grid; gap: var(--space-3); }
+  .opt-group legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: baseline; margin-block-end: var(--space-3); }
+  .opt-group legend .k { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-text-secondary); }
+  .opt-group legend .v { font-size: var(--text-sm); }
+
+  .swatches { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .swatch { position: relative; display: grid; place-items: center; inline-size: var(--size-swatch); block-size: var(--size-swatch); }
+  .swatch input {
+    position: absolute; inset: 0; margin: 0; appearance: none; -webkit-appearance: none; cursor: pointer;
+    border-radius: var(--radius-button); z-index: 1;
+  }
+  .swatch .face {
+    inline-size: 100%; block-size: 100%; border-radius: var(--radius-button);
+    box-shadow: inset 0 0 0 var(--border-width-thin) var(--color-border-strong);
+    transition: box-shadow var(--transition-micro), transform var(--transition-micro);
+  }
+  .swatch .mark {
+    position: absolute; display: none; place-items: center; inline-size: var(--size-badge); block-size: var(--size-badge);
+    border-radius: var(--radius-round); background: var(--color-surface-card); color: var(--color-text-primary);
+    box-shadow: 0 0 0 var(--border-width-thin) var(--color-border-strong);
+  }
+  .swatch .mark .ico { inline-size: var(--space-3); block-size: var(--space-3); }
+  .swatch input:checked ~ .mark { display: grid; }
+  .swatch input:checked ~ .face { box-shadow: 0 0 0 var(--border-width-medium) var(--color-surface-page), 0 0 0 calc(var(--border-width-medium) * 2) var(--color-text-primary); }
+  .swatch input:hover ~ .face { transform: scale(0.94); }
+  .swatch input:active ~ .face { transform: scale(0.9); }
+  .swatch input:focus-visible { box-shadow: var(--shadow-focus-ring); }
+  .swatch input:focus-visible ~ .face { box-shadow: none; }
+  .swatch.out .face::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-button);
+    background: linear-gradient(135deg, transparent calc(50% - 1px), var(--color-surface-card) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)); }
+  .swatch .face { position: relative; }
+
+  /* One row of sizes at every width, so three sizes never wrap to two and one */
+  .sizes { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: var(--space-2); }
+  .size-opt {
+    position: relative; display: grid; gap: var(--space-0-5); align-content: start; padding: var(--space-3);
+    border: var(--border-width-thin) solid var(--color-border-strong); border-radius: var(--radius-button);
+    background: var(--color-surface-card); min-inline-size: 0;
+    transition: background-color var(--transition-micro), border-color var(--transition-micro), box-shadow var(--transition-micro);
+  }
+  .size-opt input { position: absolute; inset: 0; margin: 0; appearance: none; -webkit-appearance: none; border-radius: var(--radius-button); cursor: pointer; }
+  .size-opt .nm { font-weight: var(--weight-medium); }
+  .size-opt .dm { font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .size-opt .pr { font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .size-opt .so { font-size: var(--text-xs); color: var(--color-text-secondary); }
+  .size-opt.out { border-style: dashed; background: transparent; }
+  .size-opt.out .nm, .size-opt.out .pr { color: var(--color-text-secondary); }
+  .size-opt .rd { font-size: var(--text-xs); color: var(--color-feedback-success-icon); }
+  .size-opt:hover { background: var(--color-interactive-hover-bg); border-color: var(--color-text-primary); }
+  .size-opt:active { background: var(--color-surface-chip); }
+  .size-opt:has(input:checked) { border-color: var(--color-text-primary); box-shadow: inset 0 0 0 var(--border-width-thin) var(--color-text-primary); }
+  .size-opt input:focus-visible { box-shadow: var(--shadow-focus-ring); }
+
+  .buy-row { display: grid; gap: var(--space-2) var(--space-3); grid-template-columns: minmax(0, 1fr); grid-template-areas: "label" "qty" "err" "add"; align-items: start; }
+  .qty-label { grid-area: label; }
+  .buy-row .stepper { grid-area: qty; justify-self: start; }
+  .field-err { grid-area: err; display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--text-sm); color: var(--color-feedback-error-icon); }
+  .field-err[hidden] { display: none; }
+  .field-err .ico { margin-block-start: var(--space-0-5); }
+  .add-btn { grid-area: add; block-size: var(--size-control-lg); inline-size: 100%; margin-block-start: var(--space-2); }
+  .add-btn .sum-v { font-weight: var(--weight-regular); }
+  .add-btn .ico-idle { display: block; }
+  .add-btn:disabled .ico-idle { display: none; }
+  .avail-block { display: grid; gap: var(--space-3); }
+  .avail-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .notify-note { font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .notify-note:empty { display: none; }
+  #notify-btn[aria-pressed="true"] { border-color: var(--color-text-primary); background: var(--color-surface-chip); }
+  .add-btn[aria-busy="true"] .ico-idle { display: none; }
+  @media (min-width: 30rem) {
+    .buy-row { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "label label" "qty add" "err err"; }
+    .add-btn { margin-block-start: 0; }
+  }
+
+  .assure { list-style: none; display: grid; gap: var(--space-3); padding-block-start: var(--space-5); border-block-start: var(--border-width-thin) solid var(--color-border-default); }
+  .assure li { display: grid; grid-template-columns: var(--size-icon-md) minmax(0, 1fr); gap: var(--space-3); font-size: var(--text-sm); }
+  .assure strong { font-weight: var(--weight-medium); }
+  .assure span { color: var(--color-text-secondary); }
+
+  @media (min-width: 56rem) {
+    .pdp { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-12); }
+    .gallery { position: sticky; inset-block-start: calc(var(--size-control-lg) + var(--space-8)); }
+  }
+  @media (min-width: 80rem) { .pdp { gap: var(--space-16); } }
+
+  /* Specs: an index, label left and value right. Wide, both lower sections use the
+     product area's 7/5 split and gap, so the lists start on the buy column's line. */
+  .specs { margin-block-start: var(--section-gap); display: grid; gap: var(--space-8); grid-template-columns: minmax(0, 1fr); }
+  .specs h2, .later h2 { margin-block-start: var(--space-2); font-size: var(--text-3xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); font-weight: var(--weight-regular); max-inline-size: 18ch; }
+  .spec-list div { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding-block: var(--space-4); border-block-start: var(--border-width-thin) solid var(--color-border-default); }
+  .spec-list div:last-child { border-block-end: var(--border-width-thin) solid var(--color-border-default); }
+  .spec-list dt { font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-text-secondary); padding-block-start: var(--space-0-5); }
+  @media (min-width: 40rem) { .spec-list div { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr); gap: var(--space-6); } }
+  @media (min-width: 56rem) { .specs { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-12); } .specs h2, .later h2 { font-size: var(--text-5xl); } }
+
+  /* Later: a wide tile with the piece at each size, or flat-packed */
+  .later { margin-block-start: var(--section-gap); display: grid; gap: var(--space-8); grid-template-columns: minmax(0, 1fr); grid-template-areas: "copy" "art"; }
+  .later-copy { grid-area: copy; }
+  .later-art { grid-area: art; }
+  .later-copy p { margin-block-start: var(--space-4); color: var(--color-text-secondary); max-inline-size: 46ch; }
+  .later-art { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 5rem), 1fr)); gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-tile); }
+  .later-art figure { display: grid; gap: var(--space-2); min-inline-size: 0; }
+  .later-art .render { aspect-ratio: 4 / 3; block-size: auto; }
+  .later-art figcaption { display: grid; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-mono); }
+  .later-art figcaption span + span { color: var(--color-text-on-product-secondary); }
+  .later-art.single { grid-template-columns: minmax(0, 1fr); }
+  .later-art.single .render { max-block-size: var(--size-hero-media-max); }
+  @media (min-width: 56rem) { .later { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "art copy"; gap: var(--space-12); align-items: center; } }
+  @media (min-width: 80rem) { .specs, .later { gap: var(--space-16); } }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#buy">Skip to size and finish</a>
+<div class="site">
+  <p class="announce">Fictional shop, a design example built with ux-ui-agent-skills. <a href="#about">About this example</a></p>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="logo" href="index.html" aria-label="Pellwood, home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="3" height="20" fill="currentColor"/><rect x="18" y="2" width="3" height="20" fill="currentColor"/><rect x="2" y="7" width="20" height="2.5" fill="currentColor"/><rect x="2" y="15" width="20" height="2.5" fill="currentColor"/><circle class="dot" cx="4.5" cy="8.25" r="1.2"/></svg>
+        <span>Pellwood</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="index.html">Shop all</a></li>
+          <li><a href="product.html" id="nav-rook">Rook Bookcase</a></li>
+          <li><a href="index.html#how">How it is made</a></li>
+          <li><a href="index.html#care">Care</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-pressed="false" aria-label="Dark theme">
+          <svg class="ico ico-md i-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+          <svg class="ico ico-md i-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+        </button>
+        <button class="cart-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cart-drawer" aria-label="Cart, 0 items">
+          <svg class="ico ico-md" aria-hidden="true"><use href="#i-bag"/></svg>
+          <span class="cart-label">Cart</span>
+          <span class="cart-count">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="index.html">Shop all</a></li>
+        <li><a href="index.html?cat=Shelving#grid" id="crumb-cat">Shelving</a></li>
+        <li aria-current="page" id="crumb-name">Rook Bookcase</li>
+      </ol>
+    </nav>
+
+    <div class="pdp">
+      <section class="gallery" aria-label="Product views">
+        <div class="stage product-surface" id="stage" role="tabpanel" aria-labelledby="tab-front" tabindex="0"></div>
+        <p class="stage-cap" id="stage-cap"></p>
+        <div class="thumbs" role="tablist" aria-label="Choose a view" id="thumbs"></div>
+      </section>
+
+      <div class="buy" id="buy">
+        <div>
+          <p class="eyebrow" id="p-cat">Shelving</p>
+          <h1 id="p-name">Rook Bookcase</h1>
+          <div class="price-row"><span class="price-big" id="p-price"></span><span class="price-note" id="p-price-note"></span></div>
+        </div>
+        <p class="blurb" id="p-blurb"></p>
+
+        <fieldset class="opt-group">
+          <legend><span class="k">Finish</span><span class="v" id="finish-val"></span></legend>
+          <div class="swatches" id="swatches"></div>
+        </fieldset>
+
+        <fieldset class="opt-group" id="size-group">
+          <legend><span class="k">Size</span><span class="v" id="size-val"></span></legend>
+          <div class="sizes" id="sizes"></div>
+        </fieldset>
+
+        <div class="avail-block">
+          <p class="status ok" id="avail" role="status"></p>
+          <div class="avail-actions" id="avail-actions" hidden>
+            <button class="btn btn-secondary" type="button" id="alt-btn"></button>
+            <button class="btn btn-secondary" type="button" id="notify-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg><span class="label">Tell me when it is back</span></button>
+          </div>
+          <p class="notify-note" id="notify-note" role="status"></p>
+        </div>
+
+        <div class="buy-row">
+          <label class="lb-label qty-label" for="qty">Quantity</label>
+          <div class="stepper" role="group" aria-label="Quantity">
+            <button class="icon-btn" type="button" id="qty-dec" aria-label="One fewer"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
+            <input id="qty" type="text" inputmode="numeric" autocomplete="off" value="1" aria-describedby="qty-err" />
+            <button class="icon-btn" type="button" id="qty-inc" aria-label="One more"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+          </div>
+          <p class="field-err" id="qty-err" hidden><svg class="ico" aria-hidden="true"><use href="#i-alert-circle"/></svg><span></span></p>
+          <button class="btn btn-primary btn-lg add-btn" type="button" id="add-btn">
+            <svg class="ico spinner" aria-hidden="true"><use href="#i-loader"/></svg>
+            <svg class="ico ico-idle" aria-hidden="true"><use href="#i-bag"/></svg>
+            <span class="label">Add to cart</span><span class="sum-v" id="add-sum"></span>
+          </button>
+        </div>
+
+        <ul class="assure">
+          <li><svg class="ico ico-md" aria-hidden="true"><use href="#i-truck"/></svg><p><strong>Delivery.</strong> <span>Made to order in 6 to 8 weeks, Ready pieces this week. Free over &#3647;20,000, &#3647;900 below that.</span></p></li>
+          <li><svg class="ico ico-md" aria-hidden="true"><use href="#i-rotate-ccw"/></svg><p><strong>Returns.</strong> <span>Within 30 days of delivery.</span></p></li>
+          <li><svg class="ico ico-md" aria-hidden="true"><use href="#i-wrench"/></svg><p><strong>Care.</strong> <span>Wipe with a damp cloth. Re-oil when water stops beading.</span></p></li>
+        </ul>
+      </div>
+    </div>
+
+    <section class="specs" aria-labelledby="spec-title">
+      <div>
+        <h2 id="spec-title">How it is built, and what it weighs.</h2>
+      </div>
+      <dl class="spec-list" id="spec-list"></dl>
+    </section>
+
+    <section class="later" aria-labelledby="later-title">
+      <div class="later-copy">
+        <p class="eyebrow" id="later-eyebrow"></p>
+        <h2 id="later-title"></h2>
+        <p id="later-copy"></p>
+      </div>
+      <div class="later-art product-surface" id="later-art"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <p class="big">Pellwood</p>
+          <p>Solid-wood furniture made to order in one small workshop, and repaired there too.</p>
+        </div>
+        <div class="footer-cols">
+          <div>
+            <h2 class="eyebrow">Shop</h2>
+            <ul>
+              <li><a href="index.html?cat=Shelving#grid">Shelving</a></li>
+              <li><a href="index.html?cat=Seating#grid">Seating</a></li>
+              <li><a href="index.html?cat=Tables#grid">Tables</a></li>
+              <li><a href="index.html?cat=Lighting#grid">Lighting</a></li>
+              <li><a href="index.html?cat=Beds#grid">Beds</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="eyebrow">Help</h2>
+            <ul>
+              <li><a href="index.html#how">How it is made</a></li>
+              <li><a href="index.html#care">Care, delivery and returns</a></li>
+              <li><a href="#spec-title">Sizes and joinery</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="eyebrow">Visit</h2>
+            <address>Pellwood Yard, Sawdust Row<br />(a fictional address)<br />Thu to Sun, 11:00 to 19:00</address>
+          </div>
+        </div>
+      </div>
+      <p class="about" id="about"><strong>About this example.</strong> Design example built with <span class="nowrap">ux-ui-agent-skills</span>. The shop, products and prices are fictional. Visual language adapted from the floyd spec in the kit's library. Contrast, keyboard use and layout were tested with the kit's automated checks.</p>
+      <div class="credit">
+        <span>Store example. Companies and figures are fictional.</span>
+        <span>Built with <a href="https://github.com/plugin87/ux-ui-agent-skills">ux-ui-agent-skills</a> by Thientan Soparat. <a href="../../index.html">All examples</a></span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script src="../../component-states/icons.js"></script>
+<script src="store.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.Pellwood;
+  let pid = 'rook-bookcase';
+  try { pid = new URLSearchParams(location.search).get('p') || pid; } catch (e) { /* file URL without a query */ }
+  const p = P.byId(pid) || P.byId('rook-bookcase');
+  if (p.id === 'rook-bookcase') document.getElementById('nav-rook').setAttribute('aria-current', 'page');
+
+  /* Default: the variant the collection card showed, so the two pages agree. */
+  const v0 = P.showVariant(p);
+  const st = { finish: v0.finish, size: v0.size, view: 'front', qty: 1, notify: {} };
+  const $ = id => document.getElementById(id);
+  const sizeOf = () => p.sizes.find(s => s.id === st.size);
+  const paused = (f = st.finish, s = st.size) => P.pausedOf(p, f, s);
+  const ready = (f = st.finish, s = st.size) => P.readyOf(p, f, s);
+  const fin = f => P.FINISHES[f].name;
+  const key = () => `${st.finish}:${st.size}`;
+
+  document.title = `Pellwood: ${p.name}`;
+  $('crumb-cat').textContent = p.cat;
+  $('crumb-cat').href = `index.html?cat=${p.cat}#grid`;
+  $('crumb-name').textContent = p.name;
+  $('p-cat').textContent = p.cat;
+  $('p-name').textContent = p.name;
+  $('p-blurb').textContent = p.blurb;
+
+  /* Finish swatches: native radios, so arrows move between them for free */
+  $('swatches').innerHTML = p.finishes.map(f => `
+    <label class="swatch" data-finish="${f}">
+      <input type="radio" name="finish" value="${f}" aria-label="${fin(f)}" ${f === st.finish ? 'checked' : ''} />
+      <span class="face chip-sw" data-kind="${P.FINISHES[f].kind}" aria-hidden="true"></span>
+      <span class="mark" aria-hidden="true">${P.icon('check')}</span>
+    </label>`).join('');
+  if (p.sizes.length < 2) $('size-group').hidden = true;
+  $('sizes').style.setProperty('--n', p.sizes.length);
+
+  /* View tabs from the product's own views: no taken-apart view for a piece that arrives built */
+  const VIEWS = P.viewsOf(p);
+  $('thumbs').style.setProperty('--n', VIEWS.length);
+  $('thumbs').innerHTML = VIEWS.map(([id, label], i) =>
+    `<button class="thumb" role="tab" type="button" id="tab-${id}" data-view="${id}" aria-selected="${i === 0}" aria-controls="stage" tabindex="${i === 0 ? 0 : -1}"><span class="tile product-surface"></span><span class="tl">${label}</span></button>`).join('');
+  const viewName = id => (VIEWS.find(x => x[0] === id) || ['', ''])[1].toLowerCase();
+  const label = (view) => `${p.name}${p.sizes.length > 1 ? ', ' + sizeOf().label : ''}, ${fin(st.finish)}, ${view === 'detail' ? p.detail.toLowerCase() : viewName(view)}`;
+
+  const renderSizes = () => {
+    $('sizes').innerHTML = p.sizes.map(s => {
+      const pz = paused(st.finish, s.id), r = ready(st.finish, s.id);
+      const note = pz ? `<span class="so" id="sz-${s.id}">Paused in this finish</span>` : r ? `<span class="rd" id="sz-${s.id}">Ready</span>` : `<span class="sr-only" id="sz-${s.id}">Made to order</span>`;
+      return `<label class="size-opt${pz ? ' out' : ''}">
+        <input type="radio" name="size" value="${s.id}" ${s.id === st.size ? 'checked' : ''} aria-describedby="sz-${s.id}" />
+        <span class="nm">${s.label}</span><span class="dm">${s.short}</span><span class="pr">${P.money(s.price)}</span>${note}
+      </label>`;
+    }).join('');
+  };
+
+  /* Only redraw when what is drawn changes. Redrawing on every update replaced the
+     thumbnail under the pointer when a typed quantity was committed on blur, and the
+     click that caused the blur was lost. */
+  let drawn = '';
+  const renderStage = () => {
+    const k = `${st.finish}|${st.size}|${st.view}`;
+    if (k === drawn) return;
+    drawn = k;
+    $('stage').innerHTML = P.renderSVG(p, { finish: st.finish, size: st.size, view: st.view, label: label(st.view) });
+    $('stage').setAttribute('aria-labelledby', `tab-${st.view}`);
+    const sz = sizeOf();
+    $('stage-cap').textContent = `${p.name}${p.sizes.length > 1 ? ', ' + sz.label : ''}, ${fin(st.finish)}. ${sz.dim}`;
+    document.querySelectorAll('.thumb').forEach(t => {
+      t.querySelector('.tile').innerHTML = P.renderSVG(p, { finish: st.finish, size: st.size, view: t.dataset.view });
+    });
+  };
+
+  const qtyErr = (msg) => {
+    const e = $('qty-err'), input = $('qty');
+    if (msg) { e.hidden = false; e.querySelector('span').textContent = msg; input.setAttribute('aria-invalid', 'true'); }
+    else { e.hidden = true; input.removeAttribute('aria-invalid'); }
+  };
+
+  const update = () => {
+    const sz = sizeOf(), pz = paused(), r = ready();
+    $('finish-val').textContent = fin(st.finish);
+    $('size-val').textContent = `${sz.label}, ${sz.short}`;
+    $('p-price').textContent = P.money(sz.price);
+    $('p-price-note').textContent = sz.price >= 20000 ? 'Free delivery on this one' : `Free delivery from ${P.money(20000)}`;
+    document.querySelectorAll('.swatch').forEach(w => {
+      const out = !!paused(w.dataset.finish, st.size);
+      w.classList.toggle('out', out);
+      w.querySelector('input').setAttribute('aria-label', `${fin(w.dataset.finish)}${out ? ', paused in this size' : ''}`);
+    });
+    renderSizes();
+    const avail = $('avail'), add = $('add-btn'), acts = $('avail-actions');
+    if (pz) {
+      /* The nearest thing we can make now, offered as one button: the closest size in
+         this finish first, then another finish in this size. */
+      const here = p.sizes.findIndex(s => s.id === st.size);
+      const altS = p.sizes.map((s, i) => ({ s, d: Math.abs(i - here) }))
+        .filter(x => x.d > 0 && !paused(st.finish, x.s.id)).sort((a, b) => a.d - b.d).map(x => x.s)[0];
+      const altF = p.finishes.find(f => !paused(f, st.size));
+      const alt = altS ? { size: altS.id, text: `Switch to ${altS.label}` } : altF ? { finish: altF, text: `Switch to ${fin(altF).toLowerCase()}` } : null;
+      avail.className = 'status out';
+      avail.innerHTML = `${P.icon('clock')}<span>Paused until ${pz}. ${p.pausedWhy || ''}</span>`;
+      acts.hidden = false;
+      $('alt-btn').hidden = !alt;
+      if (alt) { $('alt-btn').textContent = alt.text; $('alt-btn').dataset.size = alt.size || ''; $('alt-btn').dataset.finish = alt.finish || ''; }
+      const on = !!st.notify[key()];
+      $('notify-btn').setAttribute('aria-pressed', String(on));
+      $('notify-btn').querySelector('.label').textContent = on ? 'We will tell you' : 'Tell me when it is back';
+      $('notify-note').textContent = on ? 'Noted on this device only. This is an example shop, so no email will ever arrive.' : '';
+      add.disabled = true; add.querySelector('.label').textContent = 'Paused'; $('add-sum').textContent = '';
+      ['qty', 'qty-dec', 'qty-inc'].forEach(id => { $(id).disabled = true; });
+      qtyErr('');
+    } else {
+      acts.hidden = true; $('notify-note').textContent = '';
+      ['qty', 'qty-dec', 'qty-inc'].forEach(id => { $(id).disabled = false; });
+      avail.className = 'status ok';
+      const msg = r >= st.qty ? `Ready in the workshop${r > 1 ? `, ${r} made` : ''}. Ships this week.`
+        : r > 0 ? `${r} ready and ships this week. The other ${st.qty - r} ${st.qty - r === 1 ? 'is' : 'are'} made to order in ${P.LEAD}.`
+        : `Made to order. Ships in ${P.LEAD}.`;
+      avail.innerHTML = `${P.icon(r > 0 ? 'circle-check' : 'clock')}<span>${msg}</span>`;
+      add.disabled = false; add.querySelector('.label').textContent = 'Add to cart';
+      $('add-sum').textContent = `· ${P.money(sz.price * st.qty)}`;
+      $('qty-dec').disabled = st.qty <= 1; $('qty-inc').disabled = st.qty >= P.maxQty(p, st.finish, st.size);
+    }
+    renderStage();
+    renderSpecs();
+  };
+
+  const WOOD = {
+    oak: 'Solid oak, finished with oil', walnut: 'Solid walnut, finished with oil', ash: 'Solid ash, finished with oil',
+    ebonised: 'Solid oak blackened with iron acetate, which reacts with the tannin in oak, then oiled'
+  };
+  const renderSpecs = () => {
+    const sz = sizeOf(), f = P.FINISHES[st.finish];
+    const wood = f.kind === 'fabric' ? `${fin(st.finish)} covers that zip off, on an oiled oak frame` : WOOD[st.finish];
+    const care = f.kind === 'fabric'
+      ? 'Check the care label before washing a wool cover; most wool wants a cool, gentle wash or dry cleaning. Wipe the oak frame with a damp cloth.'
+      : 'Wipe with a damp cloth and dry it straight away. Re-oil when water stops beading on the surface.';
+    const rows = [['Dimensions', sz.dim], ['Wood', wood], ['Joinery', p.joinery], ['Weight', p.weight], ['Delivery', p.delivered], ['Care', care]];
+    $('spec-list').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  };
+
+  /* Below the specs: the widths for shelving, the parts for pieces that come apart, the detail for the rest */
+  const later = () => {
+    const art = $('later-art');
+    art.classList.remove('single');
+    if (p.type.startsWith('shelf')) {
+      $('later-eyebrow').textContent = 'Widths';
+      $('later-title').textContent = 'Every width is built the same way.';
+      $('later-copy').textContent = 'Each section is 40 cm. Wider cases use the same posts, tenons and pegs, with one more post per section.';
+      art.innerHTML = p.sizes.map(s => `<figure>${P.renderSVG(p, { finish: st.finish, size: s.id, fit: false })}<figcaption><span>${s.label}</span><span>${P.money(s.price)}</span></figcaption></figure>`).join('');
+    } else if (p.parts) {
+      $('later-eyebrow').textContent = 'Moving it';
+      $('later-title').textContent = 'It comes apart for a narrow stair.';
+      $('later-copy').textContent = `${p.delivered}. ${p.joinery}, so taking it down needs no glue to be broken.`;
+      art.classList.add('single');
+      art.innerHTML = `<figure>${P.renderSVG(p, { finish: st.finish, size: st.size, view: 'parts' })}<figcaption><span>${p.parts.join(', ')}</span></figcaption></figure>`;
+    } else {
+      $('later-eyebrow').textContent = 'Repairs';
+      $('later-title').textContent = 'Bring it back when it needs mending.';
+      $('later-copy').textContent = 'We re-glue, re-oil or re-weave pieces at the workshop, and price the work before we start.';
+      art.classList.add('single');
+      art.innerHTML = `<figure>${P.renderSVG(p, { finish: st.finish, size: st.size, view: 'detail' })}<figcaption><span>${p.detail}</span></figcaption></figure>`;
+    }
+  };
+
+  /* View tabs: roving tabindex, arrows, Home and End */
+  const tabs = [...document.querySelectorAll('.thumb')];
+  const selectTab = (t, focus) => {
+    tabs.forEach(x => { const on = x === t; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; });
+    st.view = t.dataset.view; renderStage();
+    if (focus) t.focus();
+  };
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t, false));
+    t.addEventListener('keydown', e => {
+      let j = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = tabs.length - 1;
+      if (j !== null) { e.preventDefault(); selectTab(tabs[j], true); }
+    });
+  });
+
+  const choose = (finish, size) => {
+    if (finish) { st.finish = finish; const r = document.querySelector(`#swatches input[value="${finish}"]`); if (r) r.checked = true; }
+    if (size) st.size = size;
+    update(); later();
+  };
+  $('swatches').addEventListener('change', e => choose(e.target.value, null));
+  $('sizes').addEventListener('change', e => {
+    choose(null, e.target.value);
+    const r = document.querySelector(`#sizes input[value="${st.size}"]`); if (r) r.focus();
+  });
+  $('alt-btn').addEventListener('click', () => {
+    const b = $('alt-btn'); choose(b.dataset.finish || null, b.dataset.size || null);
+    const r = document.querySelector(b.dataset.size ? `#sizes input[value="${st.size}"]` : `#swatches input[value="${st.finish}"]`); if (r) r.focus();
+  });
+  $('notify-btn').addEventListener('click', () => { st.notify[key()] = !st.notify[key()]; update(); $('notify-btn').focus(); });
+
+  /* Quantity: buttons, typing, and an error that says how to fix it */
+  const max = () => P.maxQty(p, st.finish, st.size);
+  const setQty = (v) => { st.qty = v; $('qty').value = String(v); qtyErr(''); update(); };
+  $('qty-dec').addEventListener('click', () => { setQty(Math.max(1, st.qty - 1)); if ($('qty-dec').disabled) $('qty-inc').focus(); });
+  $('qty-inc').addEventListener('click', () => { setQty(Math.min(max(), st.qty + 1)); if ($('qty-inc').disabled) $('qty-dec').focus(); });
+  const validate = () => {
+    const raw = $('qty').value.trim(), n = max();
+    if (!/^\d+$/.test(raw) || +raw < 1 || +raw > n) {
+      qtyErr(`Enter a whole number from 1 to ${n}. For more than ${n}, write to the workshop and we will plan a batch.`);
+      return false;
+    }
+    st.qty = +raw; qtyErr(''); update(); return true;
+  };
+  $('qty').addEventListener('change', validate);
+  $('qty').addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); setQty(Math.min(max(), st.qty + 1)); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setQty(Math.max(1, st.qty - 1)); }
+    else if (e.key === 'Enter') { e.preventDefault(); validate(); }
+  });
+
+  $('add-btn').addEventListener('click', () => {
+    if (!validate()) { $('qty').focus(); return; }
+    const b = $('add-btn');
+    P.busy(b, 'Adding', () => P.addToCart(p.id, st.finish, st.size, st.qty, b));
+  });
+
+  update(); later();
+})();
+</script>
+</body>
+</html>

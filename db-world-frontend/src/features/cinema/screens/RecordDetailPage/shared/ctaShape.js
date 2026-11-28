@@ -44,8 +44,9 @@ export const ctaShape = ({ isTv = false, compact = false } = {}) => (compact
     // floor is what keeps them looking like one size class.
     flex: { sm: '0 0 auto' },
     minWidth: { xs: 0, sm: 152, xl: 188 },
+    minHeight: { xs: 48, xl: 52 },
     px: { xs: 1.5, sm: 2.5, xl: 3.5 },
-    py: { xs: 1.05, xl: 1.2 },
+    py: { xs: 0.9, xl: 1.1 },
     fontSize: { xs: '0.9rem', sm: '0.88rem', xl: '1.05rem' },
     ...(isTv && { fontSize: '1.2rem', px: 4.5, py: 1.5, minWidth: 240 }),
   });

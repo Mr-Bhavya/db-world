@@ -1,0 +1,1327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>Plinth by Nordun</title>
+<meta name="description" content="Product launch example: Plinth, a fictional desk speaker that tunes itself to the room, with live pricing, an exploded parts drawing and a tuning demo." />
+<script>
+  /* Theme before first paint: a saved choice, else the system setting. */
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('nordun-theme'); } catch (e) { saved = null; }
+    var dark = false;
+    try { dark = matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { dark = false; }
+    document.documentElement.setAttribute('data-theme', saved === 'dark' || saved === 'light' ? saved : (dark ? 'dark' : 'light'));
+  })();
+</script>
+<link rel="stylesheet" href="./theme.css" />
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:smooth}
+  body{margin:0;background:var(--color-surface-page);color:var(--color-text-primary);font-family:var(--font-sans);
+    font-size:var(--text-base);line-height:var(--leading-body);letter-spacing:var(--tracking-body);
+    font-size-adjust:var(--font-aspect);-webkit-font-smoothing:antialiased;position:relative}
+  h1,h2,h3,h4,p,dl,dd,figure,ol,ul{margin:0}
+  ol,ul{padding:0;list-style:none}
+  h1,h2,h3,h4{font-weight:var(--weight-regular)}
+  .display,.title,.closing-title,.buy-price,.figure,.price .amount{font-family:var(--font-display)}
+  svg{display:block}
+  a{color:inherit}
+  .sr-only{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .ico{inline-size:var(--size-icon);block-size:var(--size-icon);flex:none;stroke-width:1.75}
+  .ico-sm{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+
+  .wrap{inline-size:100%;max-inline-size:var(--container);margin-inline:auto;padding-inline:var(--space-4)}
+  .section{padding-block:var(--section-gap);scroll-margin-block-start:var(--space-4)}
+
+  /* ---- type ---- */
+  .eyebrow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);font-size:var(--text-xs);
+    font-weight:var(--weight-medium);letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--color-text-secondary)}
+  .display{font-size:var(--text-display);line-height:var(--leading-display);letter-spacing:var(--tracking-display);
+    max-inline-size:20ch;text-wrap:balance}
+  .title{font-size:var(--text-3xl);line-height:var(--leading-tight);letter-spacing:var(--tracking-title);
+    max-inline-size:24ch;text-wrap:balance}
+  .lead{font-size:var(--text-lg);color:var(--color-text-secondary);max-inline-size:var(--measure-lead)}
+  .fine{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .badge-new{display:inline-flex;align-items:center;padding:0 var(--space-2);border:var(--border-hairline) solid var(--color-text-accent);
+    border-radius:var(--radius-full);color:var(--color-text-accent);letter-spacing:var(--tracking-body);text-transform:none;
+    font-size:var(--text-xs);line-height:var(--leading-body)}
+  .num{font-variant-numeric:tabular-nums}
+
+  .sec-head{display:grid;gap:var(--space-4);margin-block-end:var(--space-10);max-inline-size:var(--measure)}
+  .sec-head .lead{font-size:var(--text-base)}
+  .sec-split .title{font-size:var(--text-figure);line-height:var(--leading-display);letter-spacing:var(--tracking-display);max-inline-size:18ch}
+
+  /* ---- links ---- */
+  .link{text-decoration:underline;text-decoration-thickness:var(--border-hairline);text-underline-offset:0.22em;
+    border-radius:var(--radius-badge);transition:text-decoration-thickness var(--duration-fast) var(--ease-out),color var(--duration-fast) var(--ease-out)}
+  .link:hover{text-decoration-thickness:var(--border-control)}
+  .link:active{color:var(--color-text-secondary)}
+  .link:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+
+  /* ---- buttons: the spec's pill, inverting to outline on hover ---- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-block-size:var(--size-control-md);
+    padding:var(--space-2) var(--space-6);border:var(--border-control) solid transparent;border-radius:var(--radius-full);
+    font:inherit;font-weight:var(--weight-medium);line-height:var(--leading-snug);letter-spacing:var(--tracking-body);
+    text-decoration:none;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    transition:background-color var(--duration-base) var(--ease-out),color var(--duration-base) var(--ease-out),
+      border-color var(--duration-base) var(--ease-out),box-shadow var(--duration-fast) var(--ease-out),transform var(--duration-fast) var(--ease-out)}
+  .btn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .btn:active{transform:scale(0.98)}
+  .btn:disabled,.btn[aria-disabled="true"]{opacity:0.5;pointer-events:none}
+  .btn-sm{min-block-size:var(--size-control-sm);padding-inline:var(--space-5);font-size:var(--text-sm)}
+  .btn-primary{background:var(--color-action-primary);border-color:var(--color-action-primary);color:var(--color-text-on-action)}
+  .btn-primary:hover{background:var(--color-action-primary-hover);border-color:var(--color-action-primary-hover);color:var(--color-text-on-action)}
+  .btn-primary:active{background:var(--color-action-primary-active);border-color:var(--color-action-primary-active);color:var(--color-text-on-action)}
+  .btn-secondary{background:transparent;border-color:var(--color-text-primary);color:var(--color-text-primary)}
+  .btn-secondary:hover{background:var(--color-surface-raised)}
+  .btn-secondary:active{background:var(--color-border-default)}
+  .on-inverse .btn-primary{background:var(--color-action-on-inverse);border-color:var(--color-action-on-inverse);color:var(--color-text-on-action-inverse)}
+  .on-inverse .btn-primary:hover{background:var(--color-action-on-inverse-hover);border-color:var(--color-action-on-inverse-hover);color:var(--color-text-on-action-inverse)}
+  .on-inverse .btn-primary:active{background:var(--color-action-on-inverse-active);border-color:var(--color-action-on-inverse-active);color:var(--color-text-on-action-inverse)}
+  .on-inverse .btn-secondary{border-color:var(--color-text-inverse);color:var(--color-text-inverse)}
+  .on-inverse .btn-secondary:hover{background:var(--color-surface-inverse-raised)}
+  .on-inverse .btn-secondary:active{background:var(--color-border-inverse)}
+  .btn[aria-busy="true"]{cursor:progress}
+  .btn-primary[aria-busy="true"],.btn-primary[aria-busy="true"]:hover{background:var(--color-action-primary);border-color:var(--color-action-primary);color:var(--color-text-on-action)}
+  .spin{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm);border-radius:var(--radius-round);
+    border:var(--border-control) solid currentColor;border-inline-end-color:transparent;animation:spin var(--duration-slow) linear infinite;flex:none}
+  @keyframes spin{to{transform:rotate(1turn)}}
+  .btn:not([aria-busy="true"]) .spin{display:none}
+  .btn[aria-busy="true"] .when-idle{display:none}
+  .btn:not([aria-busy="true"]) .when-busy{display:none}
+
+  .iconbtn{display:inline-grid;place-items:center;inline-size:var(--size-control-md);block-size:var(--size-control-md);flex:none;
+    border:var(--border-hairline) solid var(--color-border-default);border-radius:var(--radius-round);background:transparent;color:var(--color-text-primary);
+    cursor:pointer;transition:background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out),transform var(--duration-fast) var(--ease-out)}
+  .iconbtn:hover{background:var(--color-surface-raised);border-color:var(--color-border-strong)}
+  .iconbtn:active{transform:scale(0.94)}
+  .iconbtn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+
+  .cta-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+  .cta-row .btn{flex:1 1 100%}
+
+  /* ---- disclosure line ---- */
+  .topline{background:var(--color-surface-tile);border-block-end:var(--border-hairline) solid var(--color-border-default);font-size:var(--text-xs);color:var(--color-text-secondary)}
+  .topline .wrap{display:block;padding-block:var(--space-1-5)}
+  .topline .link{color:var(--color-text-primary);display:inline-flex;align-items:center;min-block-size:var(--size-target-min)}
+
+  /* ---- header ---- */
+  .site-head .wrap{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-block-size:var(--space-16)}
+  .wordmark{display:inline-flex;align-items:center;gap:var(--space-2);min-block-size:var(--size-control-md);text-decoration:none;
+    font-size:var(--text-sm);font-weight:var(--weight-medium);letter-spacing:var(--tracking-wordmark);border-radius:var(--radius-badge)}
+  .wordmark:hover .wordmark-mark{fill:var(--color-text-accent)}
+  .wordmark:active{color:var(--color-text-secondary)}
+  .wordmark:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .wordmark-mark{inline-size:var(--space-6);block-size:var(--space-3);fill:var(--color-text-primary);transition:fill var(--duration-fast) var(--ease-out)}
+  .head-nav{display:none}
+  .head-actions{display:flex;align-items:center;gap:var(--space-2)}
+  .head-order{display:none}
+  .head-nav a{display:inline-flex;align-items:center;min-block-size:var(--size-control-sm);padding-inline:var(--space-3);border-radius:var(--radius-full);
+    font-size:var(--text-sm);text-decoration:none;color:var(--color-text-secondary);transition:background-color var(--duration-fast) var(--ease-out),color var(--duration-fast) var(--ease-out)}
+  .head-nav a:hover{background:var(--color-surface-raised);color:var(--color-text-primary)}
+  .head-nav a:active{background:var(--color-border-default)}
+  .head-nav a:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+
+  /* ---- hero ---- */
+  .hero{padding-block:var(--space-6) 0}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6)}
+  .hero-copy{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6);align-content:start}
+  .hero-copy .fine{max-inline-size:var(--measure-lead)}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);background:var(--color-surface-tile);padding:var(--space-4) var(--space-4) var(--space-5);min-inline-size:0}
+  .stage-art{inline-size:100%;block-size:auto;max-block-size:var(--media-max-block);aspect-ratio:584/380;margin-inline:auto}
+  .finish-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3)}
+  .finish-label{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .finish-label strong{font-weight:var(--weight-medium);color:var(--color-text-primary)}
+  .swatches{display:flex;gap:var(--space-2)}
+  .swatch{display:grid;place-items:center;inline-size:var(--size-control-md);block-size:var(--size-control-md);padding:0;
+    border:var(--border-control) solid transparent;border-radius:var(--radius-round);background:transparent;cursor:pointer;
+    transition:border-color var(--duration-fast) var(--ease-out),transform var(--duration-fast) var(--ease-out)}
+  .swatch:hover{border-color:var(--color-border-strong)}
+  .swatch:active{transform:scale(0.94)}
+  .swatch:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .swatch[aria-checked="true"]{border-color:var(--color-text-primary)}
+  .swatch-dot{inline-size:var(--size-swatch);block-size:var(--size-swatch);border-radius:var(--radius-round);
+    border:var(--border-hairline) solid var(--color-border-strong)}
+  .dot-chalk{background:var(--swatch-chalk)}
+  .dot-basalt{background:var(--swatch-basalt)}
+  .dot-lake{background:var(--swatch-lake)}
+
+  /* hero drawing */
+  .st-top{stop-color:var(--product-top)} .st-top-lo{stop-color:var(--product-top-lo)}
+  .st-front-hi{stop-color:var(--product-front-hi)} .st-front-lo{stop-color:var(--product-front-lo)}
+  .st-shadow{stop-color:var(--color-product-shadow)} .st-clear{stop-color:var(--color-product-shadow);stop-opacity:0}
+  .st-shade-0{stop-color:var(--color-product-shade);stop-opacity:0} .st-shade-1{stop-color:var(--color-product-shade)}
+  .st-top,.st-top-lo,.st-front-hi,.st-front-lo{transition:stop-color var(--duration-slow) var(--ease-in-out)}
+  .fab-bg{fill:var(--product-fabric)} .fab-dot{fill:var(--product-dot)}
+  .spk-seam{stroke:var(--product-seam);fill:none}
+  .spk-gloss{stroke:var(--color-product-gloss);fill:none}
+  .spk-dial-top{fill:var(--product-dial-top)} .spk-dial-side{fill:var(--product-dial-side)}
+  .spk-knurl{stroke:var(--product-knurl)}
+  .spk-ring{fill:none;stroke:var(--product-ring)}
+  .spk-foot{fill:var(--product-foot)}
+  .spk-led{fill:var(--product-led)}
+  .spk-mark{fill:var(--product-seam)}
+  .fab-bg,.fab-dot,.spk-dial-top,.spk-dial-side,.spk-foot{transition:fill var(--duration-slow) var(--ease-in-out)}
+  .sweep-arc{fill:none;stroke:var(--color-border-strong);stroke-width:1.5;stroke-linecap:round;stroke-dasharray:0.5 9}
+  .spk{animation:rise var(--duration-slow) var(--ease-out) both}
+  .sweep-arc{transform-box:fill-box;transform-origin:50% 100%;animation:arc-in var(--duration-slow) var(--ease-out) both}
+  .sweep-arc:nth-child(2){animation-delay:var(--delay-step)}
+  .sweep-arc:nth-child(3){animation-delay:calc(var(--delay-step) * 2)}
+  @keyframes rise{from{opacity:0;transform:translateY(var(--rise))}}
+  @keyframes arc-in{from{opacity:0;transform:scale(0.94)}}
+  .sweep.is-pulsing .sweep-arc{animation:arc-pulse var(--duration-pulse) var(--ease-out) both;stroke:var(--color-accent-line)}
+  .sweep.is-pulsing .sweep-arc:nth-child(2){animation-delay:var(--delay-step)}
+  .sweep.is-pulsing .sweep-arc:nth-child(3){animation-delay:calc(var(--delay-step) * 2)}
+  @keyframes arc-pulse{0%{opacity:0.2;transform:scale(0.96)}45%{opacity:1;transform:scale(1.02)}100%{opacity:1;transform:scale(1)}}
+
+  /* ---- inside: exploded drawing ---- */
+  /* The section head keeps its 40px gap to the content, as in every section.
+     Below 60rem the parts become five numbered chips right under the drawing
+     and the description sits under the chips, so a tap and its result share
+     one screen on a small phone. */
+  .inside-grid{display:grid;grid-template-columns:minmax(0,1fr)}
+  .exploded{background:var(--color-surface-tile);padding:var(--space-4);min-inline-size:0;align-self:start}
+  .ex-art{inline-size:100%;block-size:auto;max-block-size:var(--media-max-block);aspect-ratio:1;margin-inline:auto}
+  .ex-top{fill:var(--color-ex-top);stroke:var(--color-ex-line);stroke-width:1;vector-effect:non-scaling-stroke}
+  .ex-side{fill:var(--color-ex-side);stroke:var(--color-ex-line);stroke-width:1;vector-effect:non-scaling-stroke}
+  .ex-hole{fill:var(--color-ex-hole)}
+  .ex-ring{fill:none;stroke:var(--color-accent-line);stroke-width:2.5}
+  .ex-lead{stroke:var(--color-ex-line);stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke;fill:none}
+  .ex-tick{stroke:var(--color-ex-line);stroke-width:1;vector-effect:non-scaling-stroke}
+  .ex-badge circle{fill:var(--color-surface-page);stroke:var(--color-ex-line);stroke-width:1;vector-effect:non-scaling-stroke}
+  .ex-badge text{fill:var(--color-text-primary);font-family:var(--font-sans);font-weight:var(--weight-medium);text-anchor:middle;dominant-baseline:central}
+  .part,.ex-badge,.ex-call{transition:opacity var(--duration-base) var(--ease-out)}
+  .part .ex-top,.part .ex-side,.ex-badge circle,.ex-badge text{transition:fill var(--duration-base) var(--ease-out),stroke var(--duration-base) var(--ease-out)}
+  .has-sel .part:not(.is-on),.has-sel .ex-badge:not(.is-on),.has-sel .ex-call:not(.is-on){opacity:0.3}
+  .part.is-on .ex-top{fill:var(--color-ex-on-top);stroke:var(--color-accent-line)}
+  .part.is-on .ex-side{fill:var(--color-ex-on-side);stroke:var(--color-accent-line)}
+  .ex-badge.is-on circle{fill:var(--color-accent-line);stroke:var(--color-accent-line)}
+  .ex-badge.is-on text{fill:var(--color-surface-page)}
+
+  .parts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--space-2);margin-block-start:var(--space-4)}
+  .part-btn{display:grid;place-items:center;inline-size:100%;block-size:var(--size-control-md);padding:0;
+    border:var(--border-hairline) solid var(--color-border-strong);border-radius:var(--radius-full);background:transparent;color:inherit;font:inherit;
+    cursor:pointer;transition:background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out),color var(--duration-fast) var(--ease-out)}
+  .part-btn:hover{background:var(--color-surface-tile);border-color:var(--color-text-primary)}
+  .part-btn:active{background:var(--color-surface-raised)}
+  .part-btn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .part-num{font-size:var(--text-base);font-weight:var(--weight-medium)}
+  .part-name,.part-spec{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .parts li{position:relative;min-inline-size:0}
+  .part-btn[aria-pressed="true"]{background:var(--color-accent-line);border-color:var(--color-accent-line);color:var(--color-surface-page)}
+  .part-btn[aria-pressed="true"]:hover{background:var(--color-accent-line);border-color:var(--color-text-primary)}
+  .part-detail{display:grid;gap:var(--space-2);align-content:start;max-inline-size:var(--measure-lead);min-block-size:calc(var(--leading-body) * 5em);margin-block-start:var(--space-6)}
+  .part-detail h3{font-size:var(--text-2xl);line-height:var(--leading-tight)}
+  .part-detail p{color:var(--color-text-secondary)}
+
+  /* ---- tuning bento ---- */
+  .bento{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
+  .tile{background:var(--color-surface-tile);padding:var(--space-6) var(--space-5);min-inline-size:0;display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);align-content:start}
+  .tile h3{font-size:var(--text-xl);line-height:var(--leading-tight)}
+  .tile p{color:var(--color-text-secondary)}
+  .tile-lead{gap:var(--space-5)}
+  .tile-lead h3{font-size:var(--text-2xl)}
+  .chart-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-2)}
+  .chart-y{position:relative;inline-size:var(--space-10);margin-block-end:var(--space-6);font-size:var(--text-xs);color:var(--color-text-secondary)}
+  .chart-y span{position:absolute;inset-inline-end:0;transform:translateY(-50%);white-space:nowrap}
+  .y-p6{inset-block-start:16.67%} .y-0{inset-block-start:50%} .y-m6{inset-block-start:83.33%}
+  .chart-box{position:relative;min-inline-size:0}
+  .chart{inline-size:100%;block-size:clamp(11rem, 8rem + 12vw, 18rem);overflow:visible}
+  .grid-line{stroke:var(--color-chart-grid);stroke-width:1;vector-effect:non-scaling-stroke}
+  .grid-zero{stroke:var(--color-chart-axis);stroke-width:1;vector-effect:non-scaling-stroke}
+  .band{fill:var(--color-chart-band)}
+  .curve{fill:none;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+  .curve-before{stroke:var(--color-chart-before);stroke-dasharray:6 5;transition:opacity var(--duration-base) var(--ease-out)}
+  .curve-after{stroke:var(--color-chart-after);stroke-width:3}
+  .is-tuned .curve-before{opacity:0.45}
+  .scan{stroke:var(--color-chart-after);stroke-width:1.5;vector-effect:non-scaling-stroke;opacity:0}
+  .is-scanning .scan{opacity:1}
+  .chart-x{position:relative;block-size:var(--space-6);font-size:var(--text-xs);color:var(--color-text-secondary)}
+  .chart-x span{position:absolute;inset-block-start:var(--space-1);transform:translateX(-50%);white-space:nowrap}
+  .x-100{inset-inline-start:23.3%} .x-1k{inset-inline-start:56.6%} .x-10k{inset-inline-start:90%;display:none}
+  /* 20 kHz ends on the axis end. 20 Hz ends on the axis start on a phone, in the
+     free space under the y labels, because centred or left-aligned it runs into
+     100 Hz at 280px; from 36rem there is room to centre it. The class pair
+     outranks .chart-x span. */
+  .chart-x .x-20{inset-inline-start:0;transform:translateX(-100%)}
+  .chart-x .x-20k{inset-inline-start:auto;inset-inline-end:0;transform:none}
+  .legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .legend > span{display:inline-flex;align-items:center;gap:var(--space-2)}
+  .legend-hint{font-style:normal}
+  .legend-after .key{opacity:0.3;transition:opacity var(--duration-base) var(--ease-out)}
+  .is-tuned .legend-after .key{opacity:1}
+  .is-tuned .legend-hint{display:none}
+  .key{inline-size:var(--space-6);block-size:0;border-block-start:var(--border-control) dashed var(--color-chart-before)}
+  .key-after{border-block-start-style:solid;border-block-start-color:var(--color-chart-after)}
+  .key-band{block-size:var(--space-3);border:0;background:var(--color-chart-band)}
+  .tune-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-5)}
+  .readout{color:var(--color-text-primary);font-size:var(--text-sm);max-inline-size:var(--measure-lead);min-block-size:calc(var(--leading-body) * 2em)}
+  .tile-lead .readout{color:var(--color-text-primary)}
+
+  .figure{font-size:var(--text-figure);line-height:1;letter-spacing:var(--tracking-display);color:var(--color-text-primary)}
+  .tile .figure{color:var(--color-text-primary)}
+  .figure small{font-size:var(--text-2xl);letter-spacing:var(--tracking-title)}
+  .cable{inline-size:100%;max-inline-size:16rem;block-size:auto;aspect-ratio:260/80}
+  .cable-line{fill:none;stroke:var(--color-text-secondary);stroke-width:3;stroke-linecap:round}
+  .cable-plug{fill:var(--color-text-primary)}
+  .cable-tip{fill:var(--color-border-strong)}
+
+  .ring-demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-5)}
+  .ring-side{display:grid;gap:var(--space-3);justify-items:start;min-inline-size:0;inline-size:min(100%, 12rem)}
+  .ring-side .btn{inline-size:100%}
+  .ring-art{inline-size:var(--space-24);block-size:auto;aspect-ratio:1;flex:none}
+  .ring-face{fill:var(--color-surface-page);stroke:var(--color-border-default);stroke-width:1}
+  .ring-glow{fill:none;stroke:var(--color-border-strong);stroke-width:5;transition:stroke var(--duration-base) var(--ease-out)}
+  .ring-glyph{stroke:var(--color-text-secondary);transition:stroke var(--duration-base) var(--ease-out)}
+  .ring-slash{opacity:0;transition:opacity var(--duration-base) var(--ease-out)}
+  .is-muted .ring-glyph{stroke:var(--color-accent-line)}
+  .is-muted .ring-slash{opacity:1}
+  .is-muted .ring-glow{stroke:var(--color-accent-line)}
+  .mic-state{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);color:var(--color-text-primary)}
+  .mic-state .ico{color:var(--color-text-accent)}
+  .mic-state .ico-on{color:var(--color-text-secondary)}
+  .is-muted .mic-state .ico-on,.ring-demo:not(.is-muted) .mic-state .ico-off{display:none}
+
+  .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--space-5) var(--space-6);background:var(--color-surface-tile);
+    padding:var(--space-6) var(--space-5)}
+  .specs div{display:grid;gap:var(--space-1);align-content:start;min-inline-size:0}
+  .specs dt{font-size:var(--text-xs);letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--color-text-secondary)}
+  .specs dd{overflow-wrap:anywhere}
+
+  /* ---- pricing ---- */
+  .billing{display:inline-flex;align-self:end;justify-self:start;padding:var(--space-1);gap:var(--space-1);border-radius:var(--radius-full);background:var(--color-surface-tile);
+    border:var(--border-hairline) solid var(--color-border-default)}
+  .seg{display:inline-flex;align-items:center;gap:var(--space-2);min-block-size:var(--size-control-sm);padding-inline:var(--space-4);border:0;border-radius:var(--radius-full);
+    background:transparent;color:var(--color-text-secondary);font:inherit;font-size:var(--text-sm);font-weight:var(--weight-medium);cursor:pointer;
+    transition:background-color var(--duration-base) var(--ease-out),color var(--duration-base) var(--ease-out),transform var(--duration-fast) var(--ease-out)}
+  .seg:hover{background:var(--color-surface-raised);color:var(--color-text-primary)}
+  .seg:active{transform:scale(0.97)}
+  .seg:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .seg[aria-checked="true"]{background:var(--color-interactive-selected-bg);color:var(--color-text-on-selected)}
+  .save{font-size:var(--text-xs);font-weight:var(--weight-regular);letter-spacing:var(--tracking-body)}
+
+  .buy{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-8);background:var(--color-surface-inverse);color:var(--color-text-inverse);
+    padding:var(--space-8) var(--space-5);min-inline-size:0}
+  .buy-main{display:grid;gap:var(--space-4);align-content:start;min-inline-size:0}
+  .buy-name{font-size:var(--text-2xl);line-height:var(--leading-tight)}
+  .buy-price{font-size:var(--text-display);line-height:var(--leading-display);letter-spacing:var(--tracking-display)}
+  .buy-note{color:var(--color-text-inverse-secondary);max-inline-size:var(--measure-lead)}
+  .buy-main .cta-row{margin-block-start:var(--space-2)}
+  .buy-side{display:grid;gap:var(--space-4);align-content:start;min-inline-size:0}
+  .buy .plan-tag{color:var(--color-text-inverse-secondary)}
+  .addons-head{display:grid;gap:var(--space-4);margin-block:var(--space-12) var(--space-5)}
+  .addons-copy{display:grid;gap:var(--space-1)}
+  .addons-title{font-size:var(--text-xl);line-height:var(--leading-tight)}
+  .addons{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
+  .plan{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);align-content:start;background:var(--color-surface-tile);padding:var(--space-6) var(--space-5);min-inline-size:0}
+  .plan h4{font-size:var(--text-xl);font-weight:var(--weight-regular)}
+  .plan-top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}
+  .plan-tag{font-size:var(--text-xs);letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--color-text-secondary)}
+  .price{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-2)}
+  .price .amount{font-size:var(--text-3xl);line-height:1;letter-spacing:var(--tracking-title);font-variant-numeric:tabular-nums}
+  .price .per{font-size:var(--text-sm)}
+  .billed{font-size:var(--text-sm);color:var(--color-text-secondary);min-block-size:calc(var(--leading-body) * 1em)}
+  .plan-sub{color:var(--color-text-secondary);max-inline-size:var(--measure-lead);font-size:var(--text-sm)}
+  .feat{display:grid;gap:var(--space-3)}
+  .feat li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start}
+  .feat .ico{margin-block-start:var(--space-1);color:var(--color-text-accent)}
+  .on-inverse .feat .ico{color:var(--color-accent-on-inverse)}
+  .feat strong{font-weight:var(--weight-medium)}
+  .btn-add .ico{display:none}
+  .btn-add[aria-pressed="true"]{background:var(--color-interactive-selected-bg);border-color:var(--color-interactive-selected-bg);color:var(--color-text-on-selected)}
+  .btn-add[aria-pressed="true"]:hover{background:var(--color-action-primary-hover);border-color:var(--color-action-primary-hover)}
+  .btn-add[aria-pressed="true"] .ico{display:block}
+
+  /* ---- questions ---- */
+  .faq-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-10)}
+  .faq-grid .sec-head{margin-block-end:0;align-content:start}
+  .faq{border-block-start:var(--border-hairline) solid var(--color-border-default)}
+  .faq-item{border-block-end:var(--border-hairline) solid var(--color-border-default)}
+  .faq-q{font-size:var(--text-lg);line-height:var(--leading-snug)}
+  .faq-btn{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-4);inline-size:100%;
+    min-block-size:var(--size-control-lg);padding:var(--space-4) var(--space-2);border:0;background:transparent;color:inherit;
+    font:inherit;text-align:start;cursor:pointer;border-radius:var(--radius-badge);transition:background-color var(--duration-fast) var(--ease-out)}
+  .faq-btn:hover{background:var(--color-surface-tile)}
+  .faq-btn:active{background:var(--color-surface-raised)}
+  .faq-btn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .faq-btn .ico{transition:transform var(--duration-base) var(--ease-out)}
+  .faq-btn[aria-expanded="true"] .ico{transform:rotate(180deg)}
+  .faq-btn[aria-expanded="true"]{color:var(--color-text-primary)}
+  .faq-panel{display:grid;grid-template-rows:0fr;visibility:hidden;
+    transition:grid-template-rows var(--duration-base) var(--ease-out),visibility var(--duration-base)}
+  .faq-item.is-open .faq-panel{grid-template-rows:1fr;visibility:visible}
+  .faq-inner{overflow:hidden;min-block-size:0}
+  .faq-inner p{padding:0 var(--space-2) var(--space-5);color:var(--color-text-secondary);max-inline-size:var(--measure)}
+  .mail{overflow-wrap:anywhere}
+
+  /* ---- closing ---- */
+  .closing{background:var(--color-surface-inverse);color:var(--color-text-inverse);padding-block:var(--section-gap);overflow:hidden}
+  .closing-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-8);align-items:center}
+  .closing .eyebrow{color:var(--color-text-inverse-secondary)}
+  .closing-copy{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6)}
+  .closing-title{font-size:var(--text-display);line-height:var(--leading-display);letter-spacing:var(--tracking-display);max-inline-size:14ch;text-wrap:balance}
+  .closing-copy p.sub{color:var(--color-text-inverse-secondary);max-inline-size:var(--measure-lead)}
+  .dial-art{inline-size:min(100%, 16rem);block-size:auto;aspect-ratio:1;justify-self:center}
+  .tick{stroke:var(--color-border-inverse);stroke-width:2;stroke-linecap:round}
+  .tick.on{stroke:var(--color-text-inverse-secondary)}
+  .dial-face{fill:var(--color-surface-inverse-raised)}
+  .dial-edge{fill:none;stroke:var(--color-border-inverse);stroke-width:1}
+  .dial-arc{fill:none;stroke:var(--color-accent-on-inverse);stroke-width:3;stroke-linecap:round}
+  .dial-dot{fill:var(--color-text-inverse)}
+
+  /* ---- footer: the spec's ultramarine field ---- */
+  .site-foot{background:var(--color-footer-bg);color:var(--color-footer-text);padding-block:var(--space-12) var(--space-10)}
+  .foot-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-8)}
+  .foot-brand{display:grid;gap:var(--space-3);align-content:start}
+  .foot-word{font-size:var(--text-sm);font-weight:var(--weight-medium);letter-spacing:var(--tracking-wordmark)}
+  .foot-brand p,.foot-meta p{font-size:var(--text-sm);color:var(--color-footer-text-secondary)}
+  .foot-meta .foot-about{color:var(--color-footer-text);max-inline-size:var(--measure-lead)}
+  .foot-h{font-size:var(--text-sm);font-weight:var(--weight-medium);margin-block-end:var(--space-2)}
+  .foot-links{display:grid;gap:0}
+  .foot-links a,.foot-solo a{display:inline-flex;align-items:center;min-block-size:var(--size-control-sm)}
+  .nowrap{white-space:nowrap}
+  .foot-links a,.foot-meta a{font-size:var(--text-sm);
+    color:var(--color-footer-text);text-decoration:underline;text-decoration-color:var(--color-footer-rule);text-underline-offset:0.25em;
+    border-radius:var(--radius-badge);transition:text-decoration-color var(--duration-fast) var(--ease-out)}
+  .foot-links a:hover,.foot-meta a:hover{text-decoration-color:var(--color-footer-text)}
+  .foot-links a:active,.foot-meta a:active{color:var(--color-footer-text-secondary)}
+  .foot-links a:focus-visible,.foot-meta a:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .foot-meta{display:grid;gap:var(--space-2);align-content:start}
+  .foot-base{margin-block-start:var(--space-10);padding-block-start:var(--space-5);border-block-start:var(--border-hairline) solid var(--color-footer-rule);
+    font-size:var(--text-xs);color:var(--color-footer-text-secondary)}
+
+  /* ---- dialog ---- */
+  .order{inline-size:min(100% - 2 * var(--space-4), var(--dialog-width));max-block-size:calc(100% - 2 * var(--space-4));padding:0;
+    border:var(--border-hairline) solid var(--color-border-default);border-radius:var(--radius-dialog);background:var(--color-surface-dialog);
+    color:var(--color-text-primary);box-shadow:var(--shadow-dialog);overflow:auto}
+  .order::backdrop{background:var(--color-scrim)}
+  .order[open]{animation:dialog-in var(--duration-base) var(--ease-out)}
+  @keyframes dialog-in{from{opacity:0;transform:translateY(var(--rise))}}
+  .order-in{display:grid;gap:var(--space-4);padding:var(--space-4)}
+  .order-body{display:grid;gap:var(--space-4)}
+  .order-head{display:flex;align-items:start;justify-content:space-between;gap:var(--space-3)}
+  .order-head h2{font-size:var(--text-2xl);line-height:var(--leading-tight)}
+  .summary{display:grid;gap:0;border-block-start:var(--border-hairline) solid var(--color-border-default)}
+  .summary div{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--space-3);padding-block:var(--space-2);
+    border-block-end:var(--border-hairline) solid var(--color-border-default);font-size:var(--text-sm)}
+  .summary dt{color:var(--color-text-secondary)}
+  .summary dd{text-align:end;overflow-wrap:anywhere}
+  .field{display:grid;gap:var(--space-2)}
+  .field label{font-size:var(--text-sm);font-weight:var(--weight-medium)}
+  .input{inline-size:100%;min-inline-size:0;block-size:var(--size-control-md);padding-inline:var(--space-3);border:var(--border-hairline) solid var(--color-border-strong);
+    border-radius:var(--radius-field);background:var(--color-surface-page);color:var(--color-text-primary);font:inherit;
+    transition:border-color var(--duration-fast) var(--ease-out),box-shadow var(--duration-fast) var(--ease-out)}
+  .input:hover{border-color:var(--color-text-secondary)}
+  .input:focus-visible{outline:none;border-color:var(--color-focus);box-shadow:var(--shadow-focus-ring)}
+  .input[aria-invalid="true"]{border-color:var(--color-border-error);box-shadow:inset 0 0 0 1px var(--color-border-error)}
+  .input[aria-invalid="true"]:focus-visible{box-shadow:inset 0 0 0 1px var(--color-border-error),var(--shadow-focus-ring)}
+  .hint{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .error{display:flex;gap:var(--space-2);align-items:start;font-size:var(--text-sm);color:var(--color-feedback-error-text)}
+  .error .ico{margin-block-start:var(--space-0-5)}
+  .error[hidden]{display:none}
+  .order-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+  .order-actions .btn{flex:1 1 100%}
+  .done{display:grid;gap:var(--space-4);justify-items:start}
+  .done[hidden],.order-form[hidden]{display:none}
+  .done-mark{display:grid;place-items:center;inline-size:var(--size-control-md);block-size:var(--size-control-md);border-radius:var(--radius-round);
+    border:var(--border-hairline) solid var(--color-border-strong);color:var(--color-feedback-success-icon)}
+  .done h3{font-size:var(--text-2xl);line-height:var(--leading-tight)}
+  .done h3:focus{outline:none}
+  .done p{color:var(--color-text-secondary)}
+  .done strong{color:var(--color-text-primary);font-weight:var(--weight-medium);overflow-wrap:anywhere}
+
+  /* ---- wider screens, layered on ---- */
+  @media (min-width:23.5rem){
+    .head-order{display:inline-flex}
+  }
+  @media (min-width:36rem){
+    .cta-row .btn,.order-actions .btn{flex:0 1 auto}
+    .chart-x .x-20{transform:translateX(-50%)}
+    .order-in{gap:var(--space-5);padding:var(--space-5)}
+    .order-body{gap:var(--space-5)}
+    .summary div{padding-block:var(--space-3)}
+    .tile,.plan,.specs{padding:var(--space-8) var(--space-6)}
+    .buy{padding:var(--space-10) var(--space-8)}
+  }
+  @media (min-width:48rem){
+    .wrap{padding-inline:var(--space-8)}
+    .hero{padding-block:var(--space-10) 0}
+    .stage{padding:var(--space-8) var(--space-8) var(--space-6)}
+    .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .tile-lead,.specs{grid-column:1 / -1}
+    .specs{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .buy{grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:var(--space-12);align-items:end}
+    .addons{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .addons-head{grid-template-columns:minmax(0,1fr) auto;align-items:end}
+    .billing{justify-self:end}
+    .closing-grid{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+    .dial-art{inline-size:min(100%, 24rem)}
+    .foot-grid{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,2fr)}
+    .order-in{gap:var(--space-5);padding:var(--space-8)}
+  }
+  @media (min-width:60rem){
+    .head-nav{display:flex;gap:var(--space-1)}
+    .inside-grid{grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:var(--space-12);align-items:start}
+    .inside-grid .exploded{grid-column:1;grid-row:1 / span 3;position:sticky;inset-block-start:var(--space-4);padding:var(--space-8)}
+    .inside-grid .sec-head{grid-column:2;grid-row:1}
+    .inside-grid .parts{grid-column:2;grid-row:2}
+    .inside-grid .part-detail{grid-column:2;grid-row:3;margin-block-start:var(--space-8)}
+    .parts{display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin-block-start:0;border-block-start:var(--border-hairline) solid var(--color-border-default)}
+    .parts li{position:static;border-block-end:var(--border-hairline) solid var(--color-border-default)}
+    .part-btn{grid-template-columns:auto minmax(0,1fr) auto;justify-items:stretch;gap:var(--space-3);block-size:auto;
+      min-block-size:var(--size-control-lg);padding:var(--space-3) var(--space-2);border:0;border-radius:var(--radius-badge);text-align:start}
+    .part-btn:hover{background:var(--color-surface-tile)}
+    .part-num{display:grid;place-items:center;inline-size:var(--size-badge-dot);block-size:var(--size-badge-dot);border-radius:var(--radius-round);
+      border:var(--border-hairline) solid var(--color-border-strong);font-size:var(--text-sm);
+      transition:background-color var(--duration-fast) var(--ease-out),color var(--duration-fast) var(--ease-out)}
+    .part-name,.part-spec{position:static;inline-size:auto;block-size:auto;overflow:visible;clip:auto;clip-path:none;white-space:normal}
+    .part-name{font-size:var(--text-lg);min-inline-size:0}
+    .part-spec{font-size:var(--text-sm);color:var(--color-text-secondary);text-align:end}
+    .part-btn[aria-pressed="true"]{background:var(--color-surface-tile);color:inherit}
+    .part-btn[aria-pressed="true"]:hover{background:var(--color-surface-tile)}
+    .part-btn[aria-pressed="true"] .part-num{background:var(--color-accent-line);border-color:var(--color-accent-line);color:var(--color-surface-page)}
+    .part-btn[aria-pressed="true"] .part-name{color:var(--color-text-accent)}
+    .ex-art{max-block-size:var(--media-max-block)}
+    .faq-grid{grid-template-columns:minmax(0,4fr) minmax(0,7fr);column-gap:var(--space-16)}
+  }
+  /* From 64rem the headline takes the full width and the copy and the product
+     tile share the row under it, so the speaker is above the fold at 1024x768. */
+  @media (min-width:64rem){
+    .hero-grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--space-10);row-gap:var(--space-8);align-items:start}
+    .hero-title{grid-column:1 / -1;grid-row:1}
+    .hero-copy{grid-column:1;grid-row:2}
+    .stage{grid-column:2;grid-row:2;padding:var(--space-6) var(--space-5) var(--space-5)}
+    .sec-split{max-inline-size:none;grid-template-columns:minmax(0,8fr) minmax(0,4fr);column-gap:var(--space-12);align-items:end}
+    .sec-split .eyebrow{grid-column:1 / -1}
+    .sec-split .lead{padding-block-end:var(--space-2)}
+    .bento{grid-template-columns:repeat(12,minmax(0,1fr))}
+    .tile-lead{grid-column:1 / span 8;grid-row:1 / span 2;grid-template-rows:auto auto minmax(0,1fr) auto;align-content:stretch}
+    .tile-lead .chart-box{display:grid;grid-template-rows:minmax(0,1fr) auto}
+    .tile-lead .chart{block-size:100%;min-block-size:16rem}
+    .tile-watt{grid-column:9 / span 4;grid-row:1}
+    .tile-calls{grid-column:9 / span 4;grid-row:2}
+    .specs{grid-column:1 / -1;grid-row:3}
+  }
+  /* From 72rem the headline fits in three lines beside the tile, so the tile
+     rises to span both rows. The art sits in a flexible row and is centred in
+     it, so any height the copy adds is shared above and below the speaker. */
+  @media (min-width:72rem){
+    .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+    .hero-title{grid-column:1}
+    .stage{grid-row:1 / span 2;align-self:stretch;grid-template-rows:minmax(0,1fr) auto}
+    .stage-art{align-self:center;max-block-size:var(--media-hero-block)}
+    .display-hero{font-size:var(--text-display-hero)}
+  }
+  @media (min-width:80rem){
+    .wrap{padding-inline:var(--space-12)}
+    .specs{grid-template-columns:repeat(6,minmax(0,1fr))}
+  }
+
+  /* ---- reduced motion: stop travel, keep every piece of content ---- */
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation:none !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+<a class="sr-only" href="#main">Skip to content</a>
+<p class="topline"><span class="wrap">Fictional product, a design example built with <span class="nowrap">ux-ui-agent-skills</span>. <a class="link" href="#about">About this example</a></span></p>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="wordmark" href="#main" aria-label="Nordun, back to top">
+      <svg class="wordmark-mark" viewBox="0 0 24 12" aria-hidden="true"><rect x="0" y="0" width="24" height="12" rx="6"/></svg>
+      NORDUN
+    </a>
+    <nav class="head-nav" aria-label="Sections">
+      <a href="#inside">Inside</a>
+      <a href="#tuning">Tuning</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#questions">Questions</a>
+    </nav>
+    <div class="head-actions">
+      <button class="iconbtn" id="theme-toggle" type="button" aria-label="Switch to dark theme">
+        <svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg>
+      </button>
+      <button class="btn btn-primary btn-sm head-order" type="button" data-open-order>Reserve</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <!-- 1. Hero: the headline leads, the product sits on its own square tile -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div class="hero-title">
+        <p class="eyebrow"><span class="badge-new">New</span> Plinth desk speaker</p>
+        <h1 id="hero-title" class="display display-hero" style="margin-block-start:var(--space-4)">A desk speaker that hears its room.</h1>
+      </div>
+      <div class="hero-copy">
+        <p class="lead">Plinth plays a nine-second sweep, listens with three microphones and removes the boom your desk and walls add. Then it gets out of the way.</p>
+        <div class="cta-row">
+          <button class="btn btn-primary" id="hero-order" type="button" data-open-order>Reserve one, $349</button>
+          <a class="btn btn-secondary" href="#tuning">See a tuning pass</a>
+        </div>
+        <p class="fine">The first batch ships about six weeks after you reserve. Return it within 30 nights for a full refund.</p>
+      </div>
+      <figure class="stage on-tile" data-finish="chalk" id="stage">
+        <svg class="stage-art" data-media viewBox="28 8 584 380" role="img" aria-labelledby="stage-title">
+          <title id="stage-title">Plinth in the chosen finish: a low, wide speaker with a fabric front and an aluminium dial on top.</title>
+          <defs>
+            <linearGradient id="g-top" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" class="st-top"/><stop offset="1" class="st-top-lo"/>
+            </linearGradient>
+            <linearGradient id="g-front" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" class="st-front-hi"/><stop offset="1" class="st-front-lo"/>
+            </linearGradient>
+            <radialGradient id="g-shadow" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0" class="st-shadow"/><stop offset="1" class="st-clear"/>
+            </radialGradient>
+            <linearGradient id="g-shade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" class="st-shade-0"/><stop offset="1" class="st-shade-1"/>
+            </linearGradient>
+            <pattern id="p-fabric" width="7" height="7" patternUnits="userSpaceOnUse">
+              <rect width="7" height="7" class="fab-bg"/><circle cx="3.5" cy="3.5" r="1.25" class="fab-dot"/>
+            </pattern>
+          </defs>
+          <g class="sweep" id="sweep" aria-hidden="true">
+            <path class="sweep-arc" d="M130 300 A190 190 0 0 1 510 300"/>
+            <path class="sweep-arc" d="M85 300 A235 235 0 0 1 555 300"/>
+            <path class="sweep-arc" d="M40 300 A280 280 0 0 1 600 300"/>
+          </g>
+          <g class="spk">
+            <ellipse cx="320" cy="352" rx="268" ry="24" fill="url(#g-shadow)"/>
+            <rect class="spk-foot" x="132" y="326" width="64" height="12" rx="6"/>
+            <rect class="spk-foot" x="444" y="326" width="64" height="12" rx="6"/>
+            <rect x="72" y="150" width="496" height="80" rx="40" fill="url(#g-top)"/>
+            <path d="M72 190 V292 a40 40 0 0 0 40 40 H528 a40 40 0 0 0 40 -40 V190 Z" fill="url(#g-front)"/>
+            <path class="spk-gloss" d="M112 151.5 H528" stroke-width="2"/>
+            <path class="spk-seam" d="M76 190 H564" stroke-width="1.5"/>
+            <rect x="96" y="204" width="448" height="108" rx="28" fill="url(#p-fabric)"/>
+            <rect x="96" y="204" width="448" height="108" rx="28" fill="url(#g-shade)"/>
+            <rect class="spk-mark" x="304" y="320" width="32" height="3" rx="1.5"/>
+            <circle class="spk-led" cx="120" cy="321.5" r="2.5"/>
+            <ellipse class="spk-ring" cx="474" cy="174" rx="46" ry="11.5" stroke-width="2.5"/>
+            <path class="spk-dial-side" d="M440 158 V172 A34 9 0 0 0 508 172 V158 Z"/>
+            <g class="spk-knurl" stroke-width="1">
+              <line x1="446" y1="162" x2="446" y2="176"/><line x1="454" y1="164" x2="454" y2="179"/>
+              <line x1="462" y1="165" x2="462" y2="180"/><line x1="470" y1="166" x2="470" y2="181"/>
+              <line x1="478" y1="166" x2="478" y2="181"/><line x1="486" y1="165" x2="486" y2="180"/>
+              <line x1="494" y1="164" x2="494" y2="179"/><line x1="502" y1="162" x2="502" y2="176"/>
+            </g>
+            <ellipse class="spk-dial-top" cx="474" cy="158" rx="34" ry="9"/>
+            <circle class="fab-dot" cx="474" cy="152.5" r="1.8"/>
+          </g>
+        </svg>
+        <figcaption class="finish-row">
+          <span class="finish-label" id="finish-label">Finish: <strong data-finish-name>Chalk</strong></span>
+          <span class="swatches" role="radiogroup" aria-labelledby="finish-label" id="finishes">
+            <button class="swatch" type="button" role="radio" aria-checked="true" tabindex="0" data-value="chalk" aria-label="Chalk"><span class="swatch-dot dot-chalk"></span></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" tabindex="-1" data-value="basalt" aria-label="Basalt"><span class="swatch-dot dot-basalt"></span></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" tabindex="-1" data-value="lake" aria-label="Lake"><span class="swatch-dot dot-lake"></span></button>
+          </span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 2. Inside: an exploded drawing you can query, part by part -->
+  <section class="section" id="inside" aria-labelledby="inside-title">
+    <div class="wrap inside-grid">
+      <header class="sec-head">
+        <p class="eyebrow">Inside Plinth</p>
+        <h2 class="title" id="inside-title">Five parts under one sheet of fabric.</h2>
+        <p class="lead">Pick a part to see where it sits and what it does.</p>
+      </header>
+      <figure class="exploded on-tile">
+        <svg class="ex-art has-sel" id="ex-art" data-media viewBox="0 40 560 560" role="img" aria-labelledby="ex-title">
+          <title id="ex-title">Exploded drawing of Plinth, top to bottom: dial, light ring plate, microphone bar, drivers and chassis.</title>
+          <g aria-hidden="true">
+            <path class="ex-lead" d="M380 92 V176"/>
+            <path class="ex-lead" d="M280 248 V290"/>
+            <path class="ex-lead" d="M280 318 V372"/>
+            <path class="ex-lead" d="M280 448 V490"/>
+          </g>
+          <g class="part is-on" data-part="dial">
+            <path class="ex-side" d="M344 62 V80 A36 10 0 0 0 416 80 V62 Z"/>
+            <ellipse class="ex-top" cx="380" cy="62" rx="36" ry="10"/>
+            <circle class="ex-hole" cx="380" cy="57" r="2"/>
+          </g>
+          <g class="part" data-part="ring">
+            <rect class="ex-side" x="80" y="186" width="400" height="56" rx="28"/>
+            <rect class="ex-top" x="80" y="176" width="400" height="56" rx="28"/>
+            <ellipse class="ex-ring" cx="380" cy="204" rx="44" ry="11"/>
+            <ellipse class="ex-hole" cx="380" cy="204" rx="9" ry="2.5"/>
+          </g>
+          <g class="part" data-part="mics">
+            <rect class="ex-side" x="170" y="296" width="220" height="22" rx="11"/>
+            <rect class="ex-top" x="170" y="290" width="220" height="22" rx="11"/>
+            <circle class="ex-hole" cx="215" cy="301" r="4"/>
+            <circle class="ex-hole" cx="280" cy="301" r="4"/>
+            <circle class="ex-hole" cx="345" cy="301" r="4"/>
+          </g>
+          <g class="part" data-part="drivers">
+            <rect class="ex-side" x="96" y="384" width="368" height="64" rx="32"/>
+            <rect class="ex-top" x="96" y="372" width="368" height="64" rx="32"/>
+            <ellipse class="ex-side" cx="200" cy="404" rx="62" ry="22"/>
+            <ellipse class="ex-top" cx="200" cy="404" rx="42" ry="15"/>
+            <ellipse class="ex-hole" cx="200" cy="404" rx="13" ry="4.5"/>
+            <ellipse class="ex-side" cx="330" cy="404" rx="24" ry="9"/>
+            <ellipse class="ex-hole" cx="330" cy="404" rx="8" ry="3"/>
+            <ellipse class="ex-side" cx="408" cy="404" rx="24" ry="9"/>
+            <ellipse class="ex-hole" cx="408" cy="404" rx="8" ry="3"/>
+          </g>
+          <g class="part" data-part="chassis">
+            <rect class="ex-side" x="80" y="510" width="400" height="80" rx="40"/>
+            <rect class="ex-top" x="80" y="490" width="400" height="80" rx="40"/>
+            <rect class="ex-side" x="106" y="502" width="348" height="56" rx="28"/>
+            <ellipse class="ex-hole" cx="396" cy="530" rx="24" ry="8"/>
+            <rect class="ex-hole" x="426" y="579" width="22" height="7" rx="3.5"/>
+          </g>
+          <g aria-hidden="true">
+            <line class="ex-tick ex-call is-on" data-call="dial" x1="58" y1="71" x2="340" y2="71"/>
+            <line class="ex-tick ex-call" data-call="ring" x1="58" y1="204" x2="76" y2="204"/>
+            <line class="ex-tick ex-call" data-call="mics" x1="58" y1="301" x2="166" y2="301"/>
+            <line class="ex-tick ex-call" data-call="drivers" x1="58" y1="404" x2="92" y2="404"/>
+            <line class="ex-tick ex-call" data-call="chassis" x1="58" y1="530" x2="76" y2="530"/>
+            <g class="ex-badge is-on" data-badge="dial"><circle cx="40" cy="71" r="17"/><text x="40" y="71" font-size="19">1</text></g>
+            <g class="ex-badge" data-badge="ring"><circle cx="40" cy="204" r="17"/><text x="40" y="204" font-size="19">2</text></g>
+            <g class="ex-badge" data-badge="mics"><circle cx="40" cy="301" r="17"/><text x="40" y="301" font-size="19">3</text></g>
+            <g class="ex-badge" data-badge="drivers"><circle cx="40" cy="404" r="17"/><text x="40" y="404" font-size="19">4</text></g>
+            <g class="ex-badge" data-badge="chassis"><circle cx="40" cy="530" r="17"/><text x="40" y="530" font-size="19">5</text></g>
+          </g>
+        </svg>
+      </figure>
+        <ol class="parts" aria-label="Parts of Plinth">
+          <li><button class="part-btn" type="button" aria-pressed="true" aria-controls="part-detail" data-part="dial"><span class="part-num">1</span> <span class="part-name">Dial</span> <span class="part-spec">38 detents</span></button></li>
+          <li><button class="part-btn" type="button" aria-pressed="false" aria-controls="part-detail" data-part="ring"><span class="part-num">2</span> <span class="part-name">Light ring</span> <span class="part-spec">2 mm band</span></button></li>
+          <li><button class="part-btn" type="button" aria-pressed="false" aria-controls="part-detail" data-part="mics"><span class="part-num">3</span> <span class="part-name">Microphones</span> <span class="part-spec">3 mics</span></button></li>
+          <li><button class="part-btn" type="button" aria-pressed="false" aria-controls="part-detail" data-part="drivers"><span class="part-num">4</span> <span class="part-name">Drivers</span> <span class="part-spec">60 W</span></button></li>
+          <li><button class="part-btn" type="button" aria-pressed="false" aria-controls="part-detail" data-part="chassis"><span class="part-num">5</span> <span class="part-name">Chassis</span> <span class="part-spec">2.4 kg</span></button></li>
+        </ol>
+        <div class="part-detail" id="part-detail" aria-live="polite">
+          <h3 data-detail-title>Dial</h3>
+          <p data-detail-body>Machined aluminium with 38 detents you can feel. Turn it for volume, press it to pause, hold it for a second to mute the microphones, double-press it to tune the room again.</p>
+        </div>
+    </div>
+  </section>
+
+  <!-- 3. Tuning: a bento where the chart tile leads by size and the one accent curve; the others share its quiet surface -->
+  <section class="section" id="tuning" aria-labelledby="tuning-title" style="padding-block-start:0">
+    <div class="wrap">
+      <header class="sec-head sec-split">
+        <p class="eyebrow">Room tuning</p>
+        <h2 class="title" id="tuning-title">Nine seconds, then the bass behaves.</h2>
+        <p class="lead">In the example setup below, a desk and the wall behind it add 7&nbsp;dB at 54&nbsp;Hz. Plinth measures that and takes it back out.</p>
+      </header>
+      <div class="bento">
+        <article class="tile tile-lead on-tile" aria-labelledby="chart-title">
+          <h3 id="chart-title">Your desk, before and after</h3>
+          <div class="legend" aria-hidden="true">
+            <span><i class="key"></i>Before tuning</span>
+            <span class="legend-after"><i class="key key-after"></i><span>After tuning<em class="legend-hint">, drawn when a pass runs</em></span></span>
+            <span><i class="key key-band"></i>Target, 1 dB either side</span>
+          </div>
+          <div class="chart-wrap" id="chart-wrap">
+            <div class="chart-y" aria-hidden="true"><span class="y-p6">+6 dB</span><span class="y-0">0 dB</span><span class="y-m6">-6 dB</span></div>
+            <div class="chart-box">
+              <svg class="chart" id="chart" viewBox="0 0 536 200" preserveAspectRatio="none" role="img" aria-labelledby="chart-desc">
+                <title id="chart-desc">Frequency response of a fictional desk setup. Before tuning it rises 7 dB at 54 Hz, 4 dB at 87 Hz and 3 dB at 141 Hz. After tuning it stays within 1 dB from 60 Hz to 18 kHz.</title>
+                <rect class="band" x="0" y="88.9" width="536" height="22.2"/>
+                <line class="grid-line" x1="0" y1="33.3" x2="536" y2="33.3"/>
+                <line class="grid-zero" x1="0" y1="100" x2="536" y2="100"/>
+                <line class="grid-line" x1="0" y1="166.7" x2="536" y2="166.7"/>
+                <line class="grid-line" x1="124.9" y1="0" x2="124.9" y2="200"/>
+                <line class="grid-line" x1="303.5" y1="0" x2="303.5" y2="200"/>
+                <line class="grid-line" x1="482.2" y1="0" x2="482.2" y2="200"/>
+                <path class="curve curve-before" d="M0.0 183.3 L6.0 172.5 L11.9 162.1 L17.9 152.0 L23.8 142.1 L29.8 132.1 L35.7 121.3 L41.7 108.6 L47.6 93.2 L53.6 74.8 L59.6 54.8 L65.5 37.8 L71.5 26.0 L77.4 21.6 L83.4 24.9 L89.3 32.9 L95.3 40.5 L101.2 44.1 L107.2 44.6 L113.2 46.7 L119.1 54.1 L125.1 65.0 L131.0 73.7 L137.0 75.5 L142.9 71.3 L148.9 67.4 L154.8 70.4 L160.8 81.8 L166.8 98.6 L172.7 116.2 L178.7 131.3 L184.6 141.3 L190.6 144.2 L196.5 139.6 L202.5 130.0 L208.4 119.2 L214.4 110.5 L220.4 104.8 L226.3 101.9 L232.3 100.6 L238.2 100.2 L244.2 100.0 L250.1 100.0 L256.1 100.0 L262.0 100.0 L268.0 100.0 L274.0 100.0 L279.9 100.0 L285.9 99.9 L291.8 99.9 L297.8 99.7 L303.7 99.5 L309.7 99.1 L315.6 98.4 L321.6 97.4 L327.6 96.0 L333.5 94.2 L339.5 92.0 L345.4 89.5 L351.4 87.0 L357.3 84.8 L363.3 83.2 L369.2 82.4 L375.2 82.6 L381.2 83.9 L387.1 86.1 L393.1 89.2 L399.0 92.9 L405.0 97.0 L410.9 101.6 L416.9 106.4 L422.8 111.2 L428.8 115.8 L434.8 119.7 L440.7 122.5 L446.7 123.7 L452.6 123.1 L458.6 120.6 L464.5 116.3 L470.5 110.8 L476.4 104.7 L482.4 98.8 L488.4 93.9 L494.3 90.7 L500.3 89.3 L506.2 89.7 L512.2 91.3 L518.1 93.4 L524.1 95.6 L530.0 97.3 L536.0 98.5"/>
+                <clipPath id="reveal"><rect id="reveal-rect" x="0" y="-10" width="0" height="220"/></clipPath>
+                <path class="curve curve-after" clip-path="url(#reveal)" d="M0.0 183.3 L6.0 172.5 L11.9 162.1 L17.9 152.2 L23.8 142.7 L29.8 133.8 L35.7 125.2 L41.7 117.1 L47.6 109.4 L53.6 102.2 L59.6 96.1 L65.5 92.9 L71.5 91.6 L77.4 91.1 L83.4 91.7 L89.3 93.1 L95.3 94.9 L101.2 96.7 L107.2 98.1 L113.2 99.0 L119.1 99.5 L125.1 99.8 L131.0 99.9 L137.0 100.0 L142.9 100.0 L148.9 100.1 L154.8 100.4 L160.8 101.0 L166.8 102.0 L172.7 103.4 L178.7 105.1 L184.6 106.3 L190.6 106.6 L196.5 105.9 L202.5 104.5 L208.4 102.9 L214.4 101.6 L220.4 100.7 L226.3 100.3 L232.3 100.1 L238.2 100.0 L244.2 100.0 L250.1 100.0 L256.1 100.0 L262.0 100.0 L268.0 100.0 L274.0 100.0 L279.9 100.0 L285.9 100.0 L291.8 100.0 L297.8 99.9 L303.7 99.8 L309.7 99.7 L315.6 99.5 L321.6 99.2 L327.6 98.8 L333.5 98.2 L339.5 97.5 L345.4 96.7 L351.4 95.9 L357.3 95.2 L363.3 94.7 L369.2 94.5 L375.2 94.6 L381.2 95.0 L387.1 95.6 L393.1 96.6 L399.0 97.7 L405.0 98.9 L410.9 100.2 L416.9 101.6 L422.8 103.0 L428.8 104.2 L434.8 105.4 L440.7 106.2 L446.7 106.6 L452.6 106.5 L458.6 106.1 L464.5 105.3 L470.5 104.4 L476.4 103.4 L482.4 102.5 L488.4 101.7 L494.3 101.1 L500.3 100.6 L506.2 100.4 L512.2 100.2 L518.1 100.1 L524.1 100.0 L530.0 100.0 L536.0 100.0"/>
+                <line class="scan" id="scan" x1="0" y1="0" x2="0" y2="200"/>
+              </svg>
+              <div class="chart-x" aria-hidden="true">
+                <span class="x-20">20 Hz</span><span class="x-100">100 Hz</span><span class="x-1k">1 kHz</span><span class="x-10k">10 kHz</span><span class="x-20k">20 kHz</span>
+              </div>
+            </div>
+          </div>
+          <div class="tune-row">
+            <button class="btn btn-primary" type="button" id="tune">
+              <span class="spin" aria-hidden="true"></span>
+              <span class="when-idle" data-tune-label>Run a tuning pass</span>
+              <span class="when-busy">Listening</span>
+            </button>
+            <p class="readout" id="readout" aria-live="polite">Untuned, this desk adds 7&nbsp;dB at 54&nbsp;Hz. Run a pass and watch it flatten.</p>
+          </div>
+        </article>
+
+        <article class="tile tile-watt">
+          <p class="figure num">65 <small>W</small></p>
+          <h3>One cable to the laptop</h3>
+          <p>USB-C carries sound to Plinth and 65&nbsp;W of charge back to your laptop. The speaker replaces a charger instead of adding one more cable.</p>
+          <svg class="cable" viewBox="0 0 260 80" aria-hidden="true">
+            <path class="cable-line" d="M8 62 C70 62 86 22 150 22 H196"/>
+            <rect class="cable-plug" x="194" y="12" width="44" height="20" rx="10"/>
+            <rect class="cable-tip" x="236" y="17" width="16" height="10" rx="4"/>
+          </svg>
+        </article>
+
+        <article class="tile tile-calls on-tile" aria-labelledby="calls-title">
+          <h3 id="calls-title">Mute you can see</h3>
+          <p>Hold the dial for a second. The ring lights up and the microphones stop listening, so everyone at the table can see you are muted.</p>
+          <div class="ring-demo" id="ring-demo">
+            <svg class="ring-art" viewBox="0 0 96 96" aria-hidden="true">
+              <circle class="ring-face" cx="48" cy="48" r="34"/>
+              <circle class="ring-glow" cx="48" cy="48" r="42"/>
+              <g class="ring-glyph" transform="translate(30 30) scale(1.5)" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>
+                <line class="ring-slash" x1="3" x2="21" y1="3" y2="21"/>
+              </g>
+            </svg>
+            <div class="ring-side">
+              <p class="mic-state" aria-live="polite">
+                <svg class="ico ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                <svg class="ico ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                <span data-mic-text>Microphones on</span>
+              </p>
+              <button class="btn btn-secondary btn-sm btn-toggle" type="button" id="mute">Mute microphones</button>
+            </div>
+          </div>
+        </article>
+
+        <dl class="specs" aria-label="Specifications">
+          <div><dt>Frequency range</dt><dd>45&nbsp;Hz to 20&nbsp;kHz</dd></div>
+          <div><dt>Amplification</dt><dd>60&nbsp;W over three channels</dd></div>
+          <div><dt>Drivers</dt><dd>100&nbsp;mm woofer, two 25&nbsp;mm tweeters</dd></div>
+          <div><dt>Connections</dt><dd>USB-C audio, Bluetooth 5.3</dd></div>
+          <div><dt>Size</dt><dd>32 × 12 × 11 cm</dd></div>
+          <div><dt>Weight</dt><dd>2.4&nbsp;kg</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Pricing: the speaker leads; plans are a quieter add-on row -->
+  <section class="section" id="pricing" aria-labelledby="pricing-title" style="padding-block-start:0">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Pricing</p>
+        <h2 class="title" id="pricing-title">Plinth is yours outright. Each app plan is optional.</h2>
+      </header>
+
+      <article class="buy on-inverse" aria-labelledby="buy-title">
+        <div class="buy-main">
+          <h3 class="buy-name" id="buy-title">Plinth</h3>
+          <p class="buy-price num">$349</p>
+          <p class="buy-note">One payment. Reserving is free; we will email you to confirm payment before it ships.</p>
+          <div class="cta-row"><button class="btn btn-primary" type="button" data-open-order>Reserve one</button></div>
+        </div>
+        <div class="buy-side">
+          <p class="plan-tag">Included with every Plinth</p>
+          <ul class="feat">
+            <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><strong>Room tuning.</strong> Run again any time with a double press of the dial.</span></li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><strong>Dial and light ring.</strong> Volume, pause and mute without a screen.</span></li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><strong>Call mode.</strong> Three microphones steered toward your seat.</span></li>
+            <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span><strong>Six years of updates.</strong> No account needed.</span></li>
+          </ul>
+        </div>
+      </article>
+
+      <div class="addons-head">
+        <div class="addons-copy">
+          <h3 class="addons-title">Add a Room app plan, if you want one</h3>
+          <p class="plan-sub">Plans start after a free first month. Cancel any time.</p>
+        </div>
+        <div class="billing" role="radiogroup" aria-label="Billing period" id="billing">
+          <button class="seg" type="button" role="radio" aria-checked="true" tabindex="0" data-value="monthly">Monthly</button>
+          <button class="seg" type="button" role="radio" aria-checked="false" tabindex="-1" data-value="yearly">Yearly <span class="save">save 25%</span></button>
+        </div>
+      </div>
+      <p class="sr-only" id="billing-status" aria-live="polite"></p>
+
+      <div class="addons">
+        <article class="plan" aria-labelledby="plan-roomplus">
+          <div class="plan-top">
+            <h4 id="plan-roomplus">Room+</h4>
+            <p class="plan-tag">For desks that move</p>
+          </div>
+          <div>
+            <p class="price"><span class="amount" data-plan="roomplus" data-monthly="8" data-yearly="6">$8</span><span class="per">per month</span></p>
+            <p class="billed" data-billed-monthly="Billed monthly." data-billed-yearly="Billed $72 once a year. You keep $24.">Billed monthly.</p>
+          </div>
+          <p class="plan-sub">Five saved rooms you switch with the dial, per-app sound for calls and music, stereo tuning for two Plinths and a weekly listening report.</p>
+          <div class="cta-row">
+            <button class="btn btn-secondary btn-add" type="button" aria-pressed="false" data-add="roomplus"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span data-add-label>Add Room+ to my reservation</span></button>
+          </div>
+        </article>
+        <article class="plan" aria-labelledby="plan-studio">
+          <div class="plan-top">
+            <h4 id="plan-studio">Studio</h4>
+            <p class="plan-tag">For mixing at a desk</p>
+          </div>
+          <div>
+            <p class="price"><span class="amount" data-plan="studio" data-monthly="16" data-yearly="12">$16</span><span class="per">per month</span></p>
+            <p class="billed" data-billed-monthly="Billed monthly." data-billed-yearly="Billed $144 once a year. You keep $48.">Billed monthly.</p>
+          </div>
+          <p class="plan-sub">Everything in Room+, plus measurement export to CSV, a flat reference mode, five devices on one account and next-day replacement.</p>
+          <div class="cta-row">
+            <button class="btn btn-secondary btn-add" type="button" aria-pressed="false" data-add="studio"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span data-add-label>Add Studio to my reservation</span></button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Questions: heading on the left, disclosures on the right -->
+  <section class="section" id="questions" aria-labelledby="faq-title" style="padding-block-start:0">
+    <div class="wrap faq-grid">
+      <header class="sec-head">
+        <p class="eyebrow">Questions</p>
+        <h2 class="title" id="faq-title">Before you reserve</h2>
+        <p class="lead">Still unsure? Write to <a class="link mail" href="mailto:hello@example.com">hello@example.com</a>.</p>
+      </header>
+      <div class="faq" id="faq">
+        <div class="faq-item">
+          <h3 class="faq-q"><button class="faq-btn" type="button" id="q1" aria-expanded="false" aria-controls="a1">Does Plinth work without Room+?<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></h3>
+          <div class="faq-panel" id="a1" role="region" aria-labelledby="q1"><div class="faq-inner"><p>Yes. Tuning, the dial, call mode and every firmware update come with the speaker and never need an account. Room+ adds saved rooms, per-app sound and stereo tuning.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3 class="faq-q"><button class="faq-btn" type="button" id="q2" aria-expanded="false" aria-controls="a2">How long does tuning take, and when do I run it again?<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></h3>
+          <div class="faq-panel" id="a2" role="region" aria-labelledby="q2"><div class="faq-inner"><p>About nine seconds. Plinth plays a short sweep, listens through its three microphones and writes a correction. Run it again after you move the speaker or the desk: double-press the dial.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3 class="faq-q"><button class="faq-btn" type="button" id="q3" aria-expanded="false" aria-controls="a3">What do I plug it into?<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></h3>
+          <div class="faq-panel" id="a3" role="region" aria-labelledby="q3"><div class="faq-inner"><p>The power adapter goes in the wall. One USB-C cable to your laptop carries sound and charges the laptop at up to 65 W. Your phone connects over Bluetooth 5.3.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3 class="faq-q"><button class="faq-btn" type="button" id="q4" aria-expanded="false" aria-controls="a4">What does yearly billing change?<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></h3>
+          <div class="faq-panel" id="a4" role="region" aria-labelledby="q4"><div class="faq-inner"><p>Only the price. You pay once a year and it costs 25% less than twelve monthly payments. Cancel whenever you like and the unused months are refunded.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3 class="faq-q"><button class="faq-btn" type="button" id="q5" aria-expanded="false" aria-controls="a5">What if it does not suit my desk?<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></h3>
+          <div class="faq-panel" id="a5" role="region" aria-labelledby="q5"><div class="faq-inner"><p>Send it back within 30 nights of delivery for a full refund, shipping included both ways. Keep the box until then; we email you a prepaid return label when you ask for one.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Closing: the dial, drawn at full size -->
+  <section class="closing on-inverse" aria-labelledby="closing-title">
+    <div class="wrap closing-grid">
+      <div class="closing-copy">
+        <p class="eyebrow">Reservations open</p>
+        <h2 class="closing-title" id="closing-title">Reserve one for the first batch.</h2>
+        <p class="sub">Reserving costs nothing. We will email you to confirm payment before it ships.</p>
+        <div class="cta-row">
+          <button class="btn btn-primary" type="button" data-open-order>Reserve one, $349</button>
+          <a class="btn btn-secondary" href="#pricing">Compare plans</a>
+        </div>
+      </div>
+      <svg class="dial-art" viewBox="0 0 400 400" aria-hidden="true">
+        <line class="tick on" x1="95.3" y1="304.7" x2="79.8" y2="320.2"/>
+        <line class="tick on" x1="79.7" y1="293.0" x2="68.7" y2="301.5"/>
+        <line class="tick on" x1="68.9" y1="276.9" x2="56.8" y2="284.0"/>
+        <line class="tick on" x1="60.2" y1="259.7" x2="47.3" y2="265.1"/>
+        <line class="tick on" x1="53.8" y1="241.4" x2="40.3" y2="245.2"/>
+        <line class="tick on" x1="49.7" y1="222.5" x2="35.8" y2="224.6"/>
+        <line class="tick on" x1="48.0" y1="203.2" x2="34.0" y2="203.5"/>
+        <line class="tick on" x1="48.9" y1="183.9" x2="34.9" y2="182.4"/>
+        <line class="tick on" x1="52.1" y1="164.8" x2="38.5" y2="161.6"/>
+        <line class="tick on" x1="57.8" y1="146.3" x2="44.7" y2="141.4"/>
+        <line class="tick on" x1="65.8" y1="128.7" x2="53.4" y2="122.1"/>
+        <line class="tick on" x1="75.9" y1="112.2" x2="64.5" y2="104.1"/>
+        <line class="tick on" x1="88.1" y1="97.2" x2="77.7" y2="87.7"/>
+        <line class="tick on" x1="102.0" y1="83.8" x2="93.0" y2="73.1"/>
+        <line class="tick on" x1="117.6" y1="72.3" x2="110.0" y2="60.5"/>
+        <line class="tick on" x1="134.5" y1="62.9" x2="128.4" y2="50.2"/>
+        <line class="tick on" x1="152.4" y1="55.6" x2="148.0" y2="42.3"/>
+        <line class="tick on" x1="171.1" y1="50.8" x2="168.5" y2="37.0"/>
+        <line class="tick on" x1="190.3" y1="48.3" x2="189.4" y2="34.3"/>
+        <line class="tick on" x1="209.7" y1="48.3" x2="210.6" y2="34.3"/>
+        <line class="tick on" x1="228.9" y1="50.8" x2="231.5" y2="37.0"/>
+        <line class="tick on" x1="247.6" y1="55.6" x2="252.0" y2="42.3"/>
+        <line class="tick on" x1="265.5" y1="62.9" x2="271.6" y2="50.2"/>
+        <line class="tick on" x1="282.4" y1="72.3" x2="290.0" y2="60.5"/>
+        <line class="tick" x1="298.0" y1="83.8" x2="307.0" y2="73.1"/>
+        <line class="tick" x1="311.9" y1="97.2" x2="322.3" y2="87.7"/>
+        <line class="tick" x1="324.1" y1="112.2" x2="335.5" y2="104.1"/>
+        <line class="tick" x1="334.2" y1="128.7" x2="346.6" y2="122.1"/>
+        <line class="tick" x1="342.2" y1="146.3" x2="355.3" y2="141.4"/>
+        <line class="tick" x1="347.9" y1="164.8" x2="361.5" y2="161.6"/>
+        <line class="tick" x1="351.1" y1="183.9" x2="365.1" y2="182.4"/>
+        <line class="tick" x1="352.0" y1="203.2" x2="366.0" y2="203.5"/>
+        <line class="tick" x1="350.3" y1="222.5" x2="364.2" y2="224.6"/>
+        <line class="tick" x1="346.2" y1="241.4" x2="359.7" y2="245.2"/>
+        <line class="tick" x1="339.8" y1="259.7" x2="352.7" y2="265.1"/>
+        <line class="tick" x1="331.1" y1="276.9" x2="343.2" y2="284.0"/>
+        <line class="tick" x1="320.3" y1="293.0" x2="331.3" y2="301.5"/>
+        <line class="tick" x1="304.7" y1="304.7" x2="320.2" y2="320.2"/>
+        <path class="dial-arc" d="M102.4 297.6 A138 138 0 1 1 274.8 84.1"/>
+        <circle class="dial-face" cx="200" cy="200" r="124"/>
+        <circle class="dial-edge" cx="200" cy="200" r="110"/>
+        <circle class="dial-dot" cx="252.1" cy="119.3" r="5"/>
+      </svg>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot on-footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <p class="foot-word">NORDUN</p>
+        <p>Plinth, the desk speaker that tunes itself, and the Room app that remembers where it sits.</p>
+      </div>
+      <nav aria-label="Footer">
+        <h2 class="foot-h">On this page</h2>
+        <ul class="foot-links">
+          <li><a href="#inside">Inside Plinth</a></li>
+          <li><a href="#tuning">Room tuning</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#questions">Questions</a></li>
+        </ul>
+      </nav>
+      <div class="foot-meta">
+        <h2 class="foot-h" id="about" tabindex="-1">About this example</h2>
+        <p class="foot-about">Design example built with <span class="nowrap">ux-ui-agent-skills</span>. The product, prices and company are fictional. Visual language adapted from the bang-olufsen spec in the kit&rsquo;s library. Contrast, keyboard use and layout were tested with the kit&rsquo;s automated checks.</p>
+        <p>Built with <a href="https://github.com/plugin87/ux-ui-agent-skills"><span class="nowrap">ux-ui-agent-skills</span></a> by Thientan Soparat</p>
+        <p class="foot-solo"><a href="../../index.html">All examples</a></p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<dialog class="order on-dialog" id="order" aria-labelledby="order-title">
+  <div class="order-in">
+    <div class="order-head">
+      <h2 id="order-title">Reserve a Plinth</h2>
+      <button class="iconbtn" type="button" data-close aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <form class="order-form" id="order-form" novalidate>
+      <div class="order-body">
+        <dl class="summary">
+          <div><dt>Finish</dt><dd data-sum-finish>Chalk</dd></div>
+          <div><dt>Plan</dt><dd data-sum-plan>No app plan</dd></div>
+          <div><dt>Due today</dt><dd class="num">$0</dd></div>
+          <div><dt>After you confirm</dt><dd class="num">$349</dd></div>
+        </dl>
+        <div class="field">
+          <label for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="email-hint" />
+          <p class="hint" id="email-hint">We will email you to confirm payment before it ships.</p>
+          <p class="error" id="email-error" hidden><svg class="ico" aria-hidden="true"><use href="#i-alert-circle"/></svg><span>Enter an email like name@example.com so we can confirm your place.</span></p>
+        </div>
+        <div class="order-actions">
+          <button class="btn btn-primary" type="submit" id="place">
+            <span class="spin" aria-hidden="true"></span>
+            <span class="when-idle">Hold my place</span>
+            <span class="when-busy">Holding your place</span>
+          </button>
+          <button class="btn btn-secondary" type="button" data-close>Not now</button>
+        </div>
+      </div>
+    </form>
+    <div class="done" id="order-done" hidden>
+      <span class="done-mark" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
+      <h3 id="done-title" tabindex="-1" data-done-title>Your place is held</h3>
+      <p>A Plinth in <span data-done-finish>Chalk</span> is reserved for <strong data-done-email></strong>. <span data-done-plan></span> We will email you to confirm payment before it ships; nothing is charged until you do.</p>
+      <button class="btn btn-primary" type="button" data-close>Done</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="../../component-states/icons.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+
+  /* ---- theme toggle: one attribute on <html>, label and icon follow ---- */
+  var toggle = document.getElementById('theme-toggle');
+  function paintToggle() {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    toggle.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    toggle.querySelector('use').setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  }
+  toggle.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('nordun-theme', next); } catch (e) { /* storage blocked: the choice lasts this visit */ }
+    paintToggle();
+  });
+  paintToggle();
+
+  /* ---- radio group: roving tabindex, arrows move and select ---- */
+  function radioGroup(group, onChange) {
+    var radios = Array.prototype.slice.call(group.querySelectorAll('[role="radio"]'));
+    function select(r, focus) {
+      radios.forEach(function (o) {
+        var on = o === r;
+        o.setAttribute('aria-checked', on ? 'true' : 'false');
+        o.tabIndex = on ? 0 : -1;
+      });
+      if (focus) r.focus();
+      onChange(r.getAttribute('data-value'));
+    }
+    radios.forEach(function (r, i) {
+      r.addEventListener('click', function () { select(r, false); });
+      r.addEventListener('keydown', function (e) {
+        var n = null, last = radios.length - 1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = radios[i === last ? 0 : i + 1];
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = radios[i === 0 ? last : i - 1];
+        else if (e.key === 'Home') n = radios[0];
+        else if (e.key === 'End') n = radios[last];
+        if (n) { e.preventDefault(); select(n, true); }
+      });
+    });
+  }
+
+  var reduce = false;
+  try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduce = false; }
+
+  var state = { finish: 'chalk', billing: 'monthly', plan: null, reserved: null };
+  var FINISH = { chalk: 'Chalk', basalt: 'Basalt', lake: 'Lake' };
+  var PLAN = { roomplus: 'Room+', studio: 'Studio' };
+
+  /* ---- the sweep arcs pulse once on a finish change or a tuning pass ---- */
+  var sweep = document.getElementById('sweep');
+  function pulse() {
+    sweep.classList.remove('is-pulsing');
+    void sweep.getBoundingClientRect();
+    sweep.classList.add('is-pulsing');
+  }
+  sweep.addEventListener('animationend', function (e) {
+    if (e.target === sweep.lastElementChild && sweep.classList.contains('is-pulsing')) sweep.classList.remove('is-pulsing');
+  });
+
+  /* ---- finish ---- */
+  var stage = document.getElementById('stage');
+  radioGroup(document.getElementById('finishes'), function (v) {
+    state.finish = v;
+    stage.setAttribute('data-finish', v);
+    stage.querySelector('[data-finish-name]').textContent = FINISH[v];
+    pulse();
+  });
+
+  /* ---- exploded parts ---- */
+  var PARTS = {
+    dial: ['Dial', 'Machined aluminium with 38 detents you can feel. Turn it for volume, press it to pause, hold it for a second to mute the microphones, double-press it to tune the room again.'],
+    ring: ['Light ring', 'A 2 mm band of light around the dial. It shows the volume while you turn, then fades out after two seconds so it never glows at you during a film.'],
+    mics: ['Microphones', 'Three microphones, 65 mm apart. They measure the room during tuning and steer toward your seat on calls.'],
+    drivers: ['Drivers', 'One 100 mm woofer and two 25 mm silk tweeters, each with its own amplifier: 60 W in total, crossed over at 2.2 kHz.'],
+    chassis: ['Chassis', 'Cast aluminium, 2.4 kg, with a rear bass port and the single USB-C socket for sound and 65 W laptop charging.']
+  };
+  var OVERVIEW = ['Five parts', 'Plinth is a dial, a light ring, three microphones, three drivers and a cast chassis, all under one sheet of fabric. Pick a part to look closer.'];
+  var art = document.getElementById('ex-art');
+  var partBtns = Array.prototype.slice.call(document.querySelectorAll('.part-btn'));
+  var dTitle = document.querySelector('[data-detail-title]');
+  var dBody = document.querySelector('[data-detail-body]');
+  function showPart(key) {
+    partBtns.forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-part') === key ? 'true' : 'false'); });
+    art.querySelectorAll('[data-part],[data-badge],[data-call]').forEach(function (g) {
+      var k = g.getAttribute('data-part') || g.getAttribute('data-badge') || g.getAttribute('data-call');
+      g.classList.toggle('is-on', k === key);
+    });
+    art.classList.toggle('has-sel', !!key);
+    var t = key ? PARTS[key] : OVERVIEW;
+    dTitle.textContent = t[0];
+    dBody.textContent = t[1];
+  }
+  /* On a phone the drawing, the chips and the description are taller than
+     some screens. After a tap, bring the whole group into view when it fits,
+     and at least the description when it does not. */
+  var exFig = document.querySelector('.exploded');
+  var detail = document.getElementById('part-detail');
+  var wide = null;
+  try { wide = matchMedia('(min-width: 60rem)'); } catch (e) { wide = null; }
+  function revealPart() {
+    if (wide && wide.matches) return;
+    var top = exFig.getBoundingClientRect().top;
+    var bottom = detail.getBoundingClientRect().bottom;
+    var vh = window.innerHeight;
+    if (top >= 0 && bottom <= vh) return;
+    var by = bottom - top <= vh ? (top < 0 ? top : bottom - vh) : bottom - vh;
+    if (by !== 0) window.scrollBy({ top: by, behavior: reduce ? 'auto' : 'smooth' });
+  }
+  partBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var key = b.getAttribute('data-part');
+      showPart(b.getAttribute('aria-pressed') === 'true' ? null : key);
+      revealPart();
+    });
+  });
+
+  /* ---- tuning demo: a real loading state, then the corrected curve ---- */
+  var tune = document.getElementById('tune');
+  var chart = document.getElementById('chart');
+  var tile = document.querySelector('.tile-lead');
+  var scan = document.getElementById('scan');
+  var readout = document.getElementById('readout');
+  var reveal = document.getElementById('reveal-rect');
+  var tuneLabel = tune.querySelector('[data-tune-label]');
+  var LISTEN_MS = 1400;
+  tune.addEventListener('click', function () {
+    if (tune.getAttribute('aria-busy') === 'true') return;
+    tune.setAttribute('aria-busy', 'true');
+    chart.classList.remove('is-tuned');
+    tile.classList.remove('is-tuned');
+    reveal.setAttribute('width', '0');
+    readout.textContent = 'Playing the sweep and listening. This takes a moment.';
+    var span = reduce ? 400 : LISTEN_MS;
+    var start = null;
+    if (!reduce) chart.classList.add('is-scanning');
+    function step(ts) {
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / span);
+      var x = String(536 * p);
+      scan.setAttribute('x1', x); scan.setAttribute('x2', x);
+      reveal.setAttribute('width', x);
+      if (p < 1) { requestAnimationFrame(step); return; }
+      chart.classList.remove('is-scanning');
+      chart.classList.add('is-tuned');
+      tile.classList.add('is-tuned');
+      pulse();
+      tune.setAttribute('aria-busy', 'false');
+      tuneLabel.textContent = 'Run it again';
+      readout.textContent = 'Tuned. Removed three room modes at 54, 87 and 141 Hz. Now within 1 dB from 60 Hz to 18 kHz.';
+    }
+    requestAnimationFrame(step);
+  });
+
+  /* ---- questions: disclosure buttons ---- */
+  document.querySelectorAll('.faq-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var open = b.getAttribute('aria-expanded') !== 'true';
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      b.closest('.faq-item').classList.toggle('is-open', open);
+    });
+  });
+
+  /* ---- mute demo ---- */
+  var mute = document.getElementById('mute');
+  var ringDemo = document.getElementById('ring-demo');
+  var micText = document.querySelector('[data-mic-text]');
+  mute.addEventListener('click', function () {
+    var on = !ringDemo.classList.contains('is-muted');
+    ringDemo.classList.toggle('is-muted', on);
+    mute.textContent = on ? 'Unmute microphones' : 'Mute microphones';
+    micText.textContent = on ? 'Microphones off' : 'Microphones on';
+  });
+
+  /* ---- pricing: the toggle recomputes every figure ---- */
+  var status = document.getElementById('billing-status');
+  function renderPrices() {
+    var y = state.billing === 'yearly';
+    document.querySelectorAll('.amount[data-monthly]').forEach(function (el) {
+      el.textContent = '$' + (y ? el.getAttribute('data-yearly') : el.getAttribute('data-monthly'));
+    });
+    document.querySelectorAll('.billed').forEach(function (el) {
+      el.textContent = y ? el.getAttribute('data-billed-yearly') : el.getAttribute('data-billed-monthly');
+    });
+    status.textContent = y ? 'Showing yearly prices: Room+ $6 a month, Studio $12 a month.' : 'Showing monthly prices: Room+ $8 a month, Studio $16 a month.';
+  }
+  radioGroup(document.getElementById('billing'), function (v) { state.billing = v; renderPrices(); });
+
+  var adds = Array.prototype.slice.call(document.querySelectorAll('.btn-add'));
+  function renderAdds() {
+    adds.forEach(function (b) {
+      var k = b.getAttribute('data-add');
+      var on = state.plan === k;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.querySelector('[data-add-label]').textContent = on ? PLAN[k] + ' added to my reservation' : 'Add ' + PLAN[k] + ' to my reservation';
+    });
+  }
+  adds.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-add');
+      state.plan = state.plan === k ? null : k;
+      renderAdds();
+    });
+  });
+
+  function planLine() {
+    if (!state.plan) return 'No app plan';
+    var el = document.querySelector('.amount[data-plan="' + state.plan + '"]');
+    var y = state.billing === 'yearly';
+    var price = y ? '$' + (Number(el.getAttribute('data-yearly')) * 12) + ' a year' : '$' + el.getAttribute('data-monthly') + ' a month';
+    return PLAN[state.plan] + ', ' + price + ' after a free month';
+  }
+
+  /* ---- reservation dialog ---- */
+  var dialog = document.getElementById('order');
+  var form = document.getElementById('order-form');
+  var done = document.getElementById('order-done');
+  var email = document.getElementById('email');
+  var err = document.getElementById('email-error');
+  var place = document.getElementById('place');
+  var opener = null;
+  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function setError(on) {
+    email.setAttribute('aria-invalid', on ? 'true' : 'false');
+    email.setAttribute('aria-describedby', on ? 'email-hint email-error' : 'email-hint');
+    err.hidden = !on;
+  }
+  function openOrder(btn) {
+    opener = btn;
+    place.setAttribute('aria-busy', 'false');
+    setError(false);
+    if (state.reserved) {
+      /* one place per visitor: a held place reopens as held, not as a blank form */
+      form.hidden = true; done.hidden = false;
+      dialog.querySelector('[data-done-title]').textContent = 'You already hold a place';
+      dialog.showModal();
+      document.getElementById('done-title').focus();
+      return;
+    }
+    form.hidden = false; done.hidden = true;
+    dialog.querySelector('[data-sum-finish]').textContent = FINISH[state.finish];
+    dialog.querySelector('[data-sum-plan]').textContent = planLine();
+    dialog.showModal();
+    email.focus();
+  }
+  document.querySelectorAll('[data-open-order]').forEach(function (b) {
+    b.addEventListener('click', function () { openOrder(b); });
+  });
+  dialog.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { dialog.close(); });
+  });
+  dialog.addEventListener('click', function (e) { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', function () { if (opener) opener.focus(); });
+  dialog.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var f = Array.prototype.slice.call(dialog.querySelectorAll('button, input, a[href]')).filter(function (el) {
+      return !el.closest('[hidden]') && !el.disabled && el.getClientRects().length > 0;
+    });
+    if (!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && (document.activeElement === first || f.indexOf(document.activeElement) === -1)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || f.indexOf(document.activeElement) === -1)) { e.preventDefault(); first.focus(); }
+  });
+  email.addEventListener('input', function () {
+    if (email.getAttribute('aria-invalid') === 'true' && EMAIL.test(email.value.trim())) setError(false);
+  });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (place.getAttribute('aria-busy') === 'true') return;
+    var v = email.value.trim();
+    if (!EMAIL.test(v)) { setError(true); email.focus(); return; }
+    setError(false);
+    place.setAttribute('aria-busy', 'true');
+    setTimeout(function () {
+      place.setAttribute('aria-busy', 'false');
+      state.reserved = v;
+      dialog.querySelector('[data-done-title]').textContent = 'Your place is held';
+      dialog.querySelector('[data-done-finish]').textContent = FINISH[state.finish];
+      dialog.querySelector('[data-done-email]').textContent = v;
+      dialog.querySelector('[data-done-plan]').textContent = state.plan ? PLAN[state.plan] + ' is noted on the reservation and starts with a free month.' : '';
+      form.hidden = true; done.hidden = false;
+      document.getElementById('done-title').focus();
+    }, reduce ? 300 : 900);
+  });
+})();
+</script>
+</body>
+</html>

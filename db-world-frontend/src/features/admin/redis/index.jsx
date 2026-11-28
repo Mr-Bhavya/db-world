@@ -1,4 +1,3 @@
-import SheetDialog from '@shared/components/SheetDialog';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -18,9 +17,6 @@ import {
   TableRow,
   TablePagination,
   Checkbox,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   InputAdornment,
   Divider,
 } from '@mui/material';
@@ -31,7 +27,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { AdminPage, SectionCard, StatCard, StatGrid, EmptyState, adminSurface, AdminActionButton, usePagedListTop } from '@features/admin/adminUi';
+import { AdminPage, SectionCard, StatCard, StatGrid, EmptyState, AdminConfirmDialog, adminSurface, AdminActionButton, usePagedListTop } from '@features/admin/adminUi';
 import {
   getRedisInfo,
   getRedisKeys,
@@ -116,6 +112,8 @@ export default function RedisCachePage() {
   /* ── Flush dialog ── */
   const [flushOpen, setFlushOpen]       = useState(false);
   const [flushPattern, setFlushPattern] = useState('*');
+  const [deleteKeyOpen, setDeleteKeyOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   /* ── Queries ── */
 
@@ -339,7 +337,7 @@ export default function RedisCachePage() {
                 color="error"
                 startIcon={bulkDeleteMutation.isPending ? <CircularProgress size={12} color="inherit" /> : <Delete />}
                 disabled={bulkDeleteMutation.isPending}
-                onClick={() => bulkDeleteMutation.mutate(Array.from(selected))}
+                onClick={() => setBulkDeleteOpen(true)}
                 sx={{ fontSize: '0.72rem', py: 0.25 }}
               >
                 Delete {selected.size}
@@ -560,7 +558,7 @@ export default function RedisCachePage() {
                           color="error"
                           startIcon={deleteMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <Delete />}
                           disabled={isBusy}
-                          onClick={() => deleteMutation.mutate(activeKey)}
+                          onClick={() => setDeleteKeyOpen(true)}
                           sx={{ fontSize: '0.8rem' }}
                         >
                           Delete Key
@@ -594,62 +592,68 @@ export default function RedisCachePage() {
         </SectionCard>
       </Box>
 
-      {/* Flush dialog */}
-      <SheetDialog
+      <AdminConfirmDialog
         open={flushOpen}
         onClose={() => setFlushOpen(false)}
-        PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2, minWidth: 420 } }}
+        title="Flush Redis keys?"
+        message="All keys matching this pattern will be permanently deleted. This cannot be undone."
+        confirmLabel="Flush keys"
+        loading={flushMutation.isPending}
+        confirmDisabled={!flushPattern}
+        onConfirm={() => flushMutation.mutate(
+          { pattern: flushPattern, confirm: true },
+          { onSuccess: () => setFlushOpen(false) },
+        )}
       >
-        <DialogTitle sx={{ color: T.error, fontSize: '1rem', fontWeight: 700, pb: 1 }}>
-          Flush Keys by Pattern
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: '0.82rem', color: T.textMuted, mb: 2 }}>
-            All keys matching the pattern will be permanently deleted. This cannot be undone.
-          </Typography>
-          <TextField
-            label="Pattern"
-            size="small"
-            fullWidth
-            value={flushPattern}
-            onChange={(e) => setFlushPattern(e.target.value)}
-            sx={editorInputSx(T)}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 14, color: T.textMuted }} /></InputAdornment>,
-            }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 2.5, pb: 2 }}>
-          <Button onClick={() => setFlushOpen(false)} sx={{ color: T.textMuted, fontSize: '0.8rem' }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            startIcon={flushMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <DeleteSweep />}
-            disabled={flushMutation.isPending || !flushPattern}
-            onClick={() => flushMutation.mutate({ pattern: flushPattern, confirm: true })}
-            sx={{ fontSize: '0.8rem' }}
-          >
-            Flush
-          </Button>
-        </DialogActions>
-      </SheetDialog>
+        <TextField
+          label="Pattern"
+          size="small"
+          fullWidth
+          value={flushPattern}
+          onChange={(e) => setFlushPattern(e.target.value)}
+          sx={{ ...editorInputSx(T), mt: 1.5 }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 14, color: T.textMuted }} /></InputAdornment>,
+          }}
+        />
+      </AdminConfirmDialog>
+      <AdminConfirmDialog
+        open={deleteKeyOpen}
+        title="Delete Redis key?"
+        message={`"${activeKey ?? ''}" will be permanently removed from Redis.`}
+        confirmLabel="Delete key"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate(activeKey, { onSuccess: () => setDeleteKeyOpen(false) })}
+        onClose={() => setDeleteKeyOpen(false)}
+      />
+      <AdminConfirmDialog
+        open={bulkDeleteOpen}
+        title={`Delete ${selected.size} Redis keys?`}
+        message="The selected keys will be permanently removed from Redis. This cannot be undone."
+        confirmLabel={`Delete ${selected.size} keys`}
+        loading={bulkDeleteMutation.isPending}
+        onConfirm={() => bulkDeleteMutation.mutate(Array.from(selected), {
+          onSuccess: () => setBulkDeleteOpen(false),
+        })}
+        onClose={() => setBulkDeleteOpen(false)}
+      />
     </AdminPage>
   );
 }
 
 /* ── Shared input sx ─────────────────────────────────────────── */
 
-const editorInputSx = (T) => ({
-  '& .MuiOutlinedInput-root': {
-    color: T.text,
-    bgcolor: T.inputBg,
-    '& fieldset': { borderColor: T.border },
-    '&:hover fieldset': { borderColor: T.teal },
-    '&.Mui-focused fieldset': { borderColor: T.teal },
-  },
-  '& .MuiInputLabel-root': { color: T.textMuted },
-  '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
-  '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: T.textFaint },
-});
+function editorInputSx(T) {
+  return {
+    '& .MuiOutlinedInput-root': {
+      color: T.text,
+      bgcolor: T.inputBg,
+      '& fieldset': { borderColor: T.border },
+      '&:hover fieldset': { borderColor: T.teal },
+      '&.Mui-focused fieldset': { borderColor: T.teal },
+    },
+    '& .MuiInputLabel-root': { color: T.textMuted },
+    '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
+    '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: T.textFaint },
+  };
+}

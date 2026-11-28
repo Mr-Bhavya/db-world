@@ -729,15 +729,15 @@ const Header = () => {
                   onClick={() => setPaletteOpen(true)}
                   aria-label="Search DB World"
                   sx={{
-                    color: T.teal,
-                    bgcolor: T.tealBg,
-                    border: `1px solid ${T.glassBorder}`,
+                    color: T.textMuted,
+                    bgcolor: 'transparent',
+                    border: 'none',
                     borderRadius: 2,
                     width: 42,
                     height: 42,
                     mr: 0.25,
                     ...focusSx(T.teal),
-                    '&:hover': { color: T.teal, bgcolor: T.tealBg, borderColor: T.teal },
+                    '&:hover': { color: T.teal, bgcolor: T.tealBg },
                   }}
                 >
                   <SearchIcon />

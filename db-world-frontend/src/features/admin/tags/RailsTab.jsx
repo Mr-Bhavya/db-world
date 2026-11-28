@@ -1,13 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   Box,
-  Typography,
-  Button,
-  CircularProgress,
   Skeleton,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Tabs,
   Tab,
   Divider,
@@ -19,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
-  SectionCard, StickyBar, AdminActionButton, EmptyState, adminSurface,
+  SectionCard, StickyBar, AdminActionButton, AdminConfirmDialog, EmptyState, adminSurface,
 } from '@features/admin/adminUi';
 import {
   getRails, createRail, updateRail, deleteRail, reorderRails,
@@ -28,7 +22,6 @@ import { BLANK_RAIL, RAIL_SCOPE_TABS } from './railConstants';
 import { railPageTypes, railOnPage } from './tagsUtils';
 import { DraggableRailRow } from './RailRow';
 import RailDialog from './RailDialog';
-import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Rails tab ─────────────────────────────────────────────────────────────────
 export default function RailsTab() {
@@ -214,22 +207,15 @@ export default function RailsTab() {
         onClose={() => setRailDialog({ open: false, data: null })}
         onSave={doSave} saving={saving} />
 
-      <SheetDialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, rail: null })}
-        PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, borderRadius: 2 } }}>
-        <DialogTitle sx={{ color: T.textPrimary, fontSize: '1rem', fontWeight: 700 }}>Delete Rail</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>
-            Delete <Box component="strong" sx={{ color: T.textPrimary }}>{deleteDialog.rail?.title}</Box>? This cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialog({ open: false, rail: null })} sx={{ color: T.textMuted }}>Cancel</Button>
-          <Button variant="contained" color="error" disabled={deleting}
-            onClick={() => doDelete(deleteDialog.rail)}>
-            {deleting ? <CircularProgress size={18} color="inherit" /> : 'Delete'}
-          </Button>
-        </DialogActions>
-      </SheetDialog>
+      <AdminConfirmDialog
+        open={deleteDialog.open}
+        title="Delete rail?"
+        message={`"${deleteDialog.rail?.title ?? ''}" will be permanently removed from the rail configuration. This cannot be undone.`}
+        confirmLabel="Delete rail"
+        loading={deleting}
+        onConfirm={() => doDelete(deleteDialog.rail)}
+        onClose={() => setDeleteDialog({ open: false, rail: null })}
+      />
     </>
   );
 }

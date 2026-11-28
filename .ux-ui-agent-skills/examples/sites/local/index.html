@@ -1,0 +1,1624 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ton Makham, Northern Thai kitchen</title>
+<meta name="description" content="Restaurant example: a neighbourhood Northern Thai kitchen with live opening hours, a tabbed menu, a hand-drawn map and a table request form." />
+<script>
+  /* Set the theme before first paint: a stored choice wins, then the system setting. */
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('ktm-theme'); } catch (e) { t = null; }
+    if (t !== 'light' && t !== 'dark') {
+      t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<link rel="stylesheet" href="./theme.css" />
+<style>
+  /* Base layer = the phone layout. Wider screens are added with min-width only. */
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{margin:0;position:relative;background:var(--color-surface-page);color:var(--color-text-primary);
+    font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);
+    font-weight:var(--weight-regular)}
+  h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+  ul,ol{padding:0;list-style:none}
+  :lang(th){font-family:var(--font-thai);line-height:var(--leading-thai);letter-spacing:normal}
+  /* keeps a number with its unit, a date or a name on one line */
+  .keep{white-space:nowrap}
+  a{color:var(--color-text-link);text-decoration-thickness:var(--border-width-thin);text-underline-offset:.2em}
+  a:hover{text-decoration-thickness:var(--border-width-medium)}
+  a:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring);border-radius:var(--radius-xs)}
+  .ico{inline-size:var(--size-icon-md);block-size:var(--size-icon-md);flex:none;stroke-width:1.75}
+  .ico-sm{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+  .sr-only{position:absolute;inline-size:1px;block-size:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .wrap{inline-size:min(100% - var(--gutter) * 2, var(--container-max));margin-inline:auto}
+  .skip{position:absolute;inset-inline-start:var(--space-4);inset-block-start:var(--space-2);z-index:var(--z-popover);
+    transform:translateY(-200%);background:var(--color-action-primary);color:var(--color-text-on-action);
+    padding:var(--space-2) var(--space-4);border-radius:var(--radius-button);text-decoration:none}
+  .skip:focus-visible{transform:none}
+
+  /* Buttons: primary (one main affirmative), secondary (outline, neutral) */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);
+    min-block-size:var(--size-control-lg);padding:var(--space-3) var(--space-6);border-radius:var(--radius-button);
+    border:var(--border-width-thin) solid transparent;font:inherit;font-weight:var(--weight-semibold);
+    line-height:var(--leading-snug);text-decoration:none;cursor:pointer;
+    transition:background-color var(--transition-micro),border-color var(--transition-micro),transform var(--transition-micro)}
+  .btn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:var(--opacity-disabled);pointer-events:none}
+  .btn-primary{background:var(--color-action-primary);color:var(--color-text-on-action)}
+  .btn-primary:hover{background:var(--color-action-primary-hover);color:var(--color-text-on-action)}
+  .btn-primary:active{background:var(--color-action-primary-active)}
+  .btn-secondary{background:transparent;color:var(--color-text-primary);border-color:var(--color-border-strong)}
+  .btn-secondary:hover{background:var(--color-action-secondary-hover);color:var(--color-text-primary)}
+  .btn-secondary:active{background:var(--color-action-secondary-active)}
+  .btn-sm{min-block-size:var(--size-control-md);padding:var(--space-2) var(--space-4)}
+  .iconbtn{display:inline-grid;place-items:center;inline-size:var(--size-control-md);block-size:var(--size-control-md);
+    border-radius:var(--radius-full);border:var(--border-width-thin) solid var(--color-border-strong);
+    background:transparent;color:var(--color-text-primary);cursor:pointer;
+    transition:background-color var(--transition-micro)}
+  .iconbtn:hover{background:var(--color-action-secondary-hover)}
+  .iconbtn:active{background:var(--color-action-secondary-active)}
+  .iconbtn:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+
+  .notice{padding-block:var(--space-2);font-size:var(--text-xs);color:var(--color-text-secondary);
+    border-block-end:var(--border-width-thin) solid var(--color-border-default)}
+  .notice a{color:var(--color-text-primary);display:inline-flex;align-items:center;min-block-size:var(--size-touch-min)}
+  .about-note{margin-block-start:var(--space-12);padding:var(--space-5);border-radius:var(--radius-card);
+    border:var(--border-width-thin) solid var(--color-border-strong);display:grid;gap:var(--space-2);max-inline-size:var(--measure-body)}
+  .about-note h2{font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+  .about-note p{font-size:var(--text-sm);color:var(--color-text-secondary)}
+
+  /* Masthead */
+  .masthead{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
+    padding-block:var(--space-4)}
+  .brand{display:inline-flex;align-items:center;gap:var(--space-3);color:var(--color-text-primary);
+    text-decoration:none;min-inline-size:0;border-radius:var(--radius-button)}
+  .brand:hover{text-decoration:none}
+  .brand .mark{display:none;inline-size:var(--size-mark);block-size:var(--size-mark);flex:none;color:var(--color-accent-strong)}
+  .brand-text{display:grid;line-height:var(--leading-tight);min-inline-size:0}
+  .brand-name{font-family:var(--font-display);font-size:var(--text-lg);letter-spacing:var(--tracking-tight);white-space:nowrap}
+  .brand-th{font-size:var(--text-xs);color:var(--color-text-secondary)}
+  .sections{display:none}
+  .head-actions{display:flex;align-items:center;gap:var(--space-2);flex:none}
+  .theme-toggle .ico-moon{display:none}
+  .theme-toggle[aria-pressed="true"] .ico-sun{display:none}
+  .theme-toggle[aria-pressed="true"] .ico-moon{display:block}
+
+  /* Hero: display type leads, the live hours card answers "can I go now" */
+  .hero{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-10);
+    padding-block:var(--space-8) var(--space-16)}
+  .kicker{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-3);
+    font-size:var(--text-sm);color:var(--color-text-secondary);margin-block-end:var(--space-5)}
+  .kicker .th{font-size:var(--text-base);color:var(--color-text-accent)}
+  .hero h1{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-display);
+    line-height:var(--leading-display);letter-spacing:var(--tracking-display);max-inline-size:var(--measure-display);
+    overflow-wrap:break-word}
+  .hero h1 em{font-style:italic;color:var(--color-text-accent)}
+  .lede{margin-block-start:var(--space-6);font-size:var(--text-lg);line-height:var(--leading-normal);
+    color:var(--color-text-secondary);max-inline-size:var(--measure-lede)}
+  .cta-row{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-block-start:var(--space-8)}
+  .facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-block-start:var(--space-8);
+    font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .facts div{display:flex;gap:var(--space-1-5);align-items:baseline}
+  .facts dt{font-weight:var(--weight-semibold);color:var(--color-text-primary)}
+
+  .today{align-self:start;background:var(--color-surface-card);border:var(--border-width-thin) solid var(--color-border-default);
+    border-radius:var(--radius-card);padding:var(--space-6);display:grid;gap:var(--space-5);box-shadow:var(--shadow-sm)}
+  .today-top{display:grid;gap:var(--space-4)}
+  .status{display:inline-flex;align-items:center;gap:var(--space-2);justify-self:start;
+    padding:var(--space-1) var(--space-3);border-radius:var(--radius-full);font-size:var(--text-sm);
+    font-weight:var(--weight-semibold)}
+  .status[data-open="true"]{background:var(--color-feedback-success-bg);color:var(--color-feedback-success-text)}
+  .status[data-open="false"]{background:var(--color-surface-raised);color:var(--color-text-primary)}
+  .status .ico-closed{display:none}
+  .status[data-open="false"] .ico-open{display:none}
+  .status[data-open="false"] .ico-closed{display:block}
+  .today-line{font-family:var(--font-display);font-size:var(--text-3xl);line-height:var(--leading-tight);
+    letter-spacing:var(--tracking-tight)}
+  .today-note{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .week-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3);
+    padding-block-start:var(--space-4);border-block-start:var(--border-width-thin) solid var(--color-border-default)}
+  .week-head h2{font-size:var(--text-sm);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-label);
+    text-transform:uppercase}
+  .week-head p{font-size:var(--text-xs);color:var(--color-text-secondary)}
+  .week{display:grid;gap:var(--space-0-5)}
+  .week li{display:grid;grid-template-columns:minmax(0,6.5rem) minmax(0,1fr);gap:var(--space-3);
+    padding:var(--space-1-5) var(--space-2);border-radius:var(--radius-xs);font-size:var(--text-sm);
+    font-variant-numeric:tabular-nums}
+  .week .d{color:var(--color-text-secondary)}
+  .week .h{text-align:end;overflow-wrap:anywhere}
+  .week .h span{display:block}
+  .week li.closed .h{color:var(--color-text-secondary)}
+  .week li[aria-current="date"]{background:var(--color-surface-raised);font-weight:var(--weight-semibold)}
+  .week li[aria-current="date"] .d{color:var(--color-text-primary)}
+  .week .tag{font-size:var(--text-xs);font-weight:var(--weight-semibold);margin-inline-start:var(--space-1)}
+
+  /* Signature band: the one dish, full width, inverse */
+  .band{background:var(--color-surface-inverse);color:var(--color-text-inverse)}
+  .band-inner{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-8);align-items:center;
+    padding-block:var(--space-section)}
+  .bowl{inline-size:var(--size-illustration);block-size:auto;justify-self:center;color:var(--color-text-inverse)}
+  .bowl .line{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+  .bowl .fill-bowl{fill:var(--color-text-inverse)}
+  .bowl .bowl-band{fill:none;stroke:var(--color-accent);stroke-width:3;stroke-linecap:round}
+  .bowl .fill-rooster{fill:var(--color-surface-inverse)}
+  .bowl .rooster-tail{fill:none;stroke:var(--color-surface-inverse);stroke-width:5;stroke-linecap:round}
+  .bowl .rooster-legs{fill:none;stroke:var(--color-surface-inverse);stroke-width:3;stroke-linecap:round}
+  .bowl .fill-comb{fill:var(--color-accent)}
+  .bowl .bowl-grass{fill:none;stroke:var(--color-accent);stroke-width:3;stroke-linecap:round}
+  .bowl .fill-curry{fill:var(--color-accent)}
+  .bowl .fill-chicken{fill:var(--color-bowl-chicken)}
+  .bowl .fill-bone{fill:var(--color-text-inverse)}
+  .bowl .fill-nest-base{fill:var(--color-bowl-nest-line)}
+  .bowl .nest-curl{fill:none;stroke:var(--color-bowl-nest);stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+  .bowl .nest-dark{fill:none;stroke:var(--color-bowl-nest-line);stroke-width:2;stroke-linecap:round}
+  .bowl .fill-lime{fill:var(--color-bowl-lime)}
+  .bowl .steam{fill:none;stroke:var(--color-text-inverse-secondary);stroke-width:3;stroke-linecap:round;
+    stroke-dasharray:1;stroke-dashoffset:0}
+  .bowl.is-steaming .steam{animation:steam var(--duration-draw) var(--ease-out) both}
+  .bowl.is-steaming .steam:nth-of-type(2){animation-delay:var(--duration-base)}
+  .bowl.is-steaming .steam:nth-of-type(3){animation-delay:var(--duration-slow)}
+  @keyframes steam{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  .band-kicker{font-size:var(--text-sm);letter-spacing:var(--tracking-label);text-transform:uppercase;
+    color:var(--color-text-inverse-accent);font-weight:var(--weight-semibold)}
+  .band h2{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-feature);
+    line-height:var(--leading-display);letter-spacing:var(--tracking-display);margin-block-start:var(--space-3)}
+  .band h2 .th{display:block;font-size:var(--text-xl);letter-spacing:normal;color:var(--color-text-inverse-secondary);
+    margin-block-start:var(--space-2)}
+  .band-copy p.body{margin-block-start:var(--space-5);color:var(--color-text-inverse-secondary);max-inline-size:var(--measure-lede)}
+  .band-facts{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-8);margin-block-start:var(--space-6)}
+  .band-facts div{display:grid;gap:var(--space-0-5)}
+  .band-facts dt{font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase;
+    color:var(--color-text-inverse-secondary)}
+  .band-facts dd{font-family:var(--font-display);font-size:var(--text-xl)}
+  .band a{color:var(--color-text-inverse)}
+  .band .btn-inverse{background:var(--color-action-inverse);color:var(--color-text-on-inverse-action);margin-block-start:var(--space-8)}
+  .band .btn-inverse:hover{background:var(--color-action-inverse-hover);color:var(--color-text-on-inverse-action)}
+  .band .btn-inverse:active{background:var(--color-surface-raised-hover)}
+  .band .btn-inverse:focus-visible{box-shadow:var(--shadow-focus-ring-inverse)}
+
+  /* Section heads */
+  .section{padding-block:var(--space-section)}
+  .section-head{display:grid;gap:var(--space-4);margin-block-end:var(--space-10)}
+  .section-head h2{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-section);
+    line-height:var(--leading-display);letter-spacing:var(--tracking-display)}
+  .section-head h2 .th{font-size:var(--text-xl);letter-spacing:normal;color:var(--color-text-accent);
+    margin-inline-start:var(--space-2)}
+  .section-head p{color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+
+  /* Menu: tabs + an index list. One dish per tab leads. */
+  .legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);font-size:var(--text-sm);
+    color:var(--color-text-secondary)}
+  .legend li{display:inline-flex;align-items:center;gap:var(--space-1-5)}
+  .tabs-scroll{position:relative;margin-block-end:var(--space-8);margin-inline:calc(var(--space-1) * -1)}
+  .tabs{display:flex;flex-wrap:nowrap;gap:var(--space-2);overflow-x:auto;scrollbar-width:none;
+    padding:var(--space-1) var(--space-10) var(--space-1) var(--space-1);scroll-padding-inline:var(--space-4)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:none;white-space:nowrap}
+  .tabs-scroll::after{content:"";position:absolute;inset-block:0;inset-inline-end:0;inline-size:var(--space-12);pointer-events:none;
+    background:linear-gradient(to right, var(--color-surface-page-clear), var(--color-surface-page) 70%);
+    opacity:0;transition:opacity var(--transition-micro)}
+  .tabs-scroll.has-more::after{opacity:1}
+  .tabs-more{position:absolute;inset-block-start:50%;inset-inline-end:0;transform:translateY(-50%);z-index:var(--z-raised);
+    color:var(--color-text-secondary);display:none;pointer-events:none}
+  .tabs-scroll.has-more .tabs-more{display:block}
+  .tab{display:inline-flex;align-items:center;gap:var(--space-2);min-block-size:var(--size-control-md);
+    padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);
+    border:var(--border-width-thin) solid var(--color-border-strong);background:transparent;color:var(--color-text-primary);
+    font:inherit;font-size:var(--text-sm);font-weight:var(--weight-medium);cursor:pointer;
+    transition:background-color var(--transition-micro),color var(--transition-micro)}
+  .tab:hover{background:var(--color-action-secondary-hover)}
+  .tab:active{background:var(--color-action-secondary-active)}
+  .tab:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .tab .count{font-variant-numeric:tabular-nums;color:var(--color-text-secondary);font-weight:var(--weight-regular)}
+  .tab[aria-selected="true"]{background:var(--color-action-primary);color:var(--color-text-on-action);
+    border-color:var(--color-action-primary);font-weight:var(--weight-bold)}
+  .tab[aria-selected="true"] .count{color:var(--color-text-on-action)}
+  .tab[aria-selected="true"]:hover{background:var(--color-action-primary-hover);color:var(--color-text-on-action)}
+  .tab .tab-check{display:none}
+  .tab[aria-selected="true"] .tab-check{display:block}
+  .panel{border-radius:var(--radius-card)}
+  .panel:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .panel:not([hidden]){animation:fade var(--duration-base) var(--ease-out)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .dishes{display:grid;grid-template-columns:minmax(0,1fr);gap:0;border-block-start:var(--border-width-thin) solid var(--color-border-default)}
+  /* name, description, then badges pushed to the bottom: in a row of two dishes the
+     description starts the same distance under each name and the badges end level */
+  .dish{display:grid;grid-template-rows:auto auto 1fr;gap:var(--space-2);padding-block:var(--space-5);
+    border-block-end:var(--border-width-thin) solid var(--color-border-default)}
+  .dish-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-4)}
+  .dish-name{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-xl);
+    line-height:var(--leading-tight);letter-spacing:var(--tracking-tight);min-inline-size:0}
+  .dish-name .th{display:block;font-size:var(--text-sm);color:var(--color-text-accent);letter-spacing:normal;
+    margin-block-start:var(--space-1)}
+  .price{font-variant-numeric:tabular-nums;font-weight:var(--weight-semibold);flex:none}
+  .dish-desc{color:var(--color-text-secondary);font-size:var(--text-base);max-inline-size:var(--measure-body)}
+  .dish--lead{padding-block:var(--space-8)}
+  .dish--lead .dish-name{font-size:var(--text-3xl)}
+  .dish--lead .dish-name .th{font-size:var(--text-base)}
+  .dish--lead .price{font-size:var(--text-xl);font-family:var(--font-display);font-weight:var(--weight-regular)}
+  .dish--lead .dish-desc{font-size:var(--text-lg)}
+  .badges{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-block-start:var(--space-1);align-self:end}
+  .badge{display:inline-flex;align-items:center;gap:var(--space-1-5);padding:var(--space-0-5) var(--space-2);
+    border:var(--border-width-thin) solid var(--color-border-default);border-radius:var(--radius-xs);
+    font-size:var(--text-xs);font-weight:var(--weight-medium);color:var(--color-text-primary);background:var(--color-surface-card)}
+  .badge .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+  .chillies{display:inline-flex;gap:0;color:var(--color-accent-strong)}
+  .chillies .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+  .chillies .off{color:var(--color-border-strong)}
+  .legend .chillies{margin-inline-end:var(--space-0-5)}
+  .legend-plant{color:var(--color-feedback-success-text)}
+  .badge--plant .ico{color:var(--color-feedback-success-text)}
+  .badge--fav{background:var(--color-surface-raised);border-color:var(--color-surface-raised)}
+  .menu-foot{margin-block-start:var(--space-8);font-size:var(--text-sm);color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+
+  /* Find us: the address card comes first on phones, the map sits beside it on wide screens */
+  .findus-section{background:var(--color-surface-raised)}
+  .findus{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6)}
+  /* On a phone the map runs edge to edge so its labels stay readable; the caption
+     comes back to the gutter. */
+  .map{background:var(--color-map-paper);margin-inline:calc(var(--gutter) * -1);padding-block:var(--space-3);
+    border-block:var(--border-width-thin) solid var(--color-border-default)}
+  .map-canvas{position:relative;overflow:hidden}
+  .map svg{display:block;inline-size:100%;block-size:auto;max-block-size:var(--size-map-max)}
+  .map figcaption{font-size:var(--text-xs);color:var(--color-text-secondary);padding:var(--space-2) var(--gutter) 0}
+  .m-block{fill:var(--color-map-block)}
+  .m-water{fill:var(--color-map-water);stroke:var(--color-map-water-line);stroke-width:1.5}
+  .m-wave{fill:none;stroke:var(--color-map-water-line);stroke-width:1.5;stroke-linecap:round}
+  .m-casing{fill:none;stroke:var(--color-map-casing);stroke-linecap:round;stroke-linejoin:round}
+  .m-road{fill:none;stroke:var(--color-map-road);stroke-linecap:round;stroke-linejoin:round}
+  .m-route{fill:none;stroke:var(--color-accent-strong);stroke-width:4;stroke-linecap:round;stroke-dasharray:0.5 9}
+  .m-ink{fill:none;stroke:var(--color-map-ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .m-inkfill{fill:var(--color-map-ink)}
+  .m-tree{fill:var(--color-accent-soft);stroke:var(--color-accent-strong);stroke-width:2}
+  .m-pin{fill:var(--color-action-primary);stroke:var(--color-map-paper);stroke-width:2}
+  .m-pin-dot{fill:var(--color-map-paper)}
+  .m-label{fill:var(--color-map-ink);font-family:var(--font-sans);font-size:var(--text-map-label)}
+  .m-label-strong{font-weight:var(--weight-bold)}
+  .m-label-road{fill:var(--color-text-secondary);font-style:italic;letter-spacing:.04em}
+  .m-label-accent{fill:var(--color-text-accent);font-style:italic;font-weight:var(--weight-semibold)}
+
+  .visit{background:var(--color-surface-card);border:var(--border-width-thin) solid var(--color-border-default);
+    border-radius:var(--radius-card);padding:var(--space-6);display:grid;gap:var(--space-6);align-self:center}
+  .visit h2{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-section-sm);
+    line-height:var(--leading-display);letter-spacing:var(--tracking-display)}
+  .visit address{font-style:normal;font-size:var(--text-lg);line-height:var(--leading-snug);overflow-wrap:anywhere;
+    margin-block-end:var(--space-4)}
+  .visit .copy-status{margin-block-start:var(--space-2)}
+  .visit address .th{display:block;font-size:var(--text-sm);color:var(--color-text-secondary);margin-block-start:var(--space-1)}
+  .visit > *{min-inline-size:0}
+  .visit-actions .btn{max-inline-size:100%;min-inline-size:0}
+  .visit-actions .btn span{min-inline-size:0;overflow-wrap:anywhere}
+  .visit-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3)}
+  .copy-status{font-size:var(--text-sm);color:var(--color-text-secondary);min-block-size:var(--space-5)}
+  .ways{display:grid;gap:var(--space-4)}
+  .ways li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start}
+  .ways .pip{display:grid;place-items:center;inline-size:var(--size-control-sm);block-size:var(--size-control-sm);
+    border-radius:var(--radius-full);background:var(--color-surface-raised);color:var(--color-text-primary)}
+  .ways h3{font-size:var(--text-base);font-weight:var(--weight-semibold);line-height:var(--leading-snug)}
+  .ways p{font-size:var(--text-sm);color:var(--color-text-secondary)}
+
+  /* Book */
+  .book{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-10)}
+  .book-intro{display:grid;gap:var(--space-5);align-content:start}
+  .book-intro h2{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-section-sm);
+    line-height:var(--leading-display);letter-spacing:var(--tracking-display)}
+  .book-intro p{color:var(--color-text-secondary);max-inline-size:var(--measure-lede)}
+  .notes{display:grid;gap:var(--space-3);font-size:var(--text-sm)}
+  .notes li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-2);align-items:start}
+  .notes .ico{color:var(--color-accent-strong);inline-size:var(--size-icon-md);block-size:var(--size-icon-md)}
+  .form-card{background:var(--color-surface-card);border:var(--border-width-thin) solid var(--color-border-default);
+    border-radius:var(--radius-card);padding:var(--space-5);box-shadow:var(--shadow-sm)}
+  form{display:grid;gap:var(--space-6)}
+  form[hidden]{display:none}
+  fieldset{border:0;margin:0;padding:0;min-inline-size:0}
+  .label,legend{display:block;font-weight:var(--weight-semibold);font-size:var(--text-sm);margin-block-end:var(--space-2);padding:0}
+  .label .opt{font-weight:var(--weight-regular);color:var(--color-text-secondary)}
+  .hint{font-size:var(--text-sm);color:var(--color-text-secondary);margin-block-start:var(--space-2)}
+  .error{display:flex;gap:var(--space-2);align-items:flex-start;font-size:var(--text-sm);
+    color:var(--color-feedback-error-text);margin-block-start:var(--space-2);font-weight:var(--weight-medium)}
+  .error .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm);margin-block-start:var(--space-0-5)}
+  .error[hidden]{display:none}
+
+  .days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2)}
+  .day{display:grid;justify-items:center;gap:0;padding:var(--space-2) var(--space-1);min-block-size:var(--size-control-lg);
+    border:var(--border-width-thin) solid var(--color-border-strong);border-radius:var(--radius-button);
+    background:var(--color-surface-card);color:var(--color-text-primary);font:inherit;cursor:pointer;
+    transition:background-color var(--transition-micro),border-color var(--transition-micro)}
+  .day:hover{background:var(--color-action-secondary-hover)}
+  .day:active{background:var(--color-action-secondary-active)}
+  .day:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .day .dn{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-label);color:var(--color-text-secondary)}
+  .day .dd{font-family:var(--font-display);font-size:var(--text-xl);line-height:var(--leading-tight)}
+  .day .dx{font-size:var(--text-xs);color:var(--color-text-secondary);overflow-wrap:anywhere;text-align:center}
+  .day[aria-checked="true"]{background:var(--color-action-primary);border-color:var(--color-action-primary);color:var(--color-text-on-action)}
+  .day[aria-checked="true"] .dn,.day[aria-checked="true"] .dx{color:var(--color-text-on-action)}
+  .day[aria-checked="true"] .dd{font-weight:var(--weight-bold)}
+  .day[aria-checked="true"]:hover{background:var(--color-action-primary-hover)}
+  .day[disabled]{opacity:var(--opacity-disabled);pointer-events:none;border-style:dashed}
+
+  .row{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6);align-items:start}
+  .lb{position:relative}
+  .lb-trigger{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);inline-size:100%;
+    block-size:var(--size-control-lg);padding-inline:var(--space-4) var(--space-3);border-radius:var(--radius-button);
+    border:var(--border-width-thin) solid var(--color-border-strong);background:var(--color-surface-card);
+    color:var(--color-text-primary);font:inherit;text-align:start;cursor:pointer;
+    transition:border-color var(--transition-micro),background-color var(--transition-micro)}
+  .lb-trigger:hover{border-color:var(--color-text-primary)}
+  .lb-trigger:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .lb-trigger:active{background:var(--color-action-secondary-hover)}
+  .lb-trigger[aria-invalid="true"]{border-color:var(--color-feedback-error-border);border-width:var(--border-width-medium)}
+  .lb-value[data-empty="true"]{color:var(--color-text-secondary)}
+  .lb-chev{transition:transform var(--transition-micro)}
+  .lb-trigger[aria-expanded="true"] .lb-chev{transform:rotate(180deg)}
+  .lb-trigger[aria-expanded="true"]{border-color:var(--color-text-primary)}
+  .lb-pop{position:absolute;inset-inline:0;inset-block-start:calc(100% + var(--space-1));z-index:var(--z-popover);
+    background:var(--color-surface-card);border:var(--border-width-thin) solid var(--color-border-strong);
+    border-radius:var(--radius-card);box-shadow:var(--shadow-lg);padding:var(--space-2);
+    max-block-size:var(--size-popover-max);overflow-y:auto;scroll-padding-block:var(--space-2) var(--space-12);animation:pop var(--duration-fast) var(--ease-out)}
+  /* a fade and a chevron on the last row say more seatings sit below the edge; the
+     cue overlays the list (its negative margin cancels its height) and leaves at the end */
+  .lb-more{position:sticky;inset-block-end:calc(var(--space-2) * -1);z-index:var(--z-raised);display:none;
+    align-items:end;justify-content:center;gap:var(--space-1);block-size:var(--space-12);
+    margin-block-start:calc(var(--space-12) * -1);margin-inline:calc(var(--space-2) * -1);
+    padding-block-end:var(--space-1);pointer-events:none;font-size:var(--text-xs);color:var(--color-text-secondary);
+    background:linear-gradient(to bottom, var(--color-surface-card-clear), var(--color-surface-card) 70%)}
+  .lb-more .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+  .lb-pop.has-more .lb-more{display:flex}
+  .lb-pop:focus{outline:none}
+  .lb-pop:focus-visible{box-shadow:var(--shadow-lg),var(--shadow-focus-ring)}
+  @keyframes pop{from{opacity:0;transform:translateY(calc(var(--space-1) * -1))}to{opacity:1;transform:none}}
+  .lb-group{font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase;
+    color:var(--color-text-secondary);padding:var(--space-2) var(--space-3) var(--space-1)}
+  .lb-opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-1)}
+  .lb-opt{display:flex;align-items:center;justify-content:center;gap:var(--space-1);min-block-size:var(--size-control-md);
+    border-radius:var(--radius-button);font-variant-numeric:tabular-nums;cursor:pointer;color:var(--color-text-primary)}
+  .lb-opt:hover,.lb-opt.is-active{background:var(--color-surface-raised-hover);color:var(--color-text-primary)}
+  .lb-opt.is-active{box-shadow:inset 0 0 0 var(--border-width-medium) var(--color-focus)}
+  .lb-opt[aria-selected="true"]{font-weight:var(--weight-bold);background:var(--color-action-primary);color:var(--color-text-on-action)}
+  .lb-opt[aria-selected="true"].is-active{box-shadow:inset 0 0 0 var(--border-width-medium) var(--color-focus)}
+  .lb-opt .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm);display:none}
+  .lb-opt[aria-selected="true"] .ico{display:block}
+  .lb-empty{padding:var(--space-3);font-size:var(--text-sm);color:var(--color-text-secondary)}
+
+  .stepper{display:flex;align-items:center;gap:var(--space-2);block-size:var(--size-control-lg)}
+  .step{display:grid;place-items:center;inline-size:var(--size-control-lg);block-size:var(--size-control-lg);flex:none;
+    border-radius:var(--radius-button);border:var(--border-width-thin) solid var(--color-border-strong);
+    background:var(--color-surface-card);color:var(--color-text-primary);cursor:pointer;
+    transition:background-color var(--transition-micro)}
+  .step:hover{background:var(--color-action-secondary-hover)}
+  .step:active{background:var(--color-action-secondary-active)}
+  .step:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  .step[disabled]{opacity:var(--opacity-disabled);pointer-events:none}
+  .step-value{flex:1;min-inline-size:0;text-align:center;font-variant-numeric:tabular-nums}
+  .step-value strong{font-family:var(--font-display);font-size:var(--text-2xl);font-weight:var(--weight-regular);line-height:1}
+  .step-value span{font-size:var(--text-sm);color:var(--color-text-secondary);margin-inline-start:var(--space-1)}
+
+  .input{display:block;inline-size:100%;min-inline-size:0;block-size:var(--size-control-lg);padding-inline:var(--space-4);
+    border-radius:var(--radius-button);border:var(--border-width-thin) solid var(--color-border-strong);
+    background:var(--color-surface-card);color:var(--color-text-primary);font:inherit;
+    transition:border-color var(--transition-micro)}
+  textarea.input{block-size:auto;min-block-size:calc(var(--size-control-lg) * 2);padding-block:var(--space-3);resize:vertical}
+  .input::placeholder{color:var(--color-text-secondary)}
+  .input:hover{border-color:var(--color-text-primary)}
+  .input:focus-visible{outline:none;box-shadow:var(--shadow-focus-ring);border-color:var(--color-text-primary)}
+  .input[aria-invalid="true"]{border-color:var(--color-feedback-error-border);border-width:var(--border-width-medium)}
+  .input:disabled{opacity:var(--opacity-disabled);pointer-events:none}
+
+  .submit-row{display:grid;gap:var(--space-3)}
+  .submit-row .btn{inline-size:100%}
+  .btn .spin{display:none;inline-size:var(--size-icon-md);block-size:var(--size-icon-md)}
+  .btn[aria-busy="true"] .spin{display:block;animation:spin var(--duration-spin) linear infinite}
+  .btn[aria-busy="true"]{cursor:progress}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .fine{font-size:var(--text-xs);color:var(--color-text-secondary);display:flex;gap:var(--space-2);align-items:flex-start}
+  .fine .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm);margin-block-start:var(--space-0-5)}
+
+  .done{display:grid;gap:var(--space-4)}
+  .done[hidden]{display:none}
+  .done-badge{display:inline-flex;align-items:center;gap:var(--space-2);justify-self:start;padding:var(--space-1) var(--space-3);
+    border-radius:var(--radius-full);background:var(--color-surface-raised);font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+  .done h3{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-2xl);line-height:var(--leading-tight)}
+  .done h3:focus{outline:none}
+  .done h3:focus-visible{box-shadow:var(--shadow-focus-ring);border-radius:var(--radius-xs)}
+  .done p{color:var(--color-text-secondary)}
+  .summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-2) var(--space-5);
+    padding:var(--space-4);border-radius:var(--radius-button);background:var(--color-surface-raised);font-size:var(--text-sm)}
+  .summary dt{color:var(--color-text-secondary)}
+  .summary dd{font-weight:var(--weight-semibold);overflow-wrap:anywhere}
+
+  /* Footer: the page ends on purpose */
+  .foot{background:var(--color-surface-raised);padding-block:var(--space-16) var(--space-8)}
+  .foot-name{font-family:var(--font-display);font-size:var(--text-section);line-height:var(--leading-display);
+    letter-spacing:var(--tracking-display)}
+  .foot-name .th{display:block;font-size:var(--text-lg);letter-spacing:normal;color:var(--color-text-accent);margin-block-start:var(--space-2)}
+  .foot-cols{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6);margin-block-start:var(--space-10);font-size:var(--text-sm)}
+  .foot-cols h2{font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase;
+    color:var(--color-text-secondary);font-weight:var(--weight-semibold);margin-block-end:var(--space-2)}
+  .foot-cols a{display:inline-flex;align-items:center;min-block-size:var(--size-control-sm);overflow-wrap:anywhere;min-inline-size:0}
+  .credits{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);align-items:center;margin-block-start:var(--space-12);
+    padding-block-start:var(--space-6);border-block-start:var(--border-width-thin) solid var(--color-border-strong);
+    font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .credits a{display:inline-flex;align-items:center;min-block-size:var(--size-control-sm)}
+
+  @media (min-width:22.5rem){
+    .brand .mark{display:block}
+  }
+  @media (min-width:30rem){
+    .m-label{font-size:var(--text-map-label-md)}
+  }
+  @media (min-width:40rem){
+    :root{--gutter:1.5rem}
+    .map{margin-inline:0;padding:var(--space-3);border:var(--border-width-thin) solid var(--color-border-default);
+      border-radius:var(--radius-card)}
+    .map-canvas{border-radius:var(--radius-xs)}
+    .map figcaption{padding:var(--space-2) var(--space-1) 0}
+    .m-label{font-size:var(--text-map-label-wide)}
+    .done h3{font-size:var(--text-3xl)}
+    .row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .days{grid-template-columns:repeat(6,minmax(0,1fr))}
+    .form-card{padding:var(--space-8)}
+    .foot-cols{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .lb-opts{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .week .h span{display:inline}
+    .week .h span + span::before{content:", "}
+  }
+  @media (min-width:48rem){
+    .sections{display:block}
+    .sections ul{display:flex;gap:var(--space-1)}
+    .sections a{display:inline-flex;align-items:center;min-block-size:var(--size-control-md);padding-inline:var(--space-3);
+      border-radius:var(--radius-button);color:var(--color-text-primary);text-decoration:none;font-size:var(--text-sm)}
+    .sections a:hover{background:var(--color-action-secondary-hover);text-decoration:none}
+    .sections a:active{background:var(--color-action-secondary-active)}
+    .dishes{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:var(--space-10)}
+    .dish--lead{grid-column:1 / -1;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:var(--space-10);align-items:start}
+    .dish--lead .dish-head{grid-row:1 / span 2}
+    .band-inner{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--space-12)}
+  }
+  @media (min-width:56rem){
+    :root{--gutter:2.5rem}
+    .hero{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--space-12);align-items:end;
+      padding-block:var(--space-16) var(--space-24)}
+    .book{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--space-16)}
+    .book-intro{position:sticky;inset-block-start:var(--space-8);align-self:start}
+  }
+  @media (min-width:64rem){
+    /* Map and address card share one row and end on one line: the card sets the
+       height, and the map fills it. The drawing keeps its proportions in the middle
+       and the streets drawn past its edges fill whatever is left. */
+    .findus{grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--space-8);row-gap:0}
+    .map{grid-column:1 / 8;grid-row:1;align-self:stretch;display:flex;flex-direction:column}
+    .map-canvas{flex:1 1 auto;min-block-size:var(--size-map-min)}
+    .map svg{position:absolute;inset:0;block-size:100%;max-block-size:none}
+    .visit{grid-column:8 / 13;grid-row:1;align-self:stretch;align-content:start;box-shadow:var(--shadow-md);padding:var(--space-8)}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important}
+    .bowl .steam{animation:none!important;stroke-dashoffset:0}
+    .btn[aria-busy="true"] .spin{animation:none!important}
+  }
+</style>
+</head>
+<body id="top">
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- Icons this page needs that the shared sprite does not carry. Paths are verbatim lucide. -->
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" focusable="false">
+  <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-flame-fill" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-sprout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-circle-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-train" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/></symbol>
+  <symbol id="i-ship" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M12 10v4"/><path d="M12 2v3"/></symbol>
+  <symbol id="i-bus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="i-utensils" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></symbol>
+</svg>
+
+<div class="notice wrap"><p>Fictional restaurant, a design example built with <span class="keep">ux-ui-agent-skills</span>. <a href="#about">About this example</a></p></div>
+<header class="masthead wrap">
+  <a class="brand" href="#top" aria-label="Ton Makham, back to top">
+    <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+      <!-- a tamarind pod: the house mark, drawn for this page -->
+      <path d="M7 29c3-1 5-4 7-7s4-7 8-8 7 0 9-3" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+      <path d="M13 23.5l-1.6-1.8M19 15.8l-1.4-2M25.6 13.6l-.6-2.3" fill="none" stroke="var(--color-surface-page)" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M31 11c1.5-1.6 2.4-3.4 2.6-5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="brand-text"><span class="brand-name">Ton Makham</span><span class="brand-th" lang="th">ครัวต้นมะขาม</span></span>
+  </a>
+  <nav class="sections" aria-label="Sections">
+    <ul>
+      <li><a href="#menu">Menu</a></li>
+      <li><a href="#hours">Hours</a></li>
+      <li><a href="#find">Find us</a></li>
+    </ul>
+  </nav>
+  <div class="head-actions">
+    <button type="button" class="iconbtn theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Dark theme">
+      <svg class="ico ico-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+      <svg class="ico ico-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
+    <a class="btn btn-primary btn-sm" href="#book">Book</a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero wrap" aria-labelledby="hero-h">
+    <div class="hero-copy">
+      <p class="kicker">Northern Thai kitchen on Tamarind Lane, Bangkok</p>
+      <h1 id="hero-h">Khao soi worth crossing <em>the canal</em> for.</h1>
+      <p class="lede">Twelve tables in a shophouse with a sixty-year-old tamarind tree out front. We grill over longan-wood charcoal and pound one curry paste a day by hand, so the menu is short and follows the market.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#book">Book a table</a>
+        <a class="btn btn-secondary" href="#menu">See the menu</a>
+      </div>
+      <dl class="facts">
+        <div><dt>Since 1998</dt><dd>in the same shophouse</dd></div>
+        <div><dt>12 tables</dt><dd>and 6 bar seats</dd></div>
+        <div><dt>Walk-ins</dt><dd>welcome at the bar</dd></div>
+      </dl>
+    </div>
+
+    <aside class="today" id="hours" aria-labelledby="today-status">
+      <div class="today-top" aria-live="polite">
+        <p class="status" id="today-status" data-open="false">
+          <svg class="ico ico-sm ico-open" aria-hidden="true"><use href="#i-circle-check"/></svg>
+          <svg class="ico ico-sm ico-closed" aria-hidden="true"><use href="#i-clock"/></svg>
+          <span id="status-word">Checking the time</span>
+        </p>
+        <p class="today-line" id="today-line">Tuesday to Sunday</p>
+        <p class="today-note" id="today-note">Hours below are in Bangkok time.</p>
+      </div>
+      <div>
+        <div class="week-head"><h2>This week</h2><p>Bangkok time</p></div>
+        <ul class="week" id="week">
+          <li data-dow="1" class="closed"><span class="d">Monday</span><span class="h">Closed</span></li>
+          <li data-dow="2"><span class="d">Tuesday</span><span class="h"><span>11:30 to 14:30</span><span>17:30 to 22:00</span></span></li>
+          <li data-dow="3"><span class="d">Wednesday</span><span class="h"><span>11:30 to 14:30</span><span>17:30 to 22:00</span></span></li>
+          <li data-dow="4"><span class="d">Thursday</span><span class="h"><span>11:30 to 14:30</span><span>17:30 to 22:00</span></span></li>
+          <li data-dow="5"><span class="d">Friday</span><span class="h"><span>11:30 to 14:30</span><span>17:30 to 23:00</span></span></li>
+          <li data-dow="6"><span class="d">Saturday</span><span class="h"><span>11:30 to 14:30</span><span>17:30 to 23:00</span></span></li>
+          <li data-dow="0"><span class="d">Sunday</span><span class="h"><span>11:00 to 21:00</span><span>no break</span></span></li>
+        </ul>
+      </div>
+    </aside>
+  </section>
+
+  <section class="band" aria-labelledby="sig-h">
+    <div class="band-inner wrap">
+      <svg class="bowl" id="bowl" viewBox="0 0 320 300" role="img" aria-labelledby="bowl-t">
+        <title id="bowl-t">Drawing of khao soi in a rooster bowl: curry broth, a nest of crispy noodles, a chicken drumstick, a lime wedge and rising steam</title>
+        <path class="steam" pathLength="1" d="M112 78c-12-14 8-22-2-36s8-20 0-32"/>
+        <path class="steam" pathLength="1" d="M156 70c-12-16 10-24 0-40s10-22 0-34"/>
+        <path class="steam" pathLength="1" d="M206 80c-12-14 8-22-2-36s8-20 0-32"/>
+        <!-- bowl body: a cream rooster bowl -->
+        <path class="fill-bowl" d="M24 146c8 74 64 120 136 120s128-46 136-120z"/>
+        <path class="line" d="M24 146c8 74 64 120 136 120s128-46 136-120"/>
+        <path class="fill-bowl line" d="M118 266l8 20h68l8-20"/>
+        <path class="bowl-band" d="M40 188c40 14 200 14 240 0"/>
+        <!-- the rooster -->
+        <path class="fill-rooster" d="M120 226c-2-16 12-26 30-24 14 2 24 12 22 24-2 10-14 14-28 14-12 0-22-4-24-14z"/>
+        <path class="rooster-tail" d="M122 222c-16-4-26-16-24-30M126 214c-12-8-16-20-10-30M132 208c-6-10-4-22 6-28"/>
+        <path class="fill-rooster" d="M168 214c0-10 4-18 12-20 8-2 14 4 12 12-2 6-8 8-14 8z"/>
+        <path class="fill-comb" d="M178 194c0-6 4-8 7-4 2-5 7-4 7 1 4-2 6 2 3 5z"/>
+        <path class="fill-comb" d="M192 204l9 3-9 3z"/>
+        <path class="rooster-legs" d="M142 240v12M154 240v12M138 252h8M150 252h8"/>
+        <!-- grass by the rooster, as on the traditional bowl -->
+        <path class="bowl-grass" d="M212 250c0-14 4-26 14-34M222 250c2-12 8-20 18-24M204 250c-2-10-8-16-16-18"/>
+        <!-- curry surface -->
+        <ellipse class="fill-curry" cx="160" cy="146" rx="128" ry="24"/>
+        <ellipse class="line" cx="160" cy="146" rx="136" ry="28"/>
+        <!-- chicken drumstick rising from the broth, bone up -->
+        <path class="fill-chicken line" d="M198 150c-10-18-4-40 16-46 14-4 24 6 20 18-4 12-18 20-36 28z"/>
+        <path class="line" d="M228 112l20-22"/>
+        <circle class="fill-bone line" cx="250" cy="84" r="6"/>
+        <circle class="fill-bone line" cx="256" cy="92" r="6"/>
+        <!-- the nest of crispy fried noodles sitting on the curry -->
+        <path class="fill-nest-base" d="M98 148c4-22 28-38 58-38s52 14 54 36c-30 10-86 12-112 2z"/>
+        <path class="nest-curl" d="M100 146c4-12 18-14 18-4s-14 8-10-2 16-12 20-2-10 12-8 2 16-14 22-4-8 12-6 2 16-12 22-2-8 10-4 2 14-10 20-2-6 10-2 2 12-8 16 0"/>
+        <path class="nest-curl" d="M108 132c4-12 18-14 18-4s-14 8-10-2 16-12 20-2-10 12-8 2 16-14 22-4-8 12-6 2 16-12 22-2-8 10-4 2 14-8 16 0"/>
+        <path class="nest-curl" d="M122 118c4-10 16-12 16-3s-12 7-9-2 14-10 18-2-9 10-7 2 14-12 19-3-7 10-5 2 12-8 14 0"/>
+        <path class="nest-curl" d="M168 144c4-12 18-14 18-4s-14 8-10-2 16-12 20-2-8 10-4 2 10-8 12 0"/>
+        <path class="nest-curl" d="M172 128c4-10 14-12 14-3s-10 7-8-2 12-10 16-2"/>
+        <path class="nest-dark" d="M112 138c6 4 12-2 18 2M150 126c6 4 12-2 18 2M176 140c6 4 12-2 18 2M132 112c6 3 10-1 14 2"/>
+        <!-- lime wedge on the rim -->
+        <path class="fill-lime line" d="M40 130a24 24 0 0 1 42-6l-38 18z"/>
+      </svg>
+      <div class="band-copy">
+        <p class="band-kicker">The dish people book for</p>
+        <h2 id="sig-h">Khao soi gai <span class="th" lang="th">ข้าวซอยไก่</span></h2>
+        <p class="body">Egg noodles in a coconut curry broth made with our own paste, a chicken drumstick braised until it falls from the bone, and a nest of noodles fried to order on top. Pickled mustard greens, shallots and lime on the side, so you set the sourness yourself.</p>
+        <dl class="band-facts">
+          <div><dt>Price</dt><dd>฿220</dd></div>
+          <div><dt>Heat</dt><dd>Medium</dd></div>
+          <div><dt>Available</dt><dd>Until the pot is empty</dd></div>
+        </dl>
+        <a class="btn btn-inverse" href="#book">Book a table for khao soi</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="menu" aria-labelledby="menu-h">
+    <div class="section-head">
+      <h2 id="menu-h">The menu <span class="th" lang="th">เมนู</span></h2>
+      <p>Northern food from Chiang Mai, Lampang and the hills around them, priced in Thai baht with service included. Most dishes use pork, fish sauce or shrimp paste. Dishes marked vegan use none of them, and where only one version is vegan, the dish says how we make it.</p>
+      <ul class="legend" aria-label="Dietary key">
+        <li><svg class="ico ico-sm legend-plant" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan</li>
+        <li><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span>Heat, from none to 3&nbsp;flames</li>
+      </ul>
+    </div>
+
+    <div class="tabs-scroll" id="tabs-scroll">
+    <svg class="ico tabs-more" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+    <div class="tabs" role="tablist" aria-label="Menu sections" id="menu-tabs">
+      <button type="button" class="tab" role="tab" id="tab-small" aria-controls="panel-small" aria-selected="true" tabindex="0"><svg class="ico ico-sm tab-check" aria-hidden="true"><use href="#i-check"/></svg>Small plates and dips <span class="count">3</span></button>
+      <button type="button" class="tab" role="tab" id="tab-curry" aria-controls="panel-curry" aria-selected="false" tabindex="-1"><svg class="ico ico-sm tab-check" aria-hidden="true"><use href="#i-check"/></svg>Curries <span class="count">3</span></button>
+      <button type="button" class="tab" role="tab" id="tab-grill" aria-controls="panel-grill" aria-selected="false" tabindex="-1"><svg class="ico ico-sm tab-check" aria-hidden="true"><use href="#i-check"/></svg>Larb and the grill <span class="count">4</span></button>
+      <button type="button" class="tab" role="tab" id="tab-rice" aria-controls="panel-rice" aria-selected="false" tabindex="-1"><svg class="ico ico-sm tab-check" aria-hidden="true"><use href="#i-check"/></svg>Noodles and rice <span class="count">3</span></button>
+      <button type="button" class="tab" role="tab" id="tab-sweet" aria-controls="panel-sweet" aria-selected="false" tabindex="-1"><svg class="ico ico-sm tab-check" aria-hidden="true"><use href="#i-check"/></svg>Sweets <span class="count">3</span></button>
+    </div>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-small" aria-labelledby="tab-small" tabindex="0">
+      <ul class="dishes">
+        <li class="dish dish--lead">
+          <div class="dish-head"><h3 class="dish-name">Nam prik num <span class="th" lang="th">น้ำพริกหนุ่ม</span></h3><p class="price">฿160</p></div>
+          <p class="dish-desc">Green chillies, shallots and garlic roasted over charcoal and pounded with salt into a smoky, rough relish. Served with pork crackling (khaep mu, <span lang="th">แคบหมู</span>) and steamed vegetables.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--fav"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>House favourite</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg></span><span class="sr-only">Heat 3 of 3: </span>Hot</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Nam prik ong <span class="th" lang="th">น้ำพริกอ่อง</span></h3><p class="price">฿150</p></div>
+          <p class="dish-desc">Minced pork and tomato cooked down with a dried chilli paste into a mild, sweet and sour dip, with pork crackling, cucumber and long beans to scoop it.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 1 of 3: </span>Mild</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Tam makhuea <span class="th" lang="th">ตำมะเขือ</span></h3><p class="price">฿130</p></div>
+          <p class="dish-desc">Long green eggplants grilled until soft, pounded with roasted chilli, garlic and shallot, and finished with a boiled egg and fresh herbs.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-curry" aria-labelledby="tab-curry" tabindex="0" hidden>
+      <ul class="dishes">
+        <li class="dish dish--lead">
+          <div class="dish-head"><h3 class="dish-name">Kaeng hang le <span class="th" lang="th">แกงฮังเล</span></h3><p class="price">฿260</p></div>
+          <p class="dish-desc">Pork belly and shoulder simmered with ginger, garlic, tamarind and a dry spice mix until soft. A Northern curry with Burmese roots, rich rather than hot.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--fav"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>House favourite</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 1 of 3: </span>Mild</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Kaeng khae <span class="th" lang="th">แกงแค</span></h3><p class="price">฿200</p></div>
+          <p class="dish-desc">A herb and vegetable curry with no coconut milk: wild betel leaves, acacia shoots, pea eggplants and chicken in a peppery broth. The mushroom version uses a paste without shrimp paste and is seasoned with soy instead of fish sauce.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--plant"><svg class="ico" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan with mushrooms</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Kaeng khanun <span class="th" lang="th">แกงขนุน</span></h3><p class="price">฿220</p></div>
+          <p class="dish-desc">Young jackfruit and pork ribs in a light, sour broth with tomato and acacia leaves. No coconut milk.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 1 of 3: </span>Mild</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-grill" aria-labelledby="tab-grill" tabindex="0" hidden>
+      <ul class="dishes">
+        <li class="dish dish--lead">
+          <div class="dish-head"><h3 class="dish-name">Larb khua <span class="th" lang="th">ลาบคั่ว</span></h3><p class="price">฿220</p></div>
+          <p class="dish-desc">Minced pork, liver and crackling stir-fried with a Northern dried spice mix of makhwaen pepper, long pepper and dried chilli, then tossed with mint, sawtooth coriander and fried shallots. With sticky rice and raw greens.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--fav"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>House favourite</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg></span><span class="sr-only">Heat 3 of 3: </span>Hot</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Sai ua <span class="th" lang="th">ไส้อั่ว</span></h3><p class="price">฿180</p></div>
+          <p class="dish-desc">Northern pork sausage with lemongrass, makrut lime leaf, galangal and dried chilli, grilled slowly over longan-wood charcoal.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Jin tup <span class="th" lang="th">จิ๊นตุ๊บ</span></h3><p class="price">฿210</p></div>
+          <p class="dish-desc">Beef grilled, beaten flat with a mallet and grilled again, served with a roasted chilli dip and sticky rice.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Hed yang <span class="th" lang="th">เห็ดย่าง</span></h3><p class="price">฿160</p></div>
+          <p class="dish-desc">King oyster mushrooms grilled until they char at the edges, with nam prik num made with salt instead of fish sauce.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--plant"><svg class="ico" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg></span><span class="sr-only">Heat 3 of 3: </span>Hot</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-rice" aria-labelledby="tab-rice" tabindex="0" hidden>
+      <ul class="dishes">
+        <li class="dish dish--lead">
+          <div class="dish-head"><h3 class="dish-name">Khao soi gai <span class="th" lang="th">ข้าวซอยไก่</span></h3><p class="price">฿220</p></div>
+          <p class="dish-desc">Egg noodles in a coconut curry broth with a braised chicken drumstick, topped with a nest of crispy fried noodles. Pickled mustard greens, shallots, lime and roasted chilli paste on the side.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--fav"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>House favourite</li>
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Khanom jeen nam ngiao <span class="th" lang="th">ขนมจีนน้ำเงี้ยว</span></h3><p class="price">฿180</p></div>
+          <p class="dish-desc">Fermented rice noodles in a pork rib and tomato broth with pork blood tofu and dried red cotton tree flowers (dok ngiao), topped with crispy garlic. Lunch only.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat"><span class="chillies" aria-hidden="true"><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico" aria-hidden="true"><use href="#i-flame-fill"/></svg><svg class="ico off" aria-hidden="true"><use href="#i-flame"/></svg></span><span class="sr-only">Heat 2 of 3: </span>Medium heat</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Khao kan jin <span class="th" lang="th">ข้าวกั๊นจิ๊น</span></h3><p class="price">฿150</p></div>
+          <p class="dish-desc">Rice mixed with minced pork and pork blood, wrapped in banana leaf and steamed, with fried garlic, cucumber and spring onion. Dried chilli comes on the side.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--heat0">Not spicy</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-sweet" aria-labelledby="tab-sweet" tabindex="0" hidden>
+      <ul class="dishes">
+        <li class="dish dish--lead">
+          <div class="dish-head"><h3 class="dish-name">Tamarind ice cream <span class="th" lang="th">ไอศกรีมมะขาม</span></h3><p class="price">฿110</p></div>
+          <p class="dish-desc">Made with coconut milk and tamarind from the tree out front, finished with a pinch of salt and chilli sugar. Sour first, then sweet.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--fav"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg>House favourite</li>
+            <li class="badge badge--plant"><svg class="ico" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Khao taen <span class="th" lang="th">ข้าวแต๋น</span></h3><p class="price">฿90</p></div>
+          <p class="dish-desc">Sticky rice crackers sweetened with watermelon juice, fried, and drizzled with cane sugar.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--plant"><svg class="ico" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan</li>
+          </ul>
+        </li>
+        <li class="dish">
+          <div class="dish-head"><h3 class="dish-name">Khanom jok <span class="th" lang="th">ขนมจ๊อก</span></h3><p class="price">฿90</p></div>
+          <p class="dish-desc">Sticky rice flour dumplings filled with coconut and palm sugar, wrapped in banana leaf and steamed.</p>
+          <ul class="badges" aria-label="Dietary and heat notes">
+            <li class="badge badge--plant"><svg class="ico" aria-hidden="true"><use href="#i-sprout"/></svg>Vegan</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <p class="menu-foot">Sticky rice comes in a woven basket, ฿30 a basket. Ask us to turn the heat down on any dish; we can do it on everything except the larb.</p>
+  </section>
+
+  <section class="section findus-section" id="find" aria-labelledby="find-h">
+    <div class="findus wrap">
+
+      <div class="visit">
+        <h2 id="find-h">Find us</h2>
+        <div>
+          <address id="address">27 Tamarind Lane, off Market Road, Bangkok</address>
+          <div class="visit-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="copy-address"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-copy"/></svg>Copy address</button>
+            <a class="btn btn-secondary btn-sm" href="mailto:bookings@example.com"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-mail"/></svg><span>Email us</span></a>
+          </div>
+          <p class="copy-status" id="copy-status" role="status"></p>
+        </div>
+        <ul class="ways">
+          <li><span class="pip" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-train"/></svg></span>
+            <div><h3>Train, 6&nbsp;minutes on foot</h3><p>Market Road station, exit&nbsp;2. Turn right and walk 400&nbsp;m along Market Road, then turn left into Tamarind Lane at the yellow pharmacy.</p></div></li>
+          <li><span class="pip" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-ship"/></svg></span>
+            <div><h3>Canal boat, 3&nbsp;minutes on foot</h3><p>Get off at the temple pier and walk up Tamarind Lane away from the water. We are the fourth shophouse on your right, under the big tree.</p></div></li>
+          <li><span class="pip" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-bus"/></svg></span>
+            <div><h3>Bus</h3><p>Buses along Market Road stop at the morning market, 150&nbsp;m east of the lane.</p></div></li>
+          <li><span class="pip" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-car"/></svg></span>
+            <div><h3>By car</h3><p>The lane has no parking. The market car park on Market Road is free after&nbsp;17:00.</p></div></li>
+        </ul>
+      </div>
+
+      <figure class="map">
+        <div class="map-canvas">
+        <svg viewBox="0 0 450 390" role="img" aria-labelledby="map-t map-d">
+          <title id="map-t">Hand-drawn street map around Ton Makham</title>
+          <desc id="map-d">Market Road runs across the top with Market Road station at its west end. Tamarind Lane runs south from Market Road to the old canal. The restaurant is on the east side of the soi, under a large tree, about two thirds of the way down. A dotted walking route goes from the station along the main road and down the soi. A second short route comes up from the temple pier on the canal.</desc>
+          <defs>
+            <path id="road-main" d="M-10 74C90 64 200 82 300 70s120-4 160 2"/>
+            <path id="road-soi7" d="M262 76c-4 66 8 136 0 222"/>
+            <path id="road-soi5" d="M110 70c6 70-10 150 2 220"/>
+            <path id="road-canal" d="M-10 292c130-8 320 4 470-6"/>
+            <!-- streets past the drawing's edges: seen only where the frame is wider or taller than the drawing -->
+            <path id="road-main-w" d="M-500 82C-330 76-160 80-10 74"/>
+            <path id="road-main-e" d="M460 72C580 78 720 70 950 76"/>
+            <path id="road-canal-w" d="M-500 296C-330 292-160 296-10 292"/>
+            <path id="road-canal-e" d="M460 286C600 282 760 290 950 286"/>
+            <path id="road-north" d="M-500 -56C-100 -62 300 -52 950 -60"/>
+            <path id="road-west" d="M-60 -520c6 200-6 400 0 806"/>
+            <path id="road-east" d="M500 -520c-6 200 6 400 0 800"/>
+            <path id="road-far" d="M-500 548c300-6 700 6 1450-2"/>
+          </defs>
+          <!-- the blocks, water and streets around the drawing -->
+          <g class="m-bleed">
+            <rect class="m-block" x="-480" y="-360" width="404" height="148" rx="4"/>
+            <rect class="m-block" x="-46" y="-360" width="246" height="148" rx="4"/>
+            <rect class="m-block" x="216" y="-360" width="222" height="148" rx="4"/>
+            <rect class="m-block" x="454" y="-360" width="30" height="148" rx="4"/>
+            <rect class="m-block" x="516" y="-360" width="424" height="148" rx="4"/>
+            <rect class="m-block" x="-480" y="-196" width="404" height="124" rx="4"/>
+            <rect class="m-block" x="-46" y="-196" width="246" height="124" rx="4"/>
+            <rect class="m-block" x="216" y="-196" width="222" height="124" rx="4"/>
+            <rect class="m-block" x="454" y="-196" width="30" height="124" rx="4"/>
+            <rect class="m-block" x="516" y="-196" width="424" height="124" rx="4"/>
+            <rect class="m-block" x="16" y="-40" width="422" height="38" rx="4"/>
+            <rect class="m-block" x="-480" y="-40" width="404" height="96" rx="4"/>
+            <rect class="m-block" x="-46" y="-40" width="50" height="96" rx="4"/>
+            <rect class="m-block" x="454" y="-40" width="30" height="96" rx="4"/>
+            <rect class="m-block" x="516" y="-40" width="424" height="96" rx="4"/>
+            <rect class="m-block" x="-480" y="94" width="404" height="182" rx="4"/>
+            <rect class="m-block" x="-46" y="94" width="50" height="182" rx="4"/>
+            <rect class="m-block" x="454" y="92" width="30" height="182" rx="4"/>
+            <rect class="m-block" x="516" y="92" width="424" height="182" rx="4"/>
+            <path class="m-water" d="M-500 306c160-8 330 4 490-2c90-12 160 14 240 0s170-14 230-4c160-4 330 6 490 0V520c-240 8-480-6-720 2s-480-4-720-2z"/>
+            <path class="m-wave" d="M-200 430c10-6 20 6 30 0M90 450c10-6 20 6 30 0M250 470c10-6 20 6 30 0M520 420c10-6 20 6 30 0M700 460c10-6 20 6 30 0"/>
+            <rect class="m-block" x="-480" y="562" width="404" height="178" rx="4"/>
+            <rect class="m-block" x="-60" y="562" width="240" height="178" rx="4"/>
+            <rect class="m-block" x="196" y="562" width="224" height="178" rx="4"/>
+            <rect class="m-block" x="436" y="562" width="264" height="178" rx="4"/>
+            <rect class="m-block" x="716" y="562" width="224" height="178" rx="4"/>
+            <rect class="m-block" x="-480" y="756" width="404" height="184" rx="4"/>
+            <rect class="m-block" x="-60" y="756" width="240" height="184" rx="4"/>
+            <rect class="m-block" x="196" y="756" width="224" height="184" rx="4"/>
+            <rect class="m-block" x="436" y="756" width="264" height="184" rx="4"/>
+            <rect class="m-block" x="716" y="756" width="224" height="184" rx="4"/>
+            <use href="#road-north" class="m-casing" stroke-width="18"/>
+            <use href="#road-west" class="m-casing" stroke-width="16"/>
+            <use href="#road-east" class="m-casing" stroke-width="16"/>
+            <use href="#road-far" class="m-casing" stroke-width="12"/>
+            <use href="#road-north" class="m-road" stroke-width="14"/>
+            <use href="#road-west" class="m-road" stroke-width="12"/>
+            <use href="#road-east" class="m-road" stroke-width="12"/>
+            <use href="#road-far" class="m-road" stroke-width="8"/>
+          </g>
+          <!-- city blocks -->
+          <path class="m-block" d="M128 96c30-4 90 0 116 2 4 30 2 70 4 104-40 2-80-2-118 0-2-36-4-70-2-106z"/>
+          <path class="m-block" d="M128 220c40-2 80 0 116 0 2 20 0 40 2 56-40 2-80 0-118 2 0-20-2-40 0-58z"/>
+          <path class="m-block" d="M282 92c50 2 110-4 156 0 2 50-2 120 2 180-50 2-110-2-156 0 2-60-4-120-2-180z"/>
+          <path class="m-block" d="M16 96c26-2 54 0 76-2 2 60-2 120 2 178-24 2-52 0-76 2 2-60-4-120-2-178z"/>
+          <path class="m-block" d="M16 10c90-4 220 2 330-2 30 0 70 0 92 2v40c-120 4-270-2-422 4z"/>
+          <!-- canal: its water is the wide path above, so it carries on past the edges -->
+          <path class="m-wave" d="M40 346c10-6 20 6 30 0M170 356c10-6 20 6 30 0M330 344c10-6 20 6 30 0"/>
+          <!-- roads: a darker casing under a pale fill gives the inked edge -->
+          <use href="#road-main" class="m-casing" stroke-width="22"/>
+          <use href="#road-main-w" class="m-casing" stroke-width="22"/>
+          <use href="#road-main-e" class="m-casing" stroke-width="22"/>
+          <use href="#road-soi7" class="m-casing" stroke-width="16"/>
+          <use href="#road-soi5" class="m-casing" stroke-width="16"/>
+          <use href="#road-canal" class="m-casing" stroke-width="12"/>
+          <use href="#road-canal-w" class="m-casing" stroke-width="12"/>
+          <use href="#road-canal-e" class="m-casing" stroke-width="12"/>
+          <use href="#road-main" class="m-road" stroke-width="18"/>
+          <use href="#road-main-w" class="m-road" stroke-width="18"/>
+          <use href="#road-main-e" class="m-road" stroke-width="18"/>
+          <use href="#road-canal-w" class="m-road" stroke-width="8"/>
+          <use href="#road-canal-e" class="m-road" stroke-width="8"/>
+          <use href="#road-soi7" class="m-road" stroke-width="12"/>
+          <use href="#road-soi5" class="m-road" stroke-width="12"/>
+          <use href="#road-canal" class="m-road" stroke-width="8"/>
+          <!-- road names -->
+          <text class="m-label m-label-road"><textPath href="#road-main" startOffset="46%" text-anchor="middle" dy="5">Market Road</textPath></text>
+          <text class="m-label m-label-road" transform="translate(252 282) rotate(-90)">Tamarind Lane</text>
+          <text class="m-label m-label-road" transform="translate(94 270) rotate(-90)">Potters Lane</text>
+          <text class="m-label m-label-road" x="40" y="380">The old canal</text>
+          <!-- walking routes -->
+          <path class="m-route" d="M52 86c60-6 140 6 204-2 6 50 10 100 20 140"/>
+          <path class="m-route" d="M262 300c4-26 10-50 20-72"/>
+          <text class="m-label m-label-accent" x="132" y="116">6 min walk</text>
+          <!-- station -->
+          <rect class="m-inkfill" x="30" y="56" width="40" height="24" rx="5"/>
+          <path class="m-ink" d="M40 62h20M44 74l-3 4M56 74l3 4" style="stroke:var(--color-map-paper)"/>
+          <text class="m-label m-label-strong" x="22" y="38">Market Road station</text>
+          <text class="m-label" x="22" y="106">Exit 2</text>
+          <!-- bus stop -->
+          <rect class="m-ink" x="336" y="62" width="16" height="16" rx="3"/>
+          <text class="m-label" x="300" y="108">Bus stop</text>
+          <!-- temple -->
+          <path class="m-ink" d="M164 160l22-24 22 24M170 160v22h32v-22M178 182v-12h16v12M186 136v-10"/>
+          <text class="m-label" x="136" y="202">Old temple</text>
+          <!-- market -->
+          <path class="m-ink" d="M372 122h56l-6 14h-44z M378 136v24M422 136v24M378 160h44"/>
+          <path class="m-ink" d="M386 122v14M400 122v14M414 122v14"/>
+          <text class="m-label" x="292" y="182">Morning market</text>
+          <!-- pier -->
+          <path class="m-ink" d="M250 298v18h26v-18M256 316v10M270 316v10"/>
+          <text class="m-label" x="284" y="330">Temple pier</text>
+          <!-- the restaurant: its tree, then the pin -->
+          <path class="m-tree" d="M292 240c-14 2-22-12-14-22-6-12 8-24 20-18 6-12 26-10 28 4 14 0 20 16 10 24 4 12-10 20-20 14-6 8-20 6-24-2z"/>
+          <path class="m-pin" d="M300 230c0 10-12 20-12 20s-12-10-12-20a12 12 0 0 1 24 0z" transform="translate(4 -10)"/>
+          <circle class="m-pin-dot" cx="292" cy="220" r="4"/>
+          <text class="m-label m-label-strong" x="286" y="270">Ton Makham</text>
+          <text class="m-label" x="346" y="232">No. 27</text>
+          <!-- north -->
+          <path class="m-ink" d="M426 30l-8 16 8-4 8 4z"/>
+          <text class="m-label m-label-strong" x="421" y="22">N</text>
+        </svg>
+        </div>
+        <figcaption>Drawn by hand, not to scale. Fictional streets.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section wrap" id="book" aria-labelledby="book-h">
+    <div class="book">
+      <div class="book-intro">
+        <h2 id="book-h">Book a table</h2>
+        <p>Pick a day and a time and we will hold the table for 15&nbsp;minutes. Online requests are for 1 to 8&nbsp;guests; for 9 or more, or the room upstairs, write to bookings@example.com.</p>
+        <ul class="notes">
+          <li><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg><span>Last seating is one hour before closing.</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-utensils"/></svg><span>The six bar seats are never booked. Come and wait for one.</span></li>
+          <li><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>Allergies go in the notes. The kitchen reads every one before service.</span></li>
+        </ul>
+      </div>
+
+      <div class="form-card">
+        <form id="book-form" novalidate>
+          <fieldset>
+            <legend id="date-label">Day</legend>
+            <div class="days" role="radiogroup" aria-labelledby="date-label" id="days"></div>
+            <p class="hint" id="date-hint">Closed on Mondays, so they are not listed.</p>
+          </fieldset>
+
+          <div class="row">
+            <div class="field">
+              <span class="label" id="time-label">Time</span>
+              <div class="lb" id="time-lb">
+                <button type="button" class="lb-trigger" id="time-btn" aria-haspopup="listbox" aria-expanded="false"
+                  aria-labelledby="time-label time-value" aria-describedby="time-hint">
+                  <span class="lb-value" id="time-value" data-empty="true">Choose a time</span>
+                  <svg class="ico lb-chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+                </button>
+                <div class="lb-pop" id="time-list" role="listbox" tabindex="-1" aria-labelledby="time-label" hidden></div>
+              </div>
+              <p class="hint" id="time-hint">Seatings every 30&nbsp;minutes.</p>
+              <p class="error" id="time-err" hidden><svg class="ico" aria-hidden="true"><use href="#i-alert-circle"/></svg><span></span></p>
+            </div>
+
+            <div class="field">
+              <span class="label" id="guests-label">Guests</span>
+              <div class="stepper" role="group" aria-labelledby="guests-label">
+                <button type="button" class="step" id="guests-minus" aria-label="One guest fewer" aria-controls="guests-out"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
+                <output class="step-value" id="guests-out" aria-live="polite"><strong id="guests-n">2</strong><span id="guests-word">guests</span></output>
+                <button type="button" class="step" id="guests-plus" aria-label="One guest more" aria-controls="guests-out"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+              </div>
+              <p class="hint" id="guests-hint">1 to 8&nbsp;online. For more, email us.</p>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="name">Name for the booking</label>
+              <input class="input" id="name" name="name" type="text" autocomplete="name" aria-describedby="name-err" />
+              <p class="error" id="name-err" hidden><svg class="ico" aria-hidden="true"><use href="#i-alert-circle"/></svg><span></span></p>
+            </div>
+            <div class="field">
+              <label class="label" for="phone">Mobile number</label>
+              <input class="input" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"  aria-describedby="phone-hint phone-err" />
+              <p class="hint" id="phone-hint">A Thai mobile, 10&nbsp;digits from 0, or with +66. From abroad, start with + and your country code. We text to confirm, nothing else.</p>
+              <p class="error" id="phone-err" hidden><svg class="ico" aria-hidden="true"><use href="#i-alert-circle"/></svg><span></span></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label" for="notes">Notes <span class="opt">(optional)</span></label>
+            <textarea class="input" id="notes" name="notes" rows="2" placeholder="Allergies, a high chair, a birthday"></textarea>
+          </div>
+
+          <div class="submit-row">
+            <button type="submit" class="btn btn-primary" id="submit">
+              <svg class="spin" aria-hidden="true"><use href="#i-loader"/></svg>
+              <span id="submit-label">Request this table</span>
+            </button>
+            <p class="fine"><svg class="ico" aria-hidden="true"><use href="#i-info"/></svg><span>Requests from this page are not sent anywhere.</span></p>
+          </div>
+        </form>
+
+        <div class="done" id="done" hidden>
+          <p class="done-badge"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-info"/></svg>Demo: nothing was sent</p>
+          <h3 id="done-h" tabindex="-1">Table requested</h3>
+          <p id="done-p">We will text you to confirm. We hold every table for 15&nbsp;minutes after the booked time.</p>
+          <dl class="summary" id="summary"></dl>
+          <button type="button" class="btn btn-secondary" id="again">Start a new request</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p class="foot-name">Ton Makham <span class="th" lang="th">ครัวต้นมะขาม</span></p>
+    <div class="foot-cols">
+      <div>
+        <h2>Open</h2>
+        <p>Tuesday to Saturday, 11:30 to 14:30 and 17:30 to 22:00 (Friday and Saturday to&nbsp;23:00)</p>
+        <p>Sunday, 11:00 to 21:00</p>
+        <p>Closed Mondays</p>
+      </div>
+      <div>
+        <h2>Address</h2>
+        <p>27 Tamarind Lane, off Market Road</p>
+        <p>Bangkok</p>
+      </div>
+      <div>
+        <h2>Contact</h2>
+        <p><a href="mailto:bookings@example.com">bookings@example.com</a></p>
+        <p><a href="#book">Book a table</a></p>
+      </div>
+    </div>
+    <section class="about-note" id="about" aria-labelledby="about-h">
+      <h2 id="about-h">About this example</h2>
+      <p>Design example built with <span class="keep">ux-ui-agent-skills</span>. The restaurant, places and prices are fictional. Visual language adapted from the savor spec in the kit's library. Contrast, keyboard use and layout were tested with the kit's automated checks.</p>
+    </section>
+    <div class="credits">
+      <a href="https://github.com/plugin87/ux-ui-agent-skills">Built with <span class="keep">ux-ui-agent-skills</span> by Thientan Soparat</a>
+      <a href="../../index.html">All examples</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../component-states/icons.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Theme ---------- */
+  var root = document.documentElement;
+  var toggle = document.getElementById('theme-toggle');
+  function syncToggle() {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    toggle.setAttribute('aria-pressed', String(dark));
+  }
+  syncToggle();
+  toggle.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('ktm-theme', next); } catch (e) { /* storage blocked: the choice lasts for this visit */ }
+    syncToggle();
+  });
+
+  /* ---------- Hours, in Bangkok time, from the visitor's clock ---------- */
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var LUNCH = [690, 870], DINNER = [1050, 1320], LATE = [1050, 1380];
+  var HOURS = { 0: [[660, 1260]], 1: [], 2: [LUNCH, DINNER], 3: [LUNCH, DINNER], 4: [LUNCH, DINNER], 5: [LUNCH, LATE], 6: [LUNCH, LATE] };
+
+  function hhmm(m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+
+  /* Demo override for reviewing states: ?at=<weekday 0-6>-<HH:MM>, e.g. ?at=2-19:40. */
+  function bangkokNow() {
+    var parts = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date())
+      .forEach(function (p) { parts[p.type] = p.value; });
+    var date = new Date(Date.UTC(+parts.year, +parts.month - 1, +parts.day, 12));
+    var mins = (+parts.hour) * 60 + (+parts.minute);
+    var q = null;
+    try { q = new URLSearchParams(location.search).get('at'); } catch (e) { q = null; }
+    if (q && /^[0-6]-\d{2}:\d{2}$/.test(q)) {
+      var want = +q.charAt(0);
+      while (date.getUTCDay() !== want) date = new Date(date.getTime() + 864e5);
+      var t = q.slice(2).split(':');
+      mins = (+t[0]) * 60 + (+t[1]);
+    }
+    return { date: date, dow: date.getUTCDay(), mins: mins };
+  }
+
+  function nextOpening(dow, mins) {
+    var later = HOURS[dow].filter(function (w) { return w[0] > mins; })[0];
+    if (later) return { offset: 0, dow: dow, at: later[0] };
+    for (var i = 1; i <= 7; i++) {
+      var d = (dow + i) % 7;
+      if (HOURS[d].length) return { offset: i, dow: d, at: HOURS[d][0][0] };
+    }
+    return null;
+  }
+
+  function renderHours() {
+    var now = bangkokNow();
+    var win = HOURS[now.dow].filter(function (w) { return now.mins >= w[0] && now.mins < w[1]; })[0];
+    var status = document.getElementById('today-status');
+    var word = document.getElementById('status-word');
+    var line = document.getElementById('today-line');
+    var note = document.getElementById('today-note');
+    var clock = 'It is ' + hhmm(now.mins) + ' on ' + DAYS[now.dow] + ' in Bangkok.';
+    var lastOrders = win ? win[1] - 30 : null;
+    if (win && now.mins < lastOrders) {
+      status.setAttribute('data-open', 'true');
+      word.textContent = lastOrders - now.mins <= 30 ? 'Open, last orders soon' : 'Open now';
+      line.textContent = 'Closes at ' + hhmm(win[1]);
+      note.textContent = 'Kitchen takes last orders at ' + hhmm(lastOrders) + '. ' + clock;
+    } else if (win) {
+      var nx = nextOpening(now.dow, now.mins);
+      var whenNx = nx.offset === 0 ? 'today' : nx.offset === 1 ? 'tomorrow' : 'on ' + DAYS[nx.dow];
+      status.setAttribute('data-open', 'false');
+      word.textContent = 'Kitchen closed for orders';
+      line.textContent = 'Opens ' + whenNx + ' at ' + hhmm(nx.at);
+      note.textContent = 'Guests already seated can stay until ' + hhmm(win[1]) + '. ' + clock;
+    } else {
+      var n = nextOpening(now.dow, now.mins);
+      /* before the first service of the day, nothing is "over" yet */
+      var early = HOURS[now.dow].length > 0 && now.mins < HOURS[now.dow][0][0];
+      status.setAttribute('data-open', 'false');
+      word.textContent = early ? 'Not open yet' : 'Closed now';
+      var when = n.offset === 0 ? 'today' : n.offset === 1 ? 'tomorrow' : 'on ' + DAYS[n.dow];
+      line.textContent = 'Opens ' + when + ' at ' + hhmm(n.at);
+      var why;
+      if (!HOURS[now.dow].length) why = 'We close on ' + DAYS[now.dow] + 's so the kitchen can rest.';
+      else if (early) why = 'The charcoal goes on at ' + hhmm(n.at) + '.';
+      else if (n.offset === 0) why = 'Lunch is over; the charcoal goes back on for dinner.';
+      else why = 'We have closed for the night.';
+      note.textContent = why + ' ' + clock;
+    }
+    document.querySelectorAll('#week li').forEach(function (li) {
+      var isToday = +li.getAttribute('data-dow') === now.dow;
+      var tag = li.querySelector('.tag');
+      if (isToday) {
+        li.setAttribute('aria-current', 'date');
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = 'Today';
+          li.querySelector('.d').appendChild(document.createTextNode(' '));
+          li.querySelector('.d').appendChild(tag);
+        }
+      } else {
+        li.removeAttribute('aria-current');
+        if (tag) tag.remove();
+      }
+    });
+    return now;
+  }
+  var NOW = renderHours();
+  setInterval(function () { NOW = renderHours(); }, 30000);
+
+  /* ---------- Menu tabs (automatic activation, roving tabindex) ---------- */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('#menu-tabs [role="tab"]'));
+  function selectTab(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  var tabsBox = document.getElementById('menu-tabs');
+  var tabsScroll = document.getElementById('tabs-scroll');
+  function edgeCue() {
+    var more = tabsBox.scrollWidth - tabsBox.clientWidth - tabsBox.scrollLeft > 4;
+    tabsScroll.classList.toggle('has-more', more);
+  }
+  tabsBox.addEventListener('scroll', edgeCue, { passive: true });
+  window.addEventListener('resize', edgeCue);
+  edgeCue();
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { selectTab(t, false); });
+    t.addEventListener('keydown', function (e) {
+      var j = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = tabs.length - 1;
+      if (j !== null) { e.preventDefault(); selectTab(tabs[j], true); }
+    });
+  });
+
+  /* ---------- Copy address ---------- */
+  var copyBtn = document.getElementById('copy-address');
+  var copyStatus = document.getElementById('copy-status');
+  copyBtn.addEventListener('click', function () {
+    var text = '27 Tamarind Lane, off Market Road, Bangkok';
+    function failed() { copyStatus.textContent = 'Copying is blocked here. Select the address above and copy it.'; }
+    try {
+      navigator.clipboard.writeText(text).then(function () {
+        copyStatus.textContent = 'Address copied.';
+      }, failed);
+    } catch (e) { failed(); }
+  });
+
+  /* ---------- Reservation form ---------- */
+  var state = { date: null, time: null, guests: 2 };
+  var daysEl = document.getElementById('days');
+  var dayBtns = [];
+
+  function slotsFor(date) {
+    var dow = date.getUTCDay();
+    var isToday = date.getTime() === NOW.date.getTime();
+    var groups = [];
+    HOURS[dow].forEach(function (w) {
+      var label = w[1] - w[0] > 400 ? 'All day' : (w[0] < 900 ? 'Lunch' : 'Dinner');
+      var times = [];
+      for (var m = w[0]; m <= w[1] - 60; m += 30) {
+        if (!isToday || m > NOW.mins + 30) times.push(m);
+      }
+      if (times.length) groups.push({ label: label, times: times });
+    });
+    return groups;
+  }
+
+  function buildDays() {
+    daysEl.innerHTML = '';
+    dayBtns = [];
+    var todayGone = HOURS[NOW.dow].length > 0 && slotsFor(NOW.date).length === 0;
+    for (var i = 0; i < 9 && dayBtns.length < 6; i++) {
+      var d = new Date(NOW.date.getTime() + i * 864e5);
+      /* Closed days and a today with no seatings left are not offered at all. */
+      if (slotsFor(d).length === 0) continue;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'day';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', 'false');
+      b.tabIndex = -1;
+      b.dataset.time = String(d.getTime());
+      var rel = i === 0 ? 'Today' : (i === 1 ? 'Tomorrow' : '');
+      b.innerHTML = '<span class="dn">' + (i === 0 ? 'Today' : SHORT[d.getUTCDay()]) + '</span><span class="dd">' + d.getUTCDate() +
+        '</span><span class="dx">' + MONTHS[d.getUTCMonth()].slice(0, 3) + '</span>';
+      b.setAttribute('aria-label', DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + (rel ? ', ' + rel.toLowerCase() : ''));
+      daysEl.appendChild(b);
+      dayBtns.push(b);
+    }
+    document.getElementById('date-hint').textContent = (todayGone ? 'Today\'s last seating has passed. ' : '') +
+      'Closed on Mondays, so they are not listed.';
+    if (dayBtns[0]) chooseDay(dayBtns[0], false);
+  }
+
+  function chooseDay(btn, focus) {
+    dayBtns.forEach(function (b) {
+      var on = b === btn;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    state.date = new Date(+btn.dataset.time);
+    if (focus) btn.focus();
+    buildTimes();
+  }
+
+  daysEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.day');
+    if (b && !b.disabled) chooseDay(b, false);
+  });
+  daysEl.addEventListener('keydown', function (e) {
+    var enabled = dayBtns.filter(function (b) { return !b.disabled; });
+    var i = enabled.indexOf(document.activeElement);
+    if (i < 0) return;
+    var j = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % enabled.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + enabled.length) % enabled.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = enabled.length - 1;
+    else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); chooseDay(enabled[i], true); return; }
+    if (j !== null) { e.preventDefault(); chooseDay(enabled[j], true); }
+  });
+
+  /* Listbox: button trigger, popup with aria-activedescendant */
+  var trigger = document.getElementById('time-btn');
+  var list = document.getElementById('time-list');
+  var valueEl = document.getElementById('time-value');
+  var timeHint = document.getElementById('time-hint');
+  var options = [];
+  var active = -1;
+  var typed = '', typedAt = 0;
+
+  function buildTimes() {
+    var groups = slotsFor(state.date);
+    list.innerHTML = '';
+    options = [];
+    groups.forEach(function (g, gi) {
+      var grp = document.createElement('div');
+      grp.setAttribute('role', 'group');
+      grp.setAttribute('aria-labelledby', 'grp-' + gi);
+      var h = document.createElement('div');
+      h.className = 'lb-group';
+      h.id = 'grp-' + gi;
+      h.setAttribute('role', 'presentation');
+      h.textContent = g.label + ', ' + hhmm(g.times[0]) + ' to ' + hhmm(g.times[g.times.length - 1]);
+      grp.appendChild(h);
+      var wrap = document.createElement('div');
+      wrap.className = 'lb-opts';
+      wrap.setAttribute('role', 'presentation');
+      g.times.forEach(function (m) {
+        var o = document.createElement('div');
+        o.className = 'lb-opt';
+        o.id = 'opt-' + m;
+        o.setAttribute('role', 'option');
+        o.setAttribute('aria-selected', String(state.time === m));
+        o.dataset.m = String(m);
+        o.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>' + hhmm(m);
+        wrap.appendChild(o);
+        options.push(o);
+      });
+      grp.appendChild(wrap);
+      list.appendChild(grp);
+    });
+    var still = options.some(function (o) { return +o.dataset.m === state.time; });
+    var dayName = DAYS[state.date.getUTCDay()];
+    if (state.time !== null && !still) {
+      timeHint.textContent = hhmm(state.time) + ' is not available on ' + dayName + '. Choose another time.';
+      setTime(null);
+    } else {
+      timeHint.textContent = 'Seatings every 30\u00a0minutes on ' + dayName + '.';
+    }
+    /* an error already on screen must speak about the day now chosen, not the last one */
+    if (!document.getElementById('time-err').hidden) checkTime();
+    var more = document.createElement('div');
+    more.className = 'lb-more';
+    more.setAttribute('aria-hidden', 'true');
+    more.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg>More times';
+    list.appendChild(more);
+  }
+
+  /* The popup shows the cue while seatings sit below its edge. */
+  function moreCue() {
+    list.classList.toggle('has-more', list.scrollHeight - list.clientHeight - list.scrollTop > 1);
+  }
+  list.addEventListener('scroll', moreCue, { passive: true });
+
+  function setTime(m) {
+    state.time = m;
+    if (m === null) { valueEl.textContent = 'Choose a time'; valueEl.dataset.empty = 'true'; }
+    else { valueEl.textContent = hhmm(m); valueEl.dataset.empty = 'false'; clearError('time'); }
+    options.forEach(function (o) { o.setAttribute('aria-selected', String(+o.dataset.m === m)); });
+  }
+
+  function setActive(i) {
+    options.forEach(function (o) { o.classList.remove('is-active'); });
+    active = i;
+    if (i < 0 || !options[i]) { list.removeAttribute('aria-activedescendant'); return; }
+    options[i].classList.add('is-active');
+    list.setAttribute('aria-activedescendant', options[i].id);
+    options[i].scrollIntoView({ block: 'nearest' });
+  }
+
+  function openList(at) {
+    if (!options.length) buildTimes();
+    list.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    moreCue();
+    var sel = options.findIndex(function (o) { return +o.dataset.m === state.time; });
+    setActive(at === 'last' ? options.length - 1 : (sel >= 0 ? sel : 0));
+    list.focus();
+  }
+  function closeList(refocus) {
+    list.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    setActive(-1);
+    if (refocus) trigger.focus();
+  }
+  function pick(i) {
+    if (!options[i]) return;
+    setTime(+options[i].dataset.m);
+    closeList(true);
+  }
+
+  trigger.addEventListener('click', function () {
+    if (trigger.getAttribute('aria-expanded') === 'true') closeList(true); else openList();
+  });
+  trigger.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); openList(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); openList('last'); }
+  });
+  list.addEventListener('keydown', function (e) {
+    var cols = getComputedStyle(list.querySelector('.lb-opts') || list).gridTemplateColumns.split(' ').length || 1;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(options.length - 1, active + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(0, active - 1)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); setActive(Math.min(options.length - 1, active + 1)); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); setActive(Math.max(0, active - 1)); }
+    else if (e.key === 'PageDown') { e.preventDefault(); setActive(Math.min(options.length - 1, active + cols)); }
+    else if (e.key === 'PageUp') { e.preventDefault(); setActive(Math.max(0, active - cols)); }
+    else if (e.key === 'Home') { e.preventDefault(); setActive(0); }
+    else if (e.key === 'End') { e.preventDefault(); setActive(options.length - 1); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(active); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeList(true); }
+    else if (e.key === 'Tab') { closeList(false); }
+    else if (/^[0-9:]$/.test(e.key)) {
+      var t = Date.now();
+      typed = (t - typedAt > 800 ? '' : typed) + e.key;
+      typedAt = t;
+      var hit = options.findIndex(function (o) { return o.textContent.replace(':', '').indexOf(typed.replace(':', '')) === 0; });
+      if (hit >= 0) setActive(hit);
+    }
+  });
+  list.addEventListener('click', function (e) {
+    var o = e.target.closest('[role="option"]');
+    if (o) pick(options.indexOf(o));
+  });
+  list.addEventListener('mousemove', function (e) {
+    var o = e.target.closest('[role="option"]');
+    if (o) setActive(options.indexOf(o));
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (!list.hidden && !document.getElementById('time-lb').contains(e.target)) closeList(false);
+  });
+
+  /* Guests stepper */
+  var minus = document.getElementById('guests-minus');
+  var plus = document.getElementById('guests-plus');
+  var gN = document.getElementById('guests-n');
+  var gWord = document.getElementById('guests-word');
+  var gHint = document.getElementById('guests-hint');
+  function renderGuests() {
+    gN.textContent = String(state.guests);
+    gWord.textContent = state.guests === 1 ? 'guest' : 'guests';
+    minus.disabled = state.guests <= 1;
+    plus.disabled = state.guests >= 8;
+    gHint.textContent = state.guests >= 8 ? '8 is the most we take online. For 9 or more, email bookings@example.com.' : '1 to 8\u00a0online. For more, email us.';
+  }
+  minus.addEventListener('click', function () { if (state.guests > 1) { state.guests--; renderGuests(); if (minus.disabled) plus.focus(); } });
+  plus.addEventListener('click', function () { if (state.guests < 8) { state.guests++; renderGuests(); if (plus.disabled) minus.focus(); } });
+  renderGuests();
+
+  /* Validation: say what is wrong and how to fix it */
+  var nameEl = document.getElementById('name');
+  var phoneEl = document.getElementById('phone');
+  var touched = { name: false, phone: false };
+  function showError(key, msg) {
+    var err = document.getElementById(key + '-err');
+    err.querySelector('span').textContent = msg;
+    err.hidden = false;
+    var ctl = key === 'time' ? trigger : document.getElementById(key);
+    ctl.setAttribute('aria-invalid', 'true');
+    if (key === 'time') trigger.setAttribute('aria-describedby', 'time-hint time-err');
+  }
+  function clearError(key) {
+    var err = document.getElementById(key + '-err');
+    err.hidden = true;
+    var ctl = key === 'time' ? trigger : document.getElementById(key);
+    ctl.removeAttribute('aria-invalid');
+    if (key === 'time') trigger.setAttribute('aria-describedby', 'time-hint');
+  }
+  function checkName() {
+    if (nameEl.value.trim().length < 2) { showError('name', 'Enter the name we should hold the table under, at least 2\u00a0letters.'); return false; }
+    clearError('name'); return true;
+  }
+  /* A Thai mobile is 10 digits from 0; +66 stands for that 0. Any other number from
+     abroad starts with + and its country code, 8 to 15 digits in all. */
+  function checkPhone() {
+    var v = phoneEl.value.trim();
+    var digits = v.replace(/\D/g, '');
+    if (!v) { showError('phone', 'Enter a mobile number so we can text you a confirmation.'); return false; }
+    if (!/^\+?[\d\s().-]+$/.test(v)) { showError('phone', 'Use digits, spaces, hyphens or brackets, with + only at the start.'); return false; }
+    if (v.charAt(0) === '+') {
+      if (digits.indexOf('66') === 0) {
+        var rest = digits.slice(2).replace(/^0/, '');
+        if (rest.length !== 9) { showError('phone', 'After +66 a Thai mobile has 9\u00a0digits, and this has ' + rest.length + '. Check the number.'); return false; }
+      } else if (digits.length < 8 || digits.length > 15) {
+        showError('phone', 'With the country code a number has 8 to 15\u00a0digits, and this has ' + digits.length + '. Check the number.'); return false;
+      }
+      clearError('phone'); return true;
+    }
+    if (digits.length !== 10) { showError('phone', 'That number has ' + digits.length + '\u00a0digits. A Thai mobile has 10, starting with 0. From abroad, start with + and the country code.'); return false; }
+    if (digits.charAt(0) !== '0') { showError('phone', 'A Thai mobile starts with 0. Check the first digit, or start with + and the country code.'); return false; }
+    clearError('phone'); return true;
+  }
+  function checkTime() {
+    if (state.time === null) {
+      var g = slotsFor(state.date);
+      var range = g.length ? hhmm(g[0].times[0]) + ' to ' + hhmm(g[g.length - 1].times[g[g.length - 1].times.length - 1]) : '';
+      showError('time', 'Choose a time from the list' + (range ? '. On ' + DAYS[state.date.getUTCDay()] + ' we seat from ' + range + '.' : '.'));
+      return false;
+    }
+    clearError('time'); return true;
+  }
+  nameEl.addEventListener('blur', function () { touched.name = true; checkName(); });
+  phoneEl.addEventListener('blur', function () { touched.phone = true; checkPhone(); });
+  nameEl.addEventListener('input', function () { if (touched.name) checkName(); });
+  phoneEl.addEventListener('input', function () { if (touched.phone) checkPhone(); });
+
+  var form = document.getElementById('book-form');
+  var submit = document.getElementById('submit');
+  var submitLabel = document.getElementById('submit-label');
+  var done = document.getElementById('done');
+  var busy = false;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    touched.name = touched.phone = true;
+    var okT = checkTime(), okN = checkName(), okP = checkPhone();
+    if (!okT) { trigger.focus(); return; }
+    if (!okN) { nameEl.focus(); return; }
+    if (!okP) { phoneEl.focus(); return; }
+    busy = true;
+    submit.setAttribute('aria-busy', 'true');
+    submitLabel.textContent = 'Requesting table';
+    setTimeout(function () {
+      busy = false;
+      submit.removeAttribute('aria-busy');
+      submitLabel.textContent = 'Request this table';
+      var d = state.date;
+      /* the date and its month stay on one line */
+      var dateText = DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + '\u00a0' + MONTHS[d.getUTCMonth()];
+      var rows = [
+        ['Day', dateText],
+        ['Time', hhmm(state.time)],
+        ['Guests', String(state.guests)],
+        ['Name', nameEl.value.trim()],
+        ['Mobile', phoneEl.value.trim()],
+        ['Notes', document.getElementById('notes').value.trim() || 'None']
+      ];
+      document.getElementById('done-h').textContent = 'Table requested for ' + dateText + ', ' + hhmm(state.time);
+      var doneP = document.getElementById('done-p');
+      var num = document.createElement('span');
+      num.className = 'keep';
+      num.textContent = phoneEl.value.trim();
+      doneP.textContent = 'We will text ';
+      doneP.appendChild(num);
+      doneP.appendChild(document.createTextNode(' to confirm. We hold every table for 15\u00a0minutes after the booked time.'));
+      var summary = document.getElementById('summary');
+      summary.innerHTML = '';
+      rows.forEach(function (r) {
+        var dt = document.createElement('dt'); dt.textContent = r[0];
+        var dd = document.createElement('dd'); dd.textContent = r[1];
+        summary.appendChild(dt); summary.appendChild(dd);
+      });
+      form.hidden = true;
+      done.hidden = false;
+      document.getElementById('done-h').focus();
+    }, 1400);
+  });
+  document.getElementById('again').addEventListener('click', function () {
+    form.reset();
+    state.guests = 2; renderGuests();
+    setTime(null);
+    touched.name = touched.phone = false;
+    ['time', 'name', 'phone'].forEach(clearError);
+    done.hidden = true;
+    form.hidden = false;
+    trigger.focus();
+  });
+
+  buildDays();
+
+  /* Steam rises once when the bowl scrolls into view. Without motion it is already drawn. */
+  var bowl = document.getElementById('bowl');
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!calm && 'IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { bowl.classList.add('is-steaming'); io.disconnect(); }
+      });
+    }, { threshold: 0.4 });
+    io.observe(bowl);
+  }
+})();
+</script>
+</body>
+</html>

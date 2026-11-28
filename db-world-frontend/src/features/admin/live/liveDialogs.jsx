@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box, Button, Chip, CircularProgress, DialogActions, DialogContent, DialogTitle,
   IconButton, Stack, TextField, Tooltip, Typography,
@@ -13,6 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import SheetDialog from '@shared/components/SheetDialog';
+import { AdminConfirmDialog } from '@features/admin/adminUi';
 import {
   useAddChannelSource, useAddManualChannel, useAddPlaylist,
   useDeleteChannelSource, useUpdatePlaylist,
@@ -223,6 +224,7 @@ export function ChannelSourcesDialog({ open, onClose, channel }) {
   const T = useT();
   const addSource    = useAddChannelSource();
   const deleteSource = useDeleteChannelSource();
+  const [removeSource, setRemoveSource] = useState(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(sourceSchema),
@@ -244,15 +246,24 @@ export function ChannelSourcesDialog({ open, onClose, channel }) {
 
   const remove = (source) => {
     const last = sources.length === 1;
+    setRemoveSource({
+      source,
+      last,
+    });
+  };
+
+  const runRemove = ({ source, last }) => {
     deleteSource.mutateAsync(source.id)
       .then(() => {
         notify.success(last ? 'Last URL removed — the channel was deleted too' : 'Stream URL removed');
         if (last) onClose?.();
+        setRemoveSource(null);
       })
       .catch((e) => notify.error(e?.response?.data?.message ?? 'Could not remove the URL'));
   };
 
   return (
+    <>
     <SheetDialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={dialogPaper(T)}>
       <Header icon={AddLinkRounded} title={`Stream URLs — ${channel.name}`} onClose={onClose} T={T} />
       <DialogContent sx={{ pb: 1 }}>
@@ -318,5 +329,17 @@ export function ChannelSourcesDialog({ open, onClose, channel }) {
         </Button>
       </DialogActions>
     </SheetDialog>
+    <AdminConfirmDialog
+      open={Boolean(removeSource)}
+      title={removeSource?.last ? 'Remove last stream URL?' : 'Remove stream URL?'}
+      message={removeSource?.last
+        ? `This is the last URL for "${channel.name}". Removing it also deletes the channel.`
+        : 'This stream URL will be removed from the channel. Other URLs remain available.'}
+      confirmLabel={removeSource?.last ? 'Remove URL and channel' : 'Remove URL'}
+      loading={deleteSource.isPending}
+      onConfirm={() => runRemove(removeSource)}
+      onClose={() => setRemoveSource(null)}
+    />
+    </>
   );
 }

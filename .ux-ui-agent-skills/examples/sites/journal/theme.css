@@ -1,0 +1,291 @@
+/* journal theme.css
+   Design system: financial-times (design-systems/library/financial-times/DESIGN.md,
+   category "News & Publishing", measured spec), resolved through the Library
+   Contract in taste/aesthetic-systems.md. The publication is fictional; only the
+   visual language is borrowed (paper canvas, slate inverse, claret kicker, teal
+   link, hairline structure, square shapes, double focus ring). No name, logo or
+   wordmark of the source is used.
+
+   Adaptations from the measured spec, stated so nobody has to guess:
+   - Link teal: the spec's #0d7680 is 4.84:1 on paper but 4.14:1 on the wheat
+     panel, so links use the spec's own teal-40 (#0a5e66) everywhere.
+   - Headline ink: the spec ships #000000; this theme uses a warm off-black.
+   - Control borders: the spec's black-20 (#ccc1b7) is decorative at 1.5:1, so
+     controls take a mid ink (#807870, 3.92:1) to clear WCAG 1.4.11.
+   - Fonts: financier display / metric are proprietary and served from a CDN.
+     They map onto Thai faces by ROLE, not by shape: the spec pairs a display
+     face with a reading face, and Thai print pairs a loopless display face with
+     a looped reading face, whose head loops do for Thai what serifs do for
+     Latin in long text. Two OFL faces are self-hosted in fonts/ (subset to
+     basic Latin + Thai, wght 400 to 700, about 63 KB together; licences beside
+     them): Anuphan (Cadson Demak, loopless) for display and UI, Noto Serif Thai
+     (looped) for reading. System faces follow as the fallback.
+   - Dark mode: the spec has none. It is designed here: the paper becomes warm
+     ink, claret and teal are lifted until they clear AA on it.
+   - Spacing snaps to the kit's 4px scale; the spec's own steps already sit on it. */
+
+@font-face {
+  font-family: "Journal Display"; /* ds-allow-hardcode: an @font-face descriptor names the face, it is not a usage */
+  src: url("fonts/journal-display.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Journal Reading"; /* ds-allow-hardcode: an @font-face descriptor names the face, it is not a usage */
+  src: url("fonts/journal-reading.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Primitives: the measured o3 palette (never used directly in page CSS) */
+  --p-paper: #fff1e5;
+  --p-paper-light: #fff7ef;
+  --p-wheat: #f2dfce;
+  --p-black-5: #f2e5da;
+  --p-black-10: #e6d9ce;
+  --p-black-20: #ccc1b7;
+  --p-ink: #33302e;
+  --p-ink-headline: #1a1817;
+  --p-ink-muted: #66605c;
+  --p-ink-control: #807870;
+  --p-slate: #262a33;
+  --p-slate-hover: #515257;
+  --p-slate-active: #1a1d24;
+  --p-claret: #990f3d;
+  --p-teal: #0d7680;
+  --p-teal-40: #0a5e66;
+  --p-teal-hover: #08474d;
+  --p-velvet: #593380;
+  --p-ft-pink: #fcd0b1;
+  --p-inverse-muted: #a8aaad;
+
+  /* Semantic colour */
+  --color-surface-page: var(--p-paper);
+  --color-surface-raised: var(--p-paper-light);
+  --color-surface-panel: var(--p-wheat);
+  --color-surface-hover: var(--p-black-5);
+  --color-surface-active: var(--p-black-10);
+  --color-surface-inverse: var(--p-slate);
+  --color-text-primary: var(--p-ink);
+  --color-text-heading: var(--p-ink-headline);
+  --color-text-secondary: var(--p-ink-muted);
+  --color-text-kicker: var(--p-claret);
+  --color-text-link: var(--p-teal-40);
+  --color-text-link-hover: var(--p-teal-hover);
+  --color-text-inverse: var(--p-paper);
+  --color-text-inverse-muted: var(--p-inverse-muted);
+  --color-text-inverse-link-hover: var(--p-ft-pink);
+  --color-text-on-action: var(--p-paper);
+  --color-action-primary: var(--p-slate);
+  --color-action-primary-hover: var(--p-slate-hover);
+  --color-action-primary-active: var(--p-slate-active);
+  --color-border-subtle: var(--p-black-10);
+  --color-border-strong: var(--p-ink-control);
+  --color-rule: var(--p-ink);
+  --color-focus: var(--p-ink-headline);
+  --color-progress: var(--p-claret);
+  --color-progress-track: var(--p-black-10);
+  --color-skip-bg: var(--p-velvet);
+  --color-skip-text: var(--p-paper-light);
+  --color-avatar-bg: var(--p-wheat);
+  --color-quote-mark: var(--p-claret);
+  --color-selection: var(--p-ft-pink);
+
+  /* Figure colour (chart + illustrations) */
+  --color-chart-canal: var(--p-ink-muted);
+  --color-chart-canal-hatch: var(--p-paper);
+  --color-chart-floor: var(--p-teal);
+  --color-chart-grid: var(--p-black-20);
+  --color-chart-text: var(--p-ink);
+  --color-illus-line: var(--p-ink);
+  --color-illus-ground: var(--p-black-10);
+  --color-illus-flood: #d4e6e2;
+  --color-illus-water: #a9cfcd;
+  --color-illus-flood-line: var(--p-claret);
+  --color-illus-flow: var(--p-teal-40);
+  --color-illus-house: var(--p-paper-light);
+  --color-illus-roof: var(--p-wheat);
+
+  /* Type families: the two self-hosted faces above, system Thai faces as the fallback */
+  --font-display: "Journal Display", "Sukhumvit Set", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+  --font-reading: "Journal Reading", "Noto Serif Thai", Tahoma, "Thonburi", "Leelawadee UI", serif;
+  --font-ui: "Journal Display", "Sukhumvit Set", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+  --font-quote-mark: "Iowan Old Style", Georgia, "Times New Roman", serif;
+
+  /* Type scale (Major Third, rem) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
+  --text-quote-mark: 6rem;
+
+  /* Reading sizes for the article body (the font-size control picks one).
+     Thai glyphs sit small on the body: the base consonant is short and the
+     stacked marks take the vertical room, so Thai reads at the size a Latin
+     face reads a step smaller. 19px is the default for that reason. */
+  --reading-sm: 1.0625rem;
+  --reading-md: 1.1875rem;
+  --reading-lg: 1.375rem;
+
+  /* Line height. Thai stacks up to four tiers on one line: a below-base vowel
+     (u, uu), the consonant, an above vowel (i, ii, ue, mai han-akat) and a tone
+     mark above that. Latin's 1.5 lets a tone mark touch the below vowel of the
+     line over it, so Thai body runs at 1.85 and Thai display at 1.4, where a
+     Latin headline would sit at 1.05. 1.4 is measured, not guessed: in Anuphan a
+     wrapped headline needs about 1.39 before the tone marks of one line reach the
+     below vowels of the line over it (scripts/verify_thai.mjs). */
+  --leading-display: 1.4;
+  --leading-heading: 1.4;
+  --leading-reading: 1.85;
+  --leading-ui: 1.5;
+
+  /* Thai measure. Thai sets no space between words, breaks a line only where the
+     browser's dictionary finds a word boundary, and has no hyphenation. Too
+     narrow and the rag turns ragged because long words cannot split; too wide
+     and the eye loses the next line, because there are no word spaces to anchor
+     the return sweep. 34em lands at roughly 12 to 16 Thai words a line. It is
+     in em so the measure stays constant when the reader changes the text size. */
+  --measure-reading: 34em;
+  --measure-standfirst: 36em;
+  --measure-display: 14em;
+  --measure-notes: 46em;
+  --measure-table: 32rem;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-label-latin: 0.12em;
+
+  /* Spacing (4px base) */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Layout */
+  --gutter: 1rem;
+  --gutter-wide: 2rem;
+  --container-max: 76rem;
+  --rail-width: 14rem;
+  --readbar-offset: 4.5rem;
+  --toc-panel-max: 22rem;
+  --lead-art-max: 30rem;
+  --chart-label-col: 3.5rem;
+
+  /* Shape: square, as the spec is. Buttons 2px, panels 4px, avatars round. */
+  --radius-none: 0;
+  --radius-button: 0.125rem;
+  --radius-panel: 0.25rem;
+  --radius-full: 9999px;
+  --border-width-thin: 1px;
+  --border-width-medium: 2px;
+  --border-width-heavy: 0.25rem;
+  --progress-height: 0.1875rem;
+
+  /* Sizing */
+  --size-control-sm: 2rem;
+  --size-control-md: 2.75rem;
+  --size-icon: 1.25rem;
+  --size-avatar: 2.75rem;
+  --size-swatch: 0.875rem;
+
+  /* Elevation: flat editorial content; one raised layer, from the spec */
+  --shadow-raised: 0 1px 4px rgba(77, 72, 69, 0.15), 0 8px 14px rgba(77, 72, 69, 0.2);
+  --shadow-focus-ring: 0 0 0 2px var(--color-surface-page), 0 0 0 4px var(--color-focus);
+  --shadow-focus-ring-inverse: 0 0 0 2px var(--color-surface-inverse), 0 0 0 4px var(--color-text-inverse);
+
+  /* Motion */
+  --duration-instant: 0.01ms;
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+
+  --z-readbar: 20;
+  --z-panel: 30;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --p-night: #1c1a19;
+  --p-night-raised: #2a2623;
+  --p-night-panel: #2e2926;
+  --p-night-active: #36302c;
+  --p-night-line: #3a3431;
+  --p-night-inverse: #121416;
+  --p-moon: #f2e5da;
+  --p-moon-body: #e6d9ce;
+  --p-moon-muted: #b8ada4;
+  --p-moon-control: #8c827b;
+  --p-claret-light: #c98593;
+  --p-teal-light: #5fc4cc;
+  --p-teal-lighter: #8fdde3;
+
+  --color-surface-page: var(--p-night);
+  --color-surface-raised: var(--p-night-raised);
+  --color-surface-panel: var(--p-night-panel);
+  --color-surface-hover: var(--p-night-raised);
+  --color-surface-active: var(--p-night-active);
+  --color-surface-inverse: var(--p-night-inverse);
+  --color-text-primary: var(--p-moon-body);
+  --color-text-heading: var(--p-moon);
+  --color-text-secondary: var(--p-moon-muted);
+  --color-text-kicker: var(--p-claret-light);
+  --color-text-link: var(--p-teal-light);
+  --color-text-link-hover: var(--p-teal-lighter);
+  --color-text-inverse: var(--p-moon);
+  --color-text-inverse-muted: var(--p-inverse-muted);
+  --color-text-inverse-link-hover: var(--p-ft-pink);
+  --color-text-on-action: var(--p-night);
+  --color-action-primary: var(--p-moon);
+  --color-action-primary-hover: var(--p-moon-body);
+  --color-action-primary-active: var(--p-black-20);
+  --color-border-subtle: var(--p-night-line);
+  --color-border-strong: var(--p-moon-control);
+  --color-rule: var(--p-moon-body);
+  --color-focus: var(--p-moon);
+  --color-progress: var(--p-claret-light);
+  --color-progress-track: var(--p-night-line);
+  --color-avatar-bg: var(--p-night-panel);
+  --color-quote-mark: var(--p-claret-light);
+  --color-selection: #4a2c33;
+
+  --color-chart-canal: var(--p-moon-muted);
+  --color-chart-canal-hatch: var(--p-night);
+  --color-chart-floor: var(--p-teal-light);
+  --color-chart-grid: var(--p-night-line);
+  --color-chart-text: var(--p-moon-body);
+  --color-illus-line: var(--p-moon-body);
+  --color-illus-ground: var(--p-night-line);
+  --color-illus-flood: #1f3436;
+  --color-illus-water: #2c5457;
+  --color-illus-flood-line: var(--p-claret-light);
+  --color-illus-flow: var(--p-teal-light);
+  --color-illus-house: var(--p-night-raised);
+  --color-illus-roof: var(--p-night-active);
+
+  --shadow-raised: 0 1px 4px rgba(0, 0, 0, 0.4), 0 8px 14px rgba(0, 0, 0, 0.45);
+}

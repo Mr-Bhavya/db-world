@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Avatar, Box, Button, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
+import GroupsRounded from '@mui/icons-material/GroupsRounded';
+import MovieFilterRounded from '@mui/icons-material/MovieFilterRounded';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
@@ -49,12 +51,24 @@ function CrewDept({ dept, members, onPersonClick }) {
           <Box
             key={m.creditId ?? i}
             onClick={clickable ? () => onPersonClick(personId) : undefined}
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onKeyDown={clickable ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onPersonClick(personId);
+              }
+            } : undefined}
             sx={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
               gap: 1.5, py: 0.55,
               borderBottom: `1px solid ${alpha(T.text, 0.05)}`,
               '&:last-of-type': { borderBottom: 'none' },
               cursor: clickable ? 'pointer' : 'default',
+              '&:focus-visible': clickable ? {
+                outline: `2px solid ${T.teal}`,
+                outlineOffset: 2,
+              } : undefined,
               transition: 'background-color .12s',
               borderRadius: 0.75,
               mx: -0.5, px: 0.5,
@@ -135,7 +149,7 @@ export default function CastCrewSection({ record, onPersonClick }) {
     >
       {cast.length > 0 && (
         <>
-          <SectionHeading action={cast.length > CAST_VISIBLE_DEFAULT ? `${visibleCast.length} of ${cast.length}` : null}>
+          <SectionHeading icon={GroupsRounded} eyebrow="On screen" action={cast.length > CAST_VISIBLE_DEFAULT ? `${visibleCast.length} of ${cast.length}` : null}>
             Cast
           </SectionHeading>
           <Box sx={{
@@ -156,12 +170,26 @@ export default function CastCrewSection({ record, onPersonClick }) {
                   whileHover={clickable ? { y: -3 } : undefined}
                   transition={{ duration: 0.15 }}
                   onClick={clickable ? () => onPersonClick?.(personId) : undefined}
+                  role={clickable ? 'button' : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onKeyDown={clickable ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onPersonClick?.(personId);
+                    }
+                  } : undefined}
+                  aria-label={clickable ? `View ${c.person?.name}` : undefined}
                   sx={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     flexShrink: 0, gap: 0.75,
                     width: { xs: 92, xl: 112 },
                     '@media (min-width:1920px)': { width: 136 },
                     cursor: clickable ? 'pointer' : 'default',
+                    '&:focus-visible': clickable ? {
+                      outline: `3px solid ${T.teal}`,
+                      outlineOffset: 3,
+                      borderRadius: 2,
+                    } : undefined,
                   }}
                 >
                   <Box sx={{ position: 'relative' }}>
@@ -218,7 +246,7 @@ export default function CastCrewSection({ record, onPersonClick }) {
 
       {sortedDepts.length > 0 && (
         <>
-          <SectionHeading action={hiddenDepts > 0 ? `${visibleDepts.length} of ${sortedDepts.length} depts` : null}>
+          <SectionHeading icon={MovieFilterRounded} eyebrow="Behind the scenes" action={hiddenDepts > 0 ? `${visibleDepts.length} of ${sortedDepts.length} departments` : null}>
             Crew
           </SectionHeading>
           <Box sx={{

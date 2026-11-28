@@ -4,9 +4,6 @@ import {
   Typography,
   IconButton,
   Skeleton,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
 } from '@mui/material';
 import RefreshIcon            from '@mui/icons-material/Refresh';
@@ -17,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
-  SectionCard, StickyBar, AdminActionButton, adminSurface,
+  SectionCard, StickyBar, AdminActionButton, AdminConfirmDialog, adminSurface,
 } from '@features/admin/adminUi';
 import {
   getTagSummary, recalculateTag, recalculateAllTags, deleteTagDefinition,
@@ -27,7 +24,6 @@ import TagCard from './TagCard';
 import TagRecordTable from './TagRecordTable';
 import TagDefinitionsPanel from './TagDefinitionsPanel';
 import CreateTagDialog from './CreateTagDialog';
-import SheetDialog from '@shared/components/SheetDialog';
 
 // ── Tags tab ──────────────────────────────────────────────────────────────────
 
@@ -142,26 +138,21 @@ export default function TagsTab() {
 
       <CreateTagDialog open={creating} onClose={() => setCreating(false)} />
 
-      <SheetDialog open={Boolean(deleting)} onClose={() => setDeleting(null)} fullWidth maxWidth="xs"
-        PaperProps={{ sx: { bgcolor: S.card, border: `1px solid ${S.border}`, color: T.textPrimary, borderRadius: 2 } }}>
-        <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>
-          Delete &ldquo;{deleting?.displayName ?? deleting?.tagType}&rdquo;?
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 13, color: T.textMuted }}>
-            {deleting?.count
-              ? `This removes the tag from ${deleting.count} record${deleting.count === 1 ? '' : 's'}. The records themselves are not deleted.`
-              : 'This tag has no records. The records themselves are never deleted.'}
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: T.warning, mt: 1 }}>
-            Any rail pointing at this tag will render empty until you repoint or remove it.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <AdminActionButton variant="secondary" onClick={() => setDeleting(null)}>Cancel</AdminActionButton>
-          <AdminActionButton variant="danger" loading={deletingTag} onClick={() => doDelete()}>Delete</AdminActionButton>
-        </DialogActions>
-      </SheetDialog>
+      <AdminConfirmDialog
+        open={Boolean(deleting)}
+        title={`Delete "${deleting?.displayName ?? deleting?.tagType ?? ''}"?`}
+        message={deleting?.count
+          ? `This removes the tag from ${deleting.count} record${deleting.count === 1 ? '' : 's'}. The records themselves are not deleted.`
+          : 'This tag has no records. The records themselves are never deleted.'}
+        confirmLabel="Delete tag"
+        loading={deletingTag}
+        onConfirm={() => doDelete()}
+        onClose={() => setDeleting(null)}
+      >
+        <Typography sx={{ fontSize: 12, color: T.warning, mt: 1 }}>
+          Any rail pointing at this tag will render empty until you repoint or remove it.
+        </Typography>
+      </AdminConfirmDialog>
     </>
   );
 }

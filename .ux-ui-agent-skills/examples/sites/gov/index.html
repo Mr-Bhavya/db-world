@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="format-detection" content="telephone=no">
+<title>ต่ออายุใบอนุญาตร้านค้าขนาดเล็ก | สำนักงานบริการใบอนุญาตนครฟ้าคราม (ตัวอย่างสมมติ)</title>
+<meta name="description" content="ตัวอย่างงานออกแบบสมมติของหน้าบริการภาครัฐ: ต่ออายุใบอนุญาตร้านค้าขนาดเล็กของนครฟ้าคราม เมืองที่ไม่มีอยู่จริง ไม่ใช่เว็บไซต์ของรัฐ">
+<script>
+  /* Theme and text size are set before first paint so the page never flashes
+     the wrong theme. Storage can be missing or blocked; every access is guarded
+     and the page renders correctly without it. */
+  (function () {
+    var root = document.documentElement, get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var t = get('gov-theme');
+    if (t !== 'dark' && t !== 'light') {
+      try { t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { t = 'light'; }
+    }
+    root.setAttribute('data-theme', t);
+    var s = get('gov-text');
+    if (s === 'lg' || s === 'xl') root.setAttribute('data-text', s);
+  })();
+</script>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Page styles. Every value is a token from theme.css. Base styles are the
+     phone layout; wider screens are layered on with min-width only. */
+  *,*::before,*::after{box-sizing:border-box}
+  html[data-text="lg"]{font-size:var(--font-root-lg)}
+  html[data-text="xl"]{font-size:var(--font-root-xl)}
+  @media (prefers-reduced-motion: no-preference){ html{scroll-behavior:smooth} }
+  body{margin:0;background:var(--color-surface-page);color:var(--color-text-primary);
+    font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-body);
+    -webkit-text-size-adjust:100%;text-size-adjust:100%}
+  h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+  ul,ol{padding:0}
+  p,li,dd,address{text-wrap:pretty}
+  img,svg{display:block}
+  button,input,textarea{font:inherit;color:inherit}
+  .wrap{inline-size:100%;max-inline-size:var(--size-container);margin-inline:auto;padding-inline:var(--gutter)}
+  .sr-only{position:absolute;inline-size:1px;block-size:1px;padding:0;margin:0;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  /* Chrome breaks Thai at dictionary words, which splits compounds such as
+     ใบ|อนุญาต at a line end. A .nobr span keeps a compound whole; the script
+     below wraps the known compounds, including in strings it builds. */
+  .nobr{white-space:nowrap}
+  /* A unit too long for the narrowest column (a range in the fee table) keeps
+     whole only once the column can hold it. */
+  .nobr-wide{white-space:normal}
+  @media (min-width:20rem){ .nobr-wide{white-space:nowrap} }
+  .ico{inline-size:var(--size-icon);block-size:var(--size-icon);flex:none}
+  .ico-sm{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+
+  a{color:var(--color-text-link);text-decoration-line:underline;text-decoration-thickness:var(--border-thin);
+    text-underline-offset:.22em;border-radius:var(--radius-xs);overflow-wrap:anywhere;
+    transition:color var(--transition-micro),text-decoration-thickness var(--transition-micro)}
+  a:hover{color:var(--color-text-link-hover);text-decoration-thickness:var(--border-medium)}
+  a:active{color:var(--color-text-link-hover)}
+  :focus-visible{outline:none;box-shadow:var(--shadow-focus-ring)}
+  [tabindex="-1"]:focus{outline:none}
+  [tabindex="-1"]:focus-visible{box-shadow:none}
+
+  .skip{position:absolute;inset-inline-start:var(--space-4);inset-block-start:calc(var(--space-20) * -2);z-index:10;
+    display:inline-flex;align-items:center;min-block-size:var(--size-target);padding-inline:var(--space-5);
+    background:var(--color-action-primary);color:var(--color-text-on-action);font-weight:var(--weight-semibold);
+    border-radius:var(--radius-md);text-decoration:none}
+  .skip:hover{color:var(--color-text-on-action);background:var(--color-action-primary-hover)}
+  .skip:focus-visible,.skip:focus{inset-block-start:var(--space-2);color:var(--color-text-on-action)}
+
+  /* The fictional-site notice: one plain line, first on the page. */
+  .notice{background:var(--color-surface-notice);color:var(--color-text-primary);font-size:var(--text-sm);
+    line-height:var(--leading-heading)}
+  .notice .wrap{display:flex;gap:var(--space-3);align-items:flex-start;padding-block:var(--space-3)}
+  .notice .ico{color:var(--color-text-primary);margin-block-start:var(--space-0-5)}
+  .notice p{min-inline-size:0}
+  .notice a{color:var(--color-text-primary);font-weight:var(--weight-semibold)}
+  .notice a:hover,.notice a:active{color:var(--color-text-secondary)}
+
+  /* Header. Phone: brand and theme toggle on row one, language and text size on
+     row two. Desktop: one row. */
+  .site-header{background:var(--color-surface-card);border-block-end:var(--border-thin) solid var(--color-border-default)}
+  .header-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding-block:var(--space-4)}
+  .brand{flex:1 1 0;display:flex;align-items:center;gap:var(--space-3);color:var(--color-text-primary);text-decoration:none;
+    min-inline-size:0;padding-block:var(--space-1);padding-inline-end:var(--space-2)}
+  .brand:hover{color:var(--color-text-primary)}
+  .brand:hover .brand-name{text-decoration:underline;text-decoration-thickness:var(--border-thin);text-underline-offset:.22em}
+  .mark{inline-size:var(--size-mark);block-size:var(--size-mark);flex:none}
+  .mark .m-bg{fill:var(--color-mark-bg)}
+  .mark .m-bar{fill:var(--color-text-inverse)}
+  .mark .m-dot{fill:var(--color-mark-dot)}
+  .brand-text{display:grid;min-inline-size:0}
+  .brand-name{font-weight:var(--weight-bold);font-size:var(--text-base);line-height:var(--leading-heading)}
+  .brand-sub{font-size:var(--text-xs);color:var(--color-text-secondary);line-height:var(--leading-heading)}
+  html[lang="en"] .brand-sub{display:none}
+  .utils{flex:1 0 100%;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
+  .util{position:relative;display:flex;align-items:center;gap:var(--space-2)}
+  .util-label{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .seg{display:inline-flex;padding:var(--space-0-5);gap:var(--space-0-5);border:var(--border-thin) solid var(--color-border-strong);
+    border-radius:var(--radius-md);background:var(--color-surface-card)}
+  .seg-btn,.util-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);
+    min-inline-size:var(--size-target);min-block-size:var(--size-target);padding-inline:var(--space-3);
+    border:0;border-radius:var(--radius-sm);background:transparent;color:var(--color-text-primary);
+    font-weight:var(--weight-medium);font-size:var(--text-sm);cursor:pointer;line-height:var(--leading-heading);
+    transition:background-color var(--transition-micro),color var(--transition-micro)}
+  .seg-btn:hover,.util-btn:hover{background:var(--color-action-secondary-hover)}
+  .seg-btn:active,.util-btn:active{background:var(--color-action-secondary-active)}
+  .seg-btn[aria-pressed="true"],.util-btn[aria-pressed="true"]{background:var(--color-pressed-bg);color:var(--color-pressed-text);
+    font-weight:var(--weight-bold);box-shadow:inset 0 0 0 var(--border-thin) var(--color-pressed-ring)}
+  .seg-btn[aria-pressed="true"]:hover,.util-btn[aria-pressed="true"]:hover{background:var(--color-pressed-hover)}
+  .seg-btn[aria-pressed="true"]:active,.util-btn[aria-pressed="true"]:active{background:var(--color-pressed-active)}
+  .seg-btn:focus-visible,.util-btn:focus-visible,.seg-btn[aria-pressed="true"]:focus-visible{box-shadow:var(--shadow-focus-ring)}
+  .glyph{font-weight:var(--weight-bold);line-height:1}
+  .glyph-1{font-size:var(--text-sm)}
+  .glyph-2{font-size:var(--text-lg)}
+  .glyph-3{font-size:var(--text-2xl)}
+  .util-btn{flex:none;border:var(--border-thin) solid var(--color-border-strong);border-radius:var(--radius-md)}
+  .util-btn .util-text{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  .en-partial{background:var(--color-feedback-info-bg);color:var(--color-text-primary);font-size:var(--text-sm);
+    border-block-end:var(--border-thin) solid var(--color-border-default)}
+  .en-partial .wrap{display:flex;gap:var(--space-3);align-items:flex-start;padding-block:var(--space-3)}
+  .en-partial .ico{color:var(--color-feedback-info-text);margin-block-start:var(--space-0-5)}
+  .en-partial[hidden]{display:none}
+
+  .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-2);
+    padding-block:var(--space-4);font-size:var(--text-sm);color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+  .crumb{display:inline-flex;align-items:center;gap:var(--space-2)}
+  .crumbs .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm)}
+  .crumbs [aria-current]{color:var(--color-text-primary);font-weight:var(--weight-semibold)}
+
+  /* Hero: the navy band, the one thing that leads */
+  .hero{position:relative;display:grid;gap:var(--space-8);background:var(--color-surface-inverse);color:var(--color-text-inverse);
+    border-radius:var(--radius-xl);padding:var(--space-6) var(--space-5) calc(var(--space-8) + var(--space-10))}
+  .eyebrow{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:var(--space-2);font-size:var(--text-sm);
+    font-weight:var(--weight-medium);color:var(--color-text-inverse-secondary)}
+  .eyebrow .ico{color:var(--color-text-inverse);margin-block-start:var(--space-0-5)}
+  h1{font-size:min(var(--text-display), var(--text-display-fluid));line-height:var(--leading-display);font-weight:var(--weight-bold);
+    max-inline-size:var(--measure-display);margin-block:var(--space-3) var(--space-4);text-wrap:balance}
+  .lede{font-size:var(--text-lg);color:var(--color-text-inverse-secondary);max-inline-size:52ch}
+  .lede strong{color:var(--color-text-inverse);font-weight:var(--weight-semibold)}
+  .hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-6);margin-block-start:var(--space-8)}
+  .btn-hero{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3);min-block-size:var(--size-control-lg);
+    padding-inline:var(--space-6);border-radius:var(--radius-md);background:var(--color-action-inverse);
+    color:var(--color-text-on-inverse-action);font-size:var(--text-lg);font-weight:var(--weight-bold);text-decoration:none;
+    transition:background-color var(--transition-micro),transform var(--transition-micro)}
+  .btn-hero:hover{background:var(--color-action-inverse-hover);color:var(--color-text-on-inverse-action)}
+  .btn-hero:active{background:var(--color-action-inverse-active);color:var(--color-text-on-inverse-action);transform:translateY(1px)}
+  .btn-hero:focus-visible{box-shadow:var(--shadow-focus-ring-inverse)}
+  .hero-link{display:inline-flex;align-items:center;gap:var(--space-2);min-block-size:var(--size-target);
+    color:var(--color-text-inverse);font-weight:var(--weight-medium)}
+  .hero-link:hover,.hero-link:active{color:var(--color-text-inverse-secondary)}
+  .hero-link:focus-visible{box-shadow:var(--shadow-focus-ring-inverse)}
+  .hero-art{display:none}
+  .art .a-wall{fill:var(--color-art-wall)}
+  .art .a-line{fill:var(--color-art-line)}
+  .art .a-awn{fill:var(--color-art-awning)}
+  .art .a-awn2{fill:var(--color-art-awning-alt)}
+  .art .a-glass{fill:var(--color-art-glass)}
+  .art .a-card{fill:var(--color-art-card)}
+  .art .a-ink{fill:var(--color-art-ink)}
+  .art .a-ok{fill:var(--color-art-ok)}
+  .art .a-tick{fill:none;stroke:var(--color-art-card);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+  .art .a-ground{fill:var(--color-border-inverse)}
+
+  /* Summary: overlaps the hero edge */
+  .summary{position:relative;display:grid;gap:var(--space-6);margin-block-start:calc(var(--space-10) * -1);
+    margin-inline:var(--space-1);padding:var(--space-6) var(--space-4);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg);box-shadow:var(--shadow-raised)}
+  .summary h2{font-size:var(--text-xl);line-height:var(--leading-heading);font-weight:var(--weight-bold)}
+  .who{display:grid;gap:var(--space-4)}
+  .who h3{font-size:var(--text-base);font-weight:var(--weight-semibold);color:var(--color-text-primary)}
+  .marks{list-style:none;display:grid;gap:var(--space-2)}
+  .marks li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start}
+  .marks .ico{margin-block-start:var(--space-1)}
+  .marks-yes .ico{color:var(--color-feedback-success-text)}
+  .marks-no .ico{color:var(--color-text-secondary)}
+  .facts{display:grid;gap:var(--space-4);padding:var(--space-4);background:var(--color-surface-raised);border-radius:var(--radius-md)}
+  .fact{display:grid;gap:var(--space-0-5);min-inline-size:0}
+  .fact dt{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .fact dd{font-size:var(--text-lg);font-weight:var(--weight-semibold);line-height:var(--leading-heading)}
+  .figure{display:inline-block;font-size:min(var(--text-figure), var(--text-figure-fluid));font-weight:var(--weight-bold);line-height:var(--leading-tight);
+    font-variant-numeric:tabular-nums;color:var(--color-text-primary);margin-inline-end:var(--space-1)}
+  .fact-note{display:block;font-size:var(--text-sm);font-weight:var(--weight-regular);color:var(--color-text-secondary)}
+  .fact + .fact{padding-block-start:var(--space-4);border-block-start:var(--border-thin) solid var(--color-border-default)}
+
+  .layout{display:grid;gap:var(--space-10);margin-block:var(--space-12) var(--space-16)}
+  .toc{align-self:start;padding:var(--space-5);background:var(--color-surface-card);border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg)}
+  .toc-title{font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-text-secondary);margin-block-end:var(--space-2)}
+  .toc ol{list-style:none;display:grid;gap:var(--space-0-5);counter-reset:toc}
+  .toc li{counter-increment:toc}
+  .toc a{display:flex;gap:var(--space-3);align-items:center;min-block-size:var(--size-target);padding-inline:var(--space-3);
+    border-radius:var(--radius-sm);color:var(--color-text-primary);text-decoration:none;transition:background-color var(--transition-micro)}
+  .toc a::before{content:counter(toc);font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-text-secondary);
+    font-variant-numeric:tabular-nums;min-inline-size:1.25ch}
+  .toc a:hover{background:var(--color-action-secondary-hover);color:var(--color-text-primary)}
+  .toc a:active{background:var(--color-action-secondary-active)}
+  .toc a[aria-current="true"]{background:var(--color-interactive-selected-bg);color:var(--color-text-link);font-weight:var(--weight-semibold)}
+  .toc a[aria-current="true"]::before{color:var(--color-text-link)}
+
+  .content{display:grid;gap:var(--space-16);min-inline-size:0;max-inline-size:50rem}
+  .sec{scroll-margin-block-start:var(--space-6);min-inline-size:0}
+  .sec > h2{font-size:var(--text-2xl);line-height:var(--leading-heading);font-weight:var(--weight-bold)}
+  .sec-lede{color:var(--color-text-secondary);max-inline-size:var(--measure-body);margin-block-start:var(--space-2)}
+  .sec-body{margin-block-start:var(--space-6)}
+
+  /* The one marker for invented figures and contacts */
+  .fic{display:inline-flex;align-items:center;padding:0 var(--space-2);border-radius:var(--radius-xs);
+    border:var(--border-thin) solid var(--color-border-strong);color:var(--color-text-secondary);background:transparent;
+    font-size:var(--text-xs);font-weight:var(--weight-semibold);line-height:var(--leading-body);white-space:nowrap}
+  /* Text and its pill sit in a wrapping flex row: the gap separates them on one
+     line, and a pill that wraps starts on the text edge instead of a margin in. */
+  .with-tag{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-2);max-inline-size:100%}
+  .with-tag > :first-child{min-inline-size:0}
+  .hero .fic,.site-footer .fic{border-color:var(--color-text-inverse-secondary);color:var(--color-text-inverse-secondary)}
+
+  /* Buttons */
+  .btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);
+    min-block-size:var(--size-control);padding-inline:var(--space-6);border:var(--border-thin) solid transparent;
+    border-radius:var(--radius-md);font-weight:var(--weight-semibold);line-height:var(--leading-heading);cursor:pointer;
+    text-decoration:none;text-align:center;
+    transition:background-color var(--transition-micro),border-color var(--transition-micro),color var(--transition-micro),transform var(--transition-micro)}
+  .btn[hidden]{display:none}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--color-action-primary);color:var(--color-text-on-action);border-color:var(--color-action-primary)}
+  .btn-primary:hover{background:var(--color-action-primary-hover);border-color:var(--color-action-primary-hover);color:var(--color-text-on-action)}
+  .btn-primary:active{background:var(--color-action-primary-active);border-color:var(--color-action-primary-active);color:var(--color-text-on-action)}
+  .btn-secondary{background:transparent;color:var(--color-text-primary);border-color:var(--color-border-strong)}
+  .btn-secondary:hover{background:var(--color-action-secondary-hover);color:var(--color-text-primary)}
+  .btn-secondary:active{background:var(--color-action-secondary-active);color:var(--color-text-primary)}
+  /* The ghost is a text button: no inline padding, so its label lines up with
+     the text column it sits in, even when it wraps to the start of a row. */
+  .btn-ghost{background:transparent;color:var(--color-text-link);padding-inline:0;min-inline-size:var(--size-target);
+    text-decoration-line:underline;text-decoration-color:transparent;text-decoration-thickness:var(--border-medium);text-underline-offset:.22em}
+  .btn-ghost:hover{color:var(--color-text-link-hover);text-decoration-color:currentColor}
+  .btn-ghost:active{color:var(--color-text-link-hover);text-decoration-color:currentColor;text-decoration-thickness:var(--border-thick)}
+  .btn:disabled{opacity:var(--opacity-disabled);cursor:not-allowed;pointer-events:none}
+  .btn[aria-busy="true"]{cursor:progress}
+  .spinner{inline-size:var(--size-icon);block-size:var(--size-icon);border-radius:var(--radius-full);
+    border:var(--border-medium) solid currentColor;border-inline-end-color:transparent;flex:none}
+  .btn[aria-busy="true"] .spinner{animation:spin var(--duration-slow) linear infinite}
+  .btn:not([aria-busy="true"]) .spinner{display:none}
+  @keyframes spin{to{transform:rotate(1turn)}}
+
+  /* Eligibility checker: the lead interaction */
+  .checker{display:grid;gap:var(--space-6);padding:var(--space-5);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}
+  .progress-row{display:grid;gap:var(--space-2)}
+  .progress-text{font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-text-secondary)}
+  .progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-1)}
+  .progress > span{block-size:var(--size-progress);border-radius:var(--radius-full);background:var(--color-border-default);
+    transition:background-color var(--duration-base) var(--ease-out)}
+  .progress > span.is-done,.progress > span.is-current{background:var(--color-action-primary)}
+  .q{border:0;margin:0;padding:0;min-inline-size:0;display:grid;gap:var(--space-4)}
+  .q[hidden]{display:none}
+  .q legend{padding:0;float:left;inline-size:100%}
+  .q legend + *{clear:both}
+  .q-title{display:block;font-size:var(--text-xl);line-height:var(--leading-heading);font-weight:var(--weight-bold);
+    color:var(--color-text-primary);border-radius:var(--radius-xs);text-wrap:pretty}
+  .q-why{color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+  .opts{display:grid;gap:var(--space-3)}
+  .opt{display:flex;align-items:center;gap:var(--space-4);min-block-size:var(--size-control-lg);padding:var(--space-3) var(--space-5);
+    background:var(--color-surface-card);border:var(--border-thin) solid var(--color-border-strong);border-radius:var(--radius-md);
+    font-size:var(--text-lg);font-weight:var(--weight-semibold);line-height:var(--leading-heading);cursor:pointer;
+    transition:background-color var(--transition-micro),border-color var(--transition-micro),box-shadow var(--transition-micro)}
+  .opt:hover{background:var(--color-action-secondary-hover)}
+  .opt:active{background:var(--color-action-secondary-active)}
+  .opt:has(input:checked){background:var(--color-interactive-selected-bg);border-color:var(--color-action-primary);
+    box-shadow:inset 0 0 0 var(--border-thin) var(--color-action-primary)}
+  .opt:has(input:focus-visible){box-shadow:var(--shadow-focus-ring)}
+  .opt input{appearance:none;-webkit-appearance:none;margin:0;flex:none;display:grid;place-content:center;
+    inline-size:var(--size-icon-lg);block-size:var(--size-icon-lg);border:var(--border-medium) solid var(--color-border-strong);
+    border-radius:var(--radius-full);background:var(--color-surface-card);cursor:pointer}
+  .opt input::before{content:"";inline-size:calc(var(--size-icon-lg) / 2);block-size:calc(var(--size-icon-lg) / 2);
+    border-radius:var(--radius-full);background:var(--color-action-primary);transform:scale(0);transition:transform var(--transition-micro)}
+  .opt input:checked{border-color:var(--color-action-primary)}
+  .opt input:checked::before{transform:scale(1)}
+  .opt input:focus-visible{box-shadow:none}
+  .opt-text{display:grid;min-inline-size:0}
+  .opt-sub{font-size:var(--text-sm);font-weight:var(--weight-regular);color:var(--color-text-secondary)}
+  .q.has-error .opt{border-color:var(--color-border-error);box-shadow:inset 0 0 0 var(--border-thin) var(--color-border-error)}
+  .field-error{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-feedback-error-text);font-weight:var(--weight-semibold)}
+  .field-error[hidden]{display:none}
+  .field-error .ico{margin-block-start:var(--space-1)}
+  .checker-nav{display:flex;flex-wrap:wrap;gap:var(--space-3);
+    padding-block-start:var(--space-5);border-block-start:var(--border-thin) solid var(--color-border-default)}
+  .checker-nav[hidden]{display:none}
+  .checker-nav .btn{flex:1 1 auto}
+  .result{display:grid;gap:var(--space-4);padding:var(--space-5);border-radius:var(--radius-md);
+    border:var(--border-thin) solid var(--color-border-default)}
+  .result[hidden]{display:none}
+  .result[data-kind="ok"]{background:var(--color-feedback-success-bg)}
+  .result[data-kind="warn"]{background:var(--color-feedback-warning-bg)}
+  .result[data-kind="info"]{background:var(--color-feedback-info-bg)}
+  .result-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start}
+  .result-head .ico{inline-size:var(--size-icon-lg);block-size:var(--size-icon-lg);margin-block-start:var(--space-1)}
+  .result[data-kind="ok"] .result-head .ico{color:var(--color-feedback-success-text)}
+  .result[data-kind="warn"] .result-head .ico{color:var(--color-feedback-warning-text)}
+  .result[data-kind="info"] .result-head .ico{color:var(--color-feedback-info-text)}
+  .result h3{font-size:var(--text-xl);line-height:var(--leading-heading);font-weight:var(--weight-bold);border-radius:var(--radius-xs)}
+  .result-why{font-weight:var(--weight-semibold)}
+  .reasons{list-style:none;display:grid;gap:var(--space-3)}
+  .reasons li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3)}
+  .reasons .ico{margin-block-start:var(--space-1);color:var(--color-text-secondary)}
+  .result-next{color:var(--color-text-primary);max-inline-size:var(--measure-body)}
+  .result-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-block-start:var(--space-2)}
+
+  /* Documents */
+  .docs-status{display:grid;gap:var(--space-3);margin-block-end:var(--space-4)}
+  .docs-count{font-size:var(--text-lg);font-weight:var(--weight-semibold)}
+  .docs-count strong{font-size:var(--text-2xl);font-variant-numeric:tabular-nums}
+  .docs-count.is-complete{color:var(--color-feedback-success-text)}
+  .meter{block-size:var(--size-progress);border-radius:var(--radius-full);background:var(--color-border-default);overflow:hidden}
+  .meter > span{display:block;block-size:100%;inline-size:calc(var(--done, 0) / var(--total, 4) * 100%);background:var(--color-action-primary);
+    border-radius:var(--radius-full);transition:inline-size var(--duration-base) var(--ease-out)}
+  .docs-count.is-complete + .meter > span{background:var(--color-feedback-success-text)}
+  .checklist{list-style:none;background:var(--color-surface-card);border:var(--border-thin) solid var(--color-border-default);
+    border-radius:var(--radius-lg)}
+  .checklist li[hidden]{display:none}
+  .checklist li + li{border-block-start:var(--border-thin) solid var(--color-border-default)}
+  .doc{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-4);align-items:start;
+    padding:var(--space-4);cursor:pointer;transition:background-color var(--transition-micro)}
+  .checklist li:first-child .doc{border-start-start-radius:var(--radius-lg);border-start-end-radius:var(--radius-lg)}
+  .checklist li:last-child .doc{border-end-start-radius:var(--radius-lg);border-end-end-radius:var(--radius-lg)}
+  .doc:hover{background:var(--color-action-secondary-hover)}
+  .doc:active{background:var(--color-action-secondary-active)}
+  .doc:has(input:checked){background:var(--color-interactive-selected-bg)}
+  .doc:has(input:focus-visible){box-shadow:inset 0 0 0 var(--border-thick) var(--color-focus)}
+  .doc input{appearance:none;-webkit-appearance:none;margin:0;display:grid;place-content:center;
+    inline-size:var(--size-check);block-size:var(--size-check);border:var(--border-medium) solid var(--color-border-strong);
+    border-radius:var(--radius-sm);background:var(--color-surface-card);cursor:pointer;
+    transition:background-color var(--transition-micro),border-color var(--transition-micro)}
+  .doc input::before{content:"";inline-size:calc(var(--size-check) * .64);block-size:calc(var(--size-check) * .64);
+    background:var(--color-text-on-action);transform:scale(0);transition:transform var(--transition-micro);
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat}
+  .doc input:checked{background:var(--color-action-primary);border-color:var(--color-action-primary)}
+  .doc input:checked::before{transform:scale(1)}
+  .doc input:focus-visible{box-shadow:none}
+  .doc-text{display:grid;gap:var(--space-0-5);min-inline-size:0}
+  .doc-name{font-weight:var(--weight-semibold);line-height:var(--leading-heading);padding-block-start:var(--space-0-5)}
+  .doc-name.with-tag{display:flex}
+  .doc-note{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .tag{display:inline-flex;align-items:center;padding:0 var(--space-2);border-radius:var(--radius-xs);font-size:var(--text-xs);
+    font-weight:var(--weight-semibold);line-height:var(--leading-body);white-space:nowrap}
+  .tag-neutral{background:var(--color-surface-raised);color:var(--color-text-secondary)}
+  .tag-ok{background:var(--color-feedback-success-bg);color:var(--color-feedback-success-text)}
+  .tag-info{background:var(--color-feedback-info-bg);color:var(--color-feedback-info-text)}
+  .docs-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);margin-block-start:var(--space-3)}
+  .docs-foot p{font-size:var(--text-sm);color:var(--color-text-secondary)}
+
+  /* Steps */
+  .steps{list-style:none;display:grid}
+  .step{position:relative;display:grid;grid-template-columns:var(--size-step) minmax(0,1fr);column-gap:var(--space-4);
+    padding-block-end:var(--space-8)}
+  .step::before{content:"";position:absolute;inset-inline-start:calc(var(--size-step) / 2 - var(--size-hairline));
+    inset-block:calc(var(--size-step) + var(--space-1)) var(--space-1);inline-size:var(--border-medium);background:var(--color-border-default)}
+  .step:last-child{padding-block-end:0}
+  .step:last-child::before{display:none}
+  .step-num{display:grid;place-items:center;inline-size:var(--size-step);block-size:var(--size-step);border-radius:var(--radius-full);
+    background:var(--color-surface-brand);color:var(--color-text-link);font-weight:var(--weight-bold);
+    border:var(--border-thin) solid var(--color-border-default);font-variant-numeric:tabular-nums}
+  .step-body{display:grid;gap:var(--space-1);padding-block-start:var(--space-1);min-inline-size:0}
+  .step-body h3{font-size:var(--text-lg);line-height:var(--leading-heading);font-weight:var(--weight-semibold)}
+  .step-body p{color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+  .dur{grid-column:2;justify-self:start;display:inline-flex;align-items:center;gap:var(--space-2);margin-block-start:var(--space-3);
+    padding:var(--space-1) var(--space-3);border-radius:var(--radius-sm);background:var(--color-surface-raised);
+    font-size:var(--text-sm);font-weight:var(--weight-semibold);max-inline-size:100%;min-inline-size:0}
+  .dur .ico{inline-size:var(--size-icon-sm);block-size:var(--size-icon-sm);color:var(--color-text-secondary)}
+  .total{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);margin-block-start:var(--space-8);
+    padding:var(--space-5);background:var(--color-surface-brand);border-radius:var(--radius-md)}
+  .total strong{font-size:var(--text-2xl);line-height:var(--leading-heading);font-weight:var(--weight-bold)}
+  .total-note{color:var(--color-text-secondary)}
+
+  /* Fees */
+  .fees{inline-size:100%;border-collapse:separate;border-spacing:0;background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg)}
+  .fees caption{caption-side:top;text-align:start;font-size:var(--text-sm);color:var(--color-text-secondary);padding-block-end:var(--space-3)}
+  .fees th,.fees td{padding:var(--space-3);text-align:start;vertical-align:top;border-block-end:var(--border-thin) solid var(--color-border-default)}
+  .fees tbody tr:last-child th,.fees tbody tr:last-child td{border-block-end:0}
+  .fees thead th{font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-text-secondary);background:var(--color-surface-raised)}
+  .fees thead th:first-child{border-start-start-radius:var(--radius-lg)}
+  .fees thead th:last-child{border-start-end-radius:var(--radius-lg)}
+  .fees tbody th{font-weight:var(--weight-regular)}
+  .fees .num{text-align:end;font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cell-note{display:block;font-size:var(--text-sm);color:var(--color-text-secondary);font-weight:var(--weight-regular);white-space:normal}
+  abbr[title]{text-decoration:underline dotted;text-underline-offset:.2em;cursor:help}
+  .callout{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start;margin-block-start:var(--space-5);
+    padding:var(--space-4) var(--space-5);border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-md);
+    background:var(--color-feedback-info-bg)}
+  .callout .ico{color:var(--color-feedback-info-text);margin-block-start:var(--space-1)}
+  .callout p{max-inline-size:var(--measure-body)}
+
+  /* Channels */
+  .channels{display:grid;gap:var(--space-4)}
+  .ch-list{display:grid;gap:var(--space-4)}
+  .ch{display:grid;gap:var(--space-4);align-content:start;padding:var(--space-5);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg);min-inline-size:0}
+  .ch-lead{background:var(--color-surface-brand);border-color:var(--color-action-primary);padding:var(--space-6) var(--space-5)}
+  .ch-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
+  .ch-icon{display:grid;place-items:center;inline-size:var(--size-target);block-size:var(--size-target);border-radius:var(--radius-full);
+    background:var(--color-surface-raised);color:var(--color-text-primary);flex:none}
+  .ch-lead .ch-icon{background:var(--color-surface-card);color:var(--color-text-link)}
+  .ch h3{font-size:var(--text-xl);line-height:var(--leading-heading);font-weight:var(--weight-bold)}
+  .ch-lead h3{font-size:var(--text-2xl)}
+  .ch-meta{display:grid;gap:var(--space-3)}
+  .ch-meta div,.hours div{display:grid;gap:0;min-inline-size:0}
+  .ch-meta dt,.hours dt{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .ch-meta dd{font-weight:var(--weight-semibold)}
+  .hours{display:grid;gap:var(--space-3)}
+  .ch address{font-style:normal}
+  .ch-tip{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .ch-actions{display:grid;gap:var(--space-3);justify-items:start}
+  .demo-msg{display:flex;gap:var(--space-2);align-items:flex-start;font-size:var(--text-sm);color:var(--color-text-primary);
+    padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default)}
+  .demo-msg[hidden]{display:none}
+  .demo-msg .ico{color:var(--color-feedback-info-text);margin-block-start:var(--space-0-5)}
+
+  /* Related services */
+  .related{list-style:none;display:grid;gap:var(--space-3)}
+  .related li{scroll-margin-block-start:var(--space-6);display:grid;gap:var(--space-1);padding:var(--space-4) var(--space-5);
+    background:var(--color-surface-card);border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-md)}
+  .related li:target{border-color:var(--color-action-primary);box-shadow:inset 0 0 0 var(--border-thin) var(--color-action-primary)}
+  .related h3{font-size:var(--text-lg);line-height:var(--leading-heading);font-weight:var(--weight-semibold)}
+  .related p{color:var(--color-text-secondary)}
+
+  /* Contact */
+  .contact{display:grid;gap:var(--space-4)}
+  .call{display:grid;gap:var(--space-2);align-content:start;padding:var(--space-6) var(--space-5);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg)}
+  .call-label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .call p.phone{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);color:var(--color-text-primary);font-size:min(var(--text-2xl), var(--text-phone-fluid));
+    font-weight:var(--weight-bold);line-height:var(--leading-heading);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .call p.phone .fic{letter-spacing:0}
+  .call p{color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+  .contact-side{display:grid;gap:var(--space-2);min-inline-size:0}
+  .contact-list{display:grid}
+  .contact-list > div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);padding-block:var(--space-4)}
+  .contact-list > div + div{border-block-start:var(--border-thin) solid var(--color-border-default)}
+  .contact-list dt .ico{color:var(--color-text-secondary);margin-block-start:var(--space-1)}
+  .contact-list dd{display:grid;gap:var(--space-0-5);min-inline-size:0}
+  .contact-list .k{font-weight:var(--weight-semibold)}
+  .contact-list .v{color:var(--color-text-secondary);font-size:var(--text-sm)}
+  .contact-list address{font-style:normal}
+  .long{overflow-wrap:anywhere}
+  .complain{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start;padding:var(--space-4);
+    font-size:var(--text-sm);color:var(--color-text-secondary);background:var(--color-surface-raised);border-radius:var(--radius-sm)}
+  .complain .ico{margin-block-start:var(--space-0-5);color:var(--color-text-primary)}
+  .complain strong{color:var(--color-text-primary)}
+
+  /* Feedback */
+  .feedback{display:grid;gap:var(--space-5);padding:var(--space-6) var(--space-5);background:var(--color-surface-card);
+    border:var(--border-thin) solid var(--color-border-default);border-radius:var(--radius-lg)}
+  .fb-ask{display:grid;gap:var(--space-4)}
+  .fb-ask[hidden],.fb-form[hidden],.fb-thanks[hidden]{display:none}
+  .feedback h2{font-size:var(--text-xl);line-height:var(--leading-heading);font-weight:var(--weight-bold)}
+  .fb-buttons{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+  .fb-form{display:grid;gap:var(--space-3)}
+  .fb-form label{font-weight:var(--weight-semibold)}
+  .hint{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  textarea{inline-size:100%;min-inline-size:0;min-block-size:7.5rem;resize:vertical;padding:var(--space-3) var(--space-4);
+    background:var(--color-surface-card);color:var(--color-text-primary);border:var(--border-thin) solid var(--color-border-strong);
+    border-radius:var(--radius-md);line-height:var(--leading-body);transition:border-color var(--transition-micro)}
+  textarea:hover{border-color:var(--color-text-secondary)}
+  textarea:focus-visible{border-color:var(--color-action-primary)}
+  textarea[aria-invalid="true"]{border-color:var(--color-border-error);box-shadow:inset 0 0 0 var(--border-thin) var(--color-border-error)}
+  textarea[aria-invalid="true"]:focus-visible{box-shadow:var(--shadow-focus-ring)}
+  textarea:disabled{opacity:var(--opacity-disabled)}
+  .fb-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-block-start:var(--space-2)}
+  .fb-thanks{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start}
+  .fb-thanks .ico{color:var(--color-feedback-success-text);inline-size:var(--size-icon-lg);block-size:var(--size-icon-lg);margin-block-start:var(--space-0-5)}
+  .fb-thanks h2{border-radius:var(--radius-xs)}
+  .fb-thanks p{color:var(--color-text-secondary);margin-block-start:var(--space-1);max-inline-size:var(--measure-body)}
+  .fb-thanks .btn{margin-block-start:var(--space-3)}
+
+  .updated{font-size:var(--text-sm);color:var(--color-text-secondary);max-inline-size:var(--measure-body)}
+
+  /* Footer */
+  .site-footer{background:var(--color-surface-inverse);color:var(--color-text-inverse);padding-block:var(--space-12) var(--space-10)}
+  .site-footer .wrap{display:grid;gap:var(--space-8)}
+  .foot-brand{display:flex;align-items:center;gap:var(--space-3)}
+  .foot-brand .mark .m-bg{fill:var(--color-surface-inverse-raised)}
+  .foot-name{font-weight:var(--weight-bold);line-height:var(--leading-heading)}
+  .foot-name .foot-sub{display:block;font-weight:var(--weight-regular);font-size:var(--text-sm);color:var(--color-text-inverse-secondary);margin-block-start:var(--space-1)}
+  .about{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3);align-items:start;padding:var(--space-5);
+    border:var(--border-thin) solid var(--color-border-inverse);border-radius:var(--radius-md);scroll-margin-block-start:var(--space-6)}
+  .about .ico{margin-block-start:var(--space-1)}
+  .about p{max-inline-size:var(--measure-body)}
+  .about strong{display:block;font-size:var(--text-lg);margin-block-end:var(--space-1)}
+  .about-body{color:var(--color-text-inverse-secondary)}
+  .foot-links{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-6);font-size:var(--text-sm)}
+  .site-footer a{display:inline-flex;align-items:center;gap:var(--space-2);min-block-size:var(--size-target);color:var(--color-text-inverse);font-weight:var(--weight-medium)}
+  .site-footer a:hover,.site-footer a:active{color:var(--color-text-inverse-secondary)}
+  .site-footer a:focus-visible{box-shadow:var(--shadow-focus-ring-inverse)}
+
+  /* Largest text on a phone: the page text grows, the header chrome does not, so
+     the heading still reaches the first screen. Toggles and mark hold the 44px
+     target, both control groups share one row, the name sets one step smaller,
+     and its English sub-line (the same name again) steps aside. A narrow
+     refinement, so max-width. */
+  @media (max-width:39.9375rem){
+    html[data-text="xl"] .mark{inline-size:var(--size-target-compact);block-size:var(--size-target-compact)}
+    html[data-text="xl"] .brand-sub{display:none}
+    html[data-text="xl"] .brand-name{font-size:var(--text-sm)}
+    html[data-text="xl"] .seg-btn,html[data-text="xl"] .util-btn{min-inline-size:var(--size-target-compact);
+      min-block-size:var(--size-target-compact);padding-inline:var(--space-2)}
+    html[data-text="xl"] .header-row{padding-block:var(--space-3)}
+  }
+  @media (min-width:30rem){
+    .opts{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .opts.opts-stack{grid-template-columns:minmax(0,1fr)}
+    .checker-nav .btn{flex:0 1 auto}
+  }
+  @media (min-width:40rem){
+    .wrap{padding-inline:var(--gutter-wide)}
+    .utils{gap:var(--space-3) var(--space-5)}
+    .util-label{position:static;inline-size:auto;block-size:auto;overflow:visible;clip:auto;font-size:var(--text-sm);color:var(--color-text-secondary)}
+    .util-btn{padding-inline:var(--space-4)}
+    .util-btn .util-text{position:static;inline-size:auto;block-size:auto;overflow:visible;clip:auto}
+    .hero{padding:var(--space-12) var(--space-10) calc(var(--space-12) + var(--space-12))}
+    .btn-hero{padding-inline:var(--space-8)}
+    .facts{padding:var(--space-5)}
+    .summary{margin-inline:var(--space-6);padding:var(--space-8);margin-block-start:calc(var(--space-12) * -1)}
+    .checker{padding:var(--space-8)}
+    .opts.opts-stack{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .ch-meta{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .ch-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+    /* Cards in one row share a height, and the note that closes each card sits
+       on the bottom edge, so the endings line up as well. */
+    .ch-list > .ch{display:flex;flex-direction:column}
+    .ch-list > .ch > :last-child{margin-block-start:auto}
+    .step{grid-template-columns:var(--size-step) minmax(0,1fr) auto}
+    .dur{grid-column:3;grid-row:1;margin-block-start:var(--space-1);align-self:start}
+    .contact{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+    .call{display:flex;flex-direction:column}
+    .call > :last-child{margin-block-start:auto}
+    .fb-ask{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+    .docs-status{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-6)}
+    .sec > h2{font-size:var(--text-3xl)}
+    .fees th,.fees td{padding:var(--space-4)}
+    .call p.phone{font-size:var(--text-3xl)}
+  }
+  @media (min-width:56rem){
+    .hero{grid-template-columns:minmax(0,7fr) minmax(0,5fr);align-items:center;gap:var(--space-10)}
+    .hero-art{display:block;justify-self:end;inline-size:100%;max-inline-size:var(--size-art)}
+    .hero-art svg{inline-size:100%;block-size:auto}
+    h1{font-size:min(var(--text-display-wide), var(--text-display-fluid-wide))}
+    .summary{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--space-8);margin-inline:var(--space-10)}
+  }
+  @media (min-width:64rem){
+    .header-row{flex-wrap:nowrap;gap:var(--space-6)}
+    .utils{flex:0 1 auto;justify-content:flex-end}
+    .util-btn{order:3}
+    .layout{grid-template-columns:var(--size-toc) minmax(0,1fr);gap:var(--space-16);margin-block-start:var(--space-16)}
+    .toc{position:sticky;inset-block-start:var(--space-6);padding:0;background:transparent;border:0}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+  }
+  @media (forced-colors: active){
+    .seg-btn[aria-pressed="true"],.util-btn[aria-pressed="true"]{outline:var(--border-medium) solid CanvasText}
+    .opt input:checked::before,.doc input:checked::before{background:CanvasText}
+  }
+</style>
+</head>
+<body id="top">
+<svg class="sr-only" aria-hidden="true" focusable="false">
+  <!-- Extra lucide icons, verbatim paths (lucide.dev), for names icons.js does not carry. -->
+  <symbol id="g-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="g-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  <symbol id="g-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="g-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="g-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></symbol>
+  <symbol id="g-laptop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="g-circle-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="g-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="g-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="g-rotate-ccw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="g-store" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></symbol>
+  <symbol id="g-languages" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></symbol>
+</svg>
+
+<a class="skip" href="#main"><span data-i18n="skip">ข้ามไปที่เนื้อหา</span></a>
+
+<div class="notice" role="note" aria-label="ประกาศ">
+  <div class="wrap">
+    <svg class="ico" aria-hidden="true"><use href="#i-alert-triangle"/></svg>
+    <p><strong data-i18n-html="notice">ตัวอย่างงานออกแบบสมมติ <span class="nobr">ไม่ใช่เว็บไซต์ของรัฐ</span></strong> <a href="#about" data-i18n="notice-link">เกี่ยวกับตัวอย่างนี้</a></p>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="#top">
+      <svg class="mark" viewBox="0 0 44 44" aria-hidden="true">
+        <rect class="m-bg" width="44" height="44" rx="10"/>
+        <rect class="m-bar" x="10" y="12" width="24" height="4" rx="2"/>
+        <rect class="m-bar" x="10" y="20" width="17" height="4" rx="2"/>
+        <rect class="m-bar" x="10" y="28" width="10" height="4" rx="2"/>
+        <circle class="m-dot" cx="31" cy="30" r="4"/>
+      </svg>
+      <span class="brand-text">
+        <span class="brand-name" data-i18n-html="brand-name">สำนักงานบริการใบอนุญาต<wbr><span class="nobr">นครฟ้าคราม</span></span>
+        <span class="brand-sub" lang="en">Fah Khram City Permit Office</span>
+      </span>
+    </a>
+    <button type="button" class="util-btn" id="theme-toggle" aria-pressed="false">
+      <svg class="ico ico-sm" aria-hidden="true"><use href="#i-moon"/></svg><span class="util-text" data-i18n="theme">โหมดมืด</span>
+    </button>
+    <div class="utils">
+      <div class="util" role="group" aria-labelledby="lang-label">
+        <span class="util-label" id="lang-label"><span data-i18n="lang-label">ภาษา</span></span>
+        <span class="seg">
+          <button type="button" class="seg-btn" data-lang="th" aria-pressed="true" lang="th">ไทย</button>
+          <button type="button" class="seg-btn" data-lang="en" aria-pressed="false" lang="en">EN</button>
+        </span>
+      </div>
+      <div class="util" role="group" aria-labelledby="size-label">
+        <span class="util-label" id="size-label"><span data-i18n="size-label">ขนาดตัวอักษร</span></span>
+        <span class="seg">
+          <button type="button" class="seg-btn" data-size="base" aria-pressed="true"><span class="glyph glyph-1" aria-hidden="true">ก</span><span class="sr-only" data-i18n="size-base">ปกติ</span></button>
+          <button type="button" class="seg-btn" data-size="lg" aria-pressed="false"><span class="glyph glyph-2" aria-hidden="true">ก</span><span class="sr-only" data-i18n="size-lg">ใหญ่</span></button>
+          <button type="button" class="seg-btn" data-size="xl" aria-pressed="false"><span class="glyph glyph-3" aria-hidden="true">ก</span><span class="sr-only" data-i18n="size-xl">ใหญ่ที่สุด</span></button>
+        </span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="en-partial" id="en-partial" lang="en" hidden>
+  <div class="wrap">
+    <svg class="ico" aria-hidden="true"><use href="#g-languages"/></svg>
+    <p><strong>English is partial.</strong> Headings, the summary, the eligibility checker, every button and the feedback form are in English. Still in Thai: the document list, the step descriptions, the fee table, the channel and contact details, the related services and the footer note.</p>
+  </div>
+</div>
+
+<main id="main" tabindex="-1">
+  <div class="wrap">
+    <p class="crumbs">
+      <span class="sr-only" data-i18n="crumbs-label">คุณอยู่ที่</span>
+      <span class="crumb"><span data-i18n="crumb-1">บริการประชาชน</span><svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+      <span class="crumb"><span data-i18n="crumb-2">ร้านค้าและธุรกิจรายย่อย</span><svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+      <span class="crumb" aria-current="page"><span data-i18n="crumb-3">ต่ออายุใบอนุญาตร้านค้า</span></span>
+    </p>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><svg class="ico ico-sm" aria-hidden="true"><use href="#g-store"/></svg><span data-i18n="eyebrow">บริการของนครฟ้าคราม เมืองที่ไม่มีอยู่จริง</span></p>
+        <h1 id="page-title" data-i18n-html="h1"><span class="nobr">ต่ออายุ</span><wbr><span class="nobr">ใบอนุญาต</span><wbr><span class="nobr">ร้านค้า</span><wbr><span class="nobr">ขนาดเล็ก</span></h1>
+        <p class="lede" data-i18n-html="lede">ใบอนุญาตมีอายุ 1 ปี ต่ออายุได้ตั้งแต่ 45 วันก่อนหมดอายุ ยื่นออนไลน์ใช้เวลากรอก <strong class="nobr">ประมาณ 15 นาที</strong> และได้ใบใหม่ <strong class="nobr">ภายใน 3 วันทำการ</strong></p>
+        <div class="hero-actions">
+          <a class="btn-hero" href="#check"><span data-i18n="hero-cta">เช็กว่าต่ออายุได้ไหม</span><svg class="ico" aria-hidden="true"><use href="#g-arrow-down"/></svg></a>
+          <a class="hero-link" href="#docs"><span data-i18n="hero-link">ดูเอกสารที่ต้องใช้</span></a>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg class="art" viewBox="0 0 320 260" focusable="false">
+          <rect class="a-ground" x="16" y="232" width="288" height="4" rx="2"/>
+          <rect class="a-wall" x="40" y="72" width="232" height="160" rx="8"/>
+          <rect class="a-awn" x="32" y="64" width="31" height="40"/>
+          <rect class="a-awn2" x="63" y="64" width="31" height="40"/>
+          <rect class="a-awn" x="94" y="64" width="31" height="40"/>
+          <rect class="a-awn2" x="125" y="64" width="31" height="40"/>
+          <rect class="a-awn" x="156" y="64" width="31" height="40"/>
+          <rect class="a-awn2" x="187" y="64" width="31" height="40"/>
+          <rect class="a-awn" x="218" y="64" width="31" height="40"/>
+          <rect class="a-awn2" x="249" y="64" width="31" height="40"/>
+          <circle class="a-awn" cx="47.5" cy="104" r="15.5"/>
+          <circle class="a-awn2" cx="78.5" cy="104" r="15.5"/>
+          <circle class="a-awn" cx="109.5" cy="104" r="15.5"/>
+          <circle class="a-awn2" cx="140.5" cy="104" r="15.5"/>
+          <circle class="a-awn" cx="171.5" cy="104" r="15.5"/>
+          <circle class="a-awn2" cx="202.5" cy="104" r="15.5"/>
+          <circle class="a-awn" cx="233.5" cy="104" r="15.5"/>
+          <circle class="a-awn2" cx="264.5" cy="104" r="15.5"/>
+          <rect class="a-line" x="32" y="56" width="248" height="8" rx="4"/>
+          <rect class="a-glass" x="60" y="136" width="112" height="72" rx="6"/>
+          <rect class="a-line" x="60" y="208" width="112" height="6" rx="3"/>
+          <rect class="a-glass" x="192" y="136" width="60" height="96" rx="6"/>
+          <circle class="a-line" cx="241" cy="186" r="4"/>
+          <rect class="a-line" x="74" y="150" width="40" height="6" rx="3"/>
+          <rect class="a-line" x="74" y="162" width="26" height="6" rx="3"/>
+          <g transform="rotate(-6 236 40)">
+            <rect class="a-card" x="176" y="4" width="120" height="78" rx="8"/>
+            <rect class="a-ink" x="190" y="20" width="56" height="6" rx="3"/>
+            <rect class="a-line" x="190" y="34" width="80" height="5" rx="2.5"/>
+            <rect class="a-line" x="190" y="45" width="64" height="5" rx="2.5"/>
+            <rect class="a-line" x="190" y="56" width="42" height="5" rx="2.5"/>
+            <circle class="a-ok" cx="270" cy="60" r="13"/>
+            <path class="a-tick" d="m264 60 4 4 8-8"/>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="summary" aria-labelledby="sum-title">
+      <div class="who">
+        <h2 id="sum-title" data-i18n="sum-title">บริการนี้ใช่ของคุณไหม</h2>
+        <h3 data-i18n="who-yes">ใช้บริการนี้ ถ้าคุณเป็น</h3>
+        <ul class="marks marks-yes">
+          <li><svg class="ico ico-sm" aria-hidden="true"><use href="#i-check"/></svg><span data-i18n="who-1">เจ้าของร้านขายของ ร้านอาหาร หรือร้านบริการ ที่มีพื้นที่ขายไม่เกิน 120 ตารางเมตร</span></li>
+          <li><svg class="ico ico-sm" aria-hidden="true"><use href="#i-check"/></svg><span data-i18n="who-2">ร้านที่ใบอนุญาตจะหมดอายุภายใน 45 วัน หรือหมดอายุมาแล้วไม่เกิน 90 วัน</span></li>
+          <li><svg class="ico ico-sm" aria-hidden="true"><use href="#i-check"/></svg><span data-i18n="who-3">คนที่เจ้าของร้านมอบอำนาจให้ยื่นแทน</span></li>
+        </ul>
+        <h3 data-i18n="who-no">ใช้บริการอื่น ถ้า</h3>
+        <ul class="marks marks-no">
+          <li><svg class="ico ico-sm" aria-hidden="true"><use href="#i-x"/></svg><span><span data-i18n="who-4">คุณเพิ่งเปิดร้าน หรือใบเดิมหมดอายุเกิน 90 วัน</span> <a href="#new-licence" data-i18n="who-4-link">ขอใบอนุญาตใหม่</a></span></li>
+          <li><svg class="ico ico-sm" aria-hidden="true"><use href="#i-x"/></svg><span><span data-i18n="who-5">ร้านมีพื้นที่ขายเกิน 120 ตารางเมตร</span> <a href="#medium-licence" data-i18n="who-5-link">ใบอนุญาตกิจการขนาดกลาง</a></span></li>
+        </ul>
+      </div>
+      <dl class="facts">
+        <div class="fact">
+          <dt data-i18n="fact-fee">ค่าธรรมเนียม</dt>
+          <dd><span class="with-tag"><span class="nobr"><span class="figure">300</span><span data-i18n="fact-fee-unit">บาทต่อปี</span></span><span class="fic" data-i18n="fic">สมมติ</span></span>
+            <span class="fact-note" data-i18n="fact-fee-note">ร้านเกิน 40 ตารางเมตร จ่าย 600 บาท</span></dd>
+        </div>
+        <div class="fact">
+          <dt data-i18n="fact-time">ได้ใบใหม่</dt>
+          <dd data-i18n="fact-time-v">ภายใน 3 วันทำการเมื่อยื่นออนไลน์ หรือ 1 วันทำการที่สำนักงาน</dd>
+        </div>
+        <div class="fact">
+          <dt data-i18n="fact-where">ยื่นได้ 3 ทาง</dt>
+          <dd data-i18n="fact-where-v">ออนไลน์ 24 ชั่วโมง ที่สำนักงาน หรือทางไปรษณีย์</dd>
+        </div>
+      </dl>
+    </section>
+
+    <div class="layout">
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 class="toc-title" id="toc-title" data-i18n="toc">ในหน้านี้</h2>
+        <ol>
+          <li><a href="#check"><span data-i18n="toc-1">เช็กคุณสมบัติ</span></a></li>
+          <li><a href="#docs"><span data-i18n="toc-2">เอกสารที่ต้องใช้</span></a></li>
+          <li><a href="#steps"><span data-i18n="toc-3">ขั้นตอนและเวลา</span></a></li>
+          <li><a href="#fees"><span data-i18n="toc-4">ค่าธรรมเนียม</span></a></li>
+          <li><a href="#channels"><span data-i18n="toc-5">ช่องทางยื่นคำขอ</span></a></li>
+          <li><a href="#related"><span data-i18n="toc-6">บริการที่เกี่ยวข้อง</span></a></li>
+          <li><a href="#contact"><span data-i18n="toc-7">ติดต่อสอบถาม</span></a></li>
+        </ol>
+      </nav>
+
+      <div class="content">
+        <section class="sec" id="check" aria-labelledby="check-title">
+          <h2 id="check-title" data-i18n="check-title">เช็กว่าคุณต่ออายุได้ไหม</h2>
+          <p class="sec-lede" data-i18n-html="check-lede">ตอบ 4 ข้อ ใช้เวลาไม่ถึง 1 นาที ไม่มีจำกัดเวลา ย้อนกลับไปแก้ได้ทุกข้อ และคำตอบ<span class="nobr">ไม่ถูกส่งไปที่ไหน</span></p>
+          <div class="sec-body">
+            <form class="checker" id="checker" novalidate aria-labelledby="check-title">
+              <div class="progress-row">
+                <p class="progress-text" id="progress-text">ข้อ 1 จาก 4</p>
+                <div class="progress" aria-hidden="true"><span class="is-current"></span><span></span><span></span><span></span></div>
+              </div>
+
+              <fieldset class="q" data-name="q1" aria-describedby="q1-why">
+                <legend><span class="q-title" tabindex="-1" data-i18n="q1">ใบอนุญาตเดิมของคุณหมดอายุเมื่อไร</span></legend>
+                <p class="q-why" id="q1-why" data-i18n="q1-why">ดูวันหมดอายุได้ที่มุมขวาล่างของใบอนุญาต ถ้าใบหาย ให้ตอบตามวันที่คุณจำได้</p>
+                <div class="opts opts-stack">
+                  <label class="opt"><input type="radio" name="q1" value="early" aria-describedby="q1-err"><span class="opt-text"><span data-i18n="q1-early">ยังเหลือมากกว่า 45 วัน</span></span></label>
+                  <label class="opt"><input type="radio" name="q1" value="soon" aria-describedby="q1-err"><span class="opt-text"><span data-i18n="q1-soon">จะหมดอายุภายใน 45 วัน</span></span></label>
+                  <label class="opt"><input type="radio" name="q1" value="late" aria-describedby="q1-err"><span class="opt-text"><span data-i18n="q1-late">หมดอายุแล้ว ไม่เกิน 90 วัน</span></span></label>
+                  <label class="opt"><input type="radio" name="q1" value="lapsed" aria-describedby="q1-err"><span class="opt-text"><span data-i18n="q1-lapsed">หมดอายุเกิน 90 วัน หรือยังไม่เคยมี</span></span></label>
+                </div>
+                <p class="field-error" id="q1-err" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span data-i18n="err-pick">เลือกคำตอบหนึ่งข้อก่อนไปต่อ</span></p>
+              </fieldset>
+
+              <fieldset class="q" data-name="q2" aria-describedby="q2-why" hidden>
+                <legend><span class="q-title" tabindex="-1" data-i18n="q2">ร้านของคุณมีพื้นที่ขายไม่เกิน 120 ตารางเมตร ใช่ไหม</span></legend>
+                <p class="q-why" id="q2-why" data-i18n="q2-why">นับเฉพาะพื้นที่ที่ลูกค้าเข้าได้ ไม่นับห้องเก็บของหรือที่จอดรถ</p>
+                <div class="opts">
+                  <label class="opt"><input type="radio" name="q2" value="yes" aria-describedby="q2-err"><span data-i18n="yes">ใช่</span></label>
+                  <label class="opt"><input type="radio" name="q2" value="no" aria-describedby="q2-err"><span data-i18n="no-more">ไม่ใช่ ใหญ่กว่านั้น</span></label>
+                </div>
+                <p class="field-error" id="q2-err" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span data-i18n="err-pick">เลือกคำตอบหนึ่งข้อก่อนไปต่อ</span></p>
+              </fieldset>
+
+              <fieldset class="q" data-name="q3" aria-describedby="q3-why" hidden>
+                <legend><span class="q-title" tabindex="-1" data-i18n="q3">ร้านยังขายสินค้าหรือบริการประเภทเดิมกับที่เขียนในใบอนุญาต ใช่ไหม</span></legend>
+                <p class="q-why" id="q3-why" data-i18n="q3-why">เช่น ใบเดิมเขียนว่าร้านขายของชำ และตอนนี้ยังขายของชำอยู่ ถ้าเปลี่ยนเป็นร้านอาหาร ให้ตอบว่าไม่ใช่</p>
+                <div class="opts">
+                  <label class="opt"><input type="radio" name="q3" value="yes" aria-describedby="q3-err"><span data-i18n="yes">ใช่</span></label>
+                  <label class="opt"><input type="radio" name="q3" value="no" aria-describedby="q3-err"><span data-i18n="no-changed">ไม่ใช่ เปลี่ยนแล้ว</span></label>
+                </div>
+                <p class="field-error" id="q3-err" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span data-i18n="err-pick">เลือกคำตอบหนึ่งข้อก่อนไปต่อ</span></p>
+              </fieldset>
+
+              <fieldset class="q" data-name="q4" aria-describedby="q4-why" hidden>
+                <legend><span class="q-title" tabindex="-1" data-i18n="q4">คุณมีค่าธรรมเนียมหรือค่าปรับที่ยังค้างจ่ายกับสำนักงาน ใช่ไหม</span></legend>
+                <p class="q-why" id="q4-why" data-i18n="q4-why">ถ้าไม่แน่ใจ ให้ตอบว่าไม่ใช่ ถ้ามียอดค้างจริง ยอดจะแสดงในลิงก์จ่ายเงินก่อนคุณจ่าย</p>
+                <div class="opts">
+                  <label class="opt"><input type="radio" name="q4" value="yes" aria-describedby="q4-err"><span data-i18n="yes-owed">ใช่ มียอดค้าง</span></label>
+                  <label class="opt"><input type="radio" name="q4" value="no" aria-describedby="q4-err"><span data-i18n="no">ไม่ใช่</span></label>
+                </div>
+                <p class="field-error" id="q4-err" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span data-i18n="err-pick">เลือกคำตอบหนึ่งข้อก่อนไปต่อ</span></p>
+              </fieldset>
+
+              <div class="result" id="result" hidden>
+                <div class="result-head">
+                  <svg class="ico" aria-hidden="true"><use id="result-icon" href="#g-circle-check"/></svg>
+                  <h3 id="result-title" tabindex="-1"></h3>
+                </div>
+                <p class="result-why" data-i18n="why">เหตุผล</p>
+                <ul class="reasons" id="result-reasons"></ul>
+                <p class="result-next" id="result-next"></p>
+                <div class="result-actions">
+                  <a class="btn btn-primary" id="result-go" href="#docs"></a>
+                  <button type="button" class="btn btn-secondary" id="result-edit"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-chevron-left"/></svg><span data-i18n="edit">แก้คำตอบข้อสุดท้าย</span></button>
+                  <button type="button" class="btn btn-ghost" id="result-restart"><svg class="ico ico-sm" aria-hidden="true"><use href="#g-rotate-ccw"/></svg><span data-i18n="restart">เริ่มตอบใหม่</span></button>
+                </div>
+              </div>
+
+              <div class="checker-nav" id="checker-nav">
+                <button type="button" class="btn btn-secondary" id="q-back" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-chevron-left"/></svg><span data-i18n="back">ย้อนกลับ</span></button>
+                <button type="submit" class="btn btn-primary" id="q-next"><span id="q-next-label">ข้อถัดไป</span><svg class="ico ico-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="sec" id="docs" aria-labelledby="docs-title">
+          <h2 id="docs-title" data-i18n="docs-title">เอกสารที่ต้องใช้</h2>
+          <p class="sec-lede" data-i18n-html="docs-lede">ติ๊กรายการที่เตรียมแล้วได้เลย หน้านี้จำไว้ใน<span class="nobr">เครื่องของคุณเท่านั้น</span></p>
+          <div class="sec-body">
+            <div class="docs-status">
+              <p class="docs-count" id="docs-count" aria-live="polite">เอกสารหลักพร้อมแล้ว <span class="nobr"><strong>0</strong> จาก 4</span></p>
+              <div class="meter" aria-hidden="true"><span id="docs-meter"></span></div>
+            </div>
+            <ul class="checklist">
+              <li><label class="doc"><input type="checkbox" name="doc" value="licence" data-required>
+                <span class="doc-text"><span class="doc-name">ใบอนุญาตฉบับเดิม</span><span class="doc-note">ถ้าใบหาย ใช้เลขที่ใบอนุญาต 10 หลักแทนได้ เลขอยู่ในใบเสร็จปีที่แล้ว</span></span></label></li>
+              <li><label class="doc"><input type="checkbox" name="doc" value="id" data-required>
+                <span class="doc-text"><span class="doc-name">บัตรประชาชนของเจ้าของร้าน</span><span class="doc-note">ยื่นออนไลน์ ถ่ายรูปด้านหน้าบัตรให้เห็นตัวหนังสือชัด</span></span></label></li>
+              <li><label class="doc"><input type="checkbox" name="doc" value="photo" data-required>
+                <span class="doc-text"><span class="doc-name">รูปหน้าร้าน 1 รูป</span><span class="doc-note">เห็นป้ายชื่อร้าน ถ่ายไม่เกิน 30 วัน ใช้รูปจากโทรศัพท์ได้</span></span></label></li>
+              <li><label class="doc"><input type="checkbox" name="doc" value="lease" data-required>
+                <span class="doc-text"><span class="doc-name">สัญญาเช่า หรือโฉนดของพื้นที่ร้าน</span><span class="doc-note">ใช้ฉบับที่ยังไม่หมดอายุ ถ้าเป็นที่ของคุณเอง ใช้สำเนาโฉนดหน้าแรก</span></span></label></li>
+              <li id="doc-change-li" hidden><label class="doc"><input type="checkbox" name="doc" value="change">
+                <span class="doc-text"><span class="doc-name with-tag"><span>แบบแก้ไขประเภทกิจการ 1 แผ่น</span><span class="tag tag-info">จากผลการเช็ก</span></span><span class="doc-note">เขียนประเภทสินค้าหรือบริการที่ร้านขายอยู่ตอนนี้ แล้วเซ็นชื่อเจ้าของร้าน</span></span></label></li>
+              <li><label class="doc"><input type="checkbox" name="doc" value="proxy">
+                <span class="doc-text"><span class="doc-name with-tag"><span>หนังสือมอบอำนาจ</span><span class="tag tag-neutral">ถ้ามีคนยื่นแทน</span></span><span class="doc-note">เจ้าของร้านเซ็นชื่อ พร้อมสำเนาบัตรประชาชนของคนที่มายื่น</span></span></label></li>
+            </ul>
+            <div class="docs-foot">
+              <p>ไม่ต้องรับรองสำเนา และไม่ต้องใช้ทะเบียนบ้าน</p>
+              <button type="button" class="btn btn-ghost" id="docs-clear" disabled><span data-i18n="clear">ล้างเครื่องหมายทั้งหมด</span></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="sec" id="steps" aria-labelledby="steps-title">
+          <h2 id="steps-title" data-i18n="steps-title">ขั้นตอนและเวลาที่ใช้</h2>
+          <p class="sec-lede" data-i18n-html="steps-lede">เวลาด้านล่างคือกรณียื่นออนไลน์และเอกสารครบ ยื่นที่สำนักงานจะเร็วกว่า เพราะเจ้าหน้าที่<span class="nobr">ตรวจเอกสารให้ต่อหน้า</span></p>
+          <div class="sec-body">
+            <ol class="steps">
+              <li class="step">
+                <span class="step-num" aria-hidden="true">1</span>
+                <div class="step-body"><h3>กรอกคำขอและแนบเอกสาร</h3><p>ใช้โทรศัพท์ถ่ายรูปเอกสารได้ ไม่ต้องสแกน บันทึกร่างไว้แล้วกลับมาทำต่อได้ ไม่มีหมดเวลา</p></div>
+                <span class="dur"><svg class="ico" aria-hidden="true"><use href="#g-clock"/></svg><span>ประมาณ 15 นาที</span></span>
+              </li>
+              <li class="step">
+                <span class="step-num" aria-hidden="true">2</span>
+                <div class="step-body"><h3>เจ้าหน้าที่ตรวจเอกสาร</h3><p>ถ้ามีอะไรขาด เราแจ้งคุณภายในวันทำการถัดไป แล้วส่งเพิ่มในคำขอเดิมได้ ไม่ต้องเริ่มใหม่ ถ้าแนบแบบแก้ไขประเภทกิจการ ใช้เวลาเพิ่ม 2 วันทำการ</p></div>
+                <span class="dur"><svg class="ico" aria-hidden="true"><use href="#g-clock"/></svg><span>2 วันทำการ</span></span>
+              </li>
+              <li class="step">
+                <span class="step-num" aria-hidden="true">3</span>
+                <div class="step-body"><h3>จ่ายค่าธรรมเนียม</h3><p>เราส่งลิงก์จ่ายเงินทาง SMS และอีเมลเมื่อเอกสารผ่าน</p></div>
+                <span class="dur"><svg class="ico" aria-hidden="true"><use href="#g-clock"/></svg><span>5 นาที</span></span>
+              </li>
+              <li class="step">
+                <span class="step-num" aria-hidden="true">4</span>
+                <div class="step-body"><h3>รับใบอนุญาตใหม่</h3><p>ไฟล์ PDF ส่งเข้าอีเมลหลังจ่ายเงิน ใช้แสดงในร้านได้ทันที ถ้าต้องการใบจริงทางไปรษณีย์ รอเพิ่ม 3 ถึง 5 วันทำการ และมีค่าส่ง 50 บาทตามตารางค่าธรรมเนียม จ่ายผ่านแอปธนาคารหรือที่สำนักงานก็ได้</p></div>
+                <span class="dur"><svg class="ico" aria-hidden="true"><use href="#g-clock"/></svg><span>ภายใน 1 วันทำการ</span></span>
+              </li>
+            </ol>
+            <div class="total"><strong class="with-tag"><span>รวมประมาณ 3 วันทำการ</span><span class="fic">สมมติ</span></strong><span class="total-note">นับจากวันที่ยื่นออนไลน์จนได้ใบใหม่ในอีเมล</span></div>
+          </div>
+        </section>
+
+        <section class="sec" id="fees" aria-labelledby="fees-title">
+          <h2 id="fees-title" data-i18n="fees-title">ค่าธรรมเนียม</h2>
+          <p class="sec-lede" data-i18n="fees-lede">จ่ายครั้งเดียวต่อปี ทุกช่องทางจ่ายเท่ากัน ยื่นออนไลน์ไม่มีค่าบริการเพิ่ม</p>
+          <div class="sec-body">
+            <table class="fees">
+              <caption><span class="with-tag"><span>ค่าธรรมเนียมต่ออายุ 1 ปี</span><span class="fic">สมมติ</span></span></caption>
+              <thead><tr><th scope="col">รายการ</th><th scope="col" class="num">จำนวนเงิน</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">ร้านพื้นที่ขายไม่เกิน <span class="nobr">40 <abbr title="ตารางเมตร">ตร.ม.</abbr></span><span class="cell-note">ร้านส่วนใหญ่อยู่ในกลุ่มนี้</span></th><td class="num">300 บาท</td></tr>
+                <tr><th scope="row">ร้านพื้นที่ขาย <span class="nobr-wide">41 ถึง 120 <abbr title="ตารางเมตร">ตร.ม.</abbr></span></th><td class="num">600 บาท</td></tr>
+                <tr><th scope="row">ยื่นหลังใบเดิมหมดอายุ ไม่เกิน 90 วัน<span class="cell-note">คิดเพิ่มจากค่าต่ออายุ เช่น ร้าน 300 บาท จ่ายรวม 345 บาท</span></th><td class="num">เพิ่ม 15%</td></tr>
+                <tr><th scope="row">ส่งใบจริงทางไปรษณีย์<span class="cell-note">ไม่บังคับ ใบ PDF ใช้แทนได้</span></th><td class="num">50 บาท</td></tr>
+                <tr><th scope="row">ขอใบแทน เมื่อใบหายหรือชำรุด</th><td class="num">100 บาท</td></tr>
+              </tbody>
+            </table>
+            <div class="callout">
+              <svg class="ico" aria-hidden="true"><use href="#i-info"/></svg>
+              <p><strong>ไม่มีค่าใช้จ่ายอื่นนอกจากในตารางนี้</strong> เจ้าหน้าที่ไม่รับเงินสดนอกช่องจ่ายเงิน ถ้ามีคนขอเงินเพิ่มเพื่อเร่งเรื่อง แจ้งได้ที่ช่องทางร้องเรียนในส่วนติดต่อสอบถาม</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="sec" id="channels" aria-labelledby="ch-title">
+          <h2 id="ch-title" data-i18n="ch-title">ยื่นคำขอได้ 3 ทาง</h2>
+          <p class="sec-lede" data-i18n="ch-lede">ทุกช่องทางใช้เอกสารชุดเดียวกันและจ่ายเท่ากัน เลือกตามที่สะดวก</p>
+          <div class="sec-body channels">
+            <article class="ch ch-lead" aria-labelledby="ch-online">
+              <div class="ch-head">
+                <span class="ch-icon"><svg class="ico" aria-hidden="true"><use href="#g-laptop"/></svg></span>
+                <h3 id="ch-online">ออนไลน์</h3><span class="tag tag-ok">สะดวกที่สุด</span>
+              </div>
+              <dl class="ch-meta">
+                <div><dt>เปิดรับ</dt><dd>ทุกวัน 24 ชั่วโมง ไม่ต้องลางาน</dd></div>
+                <div><dt>ได้ใบใหม่</dt><dd>ภายใน 3 วันทำการ</dd></div>
+                <div><dt>ต้องมี</dt><dd>อีเมล และรูปเอกสาร</dd></div>
+              </dl>
+              <div class="ch-actions">
+                <button type="button" class="btn btn-primary" id="apply-online"><span data-i18n="apply">เริ่มยื่นคำขอออนไลน์</span><svg class="ico ico-sm" aria-hidden="true"><use href="#g-arrow-right"/></svg></button>
+                <p class="demo-msg" id="apply-msg" role="status" hidden></p>
+              </div>
+            </article>
+            <div class="ch-list">
+              <article class="ch" aria-labelledby="ch-office">
+                <div class="ch-head">
+                  <span class="ch-icon"><svg class="ico" aria-hidden="true"><use href="#g-building"/></svg></span>
+                  <h3 id="ch-office">ที่สำนักงาน</h3><span class="tag tag-neutral">ได้ใบเร็วที่สุด</span>
+                </div>
+                <address>อาคารบริการประชาชน ชั้น 1 ช่อง 4 ถึง 6<br><span class="with-tag"><span>99 ถนนฟ้าคราม ย่านท่าน้ำเก่า นครฟ้าคราม</span><span class="fic">สมมติ</span></span></address>
+                <dl class="hours">
+                  <div><dt>จันทร์ถึงศุกร์</dt><dd>08:30 ถึง 16:30 น. ไม่พักเที่ยง</dd></div>
+                  <div><dt>เสาร์</dt><dd>09:00 ถึง 12:00 น.</dd></div>
+                  <div><dt>อาทิตย์และวันหยุด</dt><dd>ปิด</dd></div>
+                </dl>
+                <p class="ch-tip">ได้ใบใหม่ภายใน 1 วันทำการ คิวสั้นที่สุดช่วงบ่าย 13:00 ถึง 15:00 น.</p>
+              </article>
+              <article class="ch" aria-labelledby="ch-post">
+                <div class="ch-head">
+                  <span class="ch-icon"><svg class="ico" aria-hidden="true"><use href="#g-mail"/></svg></span>
+                  <h3 id="ch-post">ทางไปรษณีย์</h3>
+                </div>
+                <p>ส่งแบบคำขอที่กรอกแล้วพร้อมสำเนาเอกสาร ถึง</p>
+                <address>ฝ่ายใบอนุญาตร้านค้า ตู้ไปรษณีย์ 99<br><span class="with-tag"><span>นครฟ้าคราม</span><span class="fic">สมมติ</span></span></address>
+                <dl class="hours">
+                  <div><dt>ได้ใบใหม่</dt><dd>7 ถึง 10 วันทำการ นับจากวันที่เราได้รับซอง</dd></div>
+                </dl>
+                <p class="ch-tip">ไม่ต้องแนบเงิน เราส่งลิงก์จ่ายเงินให้ทาง SMS</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="sec" id="related" aria-labelledby="related-title">
+          <h2 id="related-title" data-i18n="related-title">บริการที่เกี่ยวข้อง</h2>
+          <p class="sec-lede" data-i18n-html="related-lede">ถ้าผลการเช็กบอกว่าคุณต้องใช้<span class="nobr">บริการอื่น</span> <span class="nobr">เริ่มจากตรงนี้</span></p>
+          <div class="sec-body">
+            <ul class="related">
+              <li id="new-licence"><h3 class="with-tag"><span>ขอใบอนุญาตร้านค้าใหม่</span><span class="fic">สมมติ</span></h3><p>สำหรับร้านที่เพิ่งเปิด หรือใบเดิมหมดอายุเกิน 90 วัน ใช้เอกสารชุดเดียวกับหน้านี้ เพิ่มแผนผังร้าน 1 แผ่น ในตัวอย่างนี้ยังไม่มีหน้าของบริการนี้</p></li>
+              <li id="medium-licence"><h3 class="with-tag"><span>ใบอนุญาตกิจการขนาดกลาง</span><span class="fic">สมมติ</span></h3><p>สำหรับร้านที่มีพื้นที่ขายเกิน 120 ตารางเมตร มีการนัดตรวจร้านก่อนต่ออายุ ในตัวอย่างนี้ยังไม่มีหน้าของบริการนี้</p></li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="sec" id="contact" aria-labelledby="contact-title">
+          <h2 id="contact-title" data-i18n="contact-title">ติดต่อสอบถาม</h2>
+          <p class="sec-lede" data-i18n="contact-lede">ถามได้ทุกเรื่องเกี่ยวกับการต่ออายุ เจ้าหน้าที่ตอบเป็นภาษาไทยและอังกฤษ</p>
+          <div class="sec-body contact">
+            <div class="call">
+              <p class="call-label"><svg class="ico ico-sm" aria-hidden="true"><use href="#g-phone"/></svg><span>สายใบอนุญาตร้านค้า</span></p>
+              <p class="phone"><span class="nobr">0X XXX XXXX</span><span class="fic">สมมติ</span></p>
+              <p>จันทร์ถึงศุกร์ 08:30 ถึง 16:30 น. กด 2 เพื่อคุยกับเจ้าหน้าที่ใบอนุญาตร้านค้า</p>
+            </div>
+            <div class="contact-side">
+              <dl class="contact-list">
+                <div><dt><svg class="ico" aria-hidden="true"><use href="#g-mail"/></svg><span class="sr-only">อีเมล</span></dt>
+                  <dd><span class="k">อีเมล</span><span class="with-tag"><a class="long" href="mailto:shop-licence@example.org">shop-licence@example.org</a><span class="fic">สมมติ</span></span><span class="v">ตอบภายใน 1 วันทำการ</span></dd></div>
+                <div><dt><svg class="ico" aria-hidden="true"><use href="#g-map-pin"/></svg><span class="sr-only">ที่อยู่</span></dt>
+                  <dd><span class="k">สำนักงาน</span><address class="with-tag"><span>99 ถนนฟ้าคราม ย่านท่าน้ำเก่า นครฟ้าคราม</span><span class="fic">สมมติ</span></address><span class="v">อาคารบริการประชาชน ชั้น 1 มีทางลาดและลิฟต์</span></dd></div>
+              </dl>
+              <p class="complain"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span><strong>แจ้งเรื่องร้องเรียน</strong> โทร 0X XXX XXXX กด 9 ไม่ต้องบอกชื่อก็ได้ เราตอบกลับภายใน 5 วันทำการ</span></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="feedback" aria-labelledby="fb-title">
+          <div class="fb-ask" id="fb-ask">
+            <h2 id="fb-title" data-i18n="fb-title">หน้านี้ช่วยคุณได้ไหม</h2>
+            <div class="fb-buttons">
+              <button type="button" class="btn btn-secondary" id="fb-yes"><span data-i18n="fb-yes">ช่วยได้</span></button>
+              <button type="button" class="btn btn-secondary" id="fb-no"><span data-i18n="fb-no">ยังไม่ช่วย</span></button>
+            </div>
+          </div>
+          <form class="fb-form" id="fb-form" novalidate hidden>
+            <label for="fb-text" data-i18n="fb-label">อะไรที่หาไม่เจอ หรืออ่านแล้วไม่เข้าใจ</label>
+            <p class="hint" id="fb-hint" data-i18n="fb-hint">ไม่ต้องใส่ชื่อ เลขบัตรประชาชน หรือเบอร์โทร</p>
+            <textarea id="fb-text" name="fb-text" aria-describedby="fb-hint fb-err"></textarea>
+            <p class="field-error" id="fb-err" hidden><svg class="ico ico-sm" aria-hidden="true"><use href="#i-alert-circle"/></svg><span data-i18n="fb-err">เขียนสั้น ๆ สักประโยค หรือกด &ldquo;ข้าม&rdquo; ถ้าไม่สะดวก</span></p>
+            <div class="fb-actions">
+              <button type="submit" class="btn btn-primary" id="fb-send"><span class="spinner" aria-hidden="true"></span><span id="fb-send-label">ส่งความเห็น</span></button>
+              <button type="button" class="btn btn-ghost" id="fb-skip"><span data-i18n="fb-skip">ข้าม</span></button>
+            </div>
+          </form>
+          <div class="fb-thanks" id="fb-thanks" hidden>
+            <svg class="ico" aria-hidden="true"><use href="#g-circle-check"/></svg>
+            <div>
+              <h2 id="fb-thanks-title" tabindex="-1" data-i18n="fb-thanks">ขอบคุณที่บอกเรา</h2>
+              <p id="fb-thanks-text"></p>
+              <button type="button" class="btn btn-ghost" id="fb-again"><span data-i18n="fb-again">เปลี่ยนคำตอบ</span></button>
+            </div>
+          </div>
+        </section>
+
+        <p class="updated" data-i18n="updated">ปรับปรุงหน้านี้ล่าสุด 20 ตุลาคม 2569</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot-brand">
+      <svg class="mark" viewBox="0 0 44 44" aria-hidden="true">
+        <rect class="m-bg" width="44" height="44" rx="10"/>
+        <rect class="m-bar" x="10" y="12" width="24" height="4" rx="2"/>
+        <rect class="m-bar" x="10" y="20" width="17" height="4" rx="2"/>
+        <rect class="m-bar" x="10" y="28" width="10" height="4" rx="2"/>
+        <circle class="m-dot" cx="31" cy="30" r="4"/>
+      </svg>
+      <p class="foot-name">สำนักงานบริการใบอนุญาต<wbr><span class="nobr">นครฟ้าคราม</span><span class="foot-sub" lang="en">Fah Khram City Permit Office</span></p>
+    </div>
+    <div class="about" id="about">
+      <svg class="ico" aria-hidden="true"><use href="#i-info"/></svg>
+      <p><strong>เกี่ยวกับตัวอย่างนี้ <span class="nobr">ไม่ใช่เว็บไซต์ของรัฐ</span></strong>
+        <span class="about-body">ตัวอย่างงานออกแบบที่สร้างด้วย <span class="nobr" lang="en">ux-ui-agent-skills</span> หน่วยงาน บริการ ค่าธรรมเนียม และกฎในหน้านี้แต่งขึ้นทั้งหมด ภาษาภาพดัดแปลงจาก spec ชื่อ <span class="nobr" lang="en">korea-gov</span> ในคลังของชุดเครื่องมือ ส่วนความคมชัดของสี การใช้ด้วยคีย์บอร์ด และการจัดวาง ผ่านการทดสอบอัตโนมัติของชุดเครื่องมือ</span></p>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/plugin87/ux-ui-agent-skills" lang="en">Built with ux-ui-agent-skills by Thientan Soparat</a>
+      <a href="../../index.html" lang="en">All examples</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../../component-states/icons.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: the page still works */ } }
+  };
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- Keep Thai compounds whole at line ends ----------
+     Chrome segments Thai by dictionary word, so a compound such as ใบอนุญาต
+     can break as ใบ|อนุญาต. Known compounds are wrapped in .nobr, here and in
+     every string the script builds. Longest first, so ในหน้านี้ wins over หน้านี้.
+     The list only knows what it holds: a copy edit that adds a compound must add
+     it here too, and verify_thai.mjs is what finds the ones that were missed. */
+  var WORDS = ('ใบอนุญาต ต่ออายุ หมดอายุ อายุ เจ้าหน้าที่ ค่าธรรมเนียม ที่อยู่ ไม่ได้ คำตอบ คำขอ ยื่นคำขอ เครื่องมือ ชุดเครื่องมือ ' +
+    'หน่วยงาน ในหน้านี้ หน้านี้ วันทำการ ตารางเมตร ร้านค้า ร้านอาหาร ขนาดเล็ก ขนาดกลาง เอกสาร ออนไลน์ ไปรษณีย์ ' +
+    'ตู้ไปรษณีย์ สำนักงาน บัตรประชาชน เจ้าของร้าน เจ้าของ ประเภท กิจการ ค่าปรับ ข้อถัดไป ย้อนกลับ ตัวอย่าง สมมติ ' +
+    'ข้อความ โทรศัพท์ อีเมล ใบใหม่ ใบเดิม ใบแทน ฉบับเดิม มอบอำนาจ สัญญาเช่า โฉนด ป้ายชื่อร้าน ' +
+    'ส่วนใหญ่ ชั่วโมง ทุกวัน นาที ประมาณ ภายใน ความเห็น ช่องทาง ติดต่อ สอบถาม ร้องเรียน ทางลาด บริการ ประชาชน ' +
+    'อาคาร ออกแบบ เว็บไซต์ ของรัฐ ภาษาภาพ ดัดแปลง การเข้าถึง ความถูกต้อง แต่งขึ้น ทั้งหมด คุณสมบัติ ขั้นตอน ' +
+    'แอปธนาคาร ลิงก์ จ่ายเงิน ค่าต่ออายุ ยอดค้าง ค้างจ่าย แก้ไข เครื่องหมาย ลูกค้า ห้องเก็บของ ที่จอดรถ ข้อมูล ' +
+    'เลขที่ ใบเสร็จ ปีที่แล้ว ตัวหนังสือ ด้านหน้า หน้าแรก สำเนา ยังไม่ ไม่เกิน ไม่ใช่ มากกว่า ใหญ่กว่า เบอร์โทร ' +
+    'อยู่จริง เกี่ยวกับ บันทึกร่าง ทำต่อ หมดเวลา วันถัดไป เพิ่มเติม ใช้เวลา พื้นที่ขาย พื้นที่ ร้านขายของ ของชำ ' +
+    'เปลี่ยน แผนผังร้าน ผลการเช็ก ตอนนี้ เซ็นชื่อ ทะเบียนบ้าน รับรอง ถ่ายรูป ไม่ต้อง สินค้า ผ่านเกต ทำการ ' +
+    'วันหยุด พักเที่ยง ลางาน ตอบกลับ ภาษาไทย ภาษาอังกฤษ อังกฤษ เริ่มใหม่ เริ่มตอบใหม่ ล่าสุด ตุลาคม ปรับปรุง ' +
+    'ครั้งเดียว ค่าบริการ ค่าใช้จ่าย เงินสด เร่งเรื่อง ชำรุด บังคับ แสดงในร้าน ทันที ตรวจร้าน นัดตรวจ เหตุผล ' +
+    'หาไม่เจอ เข้าใจ ประโยค สะดวก ไม่แน่ใจ ใบอนุญาตร้านค้า นครฟ้าคราม ถัดไป วันทำการถัดไป ค่าส่ง ฟ้าคราม ท่าน้ำเก่า ที่สุด ' +
+    'ต่อปี บาทต่อปี เท่ากัน เกต ด้าน ด้านล่าง นานขึ้น เว็บจริง ได้รับ จำกัดเวลา ชุดเดียวกัน ชุดเดียวกับ จำไว้ ใช้แทน ใบหาย ร้านบริการ ขอใบอนุญาต ยังไม่เคยมี ช่องจ่ายเงิน ' +
+    'แบบแก้ไข ประเภทกิจการ คำขอเดิม บนเว็บจริง จำลองการส่ง คมชัด ใช้ด้วย คีย์บอร์ด จัดวาง ทดสอบ อัตโนมัติ').split(' ');
+  WORDS.sort(function (a, b) { return b.length - a.length; });
+  /* A number stays with its unit or classifier (45 วัน, 3 วันทำการ, 300 บาท,
+     +15%), and a label stays with its number (ช่อง 4, กด 9). These run first in
+     the alternation, so at a digit the number rule wins over any compound. */
+  var UNITS = 'วันทำการ|วัน|นาที|บาท|ตารางเมตร|ปี|แผ่น|ชั่วโมง|หลัก|รูป|เรื่อง|อย่าง|ข้อ|คน|คูหา|น\\.|ตุลาคม(?: \\d+)?|จาก \\d+|of \\d+|' +
+    'more working days|working days?|days?|minutes?|baht|square metres|years?|hours?|digits|questions?|documents|floor plan|business-type|things?\\(s\\)|extra things?';
+  /* A range stays whole with its unit (3 ถึง 5 วันทำการ, 08:30 ถึง 16:30 น.,
+     ช่อง 4 ถึง 6), so the line never ends on ถึง. It runs before the single number. */
+  var RANGE = '(?:(?:ชั้น|ช่อง|กด|ข้อ) )?\\d[\\d,.:]* ถึง \\d[\\d,.:]*(?: (?:' + UNITS + '))?';
+  var NUM = RANGE + '|0X XXX XXXX|(?:ชั้น|ช่อง|กด|ข้อ|ตู้ไปรษณีย์|Question) \\d+|\\+?\\d[\\d,.:]*%?(?: (?:' + UNITS + '))';
+  /* การ and ความ only ever start a noun (การ|ต่ออายุ, ความ|เห็น): a line never ends
+     on one, so each is kept with the known word that follows it. */
+  var BOUND = '(?:การ|ความ)(?:' + WORDS.join('|') + ')';
+  var KEEP = new RegExp('(' + NUM + '|' + BOUND + '|' + WORDS.join('|') + ')', 'g');
+  function keep(scope) {
+    var walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+      var p = n.parentElement;
+      if (!p || p.closest('script,style,textarea,svg,.nobr,.nobr-wide,abbr')) return NodeFilter.FILTER_REJECT;
+      KEEP.lastIndex = 0;
+      return KEEP.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    } });
+    var list = [];
+    while (walker.nextNode()) list.push(walker.currentNode);
+    list.forEach(function (n) {
+      var s = n.nodeValue, last = 0, frag = document.createDocumentFragment(), m;
+      KEEP.lastIndex = 0;
+      while ((m = KEEP.exec(s))) {
+        if (m.index > last) frag.appendChild(document.createTextNode(s.slice(last, m.index)));
+        var sp = document.createElement('span'); sp.className = 'nobr'; sp.textContent = m[0]; frag.appendChild(sp);
+        last = m.index + m[0].length;
+      }
+      if (last < s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+      n.parentNode.replaceChild(frag, n);
+    });
+  }
+
+  /* ---------- Language ---------- */
+  var lang = 'th';
+  var EN = {
+    'skip': 'Skip to content',
+    'notice': 'A fictional design example, not a government website.', 'notice-link': 'About this example',
+    'brand-name': 'Fah Khram City Permit Office',
+    'lang-label': 'Language', 'size-label': 'Text size',
+    'size-base': 'Normal', 'size-lg': 'Large', 'size-xl': 'Largest', 'theme': 'Dark mode',
+    'crumbs-label': 'You are here', 'crumb-1': 'Public services', 'crumb-2': 'Shops and small business', 'crumb-3': 'Renew a shop licence',
+    'eyebrow': 'A service of Fah Khram, a city that does not exist',
+    'h1': 'Renew a small shop licence',
+    'lede': 'A licence lasts 1 year and can be renewed from 45 days before it expires. Applying online takes <strong class="nobr">about 15 minutes</strong> and the new licence arrives <strong class="nobr">within 3 working days</strong>.',
+    'hero-cta': 'Check if you can renew', 'hero-link': 'See the documents you need',
+    'sum-title': 'Is this the right service?', 'who-yes': 'Use this service if you are',
+    'who-1': 'The owner of a shop, restaurant or service business with up to 120 square metres of sales floor',
+    'who-2': 'A shop whose licence expires within 45 days, or expired no more than 90 days ago',
+    'who-3': 'Someone the owner has authorised to apply for them',
+    'who-no': 'Use a different service if',
+    'who-4': 'You have just opened, or your licence expired more than 90 days ago', 'who-4-link': 'Apply for a new licence',
+    'who-5': 'Your sales floor is over 120 square metres', 'who-5-link': 'Medium business licence',
+    'fact-fee': 'Fee', 'fact-fee-unit': 'baht a year', 'fic': 'fictional', 'fact-fee-note': 'Shops over 40 square metres pay 600 baht',
+    'fact-time': 'New licence', 'fact-time-v': 'Within 3 working days online, or 1 working day at the office',
+    'fact-where': '3 ways to apply', 'fact-where-v': 'Online 24 hours, at the office, or by post',
+    'toc': 'On this page', 'toc-1': 'Check eligibility', 'toc-2': 'Documents', 'toc-3': 'Steps and timing',
+    'toc-4': 'Fees', 'toc-5': 'Ways to apply', 'toc-6': 'Related services', 'toc-7': 'Contact',
+    'check-title': 'Check if you can renew', 'check-lede': '4 questions, under a minute, no time limit. You can go back and change any answer, and nothing is sent anywhere.',
+    'q1': 'When does your current licence expire?', 'q1-why': 'The expiry date is printed at the bottom right of the licence. If you lost it, answer from the date you remember.',
+    'q1-early': 'More than 45 days from now', 'q1-soon': 'Within the next 45 days', 'q1-late': 'It expired, no more than 90 days ago', 'q1-lapsed': 'Over 90 days ago, or I never had one',
+    'q2': 'Is your sales floor 120 square metres or less?', 'q2-why': 'Count only the space customers can enter, not storage or parking.',
+    'q3': 'Do you still sell the same kind of goods or service written on the licence?', 'q3-why': 'For example, the licence says grocery and you still sell groceries. If you now run a restaurant, answer no.',
+    'q4': 'Do you owe the office any unpaid fee or fine?', 'q4-why': 'If you are not sure, answer no. Any amount owed is shown in the payment link before you pay.',
+    'yes': 'Yes', 'no': 'No', 'no-more': 'No, it is bigger', 'no-changed': 'No, it has changed', 'yes-owed': 'Yes, I owe something',
+    'err-pick': 'Choose one answer before you continue.', 'why': 'Why',
+    'edit': 'Change last answer', 'restart': 'Start again', 'back': 'Back',
+    'docs-title': 'Documents you need', 'docs-lede': 'Tick what you have ready. This page remembers it on your device only.', 'clear': 'Clear all ticks',
+    'steps-title': 'Steps and how long they take', 'steps-lede': 'Times assume an online application with every document. The office is faster because staff check documents in front of you.',
+    'fees-title': 'Fees', 'fees-lede': 'Paid once a year, the same in every channel. Applying online costs nothing extra.',
+    'ch-title': '3 ways to apply', 'ch-lede': 'Every channel takes the same documents and the same fee. Choose what suits you.',
+    'apply': 'Start an online application',
+    'related-title': 'Related services', 'related-lede': 'If the check says you need a different service, start here.',
+    'contact-title': 'Contact', 'contact-lede': 'Ask anything about renewing. Staff answer in Thai and English.',
+    'fb-title': 'Did this page help you?', 'fb-yes': 'Yes, it helped', 'fb-no': 'Not yet',
+    'fb-label': 'What could you not find, or not understand?', 'fb-hint': 'Do not include your name, ID number or phone number.',
+    'fb-err': 'Write one short sentence, or choose Skip.', 'fb-skip': 'Skip', 'fb-thanks': 'Thank you for telling us', 'fb-again': 'Change my answer',
+    'updated': 'Last updated 20 October 2026'
+  };
+  var S = {
+    th: {
+      progress: 'ข้อ {n} จาก {t}', result: 'ผลการเช็ก', next: 'ข้อถัดไป', see: 'ดูผล',
+      docsCount: 'เอกสารหลักพร้อมแล้ว <span class="nobr"><strong>{d}</strong> จาก {t}</span>', docsDone: 'ครบแล้ว เอกสารหลัก <span class="nobr"><strong>{d}</strong> จาก {t}</span> พร้อมยื่น',
+      applyMsg: 'หน้านี้เป็นตัวอย่าง จึงไม่มีระบบยื่นคำขอจริง บนเว็บจริง ปุ่มนี้จะพาไปหน้ากรอกคำขอที่บันทึกร่างได้',
+      send: 'ส่งความเห็น', sending: 'กำลังจำลองการส่ง',
+      fbYes: 'ในตัวอย่างนี้คำตอบไม่ได้ถูกส่งไปที่ไหน บนเว็บจริง ทีมที่ดูแลหน้านี้จะนับคำตอบนี้',
+      fbSkip: 'ในตัวอย่างนี้คำตอบไม่ได้ถูกส่งไปที่ไหน บนเว็บจริง ทีมที่ดูแลหน้านี้จะเห็นว่าหน้านี้ยังไม่ช่วยคุณ',
+      fbSent: 'ในตัวอย่างนี้ข้อความไม่ได้ถูกส่ง บนเว็บจริง ทีมที่ดูแลหน้านี้จะอ่านข้อความของคุณ',
+      out: {
+        early: { title: 'ยังต่ออายุไม่ได้ตอนนี้', reasons: ['คุณตอบว่าใบอนุญาตเหลืออายุมากกว่า 45 วัน การต่ออายุเปิดให้ยื่นตั้งแต่ 45 วันก่อนวันหมดอายุ'],
+          next: 'กลับมาได้ตั้งแต่ 45 วันก่อนวันหมดอายุที่พิมพ์อยู่บนใบอนุญาต ระหว่างนี้เตรียมเอกสารไว้ก่อนได้', go: 'ดูเอกสารที่ต้องใช้' },
+        lapsed: { title: 'คุณต้องขอใบอนุญาตใหม่ ไม่ใช่ต่ออายุ', reasons: ['คุณตอบว่าใบเดิมหมดอายุเกิน 90 วัน หรือยังไม่เคยมีใบอนุญาต การต่ออายุใช้ได้กับใบที่หมดอายุไม่เกิน 90 วันเท่านั้น'],
+          next: 'การขอใบใหม่เป็นอีกบริการหนึ่ง ใช้เอกสารชุดเดียวกับหน้านี้ เพิ่มแผนผังร้าน 1 แผ่น', go: 'ไปที่บริการขอใบอนุญาตใหม่' },
+        medium: { title: 'ร้านของคุณใช้ใบอนุญาตกิจการขนาดกลาง', reasons: ['คุณตอบว่าร้านมีพื้นที่ขายเกิน 120 ตารางเมตร บริการในหน้านี้รองรับร้านที่มีพื้นที่ขายไม่เกิน 120 ตารางเมตร'],
+          next: 'ใบอนุญาตกิจการขนาดกลางมีการนัดตรวจร้านก่อนต่ออายุ', go: 'ไปที่บริการกิจการขนาดกลาง' },
+        ok: { title: 'คุณต่ออายุได้เลย', reasons: ['ใบเดิมจะหมดอายุภายใน 45 วัน จึงอยู่ในช่วงที่ต่ออายุได้', 'ร้านมีพื้นที่ขายไม่เกิน 120 ตารางเมตร', 'ร้านยังขายสินค้าประเภทเดิม', 'ไม่มียอดค้างจ่าย'],
+          next: 'เตรียมเอกสาร 4 อย่างในรายการด้านล่าง แล้วยื่นได้ทุกช่องทาง', go: 'ดูเอกสารที่ต้องใช้' },
+        warn: { title: 'คุณต่ออายุได้ แต่มี {n} เรื่องต้องทำเพิ่ม',
+          next: 'ขั้นตอนอื่นเหมือนการต่ออายุปกติ เตรียมเอกสารตามรายการด้านล่างได้เลย', go: 'ดูเอกสารที่ต้องใช้' },
+        late: 'คุณตอบว่าใบเดิมหมดอายุแล้วไม่เกิน 90 วัน ยังต่ออายุได้ แต่มีค่าปรับเพิ่ม 15% ของค่าต่ออายุ เช่น ร้าน 300 บาท จ่ายรวม 345 บาท',
+        change: 'คุณตอบว่าร้านเปลี่ยนประเภทสินค้าหรือบริการ ต้องแนบแบบแก้ไขประเภทกิจการ 1 แผ่น เราเพิ่มไว้ในรายการเอกสารด้านล่างแล้ว และการตรวจจะนานขึ้น 2 วันทำการ',
+        owed: 'คุณตอบว่ามียอดค้างจ่าย ยอดนี้จะรวมอยู่ในลิงก์จ่ายเงินเดียวกับค่าต่ออายุ และใบใหม่ออกเมื่อจ่ายครบ'
+      }
+    },
+    en: {
+      progress: 'Question {n} of {t}', result: 'Your result', next: 'Next question', see: 'See result',
+      docsCount: 'Main documents ready: <span class="nobr"><strong>{d}</strong> of {t}</span>', docsDone: 'All set: <span class="nobr"><strong>{d}</strong> of {t}</span> main documents ready',
+      applyMsg: 'This page is an example, so there is no real application system. On a real site this button opens a form you can save as a draft.',
+      send: 'Send feedback', sending: 'Simulating the send',
+      fbYes: 'In this example your answer is not sent anywhere. On a real site the team that looks after this page would count it.',
+      fbSkip: 'In this example your answer is not sent anywhere. On a real site the team would see that this page did not help you yet.',
+      fbSent: 'In this example your message is not sent. On a real site the team that looks after this page would read it.',
+      out: {
+        early: { title: 'You cannot renew yet', reasons: ['You said the licence has more than 45 days left. Renewal opens 45 days before the expiry date.'],
+          next: 'Come back from 45 days before the expiry date printed on the licence. You can get your documents ready now.', go: 'See the documents you need' },
+        lapsed: { title: 'You need a new licence, not a renewal', reasons: ['You said the licence expired more than 90 days ago, or you never had one. Renewal only covers licences that expired up to 90 days ago.'],
+          next: 'A new licence is a separate service. It uses the same documents as this page plus 1 floor plan.', go: 'Go to new licence' },
+        medium: { title: 'Your shop needs a medium business licence', reasons: ['You said the sales floor is over 120 square metres. This service covers shops of up to 120 square metres.'],
+          next: 'A medium business licence includes a shop inspection before renewal.', go: 'Go to medium business licence' },
+        ok: { title: 'You can renew now', reasons: ['Your licence expires within 45 days, so renewal is open', 'Your sales floor is 120 square metres or less', 'You still sell the same kind of goods', 'You owe nothing'],
+          next: 'Get the 4 documents in the list below ready, then apply in any channel.', go: 'See the documents you need' },
+        warn: { title: 'You can renew, with {n} extra thing(s) to do',
+          next: 'Everything else is a normal renewal. Get the documents below ready.', go: 'See the documents you need' },
+        late: 'You said the licence expired no more than 90 days ago. You can still renew, with a 15% late fee on top, for example 345 baht instead of 300.',
+        change: 'You said the shop now sells something different. Attach 1 business-type change form. We added it to the document list below, and checking takes 2 more working days.',
+        owed: 'You said you owe something. It is added to the same payment link as the renewal, and the new licence is issued once it is paid.'
+      }
+    }
+  };
+  function T(key, vars) {
+    var s = S[lang][key];
+    if (vars) Object.keys(vars).forEach(function (k) { s = s.replace('{' + k + '}', vars[k]); });
+    return s;
+  }
+  var langBtns = [].slice.call(document.querySelectorAll('[data-lang]'));
+  var nodes = [].slice.call(document.querySelectorAll('[data-i18n],[data-i18n-html]'));
+  nodes.forEach(function (n) { n._th = n.hasAttribute('data-i18n-html') ? n.innerHTML : n.textContent; });
+  var rerender = [];
+  function applyLang(l) {
+    lang = l;
+    root.setAttribute('lang', l);
+    nodes.forEach(function (n) {
+      var key = n.getAttribute('data-i18n') || n.getAttribute('data-i18n-html');
+      var en = l === 'en' ? EN[key] : null;
+      if (n.hasAttribute('data-i18n-html')) n.innerHTML = en || n._th; else n.textContent = en || n._th;
+    });
+    $('en-partial').hidden = l !== 'en';
+    langBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === l)); });
+    rerender.forEach(function (f) { f(); });
+    keep(document.body);
+  }
+  langBtns.forEach(function (b) {
+    b.addEventListener('click', function () { applyLang(b.dataset.lang); store.set('gov-lang', b.dataset.lang); });
+  });
+
+  /* ---------- Theme ---------- */
+  var themeBtn = $('theme-toggle');
+  function syncTheme() {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    /* The moon stays: the label says dark mode, and the pressed style says it is on. */
+    themeBtn.setAttribute('aria-pressed', String(dark));
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    store.set('gov-theme', next);
+    syncTheme();
+  });
+  syncTheme();
+
+  /* ---------- Text size ---------- */
+  var sizeBtns = [].slice.call(document.querySelectorAll('[data-size]'));
+  function applySize(s) {
+    if (s === 'base') root.removeAttribute('data-text'); else root.setAttribute('data-text', s);
+    sizeBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.size === s)); });
+  }
+  sizeBtns.forEach(function (b) {
+    b.addEventListener('click', function () { applySize(b.dataset.size); store.set('gov-text', b.dataset.size); });
+  });
+  applySize(root.getAttribute('data-text') || 'base');
+
+  /* ---------- Documents checklist ---------- */
+  var boxes = [].slice.call(document.querySelectorAll('.checklist input'));
+  var clearBtn = $('docs-clear'), count = $('docs-count'), meter = $('docs-meter'), changeLi = $('doc-change-li');
+  var saved = [];
+  try { saved = JSON.parse(store.get('gov-docs') || '[]'); } catch (e) { saved = []; }
+  boxes.forEach(function (b) { b.checked = saved.indexOf(b.value) > -1 && !b.closest('li').hidden; });
+  function syncDocs(persist) {
+    var req = boxes.filter(function (b) { return b.hasAttribute('data-required') && !b.closest('li').hidden; });
+    var done = req.filter(function (b) { return b.checked; }).length;
+    var any = boxes.some(function (b) { return b.checked; });
+    meter.style.setProperty('--done', done);
+    meter.style.setProperty('--total', req.length);
+    count.classList.toggle('is-complete', done === req.length);
+    count.innerHTML = T(done === req.length ? 'docsDone' : 'docsCount', { d: done, t: req.length });
+    keep(count);
+    clearBtn.disabled = !any;
+    if (persist) store.set('gov-docs', JSON.stringify(boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; })));
+  }
+  function setChangeDoc(on) {
+    changeLi.hidden = !on;
+    var inp = changeLi.querySelector('input');
+    if (on) inp.setAttribute('data-required', ''); else { inp.removeAttribute('data-required'); inp.checked = false; }
+    syncDocs(false);
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', function () { syncDocs(true); }); });
+  clearBtn.addEventListener('click', function () {
+    boxes.forEach(function (b) { b.checked = false; }); syncDocs(true); boxes[0].focus();
+  });
+  rerender.push(function () { syncDocs(false); });
+
+  /* ---------- Eligibility checker ---------- */
+  var form = $('checker');
+  var steps = [].slice.call(form.querySelectorAll('.q'));
+  var bars = [].slice.call(form.querySelectorAll('.progress span'));
+  var back = $('q-back'), nextLabel = $('q-next-label'), nav = $('checker-nav'), progressText = $('progress-text');
+  var result = $('result');
+  var cur = 0, shown = null;
+
+  function answer(i) {
+    var el = form.querySelector('input[name="' + steps[i].dataset.name + '"]:checked');
+    return el ? el.value : null;
+  }
+  function setError(i, on) {
+    steps[i].classList.toggle('has-error', on);
+    $(steps[i].dataset.name + '-err').hidden = !on;
+    [].forEach.call(steps[i].querySelectorAll('input'), function (inp) {
+      if (on) inp.setAttribute('aria-invalid', 'true'); else inp.removeAttribute('aria-invalid');
+    });
+  }
+  function paintStep() {
+    back.hidden = cur === 0;
+    nextLabel.textContent = cur === steps.length - 1 ? T('see') : T('next');
+    progressText.textContent = T('progress', { n: cur + 1, t: steps.length });
+    bars.forEach(function (b, j) { b.classList.toggle('is-done', j < cur); b.classList.toggle('is-current', j === cur); });
+  }
+  function show(i, focus) {
+    cur = i; shown = null;
+    steps.forEach(function (s, j) { s.hidden = j !== i; });
+    result.hidden = true; nav.hidden = false;
+    paintStep();
+    if (focus) steps[i].querySelector('.q-title').focus();
+  }
+  /* Decide from the answers given so far, at the step just answered. Only a
+     deciding answer ends early; otherwise the reader steps forward one question,
+     even when later questions were already answered on an earlier pass. */
+  function decide(i) {
+    var a = steps.map(function (_, j) { return answer(j); });
+    if (i === 0 && a[0] === 'early') return { key: 'early', at: 0, kind: 'info', icon: '#i-info', href: '#docs' };
+    if (i === 0 && a[0] === 'lapsed') return { key: 'lapsed', at: 0, kind: 'info', icon: '#i-info', href: '#new-licence' };
+    if (i === 1 && a[1] === 'no') return { key: 'medium', at: 1, kind: 'info', icon: '#i-info', href: '#medium-licence' };
+    if (i === steps.length - 1) {
+      var extra = [];
+      if (a[0] === 'late') extra.push('late');
+      if (a[2] === 'no') extra.push('change');
+      if (a[3] === 'yes') extra.push('owed');
+      if (extra.length) return { key: 'warn', at: 3, kind: 'warn', icon: '#i-alert-triangle', href: '#docs', extra: extra };
+      return { key: 'ok', at: 3, kind: 'ok', icon: '#g-circle-check', href: '#docs' };
+    }
+    return null;
+  }
+  function paintResult() {
+    var v = shown, o = S[lang].out[v.key];
+    result.dataset.kind = v.kind;
+    $('result-icon').setAttribute('href', v.icon);
+    var reasons = v.extra ? v.extra.map(function (k) { return S[lang].out[k]; }) : o.reasons;
+    $('result-title').textContent = o.title.replace('{n}', reasons.length);
+    var ul = $('result-reasons'); ul.textContent = '';
+    reasons.forEach(function (r) {
+      var li = document.createElement('li');
+      li.innerHTML = '<svg class="ico ico-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg>';
+      var span = document.createElement('span'); span.textContent = r; li.appendChild(span); ul.appendChild(li);
+    });
+    $('result-next').textContent = o.next;
+    var go = $('result-go'); go.textContent = ''; var gs = document.createElement('span'); gs.textContent = o.go; go.appendChild(gs); go.setAttribute('href', v.href);
+    progressText.textContent = T('result');
+    bars.forEach(function (b, j) { b.classList.toggle('is-done', j <= v.at); b.classList.remove('is-current'); });
+    keep(result);
+  }
+  function showResult(v) {
+    shown = v; cur = v.at;
+    steps.forEach(function (s) { s.hidden = true; });
+    nav.hidden = true; result.hidden = false;
+    setChangeDoc(v.key === 'warn' && v.extra.indexOf('change') > -1);
+    paintResult();
+    $('result-title').focus();
+  }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!answer(cur)) { setError(cur, true); steps[cur].querySelector('input').focus(); return; }
+    setError(cur, false);
+    var v = decide(cur);
+    if (v) showResult(v); else show(cur + 1, true);
+  });
+  form.addEventListener('change', function (e) {
+    var i = steps.indexOf(e.target.closest('.q'));
+    if (i > -1) setError(i, false);
+  });
+  back.addEventListener('click', function () { if (cur > 0) show(cur - 1, true); });
+  $('result-edit').addEventListener('click', function () { show(shown ? shown.at : cur, true); });
+  $('result-restart').addEventListener('click', function () {
+    form.reset(); steps.forEach(function (_, i) { setError(i, false); }); setChangeDoc(false); show(0, true);
+  });
+  rerender.push(function () { if (shown) paintResult(); else paintStep(); });
+  show(0, false);
+
+  /* ---------- Apply online (a demo, and it says so) ---------- */
+  var applyShown = false;
+  function paintApply() {
+    if (!applyShown) return;
+    var m = $('apply-msg');
+    m.innerHTML = '<svg class="ico ico-sm" aria-hidden="true"><use href="#i-info"/></svg><span></span>';
+    m.querySelector('span').textContent = T('applyMsg');
+    m.hidden = false; keep(m);
+  }
+  $('apply-online').addEventListener('click', function () { applyShown = true; paintApply(); });
+  rerender.push(paintApply);
+
+  /* ---------- Feedback: honest about being a demo ---------- */
+  var ask = $('fb-ask'), fbForm = $('fb-form'), thanks = $('fb-thanks');
+  var fbText = $('fb-text'), fbErr = $('fb-err'), send = $('fb-send'), sendLabel = $('fb-send-label');
+  var thanksKey = null;
+  function paintThanks() {
+    if (thanksKey) { $('fb-thanks-text').textContent = T(thanksKey); keep(thanks); }
+    if (send.getAttribute('aria-busy') !== 'true') sendLabel.textContent = T('send');
+  }
+  function thank(key) {
+    thanksKey = key;
+    ask.hidden = true; fbForm.hidden = true; thanks.hidden = false;
+    paintThanks();
+    $('fb-thanks-title').focus();
+  }
+  function fbError(on) {
+    fbErr.hidden = !on;
+    if (on) fbText.setAttribute('aria-invalid', 'true'); else fbText.removeAttribute('aria-invalid');
+  }
+  $('fb-yes').addEventListener('click', function () { thank('fbYes'); });
+  $('fb-no').addEventListener('click', function () { ask.hidden = true; fbForm.hidden = false; fbText.focus(); });
+  $('fb-skip').addEventListener('click', function () { fbError(false); thank('fbSkip'); });
+  fbText.addEventListener('input', function () { if (fbText.value.trim()) fbError(false); });
+  fbForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (send.getAttribute('aria-busy') === 'true') return;
+    if (!fbText.value.trim()) { fbError(true); fbText.focus(); return; }
+    fbError(false);
+    send.setAttribute('aria-busy', 'true'); sendLabel.textContent = T('sending');
+    fbText.disabled = true;
+    setTimeout(function () {
+      send.removeAttribute('aria-busy'); fbText.disabled = false;
+      thank('fbSent');
+    }, 600);
+  });
+  $('fb-again').addEventListener('click', function () {
+    thanksKey = null;
+    thanks.hidden = true; fbForm.hidden = true; ask.hidden = false; fbText.value = ''; fbError(false);
+    $('fb-yes').focus();
+  });
+  rerender.push(paintThanks);
+
+  /* ---------- In-page index ---------- */
+  var links = [].slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (l) {
+          if (l.getAttribute('href') === '#' + en.target.id) l.setAttribute('aria-current', 'true'); else l.removeAttribute('aria-current');
+        });
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    links.forEach(function (l) { var t = document.querySelector(l.getAttribute('href')); if (t) io.observe(t); });
+  }
+
+  syncDocs(false);
+  if (store.get('gov-lang') === 'en') applyLang('en'); else keep(document.body);
+})();
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import MovieIcon from '@mui/icons-material/Movie';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import VideoLibraryRounded from '@mui/icons-material/VideoLibraryRounded';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg, tmdbSrcSet } from '../../../api/cinemaApi';
 import { getQuality } from '../../../media/helpers';
@@ -552,17 +553,13 @@ export default function SeasonsSection({
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: { xs: 1.25, sm: 2 }, flexWrap: 'wrap', mb: 2, mt: 1,
       }}>
-        <Typography sx={{
-          color: T.text, fontWeight: 800, letterSpacing: -0.3, lineHeight: 1.2,
-          fontSize: { xs: '1.05rem', md: '1.15rem', xl: '1.35rem' },
-          '@media (min-width:1920px)': { fontSize: '1.6rem' },
-          flexShrink: 0,
-        }}>
-          Episodes
-        </Typography>
+        <Box sx={{ flexShrink: 0 }}>
+          <SectionHeading icon={VideoLibraryRounded} eyebrow="Watch your way">Episodes</SectionHeading>
+        </Box>
 
       <Select
         value={selected}
+        inputProps={{ 'aria-label': 'Select season' }}
         onChange={(e) => setSelected(e.target.value)}
         size="small"
         MenuProps={{

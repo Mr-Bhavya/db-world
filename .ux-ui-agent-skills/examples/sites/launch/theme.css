@@ -1,0 +1,348 @@
+/* launch theme.css: Nordun Plinth product launch (fictional brand).
+   Design system: bang-olufsen (design-systems/library/bang-olufsen/DESIGN.md,
+   measured spec, category "Consumer Electronics"), resolved through the Library
+   Contract in taste/aesthetic-systems.md. Borrowed: warm near-black ink #191817
+   for text and filled buttons, cream #fcfaee labels, square 0-radius product
+   tiles, 40px pill buttons with a 2px border that invert to outline on hover,
+   weight 400 headlines with negative tracking, wide-tracked uppercase eyebrows,
+   generous 26/16 body leading, and the ultramarine #060daa footer as the one
+   chromatic field (also the accent for the tuning curve and the "New" badge).
+
+   Adaptations, stated rather than silent:
+   - Display type: the spec keeps the hero headline at 24px and lets film carry
+     the page. This kit requires display type at least 2.5x body, so the hero
+     headline runs at the spec's own display-xl size and above.
+   - Media: the spec opens on a full-bleed autoplaying film. Screen economy caps
+     media at 60vh and bans autoplay, so the product is an inline SVG on a
+     bounded tile, and its entrance runs once.
+   - Canvas: #ffffff and #fafafa tiles warmed to #fcfbf8 and #f4f2ec so the
+     cream labels and the page read as one material; pure white is avoided.
+   - Font: BeoSupreme is proprietary and the page loads nothing from the
+     network, so the stack starts at Avenir Next (geometric, close to the spec's
+     Lexend Deca fallback) and falls back to the platform UI face.
+   - Focus: the spec's 1px blue plus 3px #bfdefb halo measures under 3:1 on
+     white, so the ring is a 2px gap plus a 2px blue that clears 3:1 on every
+     surface it sits on, with its own value on dark bands.
+   - Dark mode: the spec ships none. It is designed here, not inverted: warm
+     black page, lighter raised tiles, cream ink, a lifted ultramarine for lines.
+   - Spacing snapped to the kit's 4px scale (spec steps 20/56 kept as 5 and 14). */
+
+:root{
+  color-scheme:light;
+
+  /* colour: surfaces */
+  --color-surface-page:#fcfbf8;
+  --color-surface-tile:#f4f2ec;
+  --color-surface-raised:#ebe8e0;
+  --color-surface-inverse:#191817;
+  --color-surface-inverse-raised:#2a2826;
+  --color-surface-dialog:#fcfbf8;
+
+  /* colour: text */
+  --color-text-primary:#191817;
+  --color-text-secondary:#57534e;
+  --color-text-inverse:#fcfaee;
+  --color-text-inverse-secondary:#c9c4ba;
+  --color-text-accent:#060daa;
+
+  /* colour: action (token by intent) */
+  --color-action-primary:#191817;
+  --color-action-primary-hover:#3a3733;
+  --color-action-primary-active:#0b0a09;
+  --color-text-on-action:#fcfaee;
+  --color-action-on-inverse:#fcfaee;
+  --color-text-on-action-inverse:#191817;
+  --color-action-on-inverse-hover:#d6d1c6;
+  --color-action-on-inverse-active:#c9c4ba;
+  --color-action-destructive:#b3261e;
+  --color-interactive-selected-bg:#191817;
+  --color-text-on-selected:#fcfaee;
+
+  /* colour: lines */
+  --color-border-default:#e2ded5;
+  --color-border-strong:#8a857c;
+  --color-border-inverse:#4a4743;
+  --color-border-inverse-strong:#a39d92;
+  --color-border-error:#b3261e;
+
+  /* colour: accent (the spec's one chromatic field) */
+  --color-accent:#060daa;
+  --color-accent-soft:#e3e4f8;
+  --color-accent-line:#060daa;
+  --color-accent-on-inverse:#9da2ff;
+
+  /* colour: feedback */
+  --color-feedback-error-text:#a3201d;
+  --color-feedback-success-icon:#1c6935;
+
+  /* colour: focus */
+  --color-focus:#1f5fd6;
+  --color-focus-on-inverse:#8fb4ff;
+
+  /* colour: footer */
+  --color-footer-bg:#060daa;
+  --color-footer-text:#fcfaee;
+  --color-footer-text-secondary:#dcdcf3;
+  --color-footer-rule:#3a40c0;
+
+  /* colour: chart */
+  --color-chart-grid:#e2ded5;
+  --color-chart-axis:#8a857c;
+  --color-chart-before:#8a857c;
+  --color-chart-after:#060daa;
+  --color-chart-band:#e3e4f8;
+
+  /* colour: scrim and drawing shadow */
+  --color-scrim:rgba(25,24,23,0.55);
+  --color-product-shadow:rgba(25,24,23,0.22);
+  --color-product-shade:rgba(25,24,23,0.16);
+  --color-product-gloss:rgba(255,255,255,0.55);
+
+  /* colour: exploded drawing */
+  --color-ex-top:#fcfbf8;
+  --color-ex-side:#e2ded5;
+  --color-ex-line:#8a857c;
+  --color-ex-hole:#57534e;
+  --color-ex-on-top:#e3e4f8;
+  --color-ex-on-side:#c9cbef;
+
+  /* product finishes (physical colours, same in both themes) */
+  --product-top:#efebe2; --product-top-lo:#e2ddd1;
+  --product-front-hi:#e4dfd3; --product-front-lo:#cfc8b9;
+  --product-fabric:#d3cdbf; --product-dot:#b2ab9b;
+  --product-dial-top:#f7f5f0; --product-dial-side:#c6c0b3; --product-knurl:#a8a194;
+  --product-seam:#f9f7f2; --product-foot:#57534e;
+  --product-ring:#4b53e0; --product-led:#1c6935;
+
+  /* finish swatches: the paint itself, shown as a dot */
+  --swatch-chalk:#e4dfd3;
+  --swatch-basalt:#2f2d2a;
+  --swatch-lake:#26337e;
+
+  /* type */
+  --font-sans:"Avenir Next","Avenir","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue","Sukhumvit Set","Thonburi","Noto Sans Thai",sans-serif;
+  --font-display:"Avenir Next","Avenir","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue","Sukhumvit Set","Thonburi","Noto Sans Thai",sans-serif;
+  /* Avenir Next measures an x-height of 0.468 em. Pinning the aspect there
+     scales Segoe UI, system-ui or Helvetica (0.50 to 0.52) down to the same
+     x-height, so a fallback keeps the line lengths and rhythm the page was
+     set in instead of running about 8% larger. */
+  --font-aspect:0.468;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --text-xs:0.75rem;
+  --text-sm:0.875rem;
+  --text-base:1rem;
+  --text-lg:1.125rem;
+  --text-xl:1.25rem;
+  --text-2xl:1.5rem;
+  --text-3xl:clamp(1.875rem, 1.35rem + 1.9vw, 2.75rem);
+  --text-figure:clamp(2.5rem, 1.7rem + 3.2vw, 4.5rem);
+  --text-display:clamp(2.5rem, 1.25rem + 5.6vw, 5.75rem);
+  --text-display-hero:clamp(2.5rem, 1.25rem + 4.2vw, 4.5rem);
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --leading-display:1.02;
+  --leading-tight:1.15;
+  --leading-snug:1.35;
+  --leading-body:1.625;
+  --tracking-display:-0.024em;
+  --tracking-title:-0.015em;
+  --tracking-body:0.0125em;
+  --tracking-eyebrow:0.14em;
+  --tracking-wordmark:0.32em;
+
+  /* space (4px base) */
+  --space-0-5:0.125rem;
+  --space-1:0.25rem;
+  --space-1-5:0.375rem;
+  --space-2:0.5rem;
+  --space-3:0.75rem;
+  --space-4:1rem;
+  --space-5:1.25rem;
+  --space-6:1.5rem;
+  --space-8:2rem;
+  --space-10:2.5rem;
+  --space-12:3rem;
+  --space-14:3.5rem;
+  --space-16:4rem;
+  --space-20:5rem;
+  --space-24:6rem;
+  --space-32:8rem;
+  --gutter:1rem;
+  --section-gap:clamp(4rem, 2.5rem + 6vw, 8rem);
+
+  /* radius: square tiles, round pills (the spec's shape signature) */
+  --radius-none:0;
+  --radius-badge:0.125rem;
+  --radius-field:0.25rem;
+  --radius-dialog:0.5rem;
+  --radius-full:62.5rem;
+  --radius-round:50%;
+
+  /* borders */
+  --border-hairline:1px;
+  --border-control:2px;
+
+  /* sizing */
+  --size-target-min:1.5rem;
+  --size-control-sm:2.5rem;
+  --size-control-md:2.75rem;
+  --size-control-lg:3.25rem;
+  --size-icon:1.125rem;
+  --size-icon-sm:1rem;
+  --size-swatch:1.75rem;
+  --size-badge-dot:1.75rem;
+  --measure:65ch;
+  --measure-lead:52ch;
+  --measure-display:15ch;
+  --container:80rem;
+  --dialog-width:30rem;
+  --media-max-block:60vh;
+  --media-hero-block:56vh;
+
+  /* depth: flat by default, elevation is rare */
+  --shadow-focus-ring:0 0 0 2px var(--color-surface-page),0 0 0 4px var(--color-focus);
+  --shadow-dialog:0 24px 64px rgba(25,24,23,0.24),0 2px 6px rgba(25,24,23,0.08);
+  --shadow-lift:0 12px 32px rgba(25,24,23,0.10);
+
+  /* motion */
+  --duration-fast:120ms;
+  --duration-base:220ms;
+  --duration-slow:420ms;
+  --duration-draw:900ms;
+  --duration-pulse:640ms;
+  --delay-step:90ms;
+  --ease-out:cubic-bezier(.165,.84,.44,1);
+  --ease-in:cubic-bezier(.55,.06,.68,.19);
+  --ease-in-out:cubic-bezier(.45,.05,.55,.95);
+  --rise:0.75rem;
+
+  /* layers */
+  --z-sprite:-1;
+}
+
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --color-surface-page:#131211;
+  --color-surface-tile:#1d1c1a;
+  --color-surface-raised:#2a2826;
+  --color-surface-inverse:#f2efe6;
+  --color-surface-inverse-raised:#e2ddd1;
+  --color-surface-dialog:#1d1c1a;
+
+  --color-text-primary:#f2efe6;
+  --color-text-secondary:#b5afa4;
+  --color-text-inverse:#191817;
+  --color-text-inverse-secondary:#57534e;
+  --color-text-accent:#9da2ff;
+
+  --color-action-primary:#f2efe6;
+  --color-action-primary-hover:#d6d1c6;
+  --color-action-primary-active:#c9c4ba;
+  --color-text-on-action:#191817;
+  --color-action-on-inverse:#191817;
+  --color-text-on-action-inverse:#fcfaee;
+  --color-action-on-inverse-hover:#3a3733;
+  --color-action-on-inverse-active:#0b0a09;
+  --color-action-destructive:#f3a39e;
+  --color-interactive-selected-bg:#f2efe6;
+  --color-text-on-selected:#191817;
+
+  --color-border-default:#34312d;
+  --color-border-strong:#8a857c;
+  --color-border-inverse:#c9c4ba;
+  --color-border-inverse-strong:#6a655d;
+  --color-border-error:#f3a39e;
+
+  --color-accent:#9da2ff;
+  --color-accent-soft:#262a5c;
+  --color-accent-line:#9da2ff;
+  --color-accent-on-inverse:#060daa;
+
+  --color-feedback-error-text:#f3a39e;
+  --color-feedback-success-icon:#62bb78;
+
+  --color-focus:#8fb4ff;
+  --color-focus-on-inverse:#1f5fd6;
+
+  --color-footer-bg:#070c86;
+  --color-footer-text:#fcfaee;
+  --color-footer-text-secondary:#dcdcf3;
+  --color-footer-rule:#2a31b0;
+
+  --color-chart-grid:#34312d;
+  --color-chart-axis:#8a857c;
+  --color-chart-before:#8a857c;
+  --color-chart-after:#9da2ff;
+  --color-chart-band:#22254a;
+
+  --color-scrim:rgba(0,0,0,0.7);
+  --color-product-shadow:rgba(0,0,0,0.55);
+  --color-product-shade:rgba(0,0,0,0.22);
+  --color-product-gloss:rgba(255,255,255,0.35);
+
+  --color-ex-top:#2a2826;
+  --color-ex-side:#1d1c1a;
+  --color-ex-line:#8a857c;
+  --color-ex-hole:#b5afa4;
+  --color-ex-on-top:#262a5c;
+  --color-ex-on-side:#1b1e45;
+
+  --product-ring:#8a90ff;
+
+  --shadow-dialog:0 24px 64px rgba(0,0,0,0.6),0 0 0 1px rgba(242,239,230,0.08);
+  --shadow-lift:0 12px 32px rgba(0,0,0,0.4);
+}
+
+/* Dark mode, full-bleed closing band. Contained tiles (the price) keep the
+   cream inverse field; a band the full width of the screen would be the
+   brightest area of a dark page, so here the inverse tokens resolve to a
+   raised dark field with cream ink instead. Declared on the element itself,
+   so the .on-inverse focus ring below picks these values up. */
+:root[data-theme="dark"] .closing{
+  --color-surface-inverse:#1d1c1a;
+  --color-surface-inverse-raised:#2a2826;
+  --color-text-inverse:#f2efe6;
+  --color-text-inverse-secondary:#b5afa4;
+  --color-border-inverse:#4a4743;
+  --color-border-inverse-strong:#a39d92;
+  --color-action-on-inverse:#f2efe6;
+  --color-text-on-action-inverse:#191817;
+  --color-action-on-inverse-hover:#d6d1c6;
+  --color-action-on-inverse-active:#c9c4ba;
+  --color-accent-on-inverse:#9da2ff;
+  --color-focus-on-inverse:#8fb4ff;
+}
+
+/* Finishes. Physical paint, so the same in both themes. */
+[data-finish="basalt"]{
+  --product-top:#3d3b37; --product-top-lo:#2f2d2a;
+  --product-front-hi:#302e2b; --product-front-lo:#1e1d1b;
+  --product-fabric:#272523; --product-dot:#403d39;
+  --product-dial-top:#5a5751; --product-dial-side:#2c2a27; --product-knurl:#1a1918;
+  --product-seam:#55524d; --product-foot:#0f0e0d;
+}
+[data-finish="lake"]{
+  --product-top:#2d3b8e; --product-top-lo:#24317a;
+  --product-front-hi:#26337e; --product-front-lo:#172061;
+  --product-fabric:#1d286b; --product-dot:#36428f;
+  --product-dial-top:#d9dbe4; --product-dial-side:#8f94a8; --product-knurl:#6f7489;
+  --product-seam:#4b58a8; --product-foot:#0d1240;
+}
+
+/* Focus ring and accent re-declared where the surface is dark in both themes.
+   A custom property that references another is resolved where it is declared,
+   so the ring has to be spelled again here rather than inherited. */
+.on-inverse{
+  --shadow-focus-ring:0 0 0 2px var(--color-surface-inverse),0 0 0 4px var(--color-focus-on-inverse);
+  --color-chart-after:var(--color-accent-on-inverse);
+}
+.on-footer{
+  --shadow-focus-ring:0 0 0 2px var(--color-footer-bg),0 0 0 4px var(--color-footer-text);
+}
+.on-dialog{
+  --shadow-focus-ring:0 0 0 2px var(--color-surface-dialog),0 0 0 4px var(--color-focus);
+}
+.on-tile{
+  --shadow-focus-ring:0 0 0 2px var(--color-surface-tile),0 0 0 4px var(--color-focus);
+}

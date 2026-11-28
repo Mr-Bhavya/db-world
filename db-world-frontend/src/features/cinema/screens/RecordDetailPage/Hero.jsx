@@ -189,6 +189,7 @@ function RailAction({ label, active, activeColor, onClick, children }) {
         width: '100%', minWidth: 0,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
         background: 'none', border: 'none', p: 0, cursor: 'pointer',
+        minHeight: 44,
         color: active ? activeColor : alpha('#fff', 0.62),
         transition: 'color .18s',
       }}
@@ -227,6 +228,7 @@ const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg
 /* Long enough to read the title and see the artwork first — cutting to video
    immediately reads as an ad rather than an intro. */
 const TRAILER_DELAY_MS = 2600;
+const TRAILER_IDLE_MS = 5000;
 
 /**
  * How long the viewer must be still before the hero clears out of the trailer's way.
@@ -237,8 +239,6 @@ const TRAILER_DELAY_MS = 2600;
  * old 2600ms was tuned for "long enough to finish reading two clamped lines", and reusing
  * it here would take the primary action away from someone who had merely paused to read.
  */
-const HERO_IDLE_MS = 4000;
-
 /**
  * Pick artwork with no title text burned into it.
  *
@@ -285,7 +285,6 @@ export default function Hero({
   const theme = useTheme();
 
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
-  const isXl = useMediaQuery(theme.breakpoints.up('xl'));
   /**
    * "This hero has a whole television in front of it."
    *
@@ -396,51 +395,32 @@ export default function Hero({
     setTrailerDismissed(true);
   };
 
-  /**
-   * Immersive mode: the trailer is playing and the viewer has gone still, so the whole
-   * foreground gets out of its way. Any sign of activity brings it straight back.
-   *
-   * A trailer running behind a full set of chrome is the worst of both — you cannot read
-   * the page and you cannot watch the video. Stillness while a trailer plays is the
-   * clearest signal available that the viewer has chosen the video, so the page yields to
-   * it. Exactly what Prime Video and Hotstar do with the same signal.
-   *
-   * Only ever armed while the trailer is actually playing: with no trailer the copy IS
-   * the hero and must never disappear. Listening on the window rather than the hero, so a
-   * scroll or a mouse move anywhere counts; the events are passive because none of them
-   * are cancelled. `focusin` is in the list because a keyboard user tabbing onto PLAY has
-   * unambiguously interacted, and watching the control they just reached fade out would
-   * be the worst version of this feature.
-   *
-   * Opacity only — collapsing or unmounting would reflow the hero every few seconds.
-   */
-  const [heroIdle, setHeroIdle] = useState(false);
   const reduceMotion = useReducedMotion();
+  const [trailerIdle, setTrailerIdle] = useState(false);
 
   useEffect(() => {
     if (!trailerPlaying) {
-      setHeroIdle(false);
+      setTrailerIdle(false);
       return undefined;
     }
 
     let timer;
     const wake = () => {
-      setHeroIdle(false);
+      setTrailerIdle(false);
       clearTimeout(timer);
-      timer = setTimeout(() => setHeroIdle(true), HERO_IDLE_MS);
+      timer = window.setTimeout(() => setTrailerIdle(true), TRAILER_IDLE_MS);
     };
 
-    wake();   // start the clock; the hero is readable until it runs out
-
-    const EVENTS = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'focusin'];
-    EVENTS.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+    wake();
+    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'focusin'];
+    events.forEach((event) => window.addEventListener(event, wake, { passive: true }));
     return () => {
       clearTimeout(timer);
-      EVENTS.forEach((e) => window.removeEventListener(e, wake));
+      events.forEach((event) => window.removeEventListener(event, wake));
     };
   }, [trailerPlaying]);
 
-  const immersive = trailerPlaying && heroIdle;
+  const immersive = trailerPlaying && trailerIdle;
 
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const endYear = !isMovie && tmdb.lastAirDate ? tmdb.lastAirDate.slice(0, 4) : null;
@@ -502,8 +482,8 @@ export default function Hero({
     <Box component="span" sx={{ display: 'inline-block', width: 3, height: 3, borderRadius: '50%', bgcolor: alpha('#fff', 0.4), verticalAlign: 'middle' }} />
   );
 
-  const btnSize = isTv ? 52 : isXl ? 44 : isXs ? 34 : 38;
-  const iconSize = isTv ? 24 : isXl ? 20 : isXs ? 16 : 18;
+  const btnSize = isTv ? 52 : 44;
+  const iconSize = isTv ? 24 : 20;
 
   // Geometry lives in shared/ctaShape so the sticky watch bar can wear the same shape.
   const CTA_SHAPE = ctaShape({ isTv });
@@ -524,8 +504,8 @@ export default function Hero({
         width: '100%',
         // Phones get a tall, poster-shaped stage; wider viewports keep the
         // cinematic letterbox the landscape backdrop is cut for.
-        minHeight: { xs: '68vh', sm: 420, md: 500, lg: 560, xl: 620 },
-        ...(isXs && { maxHeight: 640 }),
+        minHeight: { xs: '72svh', sm: 440, md: 520, lg: 570, xl: 630 },
+        ...(isXs && { maxHeight: 700 }),
         // Full-bleed only. 75vh of a tall display is a sensible hero when the hero is
         // as wide as the screen; see below for why it is not, inside the modal.
         ...(isTv && { minHeight: '75vh' }),
@@ -672,9 +652,8 @@ export default function Hero({
 
       {/*
         The left wash exists for ONE reason: keeping the copy legible over the artwork.
-        In immersive mode there is no copy, so it is pure loss — a third of the frame
-        darkened to protect text that is not there. Fading it is what actually makes the
-        trailer feel like it took over; hiding the text alone just leaves a dim video.
+        The wash becomes slightly stronger while the trailer plays so metadata
+        stays readable without removing it from the page.
 
         Only this one. The bottom scrim below also blends the hero into the page beneath
         it (its last stop is the page background), so fading that one would put a visible
@@ -682,7 +661,7 @@ export default function Hero({
       */}
       <Box
         component={motion.div}
-        animate={{ opacity: immersive ? 0 : 1 }}
+        animate={{ opacity: immersive ? 0.35 : 1 }}
         transition={{ duration: reduceMotion ? 0 : 0.6, ease: 'easeOut' }}
         sx={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -714,17 +693,55 @@ export default function Hero({
         </IconButton>
       )}
 
+      <AnimatePresence>
+        {immersive && (
+          <Box
+            component={motion.div}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.3 }}
+            aria-hidden
+            sx={{
+              position: 'absolute',
+              zIndex: 3,
+              left: { xs: 18, md: 32, xl: 48 },
+              bottom: { xs: 30, md: 38, xl: 52 },
+              maxWidth: { xs: '72%', md: '40%' },
+              pointerEvents: 'none',
+            }}
+          >
+            {logoUrl ? (
+              <Box
+                component="img"
+                src={logoUrl}
+                alt=""
+                draggable={false}
+                sx={{
+                  maxWidth: { xs: 150, md: 220, xl: 280 },
+                  maxHeight: { xs: 54, md: 76, xl: 96 },
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.8))',
+                }}
+              />
+            ) : (
+              <Typography sx={{
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: { xs: '1rem', md: '1.35rem', xl: '1.6rem' },
+                lineHeight: 1.15,
+                textShadow: '0 2px 12px rgba(0,0,0,0.8)',
+              }}>
+                {tmdb.title ?? record?.name}
+              </Typography>
+            )}
+          </Box>
+        )}
+      </AnimatePresence>
+
       {/*
-        Foreground content.
-
-        Two nested motion layers, deliberately. The inner one owns the ENTRY animation
-        (`variants={COLUMN}`, staggering its children in on mount); the outer one owns the
-        immersive fade. Putting both on one element does not work — `animate="show"` and
-        `animate={{ opacity }}` are the same prop, and the second silently wins.
-
-        Everything the viewer needs while actually watching lives OUTSIDE this block: the
-        back button and the trailer's own mute/replay/stop are siblings, so they survive
-        the fade for free and there is nothing to special-case.
+        Foreground content remains available when the trailer starts, then yields
+        to the autoplay video after a period of no interaction.
       */}
       {/*
         What stays behind while the trailer has the screen: the title, and nothing else.
@@ -739,68 +756,6 @@ export default function Hero({
         already is, and cross-fades against the rest. Lifting the original would have
         meant it could not move independently of the column it lives in.
       */}
-      <AnimatePresence>
-        {immersive && (
-          <Box
-            key="immersive-title"
-            component={motion.div}
-            aria-hidden
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.96 }}
-            // Slower in than the content is out, and delayed past it, so the two are
-            // never at full strength together — that overlap is what makes a cross-fade
-            // read as a glitch rather than a hand-off.
-            transition={{
-              duration: reduceMotion ? 0 : 0.55,
-              delay: reduceMotion ? 0 : 0.18,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            sx={{
-              position: 'absolute',
-              zIndex: 2,
-              left: { xs: 16, sm: 24, md: 40, xl: 64 },
-              bottom: { xs: 20, md: 30, xl: 44 },
-              maxWidth: '70%',
-              pointerEvents: 'none',
-            }}
-          >
-            {logoUrl ? (
-              <Box
-                component="img"
-                src={logoUrl}
-                alt=""
-                draggable={false}
-                sx={{
-                  // Deliberately smaller than the hero's own logo slot: this is a
-                  // watermark identifying the video, not the page's headline.
-                  maxWidth: { xs: 160, sm: 190, md: 230, lg: 260, xl: 300 },
-                  maxHeight: { xs: 60, sm: 64, md: 84, lg: 96, xl: 112 },
-                  objectFit: 'contain',
-                  objectPosition: 'left bottom',
-                  display: 'block',
-                  filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.65))',
-                }}
-              />
-            ) : (
-              <Typography
-                component="p"
-                sx={{
-                  fontSize: { xs: '1.1rem', sm: '1.25rem', md: '1.5rem', xl: '1.8rem' },
-                  fontWeight: 800,
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.15,
-                  color: '#fff',
-                  textShadow: '0 2px 14px rgba(0,0,0,0.75)',
-                }}
-              >
-                {tmdb.title ?? record?.name}
-              </Typography>
-            )}
-          </Box>
-        )}
-      </AnimatePresence>
-
       <Box
         component={motion.div}
         // Scale and lift, not just opacity. A straight fade reads as the page dimming;
@@ -808,9 +763,10 @@ export default function Hero({
         // the way, which is the language Netflix uses when its billboard yields to a
         // trailer. Standard decelerate curve — quick to commit, slow to settle.
         animate={immersive
-          ? { opacity: 0, y: reduceMotion ? 0 : 12, scale: reduceMotion ? 1 : 0.985 }
+          ? { opacity: 0, y: reduceMotion ? 0 : 10, scale: reduceMotion ? 1 : 0.99 }
           : { opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] }}
+        inert={immersive ? '' : undefined}
         // Invisible is not the same as gone. Without this, PLAY is still sitting there
         // waiting to be clicked by someone aiming at the video, and a screen reader would
         // still announce a hero that is not on screen. `inert` covers pointer events,
@@ -820,7 +776,6 @@ export default function Hero({
         // Empty string rather than a boolean: React 18 has no special handling for
         // `inert`, so `true` renders as inert="true" with a warning, while "" renders the
         // bare attribute the HTML spec asks for.
-        inert={immersive ? '' : undefined}
         sx={{
           position: 'relative', zIndex: 2, width: '100%',
           // The page's padding and measure, not its own. The hero ran md:5/xl:8 against the
@@ -831,10 +786,6 @@ export default function Hero({
           [ULTRAWIDE]: { px: PAGE_PX_ULTRAWIDE },
           pt: { xs: 3, md: 6 },
           pb: { xs: 2, md: 3.5, xl: 5 },
-          // Collapse toward the bottom-left rather than the centre, so the block shrinks
-          // INTO roughly where the immersive title is about to appear. Scaling from the
-          // middle would drift the whole column sideways as it goes, which reads as
-          // drift rather than a hand-off.
           transformOrigin: 'left bottom',
           // Belt and braces. `inert` has to survive being forwarded through Box and
           // motion.div to reach the DOM, and if it ever silently stops doing so the
@@ -953,7 +904,7 @@ export default function Hero({
                 for a logo image resizes the block and shunts everything below. */}
             <Box component={motion.div} variants={RISE} sx={{
               display: 'flex', alignItems: 'flex-end',
-              minHeight: { xs: 74, sm: 76, md: 104, lg: 118, xl: 136 },
+              minHeight: { xs: 62, sm: 76, md: 104, lg: 118, xl: 136 },
               // Spread, not a raw @media: CSS cannot see `inModal`, so the query
               // fired for the boxed hero too. Overrides the whole responsive value,
               // exactly as the media query did at this width.
@@ -974,8 +925,8 @@ export default function Hero({
                   transition={{ duration: 0.45, ease: 'easeOut' }}
                   sx={{
                     // Capped so a wide logo doesn't dominate small screens.
-                    maxWidth: { xs: 240, sm: 280, md: 340, lg: 380, xl: 440 },
-                    maxHeight: { xs: 96, sm: 92, md: 124, lg: 144, xl: 168 },
+                    maxWidth: { xs: 230, sm: 280, md: 360, lg: 420, xl: 480 },
+                    maxHeight: { xs: 82, sm: 92, md: 124, lg: 144, xl: 168 },
                     ...(isTv && { maxHeight: 200 }),
                     objectFit: 'contain',
                     objectPosition: 'left center',
@@ -989,7 +940,7 @@ export default function Hero({
                   variant="h1"
                   sx={{
                     color: '#fff', fontWeight: 800, lineHeight: 1.05,
-                    fontSize: { xs: '2rem', sm: '1.8rem', md: '2.5rem', lg: '2.8rem', xl: '3.2rem' },
+                    fontSize: { xs: '2.15rem', sm: '1.9rem', md: '2.6rem', lg: '3rem', xl: '3.4rem' },
                     ...(isTv && { fontSize: '3.8rem' }),
                     textShadow: '0 2px 18px rgba(0,0,0,0.85)',
                     letterSpacing: -0.5,
@@ -1028,13 +979,28 @@ export default function Hero({
               ...(isTv && { minHeight: 48 }),
               display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
             }}>
+            <Box component={motion.div} variants={SLIDE} sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+              mb: 0.75,
+              color: alpha('#fff', 0.72),
+              fontSize: { xs: '0.64rem', md: '0.7rem', xl: '0.76rem' },
+              fontWeight: 800,
+              letterSpacing: 1.25,
+              textTransform: 'uppercase',
+            }}>
+              <Box sx={{ width: 18, height: 2, borderRadius: 1, bgcolor: accentColor }} />
+              {isMovie ? 'Movie' : 'TV series'}
+            </Box>
             {tmdb.tagline ? (
               <Typography component={motion.p} variants={RISE} sx={{
-                color: alpha('#fff', 0.6),
-                fontSize: { xs: '0.8rem', md: '0.92rem', xl: '1.05rem' },
+                color: alpha('#fff', 0.76),
+                fontSize: { xs: '0.82rem', md: '0.94rem', xl: '1.05rem' },
                 ...(isTv && { fontSize: '1.2rem' }),
-                fontWeight: 500, fontStyle: 'italic',
-                letterSpacing: 0.3, mt: 0.5,
+                fontWeight: 500,
+                letterSpacing: 0.1, mt: 0.5,
+                lineHeight: 1.45,
                 textShadow: '0 1px 8px rgba(0,0,0,0.6)',
               }}>
                 {tmdb.tagline}
@@ -1087,6 +1053,7 @@ export default function Hero({
                   // box beside pill-shaped chips looked like a different component.
                   bgcolor: alpha('#000', 0.35), borderRadius: 999,
                   px: { xs: 0.85, xl: 1.1 }, py: 0.25,
+                  border: `1px solid ${alpha('#fbbf24', 0.28)}`,
                 }}>
                   <StarRoundedIcon sx={{ fontSize: { xs: 16, xl: 20 }, color: '#fbbf24' }} />
                   <Typography sx={{
@@ -1183,7 +1150,14 @@ export default function Hero({
             {watchOn.items.length > 0 && (
               <Box component={motion.div} variants={SLIDE} sx={{
                 display: 'flex', alignItems: 'center', flexWrap: 'wrap',
-                gap: { xs: 0.6, md: 0.75 }, mb: 1,
+                gap: { xs: 0.6, md: 0.75 }, mb: 1.25,
+                width: 'fit-content',
+                px: { xs: 0.75, md: 1 },
+                py: 0.65,
+                borderRadius: 2,
+                bgcolor: alpha('#000', 0.28),
+                border: `1px solid ${alpha('#fff', 0.1)}`,
+                backdropFilter: 'blur(8px)',
               }}>
                 <Typography component="span" sx={{
                   color: alpha('#fff', 0.5), textTransform: 'uppercase',
@@ -1234,10 +1208,8 @@ export default function Hero({
             {/* Same containment as the cluster above: a two-line slot that holds
                 its height whether the synopsis is present, still loading, or
                 missing altogether. */}
-            {/* No longer fades on its own — the whole foreground does, one level up. This
-                used to be the ONLY thing immersive mode hid, which is why the effect
-                looked broken: it is `display: none` below `sm`, so on a phone there was
-                nothing to fade and the trailer played behind a full set of chrome. */}
+            {/* Desktop-only synopsis. On phones the full overview follows immediately
+                below the hero, avoiding dense text over the trailer artwork. */}
             <Box
               sx={{
               display: { xs: 'none', sm: 'block' },
@@ -1246,12 +1218,12 @@ export default function Hero({
             }}>
             {heroOverview && !isXs ? (
               <Typography component={motion.p} variants={SLIDE} sx={{
-                color: alpha('#fff', 0.55),
-                fontSize: { sm: '0.82rem', md: '0.85rem', lg: '0.88rem', xl: '1rem' },
+                color: alpha('#fff', 0.7),
+                fontSize: { sm: '0.86rem', md: '0.9rem', lg: '0.92rem', xl: '1rem' },
                 ...(isTv && { fontSize: '1.15rem' }),
                 lineHeight: 1.6,
                 mb: 1.75,
-                maxWidth: { sm: 400, md: 520, lg: 600, xl: 700 },
+                maxWidth: { sm: 430, md: 570, lg: 650, xl: 740 },
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 ...(isTv && { WebkitLineClamp: 4 }),
@@ -1488,7 +1460,7 @@ export default function Hero({
                   liked={interaction?.liked ?? false}
                   loved={interaction?.loved ?? false}
                   onToggle={onToggle}
-                  btnSize={26}
+                  btnSize={44}
                   iconSize={22}
                 />
                 <Typography component="span" sx={{
@@ -1521,7 +1493,7 @@ export default function Hero({
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
               }}>
                 <Box component="span" data-noexpand sx={{ display: 'inline-flex', color: alpha('#fff', 0.62) }}>
-                  <ShareButton flat record={record} size={26} />
+                  <ShareButton flat record={record} size={44} />
                 </Box>
                 <Typography component="span" sx={{
                   fontSize: '0.6rem', fontWeight: 700, letterSpacing: 0.2,

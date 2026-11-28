@@ -171,7 +171,7 @@ export default function PillNav({
                   onClick={onDismiss}
                   aria-label="Back"
                   sx={{
-                    width: 34, height: 34,
+                    width: 44, height: 44,
                     color: T.text,
                     bgcolor: alpha(T.text, 0.08),
                     border: `1px solid ${alpha(T.text, 0.12)}`,
@@ -212,6 +212,8 @@ export default function PillNav({
 
         <Box
           ref={barRef}
+          component="nav"
+          aria-label="Record detail sections"
           sx={{
             display: 'flex', gap: 0.75, py: 1.25, minWidth: 0, flex: 1,
             overflowX: 'auto',
@@ -226,12 +228,14 @@ export default function PillNav({
                 key={s.id}
                 data-id={s.id}
                 component={motion.button}
+                aria-current={isActive ? 'location' : undefined}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => handleClick(s.id)}
                 sx={{
                   position: 'relative',
                   px: { xs: 1.75, sm: 2.25 },
                   py: { xs: 0.75, sm: 0.85 },
+                  minHeight: 44,
                   borderRadius: 999,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',

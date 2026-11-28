@@ -1,0 +1,279 @@
+/* Pellwood store theme.
+   Design system: Floyd (design-systems/library/floyd/DESIGN.md, "Home & Furniture",
+   measured spec). Borrowed: the warm vintage-cream canvas #f8f6ed, brand-black
+   #231e1e for ink and buttons with cream text on them, large tightly tracked sans
+   statements at -0.04em, monospaced uppercase eyebrows and numbered steps, near-square
+   geometry (1px, 3px, 5px radii), underlined arrow links instead of secondary buttons,
+   a flat surface with one quiet lift, and the floyd-red accent.
+   The brand, its concept (a joinery workshop that makes to order and repairs) and
+   its products are fictional and are not Floyd's. No Floyd name, logo or typeface is used.
+
+   Adaptations, stated on purpose (Library Contract):
+   - Proprietary faces ("Regular", Floyd Gothic, GT America Mono) are replaced with
+     system stacks: Helvetica Neue / system sans, and ui-monospace for the eyebrows.
+   - #7e7b71 brand gray is 3.91:1 on the canvas and fails small text, so it is kept
+     only as the strong UI border; eyebrows use #605f5e (5.00:1 even on the stone tile).
+   - Primary hover #75736c gives cream text 4.38:1, below AA. Hover is #4a4542 (8.73:1).
+   - floyd-red #ef4123 fails as text and as a badge fill; the accent is #bd3a1e (5.12:1).
+   - Spacing snapped to the 4px scale; the 51px Add to cart becomes the 52px control.
+   - The full-bleed hero photography becomes a capped inline SVG render (screen economy).
+   - Dark mode is designed, not inverted: graphite surfaces, the button flips to cream.
+     Product drawings keep a light stone surface in both themes, the way product
+     photography keeps its studio background, so dark woods stay visible. */
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --color-surface-page: #f8f6ed;
+  --color-surface-card: #fffdf6;
+  --color-surface-tile: #e6e4dc;
+  --color-surface-chip: #d9d6cb;
+  --color-surface-highlight: #f9f6d7;
+  --color-surface-inverse: #231e1e;
+  --color-text-inverse: #f8f6ed;
+  --color-text-inverse-secondary: #c9c4b8;
+  --color-band-bg: #231e1e;
+  --color-band-text: #f8f6ed;
+  --color-band-text-secondary: #c9c4b8;
+  --color-band-border: #4a4542;
+  --color-scrim: rgba(20, 20, 20, 0.42);
+
+  /* text */
+  --color-text-primary: #231e1e;
+  --color-text-secondary: #605f5e;
+  --color-text-link: #231e1e;
+
+  /* actions */
+  --color-action-primary: #231e1e;
+  --color-action-primary-hover: #4a4542;
+  --color-action-primary-active: #141010;
+  --color-text-on-action: #f8f6ed;
+  --color-action-destructive: #a3301a;
+  --color-action-destructive-hover: #7f2414;
+  --color-interactive-hover-bg: #efece2;
+  --color-interactive-selected-bg: #231e1e;
+  --color-interactive-selected-text: #f8f6ed;
+
+  /* accent (one, used sparingly) */
+  --color-accent: #bd3a1e;
+  --color-text-on-accent: #f8f6ed;
+
+  /* borders */
+  --color-border-default: #d8d4c4;
+  --color-border-strong: #7e7b71;
+  --color-border-error: #a3301a;
+
+  /* feedback */
+  --color-feedback-success-icon: #386641;
+  --color-feedback-warning-icon: #8a5a00;
+  --color-feedback-error-icon: #a3301a;
+
+  /* product surface: a light stone in BOTH themes, like studio photography */
+  --color-surface-product: #e6e4dc;
+  --color-surface-product-hover: #dcd9ce;
+  --color-text-on-product: #231e1e;
+  --color-text-on-product-secondary: #55524d;
+  --color-label-bg: #f8f6ed;
+  --color-label-ink: #231e1e;
+
+  /* materials: the products are physical, so they keep their colour in both themes */
+  --mat-oak: #c9a06a;
+  --mat-oak-shade: #a8804e;
+  --mat-oak-frame: #b58a54;
+  --mat-walnut: #6b4a33;
+  --mat-walnut-shade: #4f3524;
+  --mat-walnut-frame: #5c3f2b;
+  --mat-ash: #dfcba5;
+  --mat-ash-shade: #bfa77e;
+  --mat-ash-frame: #cfb68b;
+  --mat-ebonised: #3d3631;
+  --mat-ebonised-shade: #27221f;
+  --mat-ebonised-frame: #322c28;
+  --mat-oat: #d9cdb4;
+  --mat-oat-shade: #bcae92;
+  --mat-moss: #6f7a4f;
+  --mat-moss-shade: #555f3a;
+  --mat-charcoal: #4a4746;
+  --mat-charcoal-shade: #363332;
+  --mat-paper: #f3ead6;
+  --mat-cord: #cdb487;
+  --mat-cable: #231e1e;
+  --mat-line: rgba(35, 30, 30, 0.45);
+  --mat-shadow: rgba(35, 30, 30, 0.16);
+  --scene-wall: #ece7da;
+  --scene-floor: #d9cfb9;
+  --scene-plant: #4f6b45;
+  --scene-plant-shade: #3d5536;
+  --scene-pot: #b8826a;
+  --scene-window: #f6f3e8;
+
+  /* type */
+  --font-sans: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Sukhumvit Set", "Thonburi", "Noto Sans Thai", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
+  --text-display: 2.75rem;
+  --text-svg-label: 9px;
+  --leading-display: 1.02;
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --tracking-display: -0.04em;
+  --tracking-tight: -0.02em;
+  --tracking-mono: 0.04em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --measure: 65ch;
+  --measure-display: 18ch;
+
+  /* spacing, 4px base */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --gutter: var(--space-4);
+  --section-gap: var(--space-16);
+
+  /* radii: near-square, varied by size */
+  --radius-hairline: 1px;
+  --radius-chip: 0.1875rem;
+  --radius-button: 0.3125rem;
+  --radius-tile: 0.5rem;
+  --radius-full: 999rem;
+  --radius-round: 50%;
+
+  --border-width-thin: 1px;
+  --border-width-medium: 0.125rem;
+
+  /* sizing */
+  --size-control-sm: 2.25rem;
+  --size-control-md: 2.75rem;
+  --size-control-lg: 3.25rem;
+  --size-icon-sm: 1rem;
+  --size-icon-md: 1.25rem;
+  --size-swatch: 2.75rem;
+  --size-badge: 1.25rem;
+  --size-thumb: 4.5rem;
+  --size-cart-thumb: 4.75rem;
+  --size-drawer: 27rem;
+  --size-container: 84rem;
+  --size-listbox: 16rem;
+  --size-media-max: 60vh;
+  --size-hero-media-max: 52vh;
+
+  /* depth: flat by default, one quiet lift, and real overlays */
+  --shadow-lift: 0 1px 2px rgba(35, 30, 30, 0.05), 0 6px 18px rgba(35, 30, 30, 0.07);
+  --shadow-popover: 0 2px 4px rgba(35, 30, 30, 0.06), 0 16px 40px rgba(35, 30, 30, 0.14);
+  --shadow-drawer: -12px 0 48px rgba(20, 16, 16, 0.18);
+  --shadow-focus-ring: 0 0 0 2px var(--color-surface-page), 0 0 0 4px var(--color-text-primary);
+
+  /* motion */
+  --duration-zero: 0s;
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  --duration-spin: 800ms;
+  --stagger: 30ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  --ease-in-out: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+  --ease-drawer: cubic-bezier(0.2, 0, 0, 1);
+  --transition-micro: var(--duration-fast) var(--ease-out);
+
+  /* opacity */
+  --opacity-disabled: 0.5;
+
+  /* layering */
+  --z-header: 20;
+  --z-popover: 30;
+  --z-scrim: 40;
+  --z-drawer: 50;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-surface-page: #1a1817;
+  --color-surface-card: #24211f;
+  --color-surface-tile: #34302c;
+  --color-surface-chip: #3a3532;
+  --color-surface-highlight: #3a3424;
+  --color-surface-inverse: #f3efe4;
+  --color-text-inverse: #1a1817;
+  --color-text-inverse-secondary: #4a4542;
+  --color-band-bg: #2e2a27;
+  --color-band-text: #f3efe4;
+  --color-band-text-secondary: #b5b0a6;
+  --color-band-border: #4a4440;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+
+  --color-text-primary: #f3efe4;
+  --color-text-secondary: #b5b0a6;
+  --color-text-link: #f3efe4;
+
+  --color-action-primary: #f3efe4;
+  --color-action-primary-hover: #d9d3c4;
+  --color-action-primary-active: #c4bdab;
+  --color-text-on-action: #1a1817;
+  --color-action-destructive: #ff8f7a;
+  --color-action-destructive-hover: #ffb3a4;
+  --color-interactive-hover-bg: #2a2724;
+  --color-interactive-selected-bg: #f3efe4;
+  --color-interactive-selected-text: #1a1817;
+
+  --color-accent: #ff8a6b;
+  --color-text-on-accent: #1a1817;
+
+  --color-border-default: #3d3834;
+  --color-border-strong: #8b857b;
+  --color-border-error: #ff8f7a;
+
+  --color-feedback-success-icon: #8fbf8f;
+  --color-feedback-warning-icon: #e0a83a;
+  --color-feedback-error-icon: #ff8f7a;
+
+  --color-surface-product: #d8d3c6;
+  --color-surface-product-hover: #cdc7b8;
+
+  --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.32);
+  --shadow-popover: 0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px rgba(0, 0, 0, 0.5);
+  --shadow-drawer: -12px 0 48px rgba(0, 0, 0, 0.5);
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --text-display: 3.75rem;
+    --gutter: var(--space-8);
+    --section-gap: var(--space-20);
+  }
+}
+
+@media (min-width: 80rem) {
+  :root {
+    --text-display: 4.5rem;
+    --gutter: var(--space-10);
+    --section-gap: var(--space-24);
+  }
+}

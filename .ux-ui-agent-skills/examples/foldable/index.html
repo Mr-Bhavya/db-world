@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iPhone Duo simulator - UX/UI Agent Skills</title>
+<meta name="description" content="A real template rendered at each viewport Safari gives a page on iPhone Duo, including the inner screen half closed with the hinge kept clear." />
+<link rel="stylesheet" href="../brandkit-demo/theme.css" />
+<link rel="stylesheet" href="../templates/shell.css" />
+<style>
+  /* Every screen size on this page comes from the table in the script, which is
+     WebKit's published list for Safari 27.1, so the CSS holds no device numbers.
+     Each screen is a real iframe at its exact CSS width and then scaled to fit, so
+     the page inside it meets the media queries it would meet on the device. */
+  .wrap{max-inline-size:72rem;margin-inline:auto;padding:var(--space-8) var(--space-4) var(--space-12);
+    display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-8)}
+  @media (min-width:40rem){.wrap{padding-inline:var(--space-6)}}
+  .intro{display:grid;gap:var(--space-4);max-inline-size:44rem}
+  .intro h1{font-size:var(--text-5xl);line-height:var(--leading-tight);letter-spacing:-0.03em}
+  .intro p{color:var(--color-text-secondary);font-size:var(--text-lg)}
+
+  .controls{display:grid;gap:var(--space-5)}
+  @media (min-width:48rem){.controls{grid-template-columns:minmax(0,2fr) minmax(0,1fr);align-items:start}}
+  .group{display:grid;gap:var(--space-3);min-inline-size:0}
+  .choices{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+  .choices .btn[aria-pressed="true"]{background:var(--color-surface-brand);border-color:var(--color-action-primary);
+    color:var(--color-text-primary)}
+
+  /* minmax(0,1fr): a track sized to its content would grow to the device's real
+     width, and the scaled-down copy would sit in a column as wide as the original. */
+  .stage{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);min-inline-size:0;margin:0}
+  /* The device keeps its real size and is scaled down; clip keeps the unscaled
+     box from widening the page on a phone. */
+  .fit{inline-size:100%;overflow:clip;display:grid;justify-items:start;align-items:start}
+  .device{transform-origin:top left;scale:var(--fit,1);padding:var(--space-3);
+    background:var(--color-surface-inverse);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg)}
+  .screens{position:relative;display:flex;gap:var(--space-3)}
+  .screens iframe{display:block;border:0;border-radius:var(--radius-sm);background:var(--color-surface-page)}
+  .hinge{position:absolute;inset-block:0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,var(--color-feedback-error-text) 0 var(--border-width-medium),transparent 0 var(--space-2));
+    opacity:.35}
+  .readout{display:grid;gap:var(--space-2);text-align:center;justify-items:center}
+  .readout strong{font-size:var(--text-xl);font-variant-numeric:tabular-nums}
+  .readout p{max-inline-size:44rem}
+
+  .facts{display:grid;gap:var(--space-4)}
+  @media (min-width:48rem){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .facts section{background:var(--color-surface-card);border:1px solid var(--color-border-default);
+    border-radius:var(--radius-card);padding:var(--space-5);display:grid;gap:var(--space-3);align-content:start}
+  .facts h2{font-size:var(--text-lg)}
+  .facts p,.facts li{font-size:var(--text-sm);color:var(--color-text-secondary)}
+  .facts ul{padding-inline-start:var(--space-5);display:grid;gap:var(--space-2)}
+  .facts a{color:var(--color-text-link)}
+  /* A function name or a script path is one unbreakable token and would set the
+     card's minimum width on a 280px phone. Cause 3 in the narrow-width rules. */
+  .facts section{min-inline-size:0}
+  .facts p,.facts li,.facts h2,.readout{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="intro">
+    <p class="eyebrow">Foldables</p>
+    <h1>iPhone Duo, every way it opens.</h1>
+    <p>A real template from this kit, rendered at each viewport Safari gives a page on iPhone Duo. Fold it, and the
+      pipeline takes one half of the screen and the selected deal the other, with nothing on the hinge.</p>
+  </header>
+
+  <div class="controls">
+    <div class="group" role="group" aria-labelledby="poseLabel">
+      <p class="eyebrow" id="poseLabel">Pose</p>
+      <div class="choices" id="poses"></div>
+    </div>
+    <div class="group" role="group" aria-labelledby="pageLabel">
+      <p class="eyebrow" id="pageLabel">Page</p>
+      <div class="choices" id="pages"></div>
+    </div>
+  </div>
+
+  <figure class="stage">
+    <div class="fit" id="fit">
+      <div class="device" id="device"><div class="screens" id="screens"></div></div>
+    </div>
+    <figcaption class="readout" aria-live="polite">
+      <strong id="size"></strong>
+      <p class="note" id="explain"></p>
+    </figcaption>
+  </figure>
+
+  <div class="facts">
+    <section aria-labelledby="realTitle">
+      <h2 id="realTitle">What is real here</h2>
+      <ul>
+        <li>The widths and heights. They are the CSS viewports WebKit published for Safari 27.1 on iPhone Duo.</li>
+        <li>The page. Each screen is the template itself at that exact CSS width, so every media query in it answers
+          as it would on the device.</li>
+        <li>The folded layout. It is the same CSS that runs on the device; the gate renders it with a real emulated
+          fold in Chrome and fails the page if any text or control lands on the hinge.</li>
+      </ul>
+    </section>
+    <section aria-labelledby="simTitle">
+      <h2 id="simTitle">What is simulated</h2>
+      <ul>
+        <li>The fold. No desktop browser has one to report, so this page tells the template where it is through the
+          URL. On the device, Safari reports it through <code>env(viewport-segment-*)</code> once its Viewport
+          Segments flag is on.</li>
+        <li>The hinge position, 455 to 495px. A third party measured it in Apple's simulator; Apple does not publish it.</li>
+        <li>Safari itself. This is your browser drawing the page, not Safari, and only the book pose on its side is
+          shown folded.</li>
+      </ul>
+      <p>Sources: <a href="https://webkit.org/blog/18486/webkit-features-for-safari-27-1/">WebKit features for Safari 27.1</a>,
+        and <code>scripts/verify_responsive.mjs</code>, which tests all five widths and the fold.</p>
+    </section>
+  </div>
+</main>
+
+<div class="credit">
+  <span>iPhone Duo simulator. Companies and figures in the templates are fictional.</span>
+  <span>Built with <a href="https://github.com/plugin87/ux-ui-agent-skills"><strong>ux-ui-agent-skills</strong></a> by Thientan Soparat. <a href="../index.html">All examples</a></span>
+</div>
+
+<script>
+  /* WebKit, "WebKit features for Safari 27.1": the CSS viewport per pose, width
+     and small-viewport height. The fold is [where the first segment ends, hinge
+     width]. */
+  const POSES = [
+    { id: 'outer-up',   label: 'Closed, upright',     screens: [[382, 580]], says: 'Outer screen, upright. A phone width: the mobile-first base layout.' },
+    { id: 'outer-side', label: 'Closed, on its side', screens: [[594, 368]], says: 'Outer screen, on its side. Wide but short, where a layout first tries two columns.' },
+    { id: 'inner-up',   label: 'Open, upright',       screens: [[669, 867]], says: 'Inner screen, upright. Tablet-like width in a phone.' },
+    { id: 'inner-side', label: 'Open, on its side',   screens: [[951, 585]], says: 'Inner screen, on its side and flat. One viewport, no fold to answer.' },
+    { id: 'split',      label: 'Two windows',         screens: [[385, 571], [385, 571]], says: 'Inner screen, two windows side by side. Each one is a phone width again.' },
+    { id: 'folded',     label: 'Half closed',         screens: [[951, 585]], fold: [455, 40],
+      says: 'Inner screen on its side, half closed like a book: two viewport segments with the hinge between them.' },
+  ];
+  const PAGES = [
+    { id: 'crm', label: 'Cadence CRM, fold-aware', src: '../templates/crm.html',
+      folded: 'This page answers the fold: the pipeline on the left segment, the selected deal on the right, the hinge empty.' },
+    { id: 'emr', label: 'Meridian EMR, one layout', src: '../templates/emr.html',
+      folded: 'This page does not answer the fold. It keeps one layout across the hinge, which is what Safari shows by default, and it works.' },
+  ];
+
+  const state = { pose: 'folded', page: 'crm' };
+  const $ = (id) => document.getElementById(id);
+
+  function choices(el, items, key) {
+    for (const item of items) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-secondary';
+      b.textContent = item.label;
+      b.dataset.id = item.id;
+      b.addEventListener('click', () => { state[key] = item.id; render(); });
+      el.append(b);
+    }
+  }
+
+  function render() {
+    const pose = POSES.find(p => p.id === state.pose);
+    const page = PAGES.find(p => p.id === state.page);
+    for (const b of document.querySelectorAll('#poses .btn')) b.setAttribute('aria-pressed', String(b.dataset.id === pose.id));
+    for (const b of document.querySelectorAll('#pages .btn')) b.setAttribute('aria-pressed', String(b.dataset.id === page.id));
+
+    const screens = $('screens');
+    screens.replaceChildren();
+    pose.screens.forEach(([w, h], i) => {
+      const f = document.createElement('iframe');
+      f.src = page.src + (pose.fold ? '?fold=' + pose.fold.join(',') : '');
+      f.style.inlineSize = w + 'px';
+      f.style.blockSize = h + 'px';
+      f.title = `${page.label}, ${pose.label.toLowerCase()}${pose.screens.length > 1 ? ', window ' + (i + 1) : ''}, ${w} by ${h} CSS pixels`;
+      screens.append(f);
+    });
+    if (pose.fold) {
+      const hinge = document.createElement('div');
+      hinge.className = 'hinge';
+      hinge.setAttribute('aria-hidden', 'true');
+      hinge.style.insetInlineStart = pose.fold[0] + 'px';
+      hinge.style.inlineSize = pose.fold[1] + 'px';
+      screens.append(hinge);
+    }
+
+    const [w, h] = pose.screens[0];
+    $('size').textContent = pose.screens.length > 1
+      ? `${pose.screens.length} windows, each ${w} by ${h} CSS px`
+      : `${w} by ${h} CSS px` + (pose.fold ? `, hinge at ${pose.fold[0]} to ${pose.fold[0] + pose.fold[1]}px` : '');
+    $('explain').textContent = pose.says + (pose.fold ? ' ' + page.folded : '');
+    fit();
+  }
+
+  /* Scale the real-size device to the space there is, centre it, and reserve
+     its scaled height so the page below does not jump. It scales from its top
+     left corner: a box wider than its grid cell starts at the cell's edge, so a
+     centre origin would push the scaled copy sideways. */
+  function fit() {
+    const device = $('device'), box = $('fit');
+    box.style.blockSize = '';
+    device.style.setProperty('--fit', 1);
+    const scale = Math.min(1, box.clientWidth / device.offsetWidth);
+    device.style.setProperty('--fit', scale);
+    device.style.marginInlineStart = Math.max(0, (box.clientWidth - device.offsetWidth * scale) / 2) + 'px';
+    box.style.blockSize = Math.ceil(device.offsetHeight * scale) + 'px';
+  }
+
+  choices($('poses'), POSES, 'pose');
+  choices($('pages'), PAGES, 'page');
+  render();
+  addEventListener('resize', fit);
+</script>
+</body>
+</html>

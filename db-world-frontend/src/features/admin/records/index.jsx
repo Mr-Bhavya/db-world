@@ -24,7 +24,7 @@ import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   AdminPage, SectionCard, StatCard, StatGrid, StickyBar, usePagedListTop,
-  AdminActionButton, TableSkeleton, ErrorState, adminSurface,
+  AdminActionButton, TableSkeleton, ErrorState, AdminConfirmDialog, adminSurface,
 } from '@features/admin/adminUi';
 import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb, setRecordVisibility } from '../api/adminApi';
 import { useRecordStore } from '../stores/useRecordStore';
@@ -219,6 +219,7 @@ export default function RecordManagementV2() {
   } = useRecordStore();
 
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
   const [page, setPage] = useState(0);
 
@@ -291,7 +292,12 @@ export default function RecordManagementV2() {
   });
 
   const handleDelete = useCallback((id) => {
-    if (window.confirm('Delete this record?')) doDelete(id);
+    setDeleteConfirmation({
+      title: 'Delete record?',
+      message: 'This record and its catalog data will be permanently removed. This cannot be undone.',
+      confirmLabel: 'Delete record',
+      run: () => doDelete(id),
+    });
   }, [doDelete]);
 
   // Bulk actions fan out over the current single-record endpoints (no dedicated
@@ -312,9 +318,14 @@ export default function RecordManagementV2() {
   }, [selectedRows, qc, clearSelection]);
 
   const handleBulkDelete = useCallback(() => {
-    if (window.confirm(`Delete ${selectedRows.length} record(s)? This cannot be undone.`)) {
-      runBulk('Deleted', id => deleteRecord(id));
-    }
+    const count = selectedRows.length;
+    if (!count) return;
+    setDeleteConfirmation({
+      title: `Delete ${count} record${count === 1 ? '' : 's'}?`,
+      message: 'The selected catalog records and their data will be permanently removed. This cannot be undone.',
+      confirmLabel: `Delete ${count} record${count === 1 ? '' : 's'}`,
+      run: () => runBulk('Deleted', id => deleteRecord(id)),
+    });
   }, [selectedRows, runBulk]);
 
   const editRecord = useMemo(() =>
@@ -424,6 +435,19 @@ export default function RecordManagementV2() {
       <RecordDetailDrawer rows={rows} />
       <RecordCreateModal    open={modalState === 'create'} onClose={closeModal} />
       <RecordEditModal      open={modalState === 'edit'}   record={editRecord} onClose={closeModal} />
+      <AdminConfirmDialog
+        open={Boolean(deleteConfirmation)}
+        title={deleteConfirmation?.title}
+        message={deleteConfirmation?.message}
+        confirmLabel={deleteConfirmation?.confirmLabel}
+        loading={bulkBusy}
+        onConfirm={() => {
+          const run = deleteConfirmation?.run;
+          setDeleteConfirmation(null);
+          run?.();
+        }}
+        onClose={() => setDeleteConfirmation(null)}
+      />
     </AdminPage>
   );
 }

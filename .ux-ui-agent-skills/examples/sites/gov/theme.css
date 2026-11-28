@@ -1,0 +1,250 @@
+/* examples/sites/gov theme.css
+   Design system: korea-gov (KRDS, the Korea Design System), resolved through the
+   Library Contract in taste/aesthetic-systems.md. Borrowed: the visual language only
+   (one civic blue for action, navy for structure, 1px #cdd1d5-family hairlines,
+   stepped 4/6/8/12px radii, 17px body on generous line height, 64px hero buttons,
+   thick focus ring, flat surfaces, a dark-navy hero band). Not borrowed: any name,
+   seal, emblem or logo. The agency on the page is fictional.
+
+   Values changed from the measured spec, and why:
+   - primary #256ef4 -> #0a45b5 (8.30:1 on white). The KRDS fill is 4.6:1; a public
+     service page here aims at 7:1 for text, and button labels are text.
+   - link #0b50d0 -> the same #0a45b5, so links and the action share one blue.
+   - ink #464c53 -> #3f454c for secondary text (over 7:1 on every light surface).
+   - canvas #ffffff -> #f5f6f8 page with #fdfdfe cards, so no surface is pure white.
+   - Pretendard GOV -> a system Thai stack (Sukhumvit Set, Noto Sans Thai, Leelawadee
+     UI, Thonburi). No web fonts are loaded.
+   - line height 1.5 -> 1.7 for body and 1.48 for display: Thai stacks vowels and
+     tone marks above and below the line and needs more room than Hangul.
+   - spacing snapped to the 4px scale (tokens/spacing.json).
+   - dark theme designed here: KRDS publishes light and high-contrast themes only. */
+
+:root{
+  color-scheme: light;
+
+  /* surfaces */
+  --color-surface-page:#f5f6f8;
+  --color-surface-card:#fdfdfe;
+  --color-surface-raised:#eaedf1;
+  --color-surface-brand:#e6eefb;          /* civic blue wash (KRDS surface-tint family) */
+  --color-surface-inverse:#0b2a5c;        /* the navy hero and footer band */
+  --color-surface-inverse-raised:#14386f;
+  --color-surface-notice:#fbf3e2;         /* the fictional-site notice strip */
+
+  /* text */
+  --color-text-primary:#1e2124;
+  --color-text-secondary:#3f454c;
+  --color-text-inverse:#f1f5fc;
+  --color-text-inverse-secondary:#c4d3ee;
+  --color-text-link:#0a45b5;
+  --color-text-link-hover:#062f7e;
+  --color-text-on-action:#fdfdfe;
+  --color-text-on-inverse-action:#0b2a5c;
+
+  /* action: one blue, by intent */
+  --color-action-primary:#0a45b5;
+  --color-action-primary-hover:#083b9c;
+  --color-action-primary-active:#062f7e;
+  --color-action-secondary-hover:#e6eefb;
+  --color-action-secondary-active:#d3e0f7;
+  --color-action-inverse:#f1f5fc;          /* the button on the navy band */
+  --color-action-inverse-hover:#d3e0f7;
+  --color-action-inverse-active:#bcd0f2;
+  --color-action-destructive:#a01c12;
+  --color-interactive-selected-bg:#e6eefb;
+  --color-pressed-bg:#0a45b5;              /* a pressed toggle in the header */
+  --color-pressed-text:#fdfdfe;
+  --color-pressed-hover:#083b9c;
+  --color-pressed-active:#062f7e;
+  --color-pressed-ring:#0a45b5;
+  --color-mark-bg:#0b2a5c;
+  --color-mark-dot:#6f9be6;
+
+  /* borders */
+  --color-border-default:#cdd1d5;          /* decorative: dividers, card edges */
+  --color-border-strong:#6b7178;           /* essential control edges, 4.9:1 */
+  --color-border-inverse:#3a5d96;
+  --color-border-error:#a01c12;
+  --color-focus:#0a45b5;
+
+  /* feedback: icon + text always, never colour alone */
+  --color-feedback-success-text:#105726;
+  --color-feedback-success-bg:#e8f4ec;
+  --color-feedback-warning-text:#7a4f00;
+  --color-feedback-warning-bg:#fbf3e2;
+  --color-feedback-error-text:#a01c12;
+  --color-feedback-error-bg:#fcecea;
+  --color-feedback-info-text:#0a45b5;
+  --color-feedback-info-bg:#e6eefb;
+
+  /* illustration (hero shopfront) */
+  --color-art-wall:#f1f5fc;
+  --color-art-line:#c4d3ee;
+  --color-art-awning:#3f73cc;
+  --color-art-awning-alt:#c4d3ee;
+  --color-art-glass:#14386f;
+  --color-art-card:#fdfdfe;
+  --color-art-ink:#0b2a5c;
+  --color-art-ok:#15692e;
+
+  /* type */
+  --font-sans:"Sukhumvit Set","Noto Sans Thai","Noto Sans Thai UI","Leelawadee UI","Leelawadee","Thonburi","Tahoma",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-root-lg:118.75%;
+  --font-root-xl:137.5%;
+  --text-xs:.8125rem;
+  --text-sm:.9375rem;
+  --text-base:1.0625rem;                   /* KRDS body, 17px */
+  --text-lg:1.1875rem;
+  --text-xl:1.375rem;
+  --text-2xl:1.625rem;
+  --text-3xl:2.125rem;
+  --text-display:2.75rem;                  /* 44px on a phone, 2.6x body */
+  --text-display-wide:3.75rem;             /* 60px at desktop, 3.5x body */
+  --text-display-fluid:10.8vw;             /* below about 410px the H1 shrinks with the screen: 2 lines at 390px, 3 at 320px, not 4 */
+  --text-display-fluid-wide:6vw;
+  --text-figure:2.5rem;
+  --text-figure-fluid:11vw;                /* the fee figure and its unit stay on one line down to 280px */
+  --text-phone-fluid:9vw;
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+  --leading-display:1.48;                  /* Thai stacks tone marks above vowels: 1.3 let them touch the line above */
+  --leading-heading:1.5;
+  --leading-body:1.7;
+  --leading-tight:1.2;
+  --measure-body:62ch;
+  --measure-display:20ch;
+  --tracking-label:.02em;
+
+  /* spacing, 4px base */
+  --space-0-5:.125rem;
+  --space-1:.25rem;
+  --space-2:.5rem;
+  --space-3:.75rem;
+  --space-4:1rem;
+  --space-5:1.25rem;
+  --space-6:1.5rem;
+  --space-8:2rem;
+  --space-10:2.5rem;
+  --space-12:3rem;
+  --space-16:4rem;
+  --space-20:5rem;
+  --gutter:1rem;
+  --gutter-wide:2rem;
+
+  /* radius, KRDS stepped */
+  --radius-xs:4px;
+  --radius-sm:6px;
+  --radius-md:8px;
+  --radius-lg:12px;
+  --radius-xl:16px;
+  --radius-full:9999px;
+
+  /* border widths */
+  --border-thin:1px;
+  --border-medium:2px;
+  --border-thick:3px;
+
+  /* sizes */
+  --size-target:2.75rem;                   /* 44px, AAA 2.5.5 */
+  --size-target-compact:2rem;              /* 44px at the largest text size (root 137.5%): header toggles on a phone keep the AAA target without growing with the text */
+  --size-control:3.25rem;
+  --size-control-lg:4rem;                  /* KRDS hero button */
+  --size-check:1.75rem;
+  --size-icon-sm:1.125rem;
+  --size-icon:1.25rem;
+  --size-icon-lg:1.5rem;
+  --size-mark:2.75rem;
+  --size-step:2.5rem;
+  --size-progress:.5rem;
+  --size-container:76rem;
+  --size-toc:15rem;
+  --size-art:22rem;
+  --size-hairline:1px;
+
+  /* depth: flat by default, two layers for floating things */
+  --shadow-card:0 1px 2px rgba(11,42,92,.06),0 2px 8px rgba(11,42,92,.05);
+  --shadow-raised:0 4px 12px rgba(11,42,92,.08),0 16px 40px rgba(11,42,92,.10);
+  --shadow-focus-ring:0 0 0 3px var(--color-surface-page),0 0 0 6px var(--color-focus);
+  --shadow-focus-ring-inverse:0 0 0 3px var(--color-surface-inverse),0 0 0 6px var(--color-text-inverse);
+
+  /* motion */
+  --duration-fast:120ms;
+  --duration-base:200ms;
+  --duration-slow:320ms;
+  --ease-out:cubic-bezier(.22,.61,.36,1);
+  --ease-in:cubic-bezier(.55,.06,.68,.19);
+  --ease-in-out:cubic-bezier(.45,.05,.55,.95);
+  --transition-micro:var(--duration-fast) var(--ease-out);
+
+  --opacity-disabled:.5;
+}
+
+:root[data-theme="dark"]{
+  color-scheme: dark;
+
+  --color-surface-page:#131416;
+  --color-surface-card:#1d2024;
+  --color-surface-raised:#272b30;
+  --color-surface-brand:#18263d;
+  --color-surface-inverse:#0d1f3d;
+  --color-surface-inverse-raised:#16305a;
+  --color-surface-notice:#2b2313;
+
+  --color-text-primary:#f1f3f5;
+  --color-text-secondary:#c9ced4;
+  --color-text-inverse:#f1f5fc;
+  --color-text-inverse-secondary:#c4d3ee;
+  --color-text-link:#9cc0ff;
+  --color-text-link-hover:#c4d8ff;
+  --color-text-on-action:#0b1d3a;
+  --color-text-on-inverse-action:#0b1d3a;
+
+  --color-action-primary:#9cc0ff;
+  --color-action-primary-hover:#b4cfff;
+  --color-action-primary-active:#85b0fa;
+  --color-action-secondary-hover:#22324d;
+  --color-action-secondary-active:#2b3e5f;
+  --color-action-inverse:#9cc0ff;
+  --color-action-inverse-hover:#b4cfff;
+  --color-action-inverse-active:#85b0fa;
+  --color-action-destructive:#ff9b8f;
+  --color-interactive-selected-bg:#1f3152;
+  --color-pressed-bg:#0d1f3d;              /* quieter than the hero CTA in dark */
+  --color-pressed-text:#9cc0ff;
+  --color-pressed-hover:#16305a;
+  --color-pressed-active:#1d3a68;
+  --color-pressed-ring:#9cc0ff;
+  --color-mark-bg:#2f5596;
+  --color-mark-dot:#c4d8ff;
+
+  --color-border-default:#3a3f45;
+  --color-border-strong:#8a9097;
+  --color-border-inverse:#2f4c7a;
+  --color-border-error:#ff9b8f;
+  --color-focus:#9cc0ff;
+
+  --color-feedback-success-text:#6fd08c;
+  --color-feedback-success-bg:#15291c;
+  --color-feedback-warning-text:#f0b44a;
+  --color-feedback-warning-bg:#2b2313;
+  --color-feedback-error-text:#ff9b8f;
+  --color-feedback-error-bg:#33191a;
+  --color-feedback-info-text:#9cc0ff;
+  --color-feedback-info-bg:#18263d;
+
+  --color-art-wall:#1d3a68;
+  --color-art-line:#2f4c7a;
+  --color-art-awning:#9cc0ff;
+  --color-art-awning-alt:#5b86cc;
+  --color-art-glass:#0d1f3d;
+  --color-art-card:#f1f5fc;
+  --color-art-ink:#0b2a5c;
+  --color-art-ok:#15692e;
+
+  --shadow-card:0 1px 2px rgba(0,0,0,.30);
+  --shadow-raised:0 4px 12px rgba(0,0,0,.35),0 16px 40px rgba(0,0,0,.30);
+  --shadow-focus-ring:0 0 0 3px var(--color-surface-page),0 0 0 6px var(--color-focus);
+  --shadow-focus-ring-inverse:0 0 0 3px var(--color-surface-inverse),0 0 0 6px var(--color-focus);
+}
